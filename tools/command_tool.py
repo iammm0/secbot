@@ -1,0 +1,131 @@
+"""
+命令执行工具：供智能体执行终端命令
+"""
+import subprocess
+import sys
+from typing import Optional
+from tools.base import BaseTool, ToolResult
+from utils.logger import logger
+
+
+class CommandTool(BaseTool):
+    """命令执行工具：执行系统终端命令"""
+    
+    def __init__(self):
+        super().__init__(
+            name="execute_command",
+            description="执行系统终端命令。可以执行任何系统命令，包括文件操作、进程管理、网络操作等。"
+        )
+    
+    async def execute(self, command: str, shell: bool = True, timeout: int = 30, cwd: Optional[str] = None) -> ToolResult:
+        """
+        执行系统命令
+        
+        Args:
+            command: 要执行的命令
+            shell: 是否使用shell执行（默认True）
+            timeout: 超时时间（秒，默认30）
+            cwd: 工作目录（可选）
+            
+        Returns:
+            ToolResult: 执行结果
+        """
+        try:
+            logger.info(f"执行命令: {command}")
+            
+            # 根据操作系统选择执行方式
+            if sys.platform == "win32":
+                # Windows - 使用 cmd.exe 而不是 PowerShell
+                if shell:
+                    # 使用 cmd.exe 执行命令
+                    # 格式: cmd /c "command"
+                    cmd_command = f'cmd /c "{command}"'
+                    result = subprocess.run(
+                        cmd_command,
+                        shell=False,  # 不使用 shell，直接执行 cmd
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        encoding="utf-8",
+                        errors="ignore",
+                        cwd=cwd
+                    )
+                else:
+                    # 不使用 shell，直接执行命令
+                    result = subprocess.run(
+                        command.split(),
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        encoding="utf-8",
+                        errors="ignore",
+                        cwd=cwd
+                    )
+            else:
+                # Linux/macOS
+                result = subprocess.run(
+                    command,
+                    shell=shell,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    executable="/bin/bash" if sys.platform != "darwin" else "/bin/zsh",
+                    cwd=cwd
+                )
+            
+            success = result.returncode == 0
+            
+            return ToolResult(
+                success=success,
+                result={
+                    "command": command,
+                    "returncode": result.returncode,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "output": result.stdout if success else result.stderr
+                },
+                error=result.stderr if not success else ""
+            )
+            
+        except subprocess.TimeoutExpired:
+            logger.warning(f"命令执行超时: {command}")
+            return ToolResult(
+                success=False,
+                result=None,
+                error=f"命令执行超时（{timeout}秒）"
+            )
+        except Exception as e:
+            logger.error(f"执行命令错误: {e}")
+            return ToolResult(
+                success=False,
+                result=None,
+                error=str(e)
+            )
+    
+    def get_schema(self) -> dict:
+        """获取工具模式"""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": {
+                "command": {
+                    "type": "string",
+                    "description": "要执行的系统命令"
+                },
+                "shell": {
+                    "type": "boolean",
+                    "description": "是否使用shell执行（默认True）",
+                    "default": True
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "超时时间（秒，默认30）",
+                    "default": 30
+                },
+                "cwd": {
+                    "type": "string",
+                    "description": "工作目录（可选）"
+                }
+            }
+        }
+
