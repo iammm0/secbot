@@ -1324,9 +1324,158 @@ def revoke(
         raise typer.Exit(1)
 
 
+@app.command()
+def exploit(
+    target: str = typer.Argument(..., help="目标URL或IP地址"),
+    exploit_type: str = typer.Option("web", "--type", "-t", help="漏洞利用类型 (web/network/post)"),
+    payload_type: str = typer.Option("sql_injection", "--payload", "-p", help="Payload类型"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="保存结果到文件")
+):
+    """执行漏洞利用"""
+    async def _exploit():
+        try:
+            from exploit.exploit_engine import ExploitEngine
+            
+            console.print(f"[cyan]开始漏洞利用: {target}[/cyan]")
+            console.print(f"[yellow]利用类型: {exploit_type}, Payload: {payload_type}[/yellow]\n")
+            
+            engine = ExploitEngine()
+            result = await engine.execute_exploit(
+                exploit_type=exploit_type,
+                target=target,
+                payload={"type": payload_type}
+            )
+            
+            if result.get("success"):
+                console.print(Panel(
+                    f"[bold]状态:[/bold] {'成功' if result.get('vulnerable') else '失败'}\n"
+                    f"[bold]类型:[/bold] {result.get('exploit_type', 'N/A')}\n"
+                    f"[bold]结果:[/bold] {len(result.get('results', []))} 个测试结果",
+                    title="[bold green]漏洞利用结果[/bold green]",
+                    border_style="green"
+                ))
+                
+                if result.get("results"):
+                    table = Table(title="利用结果详情", show_header=True)
+                    table.add_column("Payload", style="cyan")
+                    table.add_column("状态", style="green")
+                    
+                    for r in result.get("results", [])[:10]:
+                        status = "✓ 成功" if r.get("vulnerable") else "✗ 失败"
+                        table.add_row(r.get("payload", "N/A"), status)
+                    
+                    console.print(table)
+            else:
+                console.print(f"[red]错误: {result.get('error', '未知错误')}[/red]")
+            
+            if output:
+                import json
+                output.write_text(
+                    json.dumps(result, ensure_ascii=False, indent=2),
+                    encoding="utf-8"
+                )
+                console.print(f"[green]✓ 结果已保存到: {output}[/green]")
+        
+        except Exception as e:
+            logger.error(f"漏洞利用错误: {e}")
+            console.print(f"[red]错误: {e}[/red]")
+            raise typer.Exit(1)
+    
+    asyncio.run(_exploit())
+
+
+@app.command()
+def attack_chain(
+    target: str = typer.Argument(..., help="目标URL或IP地址"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="保存结果到文件")
+):
+    """执行完整的自动化攻击链"""
+    async def _attack_chain():
+        try:
+            from attack_chain.attack_chain import AttackChain
+            
+            console.print(f"[cyan]开始执行完整攻击链: {target}[/cyan]\n")
+            console.print("[yellow]警告：此操作将执行完整的渗透测试流程，请确保已获得授权！[/yellow]\n")
+            
+            chain = AttackChain()
+            result = await chain.execute_full_chain(target)
+            
+            # 显示结果摘要
+            console.print(Panel(
+                f"[bold]目标:[/bold] {result.get('target')}\n"
+                f"[bold]耗时:[/bold] {result.get('duration', 0):.2f} 秒\n"
+                f"[bold]阶段:[/bold] {len(result.get('results', {}))} 个阶段完成",
+                title="[bold green]攻击链执行完成[/bold green]",
+                border_style="green"
+            ))
+            
+            # 显示各阶段结果
+            stages = result.get("results", {})
+            for stage_name, stage_result in stages.items():
+                console.print(f"\n[bold cyan]{stage_name}:[/bold cyan]")
+                if isinstance(stage_result, dict):
+                    if stage_result.get("success"):
+                        console.print(f"  [green]✓ 成功[/green]")
+                    else:
+                        console.print(f"  [red]✗ 失败[/red]")
+            
+            if output:
+                import json
+                output.write_text(
+                    json.dumps(result, ensure_ascii=False, indent=2),
+                    encoding="utf-8"
+                )
+                console.print(f"[green]✓ 结果已保存到: {output}[/green]")
+        
+        except Exception as e:
+            logger.error(f"攻击链执行错误: {e}")
+            console.print(f"[red]错误: {e}[/red]")
+            raise typer.Exit(1)
+    
+    asyncio.run(_attack_chain())
+
+
+@app.command()
+def generate_payload(
+    payload_type: str = typer.Argument(..., help="Payload类型 (sql_injection/xss/command_injection/path_traversal)"),
+    count: int = typer.Option(10, "--count", "-c", help="生成数量"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="保存到文件")
+):
+    """生成攻击Payload"""
+    try:
+        from payloads.web_payloads import WebPayloadGenerator
+        
+        console.print(f"[cyan]生成 {payload_type} Payload...[/cyan]\n")
+        
+        generator = WebPayloadGenerator()
+        payloads = generator.generate(payload_type)
+        
+        # 限制数量
+        payloads = payloads[:count]
+        
+        table = Table(title=f"{payload_type} Payloads", show_header=True)
+        table.add_column("序号", style="cyan")
+        table.add_column("Payload", style="green")
+        
+        for i, payload in enumerate(payloads, 1):
+            table.add_row(str(i), payload)
+        
+        console.print(table)
+        console.print(f"\n[green]共生成 {len(payloads)} 个Payload[/green]")
+        
+        if output:
+            output.write_text("\n".join(payloads), encoding="utf-8")
+            console.print(f"[green]✓ Payload已保存到: {output}[/green]")
+    
+    except Exception as e:
+        logger.error(f"Payload生成错误: {e}")
+        console.print(f"[red]错误: {e}[/red]")
+        raise typer.Exit(1)
+
+
 @app.callback()
 def main():
-    """M-Bot: 智能体设计模式实验平台"""
+    """M-Bot: 自动化渗透测试机器人"""
     pass
 
 
