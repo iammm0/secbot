@@ -1,0 +1,13 @@
+# 包含 main.py 文件
+include main.py
+include config.py
+include env.example
+include README.md
+include requirements.txt
+
+# 包含提示词模板
+recursive-include prompts/templates *.yaml *.yml
+
+# 包含文档
+recursive-include docs *.md
+

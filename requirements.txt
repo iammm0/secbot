@@ -1,0 +1,64 @@
+# 核心AI和智能体框架
+langchain>=0.1.0
+langchain-community>=0.0.20
+langchain-core>=0.1.23
+langchain-experimental>=0.0.50  # 实验性功能，包含更多 Agent 类型
+langchain-ollama>=0.1.0  # Ollama 集成（替代已弃用的 langchain_community.chat_models.ChatOllama）
+
+# 异步和并发
+aiohttp>=3.9.1
+httpx>=0.26.0
+
+# CLI框架
+typer>=0.9.0
+rich>=13.7.0
+
+# 数据处理
+pydantic>=2.5.3
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+numpy>=1.24.0
+
+# 工具和工具调用
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+selenium>=4.17.0
+playwright>=1.41.0
+
+# 向量数据库和嵌入
+# 使用Ollama进行嵌入，只需要向量存储
+chromadb>=0.4.22
+faiss-cpu>=1.7.4
+
+# 记忆和状态管理
+redis>=5.0.1
+sqlalchemy>=2.0.25
+
+# 系统控制
+psutil>=5.9.0
+distro>=1.8.0
+
+# 日志和监控
+loguru>=0.7.2
+
+# 测试
+pytest>=8.0.0
+pytest-asyncio>=0.23.3
+
+# 其他工具
+python-multipart>=0.0.6
+websockets>=12.0
+tiktoken>=0.5.2
+
+# 语音处理
+# 注意：Whisper模型在首次使用时自动下载（base模型约150MB）
+# TTS使用gTTS（在线）或pyttsx3（系统TTS），无需下载模型
+openai-whisper>=20231117  # STT: 语音转文字（Whisper模型自动下载）
+gtts>=2.5.0  # TTS: 文字转语音（Google TTS，需要网络）
+pyttsx3>=2.90  # TTS: 文字转语音（本地系统TTS，无需网络）
+pydub>=0.25.1  # 音频处理工具
+
+# 远程控制
+paramiko>=3.4.0
+pywinrm>=0.4.3

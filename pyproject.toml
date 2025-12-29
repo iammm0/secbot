@@ -1,0 +1,116 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "m-bot"
+version = "1.0.0"
+description = "M-Bot: 智能安全测试机器人和超级私人助理"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "赵明俊", email = "zhaomingjun@example.com"}
+]
+keywords = ["ai", "agent", "security", "automation", "llm", "langchain"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+]
+
+dependencies = [
+    "langchain>=0.1.0",
+    "langchain-community>=0.0.20",
+    "langchain-core>=0.1.23",
+    "langchain-experimental>=0.0.50",
+    "langchain-ollama>=0.1.0",
+    "aiohttp>=3.9.1",
+    "httpx>=0.26.0",
+    "typer>=0.9.0",
+    "rich>=13.7.0",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+    "numpy>=1.24.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.2",
+    "selenium>=4.17.0",
+    "playwright>=1.41.0",
+    "chromadb>=0.4.22",
+    "faiss-cpu>=1.7.4",
+    "redis>=5.0.1",
+    "sqlalchemy>=2.0.25",
+    "psutil>=5.9.0",
+    "distro>=1.8.0",
+    "loguru>=0.7.2",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.3",
+    "python-multipart>=0.0.6",
+    "websockets>=12.0",
+    "tiktoken>=0.5.2",
+    "openai-whisper>=20231117",
+    "gtts>=2.5.0",
+    "pyttsx3>=2.90",
+    "pydub>=0.25.1",
+    "paramiko>=3.4.0",
+    "pywinrm>=0.4.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.3",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+m-bot = "m_bot.cli:app"
+mbot = "m_bot.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/zhaomingjun/m-bot"
+Documentation = "https://github.com/zhaomingjun/m-bot/docs"
+Repository = "https://github.com/zhaomingjun/m-bot"
+Issues = "https://github.com/zhaomingjun/m-bot/issues"
+
+[tool.setuptools]
+packages = [
+    "m_bot",
+    "agents",
+    "controller",
+    "crawler",
+    "database",
+    "defense",
+    "memory",
+    "patterns",
+    "prompts",
+    "scanner",
+    "system",
+    "tools",
+    "utils",
+]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.txt", "*.md"]
+
+[tool.black]
+line-length = 120
+target-version = ['py310', 'py311', 'py312']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
