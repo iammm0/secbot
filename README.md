@@ -1,177 +1,285 @@
-# M-Bot: 安全测试机器人和超级私人助理
+# M-Bot: Automated Penetration Testing Robot
 
-M-Bot 是一名专业的安全测试机器人和超级私人助理，由开发者赵明俊创建。其主要功能是作为总接口控制私有云资产和经过授权的主机，提供全方位的安全测试、系统控制和智能助理服务。
+<div align="center">
 
-## 功能特性
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Status](https://img.shields.io/badge/status-beta-orange.svg)
 
-- 🤖 多种智能体设计模式实现
-- 💻 命令行界面（CLI），使用Typer构建
-- 🎤 完整的语音交互功能（语音转文字、文字转语音）
-- 🕷️ AI爬虫机器人：实时捕捉互联网信息
-- 💻 操作系统控制模块：文件、进程、系统信息管理
-- 📝 提示词链管理：灵活配置智能体提示词
-- 💾 SQLite数据库：持久化存储对话历史、提示词链、配置等
-- 🐳 Docker Compose：快速启动 ChromaDB 和 Redis 开发环境
-- 🔍 网络探测工具：端口扫描、服务识别、漏洞扫描
-- ⚔️ 漏洞利用引擎：自动化执行SQL注入、XSS、命令注入、文件上传、路径遍历、SSRF等漏洞利用
-- 🔗 自动化攻击链：完整的渗透测试流程自动化（信息收集→漏洞扫描→漏洞利用→后渗透）
-- 📦 Payload生成器：自动生成各种攻击payload
-- 🎯 后渗透工具：权限提升、持久化、横向移动、数据exfiltration
-- ⚔️ 网络攻击测试工具：暴力破解、DoS测试、缓冲区溢出等（仅用于授权的安全测试）
-- ⏰ 定时任务调度：支持定时执行渗透测试任务
-- 🛡️ 主动防御系统：信息收集、漏洞扫描、网络分析、入侵检测、自动反制
-- 📊 安全报告生成：自动生成详细的安全分析报告
-- 🔍 内网发现：自动发现内网中的所有目标主机
-- 🎯 授权管理：管理对目标主机的合法授权
-- 🖥️ 远程控制：在授权后对目标主机进行远程控制（命令执行、文件传输）
-- 🔧 丰富的工具和插件支持
-- 📝 可扩展的架构设计
-- 🎨 美观的终端输出（使用Rich）
+**An intelligent automated penetration testing robot with AI-powered security testing capabilities**
 
-## 快速开始
+[English](#m-bot-automated-penetration-testing-robot) | [中文](README_CN.md)
 
-### 1. 安装依赖
+</div>
+
+---
+
+## ⚠️ Security Warning
+
+**This tool is intended for authorized security testing only. Unauthorized use of this tool for network attacks is illegal.**
+
+- ✅ Only use on systems you own or have explicit written authorization to test
+- ✅ Ensure you comply with all applicable laws and regulations
+- ✅ Use responsibly and ethically
+
+## 🚀 Features
+
+### Core Capabilities
+
+- 🤖 **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
+- 💻 **CLI Interface**: Built with Typer for intuitive command-line interaction
+- 🎤 **Voice Interaction**: Complete speech-to-text and text-to-speech functionality
+- 🕷️ **AI Web Crawler**: Real-time web information capture and monitoring
+- 💻 **OS Control**: File operations, process management, system information
+
+### Penetration Testing
+
+- 🔍 **Reconnaissance**: Automated information gathering (hostname, IP, ports, services)
+- 🔍 **Vulnerability Scanning**: Port scanning, service detection, vulnerability identification
+- ⚔️ **Exploit Engine**: Automated exploitation of SQL injection, XSS, command injection, file upload, path traversal, SSRF
+- 🔗 **Automated Attack Chain**: Complete penetration testing workflow automation
+  - Information Gathering → Vulnerability Scanning → Exploitation → Post-Exploitation
+- 📦 **Payload Generator**: Automatic generation of attack payloads
+- 🎯 **Post-Exploitation**: Privilege escalation, persistence, lateral movement, data exfiltration
+- ⚔️ **Network Attacks**: Brute force, DoS testing, buffer overflow (authorized testing only)
+
+### Security & Defense
+
+- 🛡️ **Active Defense**: Information collection, vulnerability scanning, network analysis, intrusion detection
+- 📊 **Security Reports**: Automated detailed security analysis reports
+- 🔍 **Network Discovery**: Automatic discovery of all hosts in the network
+- 🎯 **Authorization Management**: Manage legal authorization for target hosts
+- 🖥️ **Remote Control**: Remote command execution and file transfer on authorized hosts
+
+### Additional Features
+
+- 📝 **Prompt Chain Management**: Flexible agent prompt configuration
+- 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
+- 🐳 **Docker Compose**: Quick start for ChromaDB and Redis development environment
+- ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
+- 🎨 **Beautiful Terminal Output**: Rich formatting with Rich library
+
+## 📋 Requirements
+
+- Python 3.10+
+- Ollama (for LLM inference)
+- See [requirements.txt](requirements.txt) for full dependencies
+
+## 🛠️ Installation
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/iammm0/m-bot.git
+cd m-bot
+```
+
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 安装并启动Ollama
-
-确保已安装Ollama并下载所需模型：
+### 3. Install and Start Ollama
 
 ```bash
-# 安装Ollama（如果未安装）
-# 访问 https://ollama.ai 下载安装
+# Install Ollama from https://ollama.ai
 
-# 下载推理模型
+# Pull required models
 ollama pull gpt-oss:20b
-
-# 下载向量嵌入模型（用于文本向量化）
 ollama pull nomic-embed-text
 
-# 启动Ollama服务（默认运行在 http://localhost:11434）
+# Ollama service runs on http://localhost:11434 by default
 ```
 
-### 3. 配置环境变量
-
-复制 `.env.example` 为 `.env`：
+### 4. Configure Environment
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，根据需要调整Ollama配置：
-- `OLLAMA_MODEL`: 推理模型（默认: `gpt-oss:20b`）
-- `OLLAMA_EMBEDDING_MODEL`: 向量嵌入模型（默认: `nomic-embed-text`）
+Edit `.env` file:
+- `OLLAMA_MODEL`: Inference model (default: `gpt-oss:20b`)
+- `OLLAMA_EMBEDDING_MODEL`: Embedding model (default: `nomic-embed-text`)
 
-### 4. 使用CLI应用
+### 5. Build and Install (Optional)
 
-#### 查看帮助
 ```bash
-python main.py --help
+# Build package
+python -m build
+
+# Install package
+pip install dist/m_bot-1.0.0-py3-none-any.whl
+
+# Now you can use 'mbot' command directly
+mbot --help
 ```
 
-#### 文本聊天
+## 🎯 Quick Start
+
+### Basic Usage
+
 ```bash
-# 基本聊天
-python main.py chat "你好，介绍一下你自己"
+# View help
+mbot --help
 
-# 使用自定义提示词
-python main.py chat "解释Python" --prompt "你是一个Python专家，请用简洁的语言解释"
+# Interactive chat
+mbot interactive
 
-# 使用预定义模板
-python main.py chat "写一首诗" --template creative
-
-# 使用提示词链
-python main.py chat "分析代码" --prompt-chain expert,technical
-
-# 从文件加载提示词
-python main.py chat "回答问题" --prompt-file prompts/my_prompt.txt
+# Text chat
+mbot chat "Hello, introduce yourself"
 ```
 
-#### 交互式聊天
-```bash
-# 基本交互模式
-python main.py interactive
+### Penetration Testing Commands
 
-# 使用自定义提示词
-python main.py interactive --prompt "你是一个友好的助手"
+```bash
+# Execute vulnerability exploitation
+mbot exploit http://target.com --type web --payload sql_injection
+
+# Execute full automated attack chain
+mbot attack-chain http://target.com
+
+# Generate attack payloads
+mbot generate-payload xss --count 20
+
+# Network discovery
+mbot discover
+
+# Port scanning (via chat)
+mbot chat "Scan ports on 192.168.1.1"
 ```
 
-#### 语音聊天
+### System Operations
+
 ```bash
-python main.py voice recording.wav
+# System information
+mbot system-info
+
+# System status
+mbot system-status
+
+# List processes
+mbot list-processes --filter python
+
+# Execute command
+mbot execute "ls -la"
 ```
 
-#### 系统操作
+### Database Management
+
 ```bash
-# 显示系统信息
-python main.py system-info
+# View statistics
+mbot db-stats
 
-# 显示系统状态（CPU、内存、磁盘）
-python main.py system-status
+# View conversation history
+mbot db-history --limit 20
 
-# 列出进程
-python main.py list-processes --filter python
-
-# 执行系统命令
-python main.py execute "ls -la"
-
-# 列出文件
-python main.py file-list /path/to/dir
+# Clear history (requires confirmation)
+mbot db-clear --yes
 ```
 
-#### 数据库管理
-```bash
-# 查看数据库统计信息
-python main.py db-stats
-
-# 查看对话历史
-python main.py db-history --limit 20
-
-# 查看特定智能体的对话历史
-python main.py db-history --agent simple --limit 10
-
-# 清空对话历史（需要确认）
-python main.py db-clear --yes
-```
-
-#### 查看所有命令
-```bash
-python main.py --help
-```
-
-## 项目结构
+## 📁 Project Structure
 
 ```
 m-bot/
-├── main.py              # CLI应用入口
-├── config.py            # 配置管理
-├── agents/              # 智能体实现
-├── patterns/            # 设计模式
-├── tools/               # 工具和插件
-├── crawler/             # AI爬虫机器人
-├── system/              # 操作系统控制
-├── memory/              # 记忆管理
-├── utils/               # 工具函数
-├── tests/               # 测试文件
-├── logs/                # 日志文件
-├── requirements.txt     # 依赖项
-└── README.md           # 说明文档
+├── main.py                 # CLI application entry
+├── config.py               # Configuration management
+├── m_bot/                  # Package CLI module
+├── agents/                 # Agent implementations
+│   ├── base.py            # Base agent class
+│   └── langchain_agent.py # LangChain agent
+├── patterns/               # Design patterns
+│   └── react.py           # ReAct pattern
+├── exploit/                # Exploitation module
+│   ├── exploit_engine.py  # Exploit engine
+│   ├── web_exploits.py    # Web exploits
+│   ├── network_exploits.py # Network exploits
+│   └── post_exploitation.py # Post-exploitation
+├── attack_chain/           # Automated attack chain
+│   ├── attack_chain.py     # Main attack chain
+│   ├── reconnaissance.py   # Information gathering
+│   └── exploitation.py    # Exploitation coordination
+├── payloads/               # Payload generators
+│   ├── web_payloads.py     # Web payloads
+│   └── network_payloads.py # Network payloads
+├── scanner/                # Scanning tools
+│   ├── port_scanner.py     # Port scanning
+│   ├── service_detector.py # Service detection
+│   └── vulnerability_scanner.py # Vulnerability scanning
+├── defense/                # Defense system
+├── controller/             # Remote control
+├── crawler/                # Web crawler
+├── database/               # Database management
+├── memory/                 # Memory management
+├── prompts/                # Prompt management
+├── system/                 # OS control
+├── tools/                  # Tools and plugins
+└── utils/                  # Utility functions
 ```
 
-## 智能体设计模式
+## 🔧 Development
 
-本项目支持以下设计模式：
+### Running Tests
 
-- **ReAct模式**: 推理和行动循环
-- **Plan-Execute模式**: 规划-执行模式
-- **Multi-Agent模式**: 多智能体协作
-- **Tool-Using模式**: 工具使用模式
-- **Memory-Augmented模式**: 记忆增强模式
+```bash
+pytest tests/
+```
 
-## 开发指南
+### Building Package
 
-详见各模块的文档说明。
+```bash
+# Windows
+build.bat
 
+# Linux/Mac
+./build.sh
+```
+
+## 📚 Documentation
+
+- [Quick Start Guide](docs/QUICKSTART.md)
+- [Database Guide](docs/DATABASE_GUIDE.md)
+- [Docker Setup](docs/DOCKER_SETUP.md)
+- [Ollama Setup](docs/OLLAMA_SETUP.md)
+- [Security Warning](docs/SECURITY_WARNING.md)
+- [Prompt Guide](docs/PROMPT_GUIDE.md)
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 👤 Author
+
+**赵明俊 (Zhao Mingjun)**
+
+- GitHub: [@iammm0](https://github.com/iammm0)
+- Email: zhaomingjun@example.com
+
+## 🙏 Acknowledgments
+
+- Built with [LangChain](https://github.com/langchain-ai/langchain)
+- Powered by [Ollama](https://ollama.ai)
+- CLI built with [Typer](https://typer.tiangolo.com)
+- Beautiful output with [Rich](https://github.com/Textualize/rich)
+
+## ⚠️ Disclaimer
+
+This tool is provided for educational and authorized security testing purposes only. The authors and contributors are not responsible for any misuse or damage caused by this tool. Users must ensure they have proper authorization before using this tool on any system.
+
+---
+
+<div align="center">
+
+**⭐ If you find this project useful, please consider giving it a star! ⭐**
+
+</div>
