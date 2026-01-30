@@ -1,4 +1,4 @@
-# M-Bot: Automated Penetration Testing Robot
+# hackbot: Automated Penetration Testing Robot
 
 <div align="center">
 
@@ -283,3 +283,4 @@ This tool is provided for educational and authorized security testing purposes o
 **⭐ If you find this project useful, please consider giving it a star! ⭐**
 
 </div>
+
