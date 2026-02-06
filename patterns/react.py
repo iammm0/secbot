@@ -1,5 +1,6 @@
 """
-ReAct模式：推理和行动循环
+ReAct模式：推理和行动循环（旧版骨架实现）
+注意：新版 LLM 驱动的 ReAct 引擎请使用 patterns/security_react.py 中的 SecurityReActAgent。
 """
 from typing import List, Dict, Any
 from agents.base import BaseAgent

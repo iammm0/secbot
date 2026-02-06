@@ -1,23 +1,38 @@
 """
 语音处理模块：语音转文字（STT）和文字转语音（TTS）
+STT 支持：openai-whisper（whisper）、faster-whisper（fast_whisper，推荐）
 """
-import httpx
-import io
-from typing import Optional, BinaryIO
+import os
+import tempfile
+from typing import Optional
+
 from config import settings
 from utils.logger import logger
 
 
 class SpeechToText:
-    """语音转文字（使用Whisper）"""
+    """语音转文字（支持 Whisper / Faster-Whisper）"""
     
-    def __init__(self, model: str = None, base_url: str = None):
-        self.base_url = base_url or settings.ollama_base_url
+    def __init__(
+        self,
+        engine: Optional[str] = None,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        device: Optional[str] = None,
+        compute_type: Optional[str] = None,
+        vad_filter: Optional[bool] = None,
+    ):
+        self.base_url = base_url or getattr(settings, "ollama_base_url", "http://localhost:11434")
+        self.engine = (engine or getattr(settings, "stt_engine", "fast_whisper")).strip().lower()
         self.model = model or settings.stt_model
+        self.device = device or getattr(settings, "stt_device", "cpu")
+        self.compute_type = compute_type or getattr(settings, "stt_compute_type", "int8")
+        self.vad_filter = vad_filter if vad_filter is not None else getattr(settings, "stt_vad_filter", True)
+        self._fast_whisper_model = None  # 缓存 faster-whisper 模型
     
     async def transcribe(self, audio_data: bytes, audio_format: str = "wav") -> str:
         """
-        将音频转换为文字（使用Whisper）
+        将音频转换为文字。
         
         Args:
             audio_data: 音频文件的二进制数据
@@ -26,40 +41,70 @@ class SpeechToText:
         Returns:
             转录的文字
         """
+        if self.engine == "fast_whisper":
+            return await self._transcribe_with_fast_whisper(audio_data, audio_format)
         return await self._transcribe_with_whisper(audio_data)
     
+    async def _transcribe_with_fast_whisper(self, audio_data: bytes, audio_format: str = "wav") -> str:
+        """使用 faster-whisper 进行语音识别（推荐：更快、更省显存）"""
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError:
+            raise ImportError("使用 fast_whisper 需安装: pip install faster-whisper")
+        
+        import asyncio
+        
+        def _run():
+            nonlocal self
+            if self._fast_whisper_model is None:
+                self._fast_whisper_model = WhisperModel(
+                    self.model,
+                    device=self.device,
+                    compute_type=self.compute_type,
+                )
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{audio_format}") as tmp_file:
+                tmp_file.write(audio_data)
+                tmp_path = tmp_file.name
+            try:
+                segments, info = self._fast_whisper_model.transcribe(
+                    tmp_path,
+                    vad_filter=self.vad_filter,
+                )
+                text = " ".join(s.text for s in segments).strip()
+                logger.info(f"Faster-Whisper 转录完成 (语言: {getattr(info, 'language', '?')}): {text[:50]}")
+                return text
+            finally:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+        
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _run)
+    
     async def _transcribe_with_whisper(self, audio_data: bytes) -> str:
-        """使用Whisper进行语音识别（本地）"""
+        """使用 openai-whisper 进行语音识别（本地）"""
         try:
             import whisper
-            
-            # 加载Whisper模型（使用配置的模型名称）
+        except ImportError:
+            raise ImportError("使用 whisper 引擎需安装: pip install openai-whisper")
+        
+        import asyncio
+        
+        def _run():
             model = whisper.load_model(self.model)
-            
-            # 将音频数据保存到临时文件
-            import tempfile
-            import os
-            
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
                 tmp_file.write(audio_data)
                 tmp_path = tmp_file.name
-            
             try:
-                # 转录
                 result = model.transcribe(tmp_path)
-                text = result["text"].strip()
-                logger.info(f"Whisper转录完成: {text[:50]}")
-                return text
+                return result["text"].strip()
             finally:
-                # 清理临时文件
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
-                    
-        except ImportError:
-            raise ImportError("需要安装whisper: pip install openai-whisper")
-        except Exception as e:
-            logger.error(f"Whisper转录错误: {e}")
-            raise
+        
+        loop = asyncio.get_event_loop()
+        text = await loop.run_in_executor(None, _run)
+        logger.info(f"Whisper 转录完成: {text[:50]}")
+        return text
 
 
 class TextToSpeech:
