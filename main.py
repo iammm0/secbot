@@ -10,10 +10,12 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.table import Table
 
-from patterns.react import ReActAgent
-from agents.langchain_agent import LangChainAgent
+from agents.hackbot_agent import HackbotAgent
+from agents.superhackbot_agent import SuperHackbotAgent
 from config import settings
-from utils.logger import logger
+from utils.logger import logger, restore_console_log_level
+from utils.audit import AuditTrail
+from utils.slash_commands import normalize_slash_input
 from utils.speech import SpeechToText, TextToSpeech
 from crawler.scheduler import CrawlerScheduler
 from crawler.realtime import RealtimeCrawler
@@ -49,26 +51,21 @@ db_manager = DatabaseManager()
 # 全局提示词管理器（集成数据库）
 prompt_manager = PromptManager(db_manager=db_manager)
 
-# 全局工具实例
-from tools.command_tool import CommandTool
-from tools.system_tool import SystemTool
-command_tool = CommandTool()
-system_tool = SystemTool()
-available_tools = [command_tool, system_tool]
+# 全局会话 ID
+_session_id = str(uuid.uuid4())
 
-# 全局智能体实例（使用 m-bot 安全机器人提示词）
-# 从提示词管理器获取 m_bot_security 模板
-m_bot_prompt = prompt_manager.get_template("m_bot_security") or "你是 m-bot，一名专业的安全测试机器人和超级私人助理。你的开发者是赵明俊。"
+# 全局审计留痕
+audit_trail = AuditTrail(db_manager, _session_id)
 
+# 全局智能体实例（ReAct 模式）
 agents = {
-    "react": ReActAgent(name="m-bot-ReAct", system_prompt=m_bot_prompt, tools=available_tools),
-    "langchain": LangChainAgent(name="m-bot-LangChain", system_prompt=m_bot_prompt, tools=available_tools)
+    "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit_trail),
+    "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit_trail),
 }
 
 # 为智能体添加数据库记忆
 for agent_name, agent_instance in agents.items():
-    session_id = str(uuid.uuid4())
-    db_memory = DatabaseMemory(db_manager, agent_type=agent_name, session_id=session_id)
+    db_memory = DatabaseMemory(db_manager, agent_type=agent_name, session_id=_session_id)
     agent_instance.db_memory = db_memory
 
 # 全局语音处理实例
@@ -101,7 +98,7 @@ def get_agent(agent_type: str):
 @app.command()
 def chat(
     message: str = typer.Argument(..., help="要发送的消息"),
-    agent: str = typer.Option("langchain", "--agent", "-a", help="智能体类型 (react/langchain)"),
+    agent: str = typer.Option("hackbot", "--agent", "-a", help="智能体类型 (hackbot/superhackbot)"),
     prompt: Optional[str] = typer.Option(None, "--prompt", "-p", help="自定义系统提示词"),
     prompt_file: Optional[Path] = typer.Option(None, "--prompt-file", "-f", help="从文件加载提示词"),
     prompt_chain: Optional[str] = typer.Option(None, "--prompt-chain", "-c", help="使用提示词链（用逗号分隔多个提示词名）"),
@@ -179,7 +176,7 @@ def chat(
 @app.command()
 def voice(
     audio_file: Path = typer.Argument(..., help="音频文件路径"),
-    agent: str = typer.Option("langchain", "--agent", "-a", help="智能体类型"),
+    agent: str = typer.Option("hackbot", "--agent", "-a", help="智能体类型 (hackbot/superhackbot)"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="保存音频响应到文件"),
     text_only: bool = typer.Option(False, "--text-only", help="只返回文字，不生成语音")
 ):
@@ -301,8 +298,8 @@ def list_agents():
     table.add_column("名称", style="green")
     table.add_column("描述", style="yellow")
     
-    table.add_row("react", "ReActAgent", "ReAct模式智能体（推理+行动）")
-    table.add_row("langchain", "LangChainAgent", "基于LangChain的智能体（推荐）")
+    table.add_row("hackbot", "Hackbot", "自动模式（ReAct，基础扫描，全自动）")
+    table.add_row("superhackbot", "SuperHackbot", "专家模式（ReAct，全工具，敏感操作需确认）")
     
     console.print(table)
 
@@ -326,19 +323,34 @@ def clear(
 
 @app.command()
 def interactive(
-    agent: str = typer.Option("langchain", "--agent", "-a", help="智能体类型"),
-    voice: bool = typer.Option(False, "--voice", "-v", help="启用语音交互模式")
+    agent: str = typer.Option("hackbot", "--agent", "-a", help="智能体类型 (hackbot/superhackbot)"),
+    voice: bool = typer.Option(False, "--voice", "-v", help="启用语音交互模式"),
+    verbose: bool = typer.Option(False, "--verbose", "-V", help="显示详细日志"),
 ):
-    """交互式聊天模式"""
+    """交互式聊天模式（ReAct 安全测试）"""
+    # 恢复控制台日志级别
+    if verbose:
+        restore_console_log_level("DEBUG")
+    else:
+        restore_console_log_level()
+
     async def _interactive():
         agent_instance = get_agent(agent)
         
+        mode_desc = "自动模式" if agent == "hackbot" else "专家模式（敏感操作需确认）"
+        
         console.print(Panel(
-            f"[bold cyan]M-Bot 交互模式[/bold cyan]\n"
-            f"智能体: [green]{agent}[/green]\n"
+            f"[bold cyan]Hackbot 交互模式[/bold cyan]\n"
+            f"智能体: [green]{agent}[/green] ({mode_desc})\n"
             f"语音模式: [green]{'开启' if voice else '关闭'}[/green]\n\n"
-            f"输入 'exit' 或 'quit' 退出\n"
-            f"输入 'clear' 清空对话历史",
+            f"[bold]命令:[/bold]\n"
+            f"  [cyan]exit[/cyan] / [cyan]quit[/cyan]  退出\n"
+            f"  [cyan]clear[/cyan]         清空对话历史\n"
+            f"  [cyan]/model[/cyan]        查看/切换模型（如 /model ollama gemma3:1b）\n"
+            f"  [cyan]/accept N[/cyan]     确认执行方案 N（superhackbot 模式）\n"
+            f"  [cyan]/reject[/cyan]       拒绝当前方案\n"
+            f"  [cyan]/audit[/cyan]        查看操作留痕\n"
+            f"  [cyan]/audit export[/cyan] 导出审计报告",
             title="欢迎",
             border_style="blue"
         ))
@@ -346,42 +358,116 @@ def interactive(
         while True:
             try:
                 if voice:
-                    # 语音输入模式
                     console.print("\n[yellow]请说话（按Enter结束录音）...[/yellow]")
-                    # 这里可以集成实时录音功能
                     user_input = input("或直接输入文字: ")
                 else:
                     user_input = input("\n你: ")
                 
                 if not user_input.strip():
                     continue
-                
-                if user_input.lower() in ["exit", "quit"]:
+                # 斜杠命令前缀匹配：/m → /model，/ac → /accept 等
+                if user_input.strip().startswith("/"):
+                    normalized, hint = normalize_slash_input(user_input)
+                    if hint is not None:
+                        console.print(hint)
+                        continue
+                    user_input = normalized
+                lower_input = user_input.strip().lower()
+                if lower_input in ["exit", "quit"]:
                     console.print("[yellow]再见！[/yellow]")
                     break
                 
-                if user_input.lower() == "clear":
+                if lower_input == "clear":
                     agent_instance.clear_memory()
                     console.print("[green]✓ 对话历史已清空[/green]")
                     continue
                 
-                # 处理消息
+                # ---- /model 切换 ----
+                if lower_input.startswith("/model"):
+                    parts = user_input.strip().split()
+                    if hasattr(agent_instance, "switch_model") and hasattr(agent_instance, "get_current_model"):
+                        if len(parts) == 1:
+                            console.print(f"[cyan]当前模型: {agent_instance.get_current_model()}[/cyan]")
+                        elif len(parts) == 2:
+                            try:
+                                agent_instance.switch_model(provider=parts[1])
+                                console.print(f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]")
+                            except Exception as e:
+                                console.print(f"[red]切换失败: {e}[/red]")
+                        else:
+                            try:
+                                agent_instance.switch_model(provider=parts[1], model=parts[2])
+                                console.print(f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]")
+                            except Exception as e:
+                                console.print(f"[red]切换失败: {e}[/red]")
+                    else:
+                        console.print("[yellow]当前智能体不支持模型切换[/yellow]")
+                    continue
+                
+                # ---- /accept N ----
+                if lower_input.startswith("/accept"):
+                    if hasattr(agent_instance, "handle_accept"):
+                        parts = user_input.strip().split()
+                        choice = int(parts[1]) if len(parts) > 1 else 1
+                        with console.status("[bold green]执行已确认操作..."):
+                            response = await agent_instance.handle_accept(choice)
+                        console.print(Panel(
+                            Markdown(response),
+                            title="[bold green]智能体[/bold green]",
+                            border_style="green"
+                        ))
+                    else:
+                        console.print("[yellow]当前智能体不支持 /accept（hackbot 自动模式无需确认）[/yellow]")
+                    continue
+                
+                # ---- /reject ----
+                if lower_input == "/reject":
+                    if hasattr(agent_instance, "handle_reject"):
+                        response = await agent_instance.handle_reject()
+                        console.print(f"[yellow]{response}[/yellow]")
+                    else:
+                        console.print("[yellow]当前智能体不支持 /reject[/yellow]")
+                    continue
+                
+                # ---- /audit ----
+                if lower_input.startswith("/audit"):
+                    if lower_input == "/audit export":
+                        report = audit_trail.export_report()
+                        console.print(Panel(
+                            Markdown(report),
+                            title="[bold blue]审计报告[/bold blue]",
+                            border_style="blue"
+                        ))
+                    else:
+                        records = audit_trail.get_trail(limit=20)
+                        if not records:
+                            console.print("[yellow]暂无操作记录[/yellow]")
+                        else:
+                            table = Table(title="操作留痕", show_header=True, header_style="bold magenta")
+                            table.add_column("#", style="dim", width=4)
+                            table.add_column("时间", style="cyan", width=10)
+                            table.add_column("类型", style="green", width=12)
+                            table.add_column("内容", style="white")
+                            for i, rec in enumerate(records, 1):
+                                ts = rec.timestamp.strftime("%H:%M:%S") if rec.timestamp else "?"
+                                content = rec.content[:80] + "..." if len(rec.content) > 80 else rec.content
+                                table.add_row(str(i), ts, rec.step_type, content)
+                            console.print(table)
+                    continue
+                
+                # ---- 处理消息（ReAct 循环）----
                 with console.status("[bold green]思考中..."):
                     response = await agent_instance.process(user_input)
                 
-                # 显示响应
                 console.print(Panel(
                     Markdown(response),
-                    title="[bold green]智能体[/bold green]",
+                    title=f"[bold green]{agent}[/bold green]",
                     border_style="green"
                 ))
                 
-                # 如果启用语音，播放响应
                 if voice:
                     with console.status("[bold green]生成语音中..."):
                         audio_data = await tts.synthesize(response)
-                    
-                    # 这里可以集成音频播放功能
                     console.print("[dim]（语音响应已生成）[/dim]")
             
             except KeyboardInterrupt:
