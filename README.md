@@ -263,7 +263,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **赵明俊 (Zhao Mingjun)**
 
 - GitHub: [@iammm0](https://github.com/iammm0)
-- Email: zhaomingjun@example.com
+- Email: wisewater5419@gmail.com
 
 ## 🙏 Acknowledgments
 
@@ -283,4 +283,5 @@ This tool is provided for educational and authorized security testing purposes o
 **⭐ If you find this project useful, please consider giving it a star! ⭐**
 
 </div>
+
 
