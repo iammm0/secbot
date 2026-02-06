@@ -12,21 +12,46 @@
 确保已安装语音处理相关依赖：
 
 ```bash
+# 推荐：使用 faster-whisper（更快、更省显存）
+pip install faster-whisper gtts pyttsx3 pydub
+
+# 或使用 openai-whisper
 pip install openai-whisper gtts pyttsx3 pydub
 ```
 
 ## 语音转文字（STT）
 
-### 使用Whisper（推荐，本地运行）
+### 使用 Faster-Whisper（推荐）
 
-Whisper是OpenAI开源的语音识别模型，支持本地运行：
+Faster-Whisper 基于 CTranslate2，比 openai-whisper 更快、更省显存，无需 FFmpeg。默认引擎为 `fast_whisper`。
 
 ```bash
-# 安装Whisper
-pip install openai-whisper
-
-# Whisper会自动下载模型（首次使用时）
+pip install faster-whisper
 ```
+
+在 `.env` 中配置语音输入：
+
+```env
+STT_ENGINE=fast_whisper
+STT_MODEL=base
+STT_DEVICE=cpu
+STT_COMPUTE_TYPE=int8
+STT_VAD_FILTER=true
+```
+
+- **STT_MODEL**：可选 `tiny`/`base`/`small`/`medium`/`large-v2`/`large-v3`/`turbo`/`distil-large-v3`
+- **STT_DEVICE**：`cpu` 或 `cuda`
+- **STT_COMPUTE_TYPE**：CPU 推荐 `int8`/`float32`，GPU 推荐 `float16`
+
+### 使用 Whisper（openai-whisper）
+
+OpenAI 开源的语音识别模型，支持本地运行：
+
+```bash
+pip install openai-whisper
+```
+
+在 `.env` 中设置 `STT_ENGINE=whisper`，模型名为 `tiny`/`base`/`small`/`medium`/`large`。首次使用会自动下载模型。
 
 ### API端点
 
@@ -203,12 +228,18 @@ with open('recording.wav', 'rb') as f:
 
 ## 配置说明
 
-在 `.env` 文件中可以配置：
+在 `.env` 文件中可以配置语音输入（STT）与输出（TTS）：
 
 ```env
-# Ollama语音模型（如果Ollama支持）
-OLLAMA_STT_MODEL=whisper
-OLLAMA_TTS_MODEL=tts
+# 语音输入：引擎 whisper | fast_whisper（推荐）
+STT_ENGINE=fast_whisper
+STT_MODEL=base
+STT_DEVICE=cpu
+STT_COMPUTE_TYPE=int8
+STT_VAD_FILTER=true
+
+# 语音输出
+TTS_ENGINE=gtts
 ```
 
 ## 注意事项
