@@ -11,7 +11,7 @@ from contextlib import contextmanager
 
 from database.models import (
     Conversation, PromptChainModel, UserConfig, CrawlerTask,
-    AttackTask, ScanResult
+    AttackTask, ScanResult, AuditRecord
 )
 from config import settings
 from utils.logger import logger
@@ -154,6 +154,19 @@ class DatabaseManager:
                 )
             """)
             
+            # 操作审计留痕表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS audit_trail (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    agent TEXT NOT NULL,
+                    step_type TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    metadata TEXT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # 创建索引
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_session ON conversations(session_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)")
@@ -161,6 +174,8 @@ class DatabaseManager:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_configs_key ON user_configs(key)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_attack_tasks_status ON attack_tasks(status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_target ON scan_results(target)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_trail_session ON audit_trail(session_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_trail_timestamp ON audit_trail(timestamp)")
             
             conn.commit()
             logger.info("数据库表初始化完成")
@@ -526,6 +541,62 @@ class DatabaseManager:
                     metadata=metadata
                 ))
             return tasks
+    
+    # ========== 操作审计留痕 ==========
+    
+    def save_audit_record(self, record: AuditRecord) -> int:
+        """保存审计记录"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO audit_trail
+                (session_id, agent, step_type, content, metadata, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                record.session_id,
+                record.agent,
+                record.step_type,
+                record.content,
+                json.dumps(record.metadata or {}) if record.metadata else None,
+                record.timestamp or datetime.now(),
+            ))
+            return cursor.lastrowid
+    
+    def get_audit_trail(
+        self,
+        session_id: str,
+        limit: Optional[int] = None,
+    ) -> List[AuditRecord]:
+        """获取指定会话的审计留痕"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            query = "SELECT * FROM audit_trail WHERE session_id = ? ORDER BY timestamp ASC"
+            params: list = [session_id]
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            records = []
+            for row in rows:
+                metadata = json.loads(row["metadata"]) if row["metadata"] else {}
+                records.append(AuditRecord(
+                    id=row["id"],
+                    session_id=row["session_id"],
+                    agent=row["agent"],
+                    step_type=row["step_type"],
+                    content=row["content"],
+                    metadata=metadata,
+                    timestamp=datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else None,
+                ))
+            return records
+    
+    def delete_audit_trail(self, session_id: str) -> int:
+        """删除指定会话的审计留痕"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM audit_trail WHERE session_id = ?", (session_id,))
+            return cursor.rowcount
     
     # ========== 统计信息 ==========
     
