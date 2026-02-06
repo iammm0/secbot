@@ -1,0 +1,39 @@
+"""信息收集工具"""
+from typing import Any, Dict
+from tools.base import BaseTool, ToolResult
+
+
+class ReconTool(BaseTool):
+    """信息收集工具：对目标进行侦察和信息搜集"""
+
+    sensitivity = "low"
+
+    def __init__(self):
+        super().__init__(
+            name="recon",
+            description="对目标进行信息收集（主机名、IP、DNS、开放端口、Web信息等）。参数: target(目标域名或IP)",
+        )
+
+    async def execute(self, **kwargs) -> ToolResult:
+        from attack_chain.reconnaissance import Reconnaissance
+
+        target = kwargs.get("target", "")
+        if not target:
+            return ToolResult(success=False, result=None, error="缺少参数: target")
+
+        try:
+            recon = Reconnaissance()
+            result = await recon.gather_info(target)
+            return ToolResult(success=True, result=result)
+        except Exception as e:
+            return ToolResult(success=False, result=None, error=str(e))
+
+    def get_schema(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "sensitivity": self.sensitivity,
+            "parameters": {
+                "target": {"type": "string", "description": "目标域名或 IP", "required": True},
+            },
+        }
