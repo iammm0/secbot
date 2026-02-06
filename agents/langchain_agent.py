@@ -1,14 +1,20 @@
 """
 基于 LangChain 的智能体实现
 使用 LangChain 进行任务编排和工具调用
+支持 Ollama（本地）与 DeepSeek（云端 API）两种推理后端
 """
 from typing import Optional, List, Dict, Any
 
 try:
     from langchain_ollama import ChatOllama
 except ImportError:
-    # 如果 langchain-ollama 未安装，回退到旧版本（会显示弃用警告）
     from langchain_community.chat_models import ChatOllama
+try:
+    from langchain_openai import ChatOpenAI
+except ImportError:
+    ChatOpenAI = None  # 使用 DeepSeek 时需安装 langchain-openai
+
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import BaseTool as LangChainBaseTool
 
@@ -17,6 +23,44 @@ from config import settings
 from tools.base import BaseTool
 from utils.logger import logger
 from utils.tool_caller import ToolDescriptionGenerator
+
+
+def _create_llm(
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    base_url: Optional[str] = None,
+    temperature: Optional[float] = None,
+) -> BaseChatModel:
+    """根据配置或运行时参数创建推理模型（Ollama 或 DeepSeek）。"""
+    p = (provider or settings.llm_provider or "ollama").strip().lower()
+    if p == "ollama":
+        return ChatOllama(
+            base_url=base_url or settings.ollama_base_url,
+            model=model or settings.ollama_model,
+            temperature=temperature if temperature is not None else settings.ollama_temperature,
+        )
+    if p == "deepseek":
+        if ChatOpenAI is None:
+            raise ImportError(
+                "使用 DeepSeek 推理需安装 langchain-openai，请执行: pip install langchain-openai"
+            )
+        if not settings.deepseek_api_key:
+            raise ValueError(
+                "使用 DeepSeek 时请设置环境变量 DEEPSEEK_API_KEY"
+            )
+        # 支持 reasoner 别名：推理模式（思考链）
+        resolved = (model or settings.deepseek_model).strip()
+        if resolved.lower() == "reasoner":
+            resolved = settings.deepseek_reasoner_model
+        return ChatOpenAI(
+            api_key=settings.deepseek_api_key,
+            base_url=(base_url or settings.deepseek_base_url).rstrip("/"),
+            model=resolved,
+            temperature=temperature if temperature is not None else settings.deepseek_temperature,
+        )
+    raise ValueError(
+        f"不支持的推理后端: {p}，可选值: ollama, deepseek"
+    )
 
 
 class LangChainToolWrapper(LangChainBaseTool):
@@ -77,16 +121,17 @@ class LangChainAgent(BaseAgent):
         tools: Optional[List[BaseTool]] = None
     ):
         super().__init__(name, system_prompt)
-        self.base_url = settings.ollama_base_url
-        self.model = settings.ollama_model
         self.tools = tools or []
+        # 运行时模型覆盖（对话中 /model 切换用）
+        self._provider_override: Optional[str] = None
+        self._model_override: Optional[str] = None
         
-        # 初始化 Ollama Chat Model（LangChain 推荐使用 ChatOllama）
-        self.llm = ChatOllama(
-            base_url=self.base_url,
-            model=self.model,
-            temperature=0.7
+        self._sync_base_url_and_model()
+        self.llm = _create_llm(
+            provider=self._provider_override or settings.llm_provider,
+            model=self._model_override,
         )
+        logger.info(f"推理后端: {self._provider_override or settings.llm_provider}, 模型: {self.model}")
         
         # 初始化工具描述生成器
         self.tool_desc_generator = ToolDescriptionGenerator(self.tools) if self.tools else None
@@ -97,17 +142,21 @@ class LangChainAgent(BaseAgent):
         # 使用 LangChain 1.1+ 的新 API
         if langchain_tools:
             self.tools_dict = {tool.name: tool for tool in langchain_tools}
-            
-            # 尝试使用 bind_tools（如果支持）
-            try:
-                self.llm_with_tools = self.llm.bind_tools(langchain_tools)
-                self.use_bind_tools = True
-                logger.info("使用 bind_tools 进行工具绑定")
-            except (NotImplementedError, AttributeError) as e:
-                # 如果不支持 bind_tools，使用提示词方式
+            # 配置或运行时发现模型不支持 tools 时，不绑定工具
+            supports_tools = getattr(settings, "llm_tools_supported", True)
+            if not supports_tools:
                 self.llm_with_tools = self.llm
                 self.use_bind_tools = False
-                logger.warning(f"当前模型不支持 bind_tools ({e})，将使用提示词方式处理工具调用")
+                logger.info("LLM_TOOLS_SUPPORTED=false，使用纯对话模式（不绑定工具）")
+            else:
+                try:
+                    self.llm_with_tools = self.llm.bind_tools(langchain_tools)
+                    self.use_bind_tools = True
+                    logger.info("使用 bind_tools 进行工具绑定")
+                except (NotImplementedError, AttributeError) as e:
+                    self.llm_with_tools = self.llm
+                    self.use_bind_tools = False
+                    logger.warning(f"当前模型不支持 bind_tools ({e})，将使用提示词方式处理工具调用")
             
             # 使用工具描述生成器增强系统提示词
             if self.tool_desc_generator:
@@ -120,6 +169,61 @@ class LangChainAgent(BaseAgent):
             self.tools_dict = {}
             self.use_bind_tools = False
             logger.warning("没有提供工具，LangChain Agent 将无法使用工具调用功能")
+    
+    def _sync_base_url_and_model(self) -> None:
+        """根据当前 provider/model 覆盖更新 base_url 和 model（用于显示）。"""
+        p = (self._provider_override or settings.llm_provider or "ollama").strip().lower()
+        if p == "ollama":
+            self.base_url = settings.ollama_base_url
+            self.model = self._model_override if self._model_override is not None else settings.ollama_model
+        else:
+            self.base_url = settings.deepseek_base_url
+            self.model = self._model_override if self._model_override is not None else settings.deepseek_model
+    
+    def _recreate_llm(self) -> None:
+        """按当前 provider/model 覆盖重新创建 llm 与 llm_with_tools。"""
+        p = (self._provider_override or settings.llm_provider or "ollama").strip().lower()
+        m = self._model_override or (settings.ollama_model if p == "ollama" else settings.deepseek_model)
+        self.llm = _create_llm(provider=p, model=m)
+        self._sync_base_url_and_model()
+        if self.tools_dict:
+            supports_tools = getattr(settings, "llm_tools_supported", True)
+            if not supports_tools:
+                self.llm_with_tools = self.llm
+                self.use_bind_tools = False
+            else:
+                try:
+                    langchain_tools = list(self.tools_dict.values())
+                    self.llm_with_tools = self.llm.bind_tools(langchain_tools)
+                    self.use_bind_tools = True
+                except (NotImplementedError, AttributeError):
+                    self.llm_with_tools = self.llm
+                    self.use_bind_tools = False
+        else:
+            self.llm_with_tools = self.llm
+        logger.info(f"已切换推理模型: {p} / {self.model}")
+    
+    def switch_model(self, provider: Optional[str] = None, model: Optional[str] = None) -> str:
+        """
+        切换推理模型（对话中生效）。
+        provider: ollama | deepseek，不传则仅改模型名
+        model: 模型名，如 gemma3:1b、deepseek-chat；仅切换 provider 时不传则用该后端默认模型
+        返回当前模型描述字符串。
+        """
+        if provider is not None:
+            self._provider_override = provider.strip().lower()
+            if model is None:
+                self._model_override = None  # 换后端时用该后端默认模型
+        if model is not None:
+            self._model_override = model.strip()
+        self._recreate_llm()
+        return self.get_current_model()
+    
+    def get_current_model(self) -> str:
+        """返回当前推理后端与模型描述（用于展示）。"""
+        self._sync_base_url_and_model()
+        p = (self._provider_override or settings.llm_provider or "ollama").strip().lower()
+        return f"{p} / {self.model}"
     
     def _extract_response_content(self, response) -> str:
         """
@@ -204,7 +308,21 @@ class LangChainAgent(BaseAgent):
                 messages.append(HumanMessage(content=user_input))
                 
                 # 调用 LLM（带工具绑定或提示词方式）
-                response = await self.llm_with_tools.ainvoke(messages)
+                try:
+                    response = await self.llm_with_tools.ainvoke(messages)
+                except Exception as e:
+                    # 部分 Ollama 模型（如 gemma3:1b）不支持 tools，会返回 400
+                    err_msg = str(e).lower()
+                    if ("does not support tools" in err_msg or "support tools" in err_msg) or (
+                        getattr(e, "status_code", None) == 400 and "tools" in err_msg
+                    ):
+                        logger.warning(
+                            "当前模型不支持工具调用，已自动回退为纯对话模式。"
+                            "若经常使用该模型，可在 .env 中设置 LLM_TOOLS_SUPPORTED=false 以跳过工具绑定。"
+                        )
+                        response = await self.llm.ainvoke(messages)
+                    else:
+                        raise
                 
                 # 记录响应信息用于调试
                 logger.debug(f"LLM 响应类型: {type(response)}")
@@ -336,7 +454,9 @@ class LangChainAgent(BaseAgent):
                 if hasattr(response, 'response_metadata'):
                     logger.warning(f"响应元数据: {response.response_metadata}")
                 # 返回友好的错误消息
-                assistant_response = "抱歉，我暂时无法生成响应。这可能是因为：\n1. 模型响应格式异常\n2. 提示词过长导致截断\n3. 网络连接问题\n\n请稍后重试，或检查 Ollama 服务是否正常运行。"
+                provider = (settings.llm_provider or "ollama").strip().lower()
+                hint = "或检查 Ollama 服务是否正常运行。" if provider == "ollama" else "或检查 DeepSeek API Key 与网络。"
+                assistant_response = f"抱歉，我暂时无法生成响应。这可能是因为：\n1. 模型响应格式异常\n2. 提示词过长导致截断\n3. 网络连接问题\n\n请稍后重试，{hint}"
             
             # 添加助手消息
             self.add_message("assistant", assistant_response)
