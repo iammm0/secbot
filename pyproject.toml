@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "m-bot"
+name = "hackbot"
 version = "1.0.0"
-description = "M-Bot: 智能安全测试机器人和超级私人助理"
+description = "Hackbot: AI-powered automated penetration testing robot"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -58,7 +58,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     "websockets>=12.0",
     "tiktoken>=0.5.2",
-    "openai-whisper>=20231117",
+
     "faster-whisper>=1.0.0",
     "gtts>=2.5.0",
     "pyttsx3>=2.90",
@@ -77,14 +77,14 @@ dev = [
 ]
 
 [project.scripts]
-m-bot = "m_bot.cli:app"
-mbot = "m_bot.cli:app"
+hackbot = "m_bot.cli:app"
+mbot = "m_bot.cli:app"  # Alias for backward compatibility
 
 [project.urls]
-Homepage = "https://github.com/zhaomingjun/m-bot"
-Documentation = "https://github.com/zhaomingjun/m-bot/docs"
-Repository = "https://github.com/zhaomingjun/m-bot"
-Issues = "https://github.com/zhaomingjun/m-bot/issues"
+Homepage = "https://github.com/zhaomingjun/hackbot"
+Documentation = "https://github.com/zhaomingjun/hackbot/docs"
+Repository = "https://github.com/zhaomingjun/hackbot"
+Issues = "https://github.com/zhaomingjun/hackbot/issues"
 
 [tool.setuptools]
 packages = [
@@ -112,6 +112,14 @@ packages = [
 [tool.black]
 line-length = 120
 target-version = ['py310', 'py311', 'py312']
+
+[tool.uv]
+required-environments = ["sys_platform == 'darwin' and platform_machine == 'x86_64'"]
+
+
+
+
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
