@@ -62,8 +62,9 @@
 ## 📋 系统要求
 
 - Python 3.10+
+- [uv](https://github.com/astral-sh/uv) (推荐包管理器) 或 pip
 - Ollama (用于LLM推理)
-- 完整依赖请查看 [requirements.txt](requirements.txt)
+- 依赖在 `pyproject.toml` 中管理
 
 ## 🛠️ 安装
 
@@ -76,6 +77,18 @@ cd m-bot
 
 ### 2. 安装依赖
 
+#### 使用 uv (推荐)
+[uv](https://github.com/astral-sh/uv) 是一个快速的Python包安装器和解析器。
+
+```bash
+# 如果尚未安装uv，请先安装
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 使用uv安装依赖
+uv sync
+```
+
+#### 使用 pip (备选方案)
 ```bash
 pip install -r requirements.txt
 ```
@@ -108,11 +121,14 @@ cp .env.example .env
 # 构建包
 python -m build
 
-# 安装包
-pip install dist/m_bot-1.0.0-py3-none-any.whl
+# 安装包 (使用 uv - 推荐)
+uv pip install dist/m_bot-1.0.0-py3-none-any.whl
 
-# 现在可以直接使用 'mbot' 命令
-mbot --help
+# 备选方案使用 pip
+# pip install dist/m_bot-1.0.0-py3-none-any.whl
+
+# 现在可以直接使用 'hackbot' 命令
+hackbot --help
 ```
 
 ## 🎯 快速开始
@@ -121,61 +137,128 @@ mbot --help
 
 ```bash
 # 查看帮助
-mbot --help
+hackbot --help
 
 # 交互式聊天
-mbot interactive
+hackbot interactive
 
 # 文本聊天
-mbot chat "你好，介绍一下你自己"
+hackbot chat "你好，介绍一下你自己"
+
+# 列出可用智能体
+hackbot list-agents
 ```
 
 ### 渗透测试命令
 
 ```bash
-# 执行漏洞利用
-mbot exploit http://target.com --type web --payload sql_injection
-
-# 执行完整自动化攻击链
-mbot attack-chain http://target.com
-
-# 生成攻击payload
-mbot generate-payload xss --count 20
-
 # 网络发现
-mbot discover
+hackbot discover
 
 # 端口扫描（通过聊天）
-mbot chat "扫描 192.168.1.1 的端口"
+hackbot chat "扫描 192.168.1.1 的端口"
+
+# 列出已授权目标
+hackbot list-targets
+
+# 撤销授权
+hackbot revoke 192.168.1.100
+
+# 注意：高级漏洞利用命令（exploit, attack-chain, generate-payload）
+# 在实验版本中可用。运行 'hackbot --help' 查看完整命令列表。
+```
+
+### 远程控制命令
+
+```bash
+# 在授权主机上执行远程命令
+hackbot remote-execute 192.168.1.100 "ls -la"
+
+# 上传文件到远程主机
+hackbot upload-file 192.168.1.100 local.txt /remote/path/
+
+# 从远程主机下载文件
+hackbot download-file 192.168.1.100 /remote/file.txt local_copy.txt
+
+# 列出所有授权
+hackbot list-authorizations
+```
+
+### 防御系统命令
+
+```bash
+# 执行全面安全扫描
+hackbot defense-scan
+
+# 启动防御监控
+hackbot defense-monitor --start --interval 60
+
+# 查看防御状态
+hackbot defense-monitor --status
+
+# 列出被封禁的IP
+hackbot defense-blocked --list
+
+# 生成防御报告
+hackbot defense-report --type vulnerability
 ```
 
 ### 系统操作
 
 ```bash
 # 系统信息
-mbot system-info
+hackbot system-info
 
 # 系统状态
-mbot system-status
+hackbot system-status
 
 # 列出进程
-mbot list-processes --filter python
+hackbot list-processes --filter python
 
 # 执行命令
-mbot execute "ls -la"
+hackbot execute "ls -la"
+
+# 列出目录中的文件
+hackbot file-list /path/to/dir --recursive
 ```
 
 ### 数据库管理
 
 ```bash
 # 查看统计信息
-mbot db-stats
+hackbot db-stats
 
 # 查看对话历史
-mbot db-history --limit 20
+hackbot db-history --limit 20
 
 # 清空历史（需要确认）
-mbot db-clear --yes
+hackbot db-clear --yes
+```
+
+### 语音交互命令
+
+```bash
+# 语音转文字转录
+hackbot transcribe audio.wav --output transcript.txt
+
+# 文字转语音合成
+hackbot synthesize "Hello world" --output speech.wav --language en
+
+# 与智能体语音聊天
+hackbot voice audio.wav --agent hackbot
+```
+
+### 提示词管理命令
+
+```bash
+# 列出可用提示词模板和链
+hackbot prompt-list
+
+# 创建新的提示词链
+hackbot prompt-create my_chain --role "安全专家" --instruction "执行渗透测试"
+
+# 从文件加载提示词链
+hackbot prompt-load my_prompt.yaml
 ```
 
 ## 📁 项目结构
@@ -243,6 +326,9 @@ build.bat
 - [Ollama设置](docs/OLLAMA_SETUP.md)
 - [安全警告](docs/SECURITY_WARNING.md)
 - [提示词指南](docs/PROMPT_GUIDE.md)
+- [语音指南](docs/SPEECH_GUIDE.md)
+- [SQLite设置](docs/SQLITE_SETUP.md)
+- [部署指南](DEPLOYMENT.md)
 
 ## 🤝 贡献
 

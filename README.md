@@ -62,8 +62,9 @@
 ## 📋 Requirements
 
 - Python 3.10+
+- [uv](https://github.com/astral-sh/uv) (recommended package manager) or pip
 - Ollama (for LLM inference)
-- See [requirements.txt](requirements.txt) for full dependencies
+- Dependencies are managed in `pyproject.toml`
 
 ## 🛠️ Installation
 
@@ -76,6 +77,18 @@ cd m-bot
 
 ### 2. Install Dependencies
 
+#### Using uv (Recommended)
+[uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver.
+
+```bash
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies using uv
+uv sync
+```
+
+#### Using pip (Alternative)
 ```bash
 pip install -r requirements.txt
 ```
@@ -108,11 +121,14 @@ Edit `.env` file:
 # Build package
 python -m build
 
-# Install package
-pip install dist/m_bot-1.0.0-py3-none-any.whl
+# Install package (using uv - recommended)
+uv pip install dist/m_bot-1.0.0-py3-none-any.whl
 
-# Now you can use 'mbot' command directly
-mbot --help
+# Alternative using pip
+# pip install dist/m_bot-1.0.0-py3-none-any.whl
+
+# Now you can use 'hackbot' command directly
+hackbot --help
 ```
 
 ## 🎯 Quick Start
@@ -121,61 +137,128 @@ mbot --help
 
 ```bash
 # View help
-mbot --help
+hackbot --help
 
 # Interactive chat
-mbot interactive
+hackbot interactive
 
 # Text chat
-mbot chat "Hello, introduce yourself"
+hackbot chat "Hello, introduce yourself"
+
+# List available agents
+hackbot list-agents
 ```
 
 ### Penetration Testing Commands
 
 ```bash
-# Execute vulnerability exploitation
-mbot exploit http://target.com --type web --payload sql_injection
-
-# Execute full automated attack chain
-mbot attack-chain http://target.com
-
-# Generate attack payloads
-mbot generate-payload xss --count 20
-
 # Network discovery
-mbot discover
+hackbot discover
 
 # Port scanning (via chat)
-mbot chat "Scan ports on 192.168.1.1"
+hackbot chat "Scan ports on 192.168.1.1"
+
+# List authorized targets
+hackbot list-targets
+
+# Revoke authorization
+hackbot revoke 192.168.1.100
+
+# Note: Advanced exploitation commands (exploit, attack-chain, generate-payload) 
+# are available in experimental versions. Run 'hackbot --help' for full command list.
+```
+
+### Remote Control Commands
+
+```bash
+# Execute remote command on authorized host
+hackbot remote-execute 192.168.1.100 "ls -la"
+
+# Upload file to remote host
+hackbot upload-file 192.168.1.100 local.txt /remote/path/
+
+# Download file from remote host
+hackbot download-file 192.168.1.100 /remote/file.txt local_copy.txt
+
+# List all authorizations
+hackbot list-authorizations
+```
+
+### Defense System Commands
+
+```bash
+# Perform comprehensive security scan
+hackbot defense-scan
+
+# Start defense monitoring
+hackbot defense-monitor --start --interval 60
+
+# View defense status
+hackbot defense-monitor --status
+
+# List blocked IPs
+hackbot defense-blocked --list
+
+# Generate defense report
+hackbot defense-report --type vulnerability
 ```
 
 ### System Operations
 
 ```bash
 # System information
-mbot system-info
+hackbot system-info
 
 # System status
-mbot system-status
+hackbot system-status
 
 # List processes
-mbot list-processes --filter python
+hackbot list-processes --filter python
 
 # Execute command
-mbot execute "ls -la"
+hackbot execute "ls -la"
+
+# List files in directory
+hackbot file-list /path/to/dir --recursive
 ```
 
 ### Database Management
 
 ```bash
 # View statistics
-mbot db-stats
+hackbot db-stats
 
 # View conversation history
-mbot db-history --limit 20
+hackbot db-history --limit 20
 
 # Clear history (requires confirmation)
-mbot db-clear --yes
+hackbot db-clear --yes
+```
+
+### Voice Interaction Commands
+
+```bash
+# Speech-to-text transcription
+hackbot transcribe audio.wav --output transcript.txt
+
+# Text-to-speech synthesis
+hackbot synthesize "Hello world" --output speech.wav --language en
+
+# Voice chat with agent
+hackbot voice audio.wav --agent hackbot
+```
+
+### Prompt Management Commands
+
+```bash
+# List available prompt templates and chains
+hackbot prompt-list
+
+# Create a new prompt chain
+hackbot prompt-create my_chain --role "Security Expert" --instruction "Perform penetration testing"
+
+# Load prompt chain from file
+hackbot prompt-load my_prompt.yaml
 ```
 
 ## 📁 Project Structure
@@ -243,6 +326,9 @@ build.bat
 - [Ollama Setup](docs/OLLAMA_SETUP.md)
 - [Security Warning](docs/SECURITY_WARNING.md)
 - [Prompt Guide](docs/PROMPT_GUIDE.md)
+- [Speech Guide](docs/SPEECH_GUIDE.md)
+- [SQLite Setup](docs/SQLITE_SETUP.md)
+- [Deployment Guide](DEPLOYMENT.md)
 
 ## 🤝 Contributing
 
