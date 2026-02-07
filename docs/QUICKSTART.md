@@ -2,6 +2,18 @@
 
 ## 1. 安装依赖
 
+### 使用 uv (推荐)
+
+```bash
+# 安装uv（如果尚未安装）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 使用uv安装依赖
+uv sync
+```
+
+### 使用 pip (备选方案)
+
 ```bash
 pip install -r requirements.txt
 ```
