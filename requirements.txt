@@ -12,6 +12,7 @@ httpx>=0.26.0
 # CLI框架
 typer>=0.9.0
 rich>=13.7.0
+prompt-toolkit>=3.0.0
 
 # 数据处理
 pydantic>=2.5.3

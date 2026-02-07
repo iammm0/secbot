@@ -19,8 +19,8 @@ install:
 	pip install -e .
 
 build:
-	python -m pip install --upgrade pip build wheel
-	python -m build
+	python3 -m pip install --upgrade pip build wheel
+	python3 -m build
 
 clean:
 	rm -rf build/ dist/ *.egg-info/

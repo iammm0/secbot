@@ -1,0 +1,5 @@
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+
+override-dependencies = [
+    "torch==2.9.0"
+]
