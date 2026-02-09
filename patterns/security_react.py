@@ -272,6 +272,8 @@ class SecurityReActAgent(BaseAgent):
         skip_planning = kwargs.get("skip_planning", False)
         skip_report = kwargs.get("skip_report", False)
         self._skip_report = skip_report  # 供 handle_accept 使用
+        # 当前计划步骤（由 SessionManager 传入），用于 prompt 中提示“未完成不输出 Final Answer”
+        self._current_todos = kwargs.get("todos") or []
 
         # 如果在等待确认且用户输入不是 /accept 或 /reject，提醒用户
         if self._waiting_for_confirm and self.confirmation:
@@ -785,6 +787,20 @@ class SecurityReActAgent(BaseAgent):
 
         tools_desc = self._get_tools_description()
 
+        # 若有当前计划步骤，生成完成情况说明，并强调“未完成不输出 Final Answer”
+        todos_section = ""
+        if getattr(self, "_current_todos", None):
+            lines = []
+            for td in self._current_todos:
+                c = td.get("content", td.get("id", ""))
+                s = td.get("status", "pending")
+                icon = {"completed": "[x]", "in_progress": "[~]", "cancelled": "[-]"}.get(s, "[ ]")
+                lines.append(f"  {icon} {c}")
+            todos_section = "\n## 当前计划步骤（完成前勿输出 Final Answer）\n" + "\n".join(lines) + """
+
+**重要**：在未完成上述所有计划步骤、或已明确说明某步无法完成（如工具失败）的原因前，不要输出 Final Answer。若某步失败导致无法继续，可在 Final Answer 中说明并列出未完成项。
+"""
+
         prompt = f"""你是一个安全测试专家，使用 ReAct 模式工作。
 
 {tools_desc}
@@ -818,7 +834,7 @@ Final Answer: <最终结论和报告>
    - **综合结论**：整体安全状况评估和总结
 
 4. **不要过早结束**：如果你只进行了一两次工具调用，很可能还没有收集到足够信息。继续思考下一步需要做什么。
-
+{todos_section}
 ## 当前任务
 
 用户请求: {user_input}
