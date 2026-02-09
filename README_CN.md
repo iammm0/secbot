@@ -66,7 +66,19 @@
 - Ollama (用于LLM推理)
 - 依赖在 `pyproject.toml` 中管理
 
-## 🛠️ 安装
+## 📦 发布版（免 Python 安装）
+
+若不想安装 Python，可直接使用**单文件可执行程序**（Windows / macOS / Linux）：
+
+1. 在 [Releases](https://github.com/iammm0/hackbot/releases) 下载对应平台文件（如 `hackbot-windows-amd64.exe`、`hackbot-linux-amd64`、`hackbot-darwin-arm64`）。
+2. **配置 DeepSeek API Key**（启动前唯一必须条件）：环境变量 `DEEPSEEK_API_KEY=sk-xxx`，或在可执行文件同目录创建 `.env` 写入该变量。
+3. 运行可执行文件即可进入交互式界面。
+
+详见 [发布版使用说明](docs/RELEASE.md)。
+
+---
+
+## 🛠️ 安装（从源码运行）
 
 ### 1. 克隆仓库
 
@@ -270,7 +282,7 @@ m-bot/
 ├── m_bot/                  # 包CLI模块
 ├── agents/                 # 智能体实现
 │   ├── base.py            # 基础智能体类
-│   └── langchain_agent.py # LangChain智能体
+│   └── tool_calling_agent.py # 工具调用智能体（LLM + 工具）
 ├── patterns/               # 设计模式
 │   └── react.py           # ReAct模式
 ├── exploit/                # 漏洞利用模块
@@ -296,7 +308,16 @@ m-bot/
 ├── memory/                 # 记忆管理
 ├── prompts/                # 提示词管理
 ├── system/                 # 操作系统控制
-├── tools/                  # 工具和插件
+├── tools/                  # 工具和插件（52 个安全工具）
+│   ├── security/           # 核心安全（端口扫描/服务检测/漏洞扫描/侦察/攻击/利用）
+│   ├── network/            # 网络（DNS/WHOIS/SSL/HTTP/Ping/路由/子域名/Banner/ARP扫描）
+│   ├── defense/            # 防御（安全自检/漏洞扫描/网络分析/入侵检测/系统信息）
+│   ├── utility/            # 实用（哈希/编码/IP地理/文件分析/CVE/日志/密码审计/密钥扫描/依赖审计/Payload生成）
+│   ├── web/                # Web安全（目录枚举/WAF/技术栈/安全头/CORS/JWT/参数Fuzz/SSRF检测）
+│   ├── osint/              # OSINT情报（Shodan/VirusTotal/证书透明度/凭据泄露）
+│   ├── protocol/           # 协议探测（SMB/Redis/MySQL/SNMP）
+│   ├── reporting/          # 报告生成（Markdown/HTML/JSON）
+│   └── cloud/              # 云安全（元数据探测/S3桶枚举/容器检测）
 └── utils/                  # 工具函数
 ```
 

@@ -18,6 +18,19 @@ from tui.widgets.collapsible import CollapsiblePanel
 from utils.event_bus import EventBus, EventType, Event
 
 
+def _adaptive_padding(console: Console) -> tuple:
+    """根据终端宽度返回合适的 padding"""
+    try:
+        w = console.width or 80
+    except Exception:
+        w = 80
+    if w < 40:
+        return (0, 0)
+    if w < 60:
+        return (0, 1)
+    return (1, 2)
+
+
 class PlanningComponent:
     """
     规划展示组件：
@@ -150,7 +163,7 @@ class PlanningComponent:
             title="[bold magenta]Planning[/bold magenta]",
             border_style="magenta",
             box=box.ROUNDED,
-            padding=(1, 2),
+            padding=_adaptive_padding(self.console),
         )
 
     def display(self):

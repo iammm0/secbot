@@ -624,14 +624,30 @@ def interactive(
         ))
         console.print()
 
-        console.print(
-            Panel(
+        # 自适应宽度的欢迎面板
+        w = console.width or 80
+        if w >= 70:
+            qs_content = (
                 "[bold cyan]不知道做什么？试试这些：[/bold cyan]\n\n"
                 "  [yellow]•[/yellow] [cyan]Scan localhost for open ports[/cyan]    扫描本地开放端口\n"
                 "  [yellow]•[/yellow] [cyan]Check system status[/cyan]              查看系统状态\n"
                 "  [yellow]•[/yellow] [cyan]Analyze vulnerabilities[/cyan]          分析系统漏洞\n"
                 "  [yellow]•[/yellow] [cyan]List all running processes[/cyan]       列出运行进程\n"
-                "\n[dim]  输入 / 查看所有命令 · exit 退出[/dim]",
+                "\n[dim]  输入 / 查看所有命令 · exit 退出[/dim]"
+            )
+        else:
+            # 窄窗口：简化内容
+            qs_content = (
+                "[bold cyan]试试这些：[/bold cyan]\n"
+                " [yellow]•[/yellow] [cyan]Scan localhost[/cyan]\n"
+                " [yellow]•[/yellow] [cyan]Check system status[/cyan]\n"
+                " [yellow]•[/yellow] [cyan]Analyze vulnerabilities[/cyan]\n"
+                "[dim] / 命令 · exit 退出[/dim]"
+            )
+
+        console.print(
+            Panel(
+                qs_content,
                 title="[bold bright_blue]Quick Start[/bold bright_blue]",
                 border_style="bright_blue",
                 box=box.ROUNDED,
@@ -1938,10 +1954,34 @@ def revoke(
         raise typer.Exit(1)
 
 
-@app.callback()
-def main():
-    """M-Bot: 智能体设计模式实验平台"""
-    pass
+def _require_deepseek_api_key() -> None:
+    """发布版启动条件：使用 DeepSeek 时必须已配置 API Key，否则退出并提示。"""
+    from config import settings
+    provider = (settings.llm_provider or "deepseek").strip().lower()
+    if provider != "deepseek":
+        return
+    from utils.model_selector import has_deepseek_api_key
+    if has_deepseek_api_key():
+        return
+    console.print(
+        Panel(
+            "[yellow]请先配置 DeepSeek API Key 后再启动。[/yellow]\n\n"
+            "方式一：环境变量\n  [cyan]export DEEPSEEK_API_KEY=sk-xxx[/cyan]\n\n"
+            "方式二：在可执行文件同目录（或当前目录）创建 [cyan].env[/cyan] 文件，内容：\n  [cyan]DEEPSEEK_API_KEY=sk-xxx[/cyan]\n\n"
+            "获取 Key: [link]https://platform.deepseek.com[/link]",
+            title="[bold]需要配置 DEEPSEEK_API_KEY[/bold]",
+            border_style="yellow",
+        )
+    )
+    sys.exit(1)
+
+
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context):
+    """Hackbot: AI 驱动的安全测试与自动化平台。启动前请配置 DEEPSEEK_API_KEY。"""
+    _require_deepseek_api_key()
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(interactive)
 
 
 if __name__ == "__main__":

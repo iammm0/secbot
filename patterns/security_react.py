@@ -34,7 +34,7 @@ def _create_llm(
     model: Optional[str] = None,
     temperature: Optional[float] = None,
 ) -> BaseChatModel:
-    """创建 LLM 实例（复用 langchain_agent 的逻辑）。"""
+    """创建 LLM 实例（与 tool_calling_agent 的 _create_llm 逻辑一致）。"""
     p = (provider or settings.llm_provider or "ollama").strip().lower()
     if p == "ollama":
         return ChatOllama(

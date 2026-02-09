@@ -87,6 +87,9 @@ class SummaryAgent(BaseAgent):
 - 整体评估
 - 后续建议
 
+### 7. 执行失败的工具（若有）
+- 若有工具执行失败，请单独列出「执行失败的工具」小节，写明工具名与失败原因，便于后续排查。
+
 ## 输出风格
 - 专业、清晰的技术报告风格
 - 使用 Markdown 格式
@@ -268,17 +271,30 @@ class SummaryAgent(BaseAgent):
             )
             todo_lines.append(f"  {status_icon} {t.content}")
         tools_used = []
+        failed_tools = []
         if tool_results:
-            tools_used = [tr.get("tool", "") for tr in tool_results if tr.get("tool")]
+            for tr in tool_results:
+                if tr.get("tool"):
+                    tools_used.append(tr["tool"])
+                if not tr.get("success", True) and tr.get("tool"):
+                    failed_tools.append({
+                        "tool": tr.get("tool", ""),
+                        "error": tr.get("error", "未知错误"),
+                    })
+
+        failed_section = ""
+        if failed_tools:
+            lines = [f"  - {ft['tool']}: {ft['error']}" for ft in failed_tools]
+            failed_section = "\n- 执行失败的工具：\n" + "\n".join(lines)
 
         return f"""请用 3～5 句话简要总结本次交互（不要长报告）：
 
 - 用户请求：{user_input}
 - Todo 完成：{todo_completion.get('completed', 0)}/{todo_completion.get('total', 0)} 项
 - 执行的工具：{", ".join(tools_used) if tools_used else "无"}
-- 观察结果条数：{len(observations)}
+- 观察结果条数：{len(observations)}{failed_section}
 
-请直接输出简要总结，包含：做了什么、完成情况、主要结论。若有未完成步骤，请明确列出并简要说明原因（如某步失败）。不要分章节、不要长列表。"""
+请直接输出简要总结，包含：做了什么、完成情况、主要结论。若有未完成步骤或工具执行失败，请明确列出并简要说明原因。不要分章节、不要长列表。"""
 
     def _build_report_prompt_v2(
         self,
@@ -304,12 +320,20 @@ class SummaryAgent(BaseAgent):
                 todo_lines.append(f"{status_icon} {t.content}{result}")
             todo_section = "\n## Todo 完成情况\n" + "\n".join(todo_lines)
 
-        # 工具使用
+        # 工具使用与失败记录
         tools_used = []
+        failed_tools_section = ""
         if tool_results:
             for tr in tool_results:
                 if tr.get("tool"):
                     tools_used.append(tr["tool"])
+            failed = [tr for tr in tool_results if not tr.get("success", True) and tr.get("tool")]
+            if failed:
+                lines = [
+                    f"- **{tr.get('tool', '')}**: {tr.get('error', '未知错误')}"
+                    for tr in failed
+                ]
+                failed_tools_section = "\n## 执行失败的工具\n\n" + "\n".join(lines) + "\n"
 
         prompt = f"""请根据以下执行结果生成报告。
 
@@ -322,6 +346,7 @@ class SummaryAgent(BaseAgent):
 
 ## 执行的工具
 {", ".join(tools_used) if tools_used else "无"}
+{failed_tools_section}
 
 ## 执行过程
 """
@@ -346,7 +371,16 @@ class SummaryAgent(BaseAgent):
 **结果**: <整体结果概述>
 
 ---
+"""
+        if failed_tools_section:
+            prompt += """
+## 执行失败的工具（必填）
 
+上方已列出本轮执行失败的工具及原因，请在报告中**原样或概括**写出「执行失败的工具」小节，便于用户排查。
+
+---
+"""
+        prompt += """
 ## 关键发现
 
 - **发现 1**: <描述>
