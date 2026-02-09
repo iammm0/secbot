@@ -8,7 +8,7 @@
 
 **An intelligent automated penetration testing robot with AI-powered security testing capabilities**
 
-[English](#m-bot-automated-penetration-testing-robot) | [中文](README_CN.md)
+[English](#hackbot-automated-penetration-testing-robot) | [中文](README_CN.md)
 
 </div>
 
@@ -71,8 +71,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/iammm0/m-bot.git
-cd m-bot
+git clone https://github.com/iammm0/hackbot.git
+cd hackbot
 ```
 
 ### 2. Install Dependencies
@@ -122,10 +122,10 @@ Edit `.env` file:
 python -m build
 
 # Install package (using uv - recommended)
-uv pip install dist/m_bot-1.0.0-py3-none-any.whl
+uv pip install dist/hackbot-1.0.0-py3-none-any.whl
 
 # Alternative using pip
-# pip install dist/m_bot-1.0.0-py3-none-any.whl
+# pip install dist/hackbot-1.0.0-py3-none-any.whl
 
 # Now you can use 'hackbot' command directly
 hackbot --help
@@ -264,10 +264,10 @@ hackbot prompt-load my_prompt.yaml
 ## 📁 Project Structure
 
 ```
-m-bot/
+hackbot/
 ├── main.py                 # CLI application entry
 ├── config.py               # Configuration management
-├── m_bot/                  # Package CLI module
+├── hackbot/                  # Package CLI module
 ├── agents/                 # Agent implementations
 │   ├── base.py            # Base agent class
 │   └── tool_calling_agent.py # 工具调用智能体（LLM + 工具）
