@@ -33,4 +33,3 @@ echo 安装方式：
 echo pip install dist\m_bot-1.0.0-py3-none-any.whl
 
 pause
-
