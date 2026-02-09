@@ -15,6 +15,7 @@ from rich.text import Text
 from rich import box
 
 from agents.planner_agent import PlannerAgent
+from agents.qa_agent import QAAgent
 from agents.hackbot_agent import HackbotAgent
 from agents.superhackbot_agent import SuperHackbotAgent
 from utils.logger import logger, restore_console_log_level
@@ -67,8 +68,9 @@ agents = {
     "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit_trail),
 }
 
-# 全局规划器智能体
+# 全局规划器与问答智能体
 planner_agent = PlannerAgent()
+qa_agent = QAAgent()
 
 # 为智能体添加数据库记忆
 for agent_name, agent_instance in agents.items():
@@ -568,13 +570,18 @@ def interactive(
             console.print(f"[red]错误: {error}[/red]")
         event_bus.subscribe(EventType.ERROR, _on_error)
 
-        # 创建 SessionManager
+        # 创建 SessionManager（含路由 + Q&A + 规划）
         session_mgr = SessionManager(
             event_bus=event_bus,
             console=console,
             agents=agents,
             planner=planner_agent,
+            qa_agent=qa_agent,
         )
+
+        # Plan 模式状态：编写安全测试计划，/start 后执行
+        plan_mode = False
+        pending_plan_result = None
 
         # ---- 显示欢迎界面 ----
         from utils.hackbot_banner import print_hackbot_banner
@@ -629,19 +636,18 @@ def interactive(
         if w >= 70:
             qs_content = (
                 "[bold cyan]不知道做什么？试试这些：[/bold cyan]\n\n"
+                "  [yellow]•[/yellow] [cyan]你好[/cyan] / [cyan]你能做什么[/cyan]        问候或了解能力（走问答）\n"
                 "  [yellow]•[/yellow] [cyan]Scan localhost for open ports[/cyan]    扫描本地开放端口\n"
                 "  [yellow]•[/yellow] [cyan]Check system status[/cyan]              查看系统状态\n"
-                "  [yellow]•[/yellow] [cyan]Analyze vulnerabilities[/cyan]          分析系统漏洞\n"
-                "  [yellow]•[/yellow] [cyan]List all running processes[/cyan]       列出运行进程\n"
+                "  [yellow]•[/yellow] [cyan]/plan[/cyan] 编写测试计划，[cyan]/start[/cyan] 执行计划\n"
                 "\n[dim]  输入 / 查看所有命令 · exit 退出[/dim]"
             )
         else:
             # 窄窗口：简化内容
             qs_content = (
                 "[bold cyan]试试这些：[/bold cyan]\n"
-                " [yellow]•[/yellow] [cyan]Scan localhost[/cyan]\n"
-                " [yellow]•[/yellow] [cyan]Check system status[/cyan]\n"
-                " [yellow]•[/yellow] [cyan]Analyze vulnerabilities[/cyan]\n"
+                " [yellow]•[/yellow] [cyan]你能做什么[/cyan] / [cyan]Scan localhost[/cyan]\n"
+                " [yellow]•[/yellow] [cyan]/plan[/cyan] 编写计划 [cyan]/start[/cyan] 执行\n"
                 "[dim] / 命令 · exit 退出[/dim]"
             )
 
@@ -899,7 +905,85 @@ def interactive(
                             console.print(table)
                     continue
 
-                # ---- 处理消息（通过 SessionManager 编排）----
+                # ---- /plan：进入计划模式 ----
+                if lower_input == "/plan":
+                    plan_mode = True
+                    pending_plan_result = None
+                    console.print(
+                        "[cyan]已进入计划模式。[/cyan] 请用自然语言描述你的安全测试计划（例如：对 127.0.0.1 做端口扫描再漏洞扫描）。\n"
+                        "确认计划后输入 [bold]/start[/bold] 开始执行。"
+                    )
+                    continue
+
+                # ---- /start：执行既定计划（仅在计划模式下有效）----
+                if lower_input == "/start":
+                    if not plan_mode:
+                        console.print("[yellow]当前不在计划模式。输入 /plan 可先编写测试计划。[/yellow]")
+                        continue
+                    if pending_plan_result is None or not pending_plan_result.todos:
+                        console.print("[yellow]尚未生成计划。请先描述你的安全测试需求（或在 /plan 后输入描述）。[/yellow]")
+                        continue
+                    plan_mode = False
+                    exec_plan = pending_plan_result
+                    pending_plan_result = None
+                    console.print("[green]开始执行既定计划...[/green]\n")
+                    enhanced_input.add_to_history(user_input)
+                    reasoning_comp.clear()
+                    execution_comp.clear()
+                    console.print(
+                        Text.assemble(
+                            ("  ", ""),
+                            ("You: ", "bold bright_blue"),
+                            ("执行既定安全测试计划", ""),
+                        )
+                    )
+                    console.print()
+                    response = await session_mgr.handle_message(
+                        "执行既定安全测试计划",
+                        agent_type=agent,
+                        plan_override=exec_plan,
+                    )
+                    if response and not planning_comp.todos:
+                        content_comp.display_assistant_message(response, agent)
+                    continue
+
+                # ---- 计划模式下：用户输入视为计划描述，生成/更新计划 ----
+                if plan_mode:
+                    enhanced_input.add_to_history(user_input)
+                    console.print(
+                        Text.assemble(
+                            ("  ", ""),
+                            ("You: ", "bold bright_blue"),
+                            (user_input, ""),
+                        )
+                    )
+                    console.print()
+                    with console.status("[bold green]正在生成计划..."):
+                        plan_result = await planner_agent.plan(user_input)
+                    if plan_result.request_type == RequestType.TECHNICAL and plan_result.todos:
+                        pending_plan_result = plan_result
+                        # 仅发射事件，Planning 组件订阅 PLAN_START 会自行渲染，避免重复
+                        await event_bus.emit_simple_async(
+                            EventType.PLAN_START,
+                            summary=plan_result.plan_summary,
+                            todos=[
+                                {
+                                    "id": t.id,
+                                    "content": t.content,
+                                    "status": t.status.value,
+                                    "depends_on": t.depends_on,
+                                    "tool_hint": t.tool_hint,
+                                }
+                                for t in plan_result.todos
+                            ],
+                        )
+                        console.print("[green]计划已生成。输入 /start 开始执行。[/green]")
+                    else:
+                        reply = plan_result.direct_response or "请更具体地描述要执行的安全测试步骤（如：扫描某 IP 的端口、漏洞检测等）。"
+                        content_comp.display_assistant_message(reply, agent)
+                    continue
+
+                # ---- 处理消息（通过 SessionManager 编排：路由 -> Q&A / 规划 -> 执行）----
                 enhanced_input.add_to_history(user_input)
 
                 # 清除上一轮的组件状态
