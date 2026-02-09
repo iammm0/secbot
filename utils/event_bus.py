@@ -38,6 +38,9 @@ class EventType(str, Enum):
     REPORT_CHUNK = "report_chunk"
     REPORT_END = "report_end"
 
+    # 任务状态（供加载组件显示当前阶段）
+    TASK_PHASE = "task_phase"
+
     # 交互控制
     CONFIRM_REQUIRED = "confirm_required"
     SESSION_UPDATE = "session_update"
