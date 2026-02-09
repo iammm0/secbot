@@ -1,26 +1,33 @@
 """
-PlannerAgent：任务规划智能体
-负责接收用户请求，进行智能路由：
+PlannerAgent v2：通用任务规划智能体
+负责接收用户请求，进行智能路由，并生成结构化 TodoList：
 - 简单问候/非技术请求：直接回复
-- 技术请求：规划为明确的执行步骤
+- 技术请求：规划为明确的执行步骤（结构化 TodoItem）
+- 支持依赖编排和实时状态追踪
 """
 
+import json
 import re
+import uuid
 from typing import Optional, List, Dict, Any
+
 from agents.base import BaseAgent
+from tui.models import TodoItem, TodoStatus, PlanResult, RequestType
 from utils.logger import logger
 
 
 class PlannerAgent(BaseAgent):
     """
-    Planner Agent 负责：
+    Planner Agent v2 负责：
     1. 判断用户请求类型（问候/闲聊/非技术/技术）
     2. 简单请求直接回复
-    3. 技术请求规划为明确的执行步骤
+    3. 技术请求规划为结构化 TodoList
+    4. 支持依赖编排：根据 todos 的依赖关系确定执行顺序
+    5. 实时状态追踪：在 agent 执行过程中更新 todo 状态
     """
 
     def __init__(self, name: str = "PlannerAgent"):
-        system_prompt = """你是 Hackbot 的任务规划器。你的职责是：
+        system_prompt = """你是 Hackbot 的通用任务规划器。你的职责是：
 
 ## 核心职责
 
@@ -33,269 +40,306 @@ class PlannerAgent(BaseAgent):
 ### 2. 简单请求直接回复
 对于问候、闲聊、非技术请求，直接给出友好、简洁的回复，不需要调用任何工具。
 
-### 3. 技术请求规划
-对于需要执行操作的技术请求，将任务分解为明确的步骤：
-- 每个步骤应该是具体、可执行的技术指令
-- 步骤之间有逻辑顺序
-- 明确每个步骤使用的工具类型
+### 3. 技术请求 — 结构化规划
+对于需要执行操作的技术请求，将任务分解为结构化 JSON 格式的 TodoList。
+每个 Todo 必须包含：id、content、tool_hint（可选）、depends_on（依赖列表）。
 
 ## 输出格式
 
-### 简单请求回复
+### 简单请求
 直接输出回复内容，不需要额外格式。
 
-### 任务规划输出
-按照以下格式输出：
+### 技术请求 — 必须严格按以下 JSON 格式输出
+```json
+{
+  "plan_summary": "简要说明任务目标",
+  "todos": [
+    {"id": "step_1", "content": "步骤描述", "tool_hint": "工具名", "depends_on": []},
+    {"id": "step_2", "content": "步骤描述", "tool_hint": "工具名", "depends_on": ["step_1"]}
+  ]
+}
+```
 
-**用户请求**: <原始请求>
-
-**任务类型**: <分类说明>
-
-**执行计划**:
-1. <步骤1> - 使用<工具/命令>
-2. <步骤2> - 使用<工具/命令>
-3. <步骤N> - 使用<工具/命令>
-
-**开始执行**"""
+注意：
+- todos 中的 id 必须唯一
+- depends_on 只能引用前面步骤的 id
+- tool_hint 是建议使用的工具名，可以为 null
+- 步骤数量应在 2-6 个之间"""
 
         super().__init__(name=name, system_prompt=system_prompt)
-        logger.info("初始化 PlannerAgent")
+        # 当前规划结果（用于实时追踪）
+        self._current_plan: Optional[PlanResult] = None
+        logger.info("初始化 PlannerAgent v2")
 
-    async def process(self, user_input: str, **kwargs) -> str:
+    # ------------------------------------------------------------------
+    # 新接口：plan（返回结构化 PlanResult）
+    # ------------------------------------------------------------------
+
+    async def plan(self, user_input: str, context: Optional[dict] = None) -> PlanResult:
         """
-        处理用户输入，判断请求类型并做出相应响应。
+        分析用户请求，生成结构化计划。
 
         Args:
             user_input: 用户输入
+            context: 可选上下文（当前工具列表、会话历史等）
 
         Returns:
-            规划结果或直接回复
+            PlanResult: 包含 request_type、todos、direct_response、plan_summary
         """
         self.add_message("user", user_input)
 
-        # 先进行快速判断（无需调用 LLM）
-        request_type = self._quick_classify(user_input)
+        # 快速分类
+        request_type_str = self._quick_classify(user_input)
 
-        if request_type == "greeting":
-            # 问候类直接回复
+        if request_type_str == "greeting":
             response = self._handle_greeting(user_input)
             self.add_message("assistant", response)
-            return response
+            result = PlanResult(
+                request_type=RequestType.GREETING,
+                direct_response=response,
+                plan_summary="问候回复",
+            )
+            self._current_plan = result
+            return result
 
-        if request_type == "simple":
-            # 简单请求直接回复（不需要技术操作）
+        if request_type_str == "simple":
             response = self._handle_simple(user_input)
             self.add_message("assistant", response)
-            return response
+            result = PlanResult(
+                request_type=RequestType.SIMPLE,
+                direct_response=response,
+                plan_summary="简单回复",
+            )
+            self._current_plan = result
+            return result
 
-        # 需要规划的技术请求，调用 LLM 进行详细规划
-        response = await self._plan_technical_task(user_input)
-        self.add_message("assistant", response)
-        return response
+        # 技术请求 → 调用 LLM 生成结构化 TodoList
+        plan_result = await self._plan_technical_task_v2(user_input, context)
+        self.add_message("assistant", plan_result.plan_summary)
+        self._current_plan = plan_result
+        return plan_result
+
+    # ------------------------------------------------------------------
+    # 旧接口：process（向后兼容）
+    # ------------------------------------------------------------------
+
+    async def process(self, user_input: str, **kwargs) -> str:
+        """
+        向后兼容的 process 接口。
+        返回纯文本（与 v1 行为一致）。
+        """
+        plan_result = await self.plan(user_input, context=kwargs.get("context"))
+
+        if plan_result.direct_response:
+            return plan_result.direct_response
+
+        # 将结构化 todos 转为文本
+        lines = [f"**用户请求**: {user_input}\n"]
+        lines.append(f"**任务分析**: {plan_result.plan_summary}\n")
+        lines.append("**执行计划**:")
+        for i, todo in enumerate(plan_result.todos, 1):
+            tool_part = f" - {todo.tool_hint}" if todo.tool_hint else ""
+            lines.append(f"{i}. {todo.content}{tool_part}")
+        lines.append("\n**开始执行**")
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Todo 状态管理
+    # ------------------------------------------------------------------
+
+    def update_todo(
+        self,
+        todo_id: str,
+        status: str,
+        result_summary: Optional[str] = None,
+    ):
+        """更新指定 todo 的状态"""
+        if not self._current_plan:
+            return
+        for todo in self._current_plan.todos:
+            if todo.id == todo_id:
+                todo.status = TodoStatus(status)
+                if result_summary:
+                    todo.result_summary = result_summary
+                break
+
+    def get_current_todos(self) -> List[TodoItem]:
+        """获取当前计划的所有 todos"""
+        if not self._current_plan:
+            return []
+        return self._current_plan.todos
+
+    def get_execution_order(self) -> List[List[str]]:
+        """
+        根据依赖关系返回分层执行顺序。
+        返回值为列表的列表，每个内层列表中的 todo 可并行执行。
+        """
+        if not self._current_plan:
+            return []
+
+        todos = {t.id: t for t in self._current_plan.todos}
+        remaining = set(todos.keys())
+        completed = set()
+        layers = []
+
+        while remaining:
+            # 找出所有依赖已完成的 todo
+            layer = []
+            for tid in list(remaining):
+                deps = todos[tid].depends_on
+                if all(d in completed for d in deps):
+                    layer.append(tid)
+            if not layer:
+                # 有循环依赖，强制取出剩余
+                layer = list(remaining)
+            layers.append(layer)
+            for tid in layer:
+                remaining.discard(tid)
+                completed.add(tid)
+
+        return layers
+
+    def find_todo_for_tool(self, tool_name: str) -> Optional[TodoItem]:
+        """根据工具名找到匹配的 todo（用于自动更新状态）"""
+        if not self._current_plan:
+            return None
+        for todo in self._current_plan.todos:
+            if todo.tool_hint and todo.tool_hint.lower() == tool_name.lower():
+                return todo
+        return None
+
+    def find_next_pending_todo(self) -> Optional[TodoItem]:
+        """找到下一个待执行的 todo"""
+        if not self._current_plan:
+            return None
+        for todo in self._current_plan.todos:
+            if todo.status == TodoStatus.PENDING:
+                return todo
+        return None
+
+    # ------------------------------------------------------------------
+    # 快速分类
+    # ------------------------------------------------------------------
 
     def _quick_classify(self, user_input: str) -> str:
-        """
-        快速判断请求类型（基于关键词规则）
-        """
+        """快速判断请求类型（基于关键词规则）"""
         user_input_lower = user_input.strip().lower()
 
-        # 问候类关键词
         greetings = [
-            "你好",
-            "hello",
-            "hi",
-            "hey",
-            "嗨",
-            "早上好",
-            "早安",
-            "上午好",
-            "下午好",
-            "傍晚好",
-            "晚上好",
-            "晚安",
-            "再见",
-            "拜拜",
-            "bye",
-            "quit",
-            "exit",
-            "谢谢",
-            "thanks",
-            "thank you",
-            "抱歉",
-            "对不起",
-            "sorry",
-            "打扰了",
-            "麻烦你",
+            "你好", "hello", "hi", "hey", "嗨",
+            "早上好", "早安", "上午好", "下午好", "傍晚好",
+            "晚上好", "晚安", "再见", "拜拜", "bye",
+            "quit", "exit", "谢谢", "thanks", "thank you",
+            "抱歉", "对不起", "sorry", "打扰了", "麻烦你",
         ]
 
-        # 闲聊/非技术类关键词
         chitchat = [
-            "你是谁",
-            "你是什么",
-            "who are you",
-            "天气",
-            "weather",
-            "今天怎么样",
-            "how are you",
-            "介绍一下",
-            "tell me about",
-            "有什么功能",
-            "能做什么",
-            "帮助",
-            "help",
-            "帮助我",
-            "随便聊聊",
-            "chat",
+            "你是谁", "你是什么", "who are you",
+            "天气", "weather", "今天怎么样", "how are you",
+            "介绍一下", "tell me about", "有什么功能", "能做什么",
+            "帮助", "help", "帮助我", "随便聊聊", "chat",
         ]
 
-        # 检查问候类
         for g in greetings:
-            if (
-                user_input_lower.strip() == g.lower()
-                or user_input_lower.strip().startswith(g.lower())
-            ):
+            if user_input_lower.strip() == g.lower() or user_input_lower.strip().startswith(g.lower()):
                 return "greeting"
 
-        # 检查闲聊类
         for c in chitchat:
             if c in user_input_lower:
                 return "simple"
 
-        # 检查是否只是简单的一两句话，没有明确的技术操作意图
         if len(user_input.strip()) < 15:
             action_keywords = [
-                "扫描",
-                "测试",
-                "检查",
-                "执行",
-                "运行",
-                "分析",
-                "检测",
-                "scan",
-                "test",
-                "check",
-                "execute",
-                "run",
-                "analyze",
-                "detect",
-                "攻击",
-                "exploit",
-                "探索",
-                "explore",
-                "查找",
-                "find",
-                "搜索",
-                "search",
-                "列出",
-                "list",
-                "显示",
-                "show",
-                "获取",
-                "get",
-                "获取",
-                "obtain",
-                "连接",
-                "connect",
-                "登录",
-                "login",
-                "ssh",
-                "访问",
-                "access",
+                "扫描", "测试", "检查", "执行", "运行", "分析", "检测",
+                "scan", "test", "check", "execute", "run", "analyze", "detect",
+                "攻击", "exploit", "探索", "explore", "查找", "find",
+                "搜索", "search", "列出", "list", "显示", "show",
+                "获取", "get", "连接", "connect", "登录", "login",
+                "ssh", "访问", "access",
             ]
             if not any(kw in user_input_lower for kw in action_keywords):
                 return "simple"
 
-        # 默认按技术请求处理
         return "technical"
 
+    # ------------------------------------------------------------------
+    # 问候/简单回复（与 v1 一致）
+    # ------------------------------------------------------------------
+
     def _handle_greeting(self, user_input: str) -> str:
-        """处理问候语"""
         user_input_lower = user_input.strip().lower()
-
-        responses = []
-
         if any(x in user_input_lower for x in ["再见", "拜拜", "bye", "quit", "exit"]):
-            responses.append("👋 再见！如有需要随时叫我。")
+            return "再见！如有需要随时叫我。"
         elif any(x in user_input_lower for x in ["谢谢", "thanks", "thank you"]):
-            responses.append("😊 不客气！很高兴能帮助你。")
+            return "不客气！很高兴能帮助你。"
         elif any(x in user_input_lower for x in ["早上好", "早安", "上午好"]):
-            responses.append("🌅 早上好！今天有什么我可以帮你的吗？")
+            return "早上好！今天有什么我可以帮你的吗？"
         elif any(x in user_input_lower for x in ["下午好"]):
-            responses.append("☀️ 下午好！工作顺利吗？需要什么帮助？")
+            return "下午好！工作顺利吗？需要什么帮助？"
         elif any(x in user_input_lower for x in ["晚上好", "晚安"]):
-            responses.append("🌙 晚上好！夜猫子吗？有什么需要帮忙的？")
+            return "晚上好！夜猫子吗？有什么需要帮忙的？"
         elif any(x in user_input_lower for x in ["你好", "hello", "hi", "嗨"]):
-            responses.append(
-                "👋 你好！我是 Hackbot，一个安全测试助手。\n我可以帮你进行端口扫描、漏洞检测、系统分析等任务。\\n直接说出你的需求吧！"
+            return (
+                "你好！我是 Hackbot，一个安全测试助手。\n"
+                "我可以帮你进行端口扫描、漏洞检测、系统分析等任务。\n"
+                "直接说出你的需求吧！"
             )
-        else:
-            responses.append("👋 你好！有什么可以帮你的吗？")
-
-        return "\n".join(responses)
+        return "你好！有什么可以帮你的吗？"
 
     def _handle_simple(self, user_input: str) -> str:
-        """处理简单非技术请求"""
         user_input_lower = user_input.strip().lower()
 
         if "who are you" in user_input_lower or "你是谁" in user_input_lower:
-            return """🤖 我是 Hackbot，一个 AI 驱动的安全测试助手。
-
-**我的能力包括：**
-- 🔍 端口扫描和服务识别
-- 🛡️ 漏洞扫描和安全检测
-- 💻 系统状态监控
-- 📊 报告生成
-
-有什么安全相关的问题可以直接问我！"""
+            return (
+                "我是 Hackbot，一个 AI 驱动的安全测试助手。\n\n"
+                "**我的能力包括：**\n"
+                "- 端口扫描和服务识别\n"
+                "- 漏洞扫描和安全检测\n"
+                "- 系统状态监控\n"
+                "- 报告生成\n\n"
+                "有什么安全相关的问题可以直接问我！"
+            )
 
         if "天气" in user_input_lower or "weather" in user_input_lower:
-            return "我没有天气功能，但你可以看看窗外！🌤️"
+            return "我没有天气功能，但你可以看看窗外！"
 
-        if (
-            "帮助" in user_input_lower
-            or "help" in user_input_lower
-            or "能做什么" in user_input_lower
-        ):
-            return """**Hackbot 可用命令示例：**
-
-- `Scan localhost for open ports` - 扫描本地端口
-- `Check system status` - 查看系统状态
-- `Crawl https://example.com` - 爬取网页
-- `List all running processes` - 列出进程
-- `Execute 'ls -la'` - 执行命令
-
-直接说出你的需求即可！"""
+        if any(kw in user_input_lower for kw in ["帮助", "help", "能做什么"]):
+            return (
+                "**Hackbot 可用命令示例：**\n\n"
+                "- `Scan localhost for open ports` - 扫描本地端口\n"
+                "- `Check system status` - 查看系统状态\n"
+                "- `Crawl https://example.com` - 爬取网页\n"
+                "- `List all running processes` - 列出进程\n"
+                "- `Execute 'ls -la'` - 执行命令\n\n"
+                "直接说出你的需求即可！"
+            )
 
         if "功能" in user_input_lower or "介绍" in user_input_lower:
-            return """**Hackbot 功能介绍：**
+            return (
+                "**Hackbot 功能介绍：**\n\n"
+                "1. **安全扫描** - 端口扫描、服务识别、漏洞扫描\n"
+                "2. **信息收集** - 系统信息探测、网络发现\n"
+                "3. **系统操作** - 命令执行、进程管理、文件操作\n"
+                "4. **网页爬取** - 网页内容抓取、AI 信息提取\n\n"
+                "直接告诉我你需要什么！"
+            )
 
-1. **安全扫描**
-   - 端口扫描 (`port_scan`)
-   - 服务识别 (`service_detect`)
-   - 漏洞扫描 (`vuln_scan`)
+        return (
+            f"我理解你的意思是：「{user_input}」\n\n"
+            "这看起来是一个简单的问题。如果你有具体的技术需求"
+            "（比如扫描、检测、执行命令等），请详细告诉我，我会帮你完成！"
+        )
 
-2. **信息收集**
-   - 系统信息探测 (`recon`)
-   - 网络发现
+    # ------------------------------------------------------------------
+    # 技术请求规划 v2（结构化 JSON 输出）
+    # ------------------------------------------------------------------
 
-3. **系统操作**
-   - 命令执行
-   - 进程管理
-   - 文件操作
-
-4. **网页爬取**
-   - 网页内容抓取
-   - AI 信息提取
-
-直接告诉我你需要什么！"""
-
-        # 默认简单回复
-        return f"我理解你的意思是：「{user_input}」\n\n这看起来是一个简单的问题。如果你有具体的技术需求（比如扫描、检测、执行命令等），请详细告诉我，我会帮你完成！"
-
-    async def _plan_technical_task(self, user_input: str) -> str:
-        """
-        对技术请求进行详细规划
-        """
+    async def _plan_technical_task_v2(
+        self,
+        user_input: str,
+        context: Optional[dict] = None,
+    ) -> PlanResult:
+        """使用 LLM 生成结构化 TodoList"""
         from config import settings
 
         try:
@@ -305,114 +349,127 @@ class PlannerAgent(BaseAgent):
 
         from langchain_core.messages import SystemMessage, HumanMessage
 
-        # 创建规划 LLM
-        try:
-            llm = ChatOllama(
-                base_url=settings.ollama_base_url,
-                model=settings.ollama_model,
-                temperature=0.3,
+        # 构建上下文
+        tools_desc = ""
+        if context and context.get("tools"):
+            tools_desc = "\n## 可用工具\n" + "\n".join(
+                f"- {t}" for t in context["tools"]
             )
-        except Exception as e:
-            logger.error(f"创建规划 LLM 失败: {e}")
-            return self._simple_plan(user_input)
 
-        planning_prompt = f"""你是 Hackbot 的任务规划专家。请分析以下用户请求，并制定详细的执行计划。
+        planning_prompt = f"""请分析以下用户请求，并制定结构化的执行计划。
 
 ## 用户请求
 {user_input}
+{tools_desc}
 
-## 规划要求
-1. 分析请求的核心目标
-2. 将任务分解为 2-5 个明确的执行步骤
-3. 每个步骤要具体、可执行
-4. 考虑步骤之间的依赖关系
+## 输出要求
+请严格按照以下 JSON 格式输出（不要添加 ```json 标记，直接输出 JSON）：
 
-## 输出格式
-请严格按照以下格式输出（不要添加额外内容）：
+{{"plan_summary": "简要说明任务目标（1-2句话）", "todos": [{{"id": "step_1", "content": "具体步骤描述", "tool_hint": "建议工具名或null", "depends_on": []}}, {{"id": "step_2", "content": "具体步骤描述", "tool_hint": "建议工具名或null", "depends_on": ["step_1"]}}]}}
 
-**用户请求**: <简洁重复用户需求>
-
-**任务分析**: <1-2句话说明任务目标和范围>
-
-**执行计划**:
-1. <步骤1描述> - <使用的工具/命令类型>
-2. <步骤2描述> - <使用的工具/命令类型>
-3. <步骤N描述> - <使用的工具/命令类型>
-
-**开始执行**"""
+规则：
+- todos 中 2-6 个步骤
+- id 格式为 step_N
+- depends_on 只引用前面步骤的 id
+- 不要添加任何 JSON 之外的文字"""
 
         try:
+            provider = (settings.llm_provider or "ollama").strip().lower()
+            if provider == "deepseek" and settings.deepseek_api_key:
+                try:
+                    from langchain_openai import ChatOpenAI
+                except ImportError:
+                    raise ImportError("需安装 langchain-openai")
+                from pydantic import SecretStr
+                model = settings.deepseek_model
+                is_reasoner = "reasoner" in model.lower()
+                llm_kwargs = dict(
+                    api_key=SecretStr(settings.deepseek_api_key),
+                    base_url=settings.deepseek_base_url.rstrip("/"),
+                    model=model,
+                )
+                if not is_reasoner:
+                    llm_kwargs["temperature"] = 0.3
+                llm = ChatOpenAI(**llm_kwargs)
+            else:
+                llm = ChatOllama(
+                    base_url=settings.ollama_base_url,
+                    model=settings.ollama_model,
+                    temperature=0.3,
+                )
             messages = [
                 SystemMessage(content=self.system_prompt),
                 HumanMessage(content=planning_prompt),
             ]
             response = llm.invoke(messages)
-            if hasattr(response, "content"):
-                plan = response.content
-            else:
-                plan = str(response)
+            text = response.content if hasattr(response, "content") else str(response)
 
-            # 确保输出格式正确
-            if "**执行计划**:" not in plan:
-                return self._simple_plan(user_input)
+            return self._parse_plan_json(text, user_input)
 
-            return plan
         except Exception as e:
             from utils.model_selector import get_llm_connection_hint
-            hint = get_llm_connection_hint(e, provider="ollama")
+            hint = get_llm_connection_hint(e, provider=provider if 'provider' in dir() else "ollama")
             logger.error(f"规划 LLM 调用失败: {e}")
-            return self._simple_plan(user_input) + "\n\n---\n[!] " + hint
+            plan = self._fallback_plan(user_input)
+            plan.plan_summary += f"\n[!] {hint}"
+            return plan
 
-    def _simple_plan(self, user_input: str) -> str:
-        """当 LLM 不可用时的简单规划"""
+    def _parse_plan_json(self, text: str, user_input: str) -> PlanResult:
+        """从 LLM 输出中解析结构化 JSON 计划"""
+        # 尝试提取 JSON
+        json_match = re.search(r'\{[\s\S]*"todos"[\s\S]*\}', text)
+        if json_match:
+            try:
+                data = json.loads(json_match.group())
+                todos = []
+                for td in data.get("todos", []):
+                    todos.append(TodoItem(
+                        id=td.get("id", f"step_{len(todos)+1}"),
+                        content=td.get("content", ""),
+                        tool_hint=td.get("tool_hint"),
+                        depends_on=td.get("depends_on", []),
+                    ))
+                return PlanResult(
+                    request_type=RequestType.TECHNICAL,
+                    todos=todos,
+                    plan_summary=data.get("plan_summary", f"分析任务: {user_input}"),
+                )
+            except json.JSONDecodeError:
+                pass
+
+        # JSON 解析失败，回退
+        return self._fallback_plan(user_input)
+
+    def _fallback_plan(self, user_input: str) -> PlanResult:
+        """LLM 不可用时的简单规划"""
         user_input_lower = user_input.lower()
-
-        # 基于关键词判断任务类型和步骤
-        plan_steps = []
+        todos = []
 
         if any(k in user_input_lower for k in ["scan", "端口", "port"]):
-            plan_steps.append("1. 执行端口扫描 - 使用 port_scan")
-            plan_steps.append("2. 识别开放服务 - 使用 service_detect")
+            todos.append(TodoItem(id="step_1", content="执行端口扫描", tool_hint="port_scan"))
+            todos.append(TodoItem(id="step_2", content="识别开放服务", tool_hint="service_detect", depends_on=["step_1"]))
+        elif any(k in user_input_lower for k in ["vuln", "漏洞"]):
+            todos.append(TodoItem(id="step_1", content="执行漏洞扫描", tool_hint="vuln_scan"))
+            todos.append(TodoItem(id="step_2", content="分析检测结果", depends_on=["step_1"]))
+        elif any(k in user_input_lower for k in ["system", "系统", "status", "状态"]):
+            todos.append(TodoItem(id="step_1", content="获取系统信息", tool_hint="system_info"))
+            todos.append(TodoItem(id="step_2", content="查看系统状态", tool_hint="system_status"))
+        elif any(k in user_input_lower for k in ["crawl", "爬取", "网页"]):
+            todos.append(TodoItem(id="step_1", content="爬取目标网页", tool_hint="crawler"))
+        elif any(k in user_input_lower for k in ["command", "命令", "execute", "执行"]):
+            todos.append(TodoItem(id="step_1", content="执行指定命令", tool_hint="execute_command"))
+        else:
+            todos.append(TodoItem(id="step_1", content=f"分析用户需求: {user_input}"))
+            todos.append(TodoItem(id="step_2", content="根据需求选择合适的工具执行", depends_on=["step_1"]))
 
-        if any(k in user_input_lower for k in ["vuln", "漏洞", "漏洞扫描"]):
-            plan_steps.append("1. 执行漏洞扫描 - 使用 vuln_scan")
-            plan_steps.append("2. 分析检测结果")
-
-        if any(
-            k in user_input_lower
-            for k in ["system", "系统", "status", "状态", "cpu", "内存", "memory"]
-        ):
-            plan_steps.append("1. 获取系统信息 - 使用 system_info")
-            plan_steps.append("2. 查看系统状态 - 使用 system_status")
-
-        if any(k in user_input_lower for k in ["process", "进程", "list"]):
-            plan_steps.append("1. 列出运行进程 - 使用 list_processes")
-
-        if any(k in user_input_lower for k in ["crawl", "爬取", "抓取", "网页"]):
-            plan_steps.append("1. 爬取目标网页 - 使用 crawler")
-
-        if any(k in user_input_lower for k in ["command", "命令", "execute", "执行"]):
-            plan_steps.append("1. 执行指定命令 - 使用 execute_command")
-
-        if not plan_steps:
-            plan_steps.append(f"1. 分析用户需求: {user_input}")
-            plan_steps.append("2. 根据需求选择合适的工具执行")
-
-        plan_text = "\n".join(plan_steps)
-
-        return f"""**用户请求**: {user_input}
-
-**任务分析**: 这是一个需要执行技术操作的任务。
-
-**执行计划**:
-{plan_text}
-
-**开始执行**"""
+        return PlanResult(
+            request_type=RequestType.TECHNICAL,
+            todos=todos,
+            plan_summary=f"分析任务: {user_input}",
+        )
 
 
 def is_simple_request(user_input: str) -> bool:
-    """
-    快速判断是否为简单请求（可在其他地方使用）
-    """
+    """快速判断是否为简单请求"""
     planner = PlannerAgent()
     return planner._quick_classify(user_input) != "technical"
