@@ -278,7 +278,7 @@ class SummaryAgent(BaseAgent):
 - 执行的工具：{", ".join(tools_used) if tools_used else "无"}
 - 观察结果条数：{len(observations)}
 
-请直接输出简要总结，包含：做了什么、完成情况、主要结论。不要分章节、不要长列表。"""
+请直接输出简要总结，包含：做了什么、完成情况、主要结论。若有未完成步骤，请明确列出并简要说明原因（如某步失败）。不要分章节、不要长列表。"""
 
     def _build_report_prompt_v2(
         self,
