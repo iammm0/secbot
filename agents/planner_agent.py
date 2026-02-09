@@ -358,8 +358,10 @@ class PlannerAgent(BaseAgent):
 
             return plan
         except Exception as e:
+            from utils.model_selector import get_llm_connection_hint
+            hint = get_llm_connection_hint(e, provider="ollama")
             logger.error(f"规划 LLM 调用失败: {e}")
-            return self._simple_plan(user_input)
+            return self._simple_plan(user_input) + "\n\n---\n[!] " + hint
 
     def _simple_plan(self, user_input: str) -> str:
         """当 LLM 不可用时的简单规划"""
