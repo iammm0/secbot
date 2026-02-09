@@ -3,6 +3,7 @@ M-Bot CLI应用入口
 """
 
 import asyncio
+import sys
 import typer
 from pathlib import Path
 from typing import Optional
@@ -10,6 +11,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.table import Table
+from rich.text import Text
+from rich import box
 
 from agents.planner_agent import PlannerAgent
 from agents.hackbot_agent import HackbotAgent
@@ -25,8 +28,6 @@ from utils.output_components import OutputComponentManager
 from utils.hackbot_banner import print_hackbot_banner
 from utils.opencode_layout import (
     create_opencode_layout,
-    create_input_panel,
-    create_suggestions_bar,
 )
 from utils.loading import LoadingComponent
 from rich.live import Live
@@ -535,7 +536,7 @@ def interactive(
     voice: bool = typer.Option(False, "--voice", "-v", help="启用语音交互模式"),
     verbose: bool = typer.Option(False, "--verbose", "-V", help="显示详细日志"),
 ):
-    """交互式聊天模式（ReAct 安全测试）"""
+    """交互式聊天模式（OpenCode 风格 ReAct 安全测试）"""
     # 恢复控制台日志级别
     if verbose:
         restore_console_log_level("DEBUG")
@@ -543,111 +544,109 @@ def interactive(
         restore_console_log_level()
 
     async def _interactive():
-        # 显示加载组件
+        # ---- 初始化 ----
         loading = LoadingComponent(console)
         with loading.show_loading("正在初始化智能体..."):
             agent_instance = get_agent(agent)
-            # 模拟初始化过程
             await asyncio.sleep(0.3)
 
-        # 创建输出组件管理器
-        output_manager = OutputComponentManager(console)
+        # 创建 EventBus 和 TUI 组件
+        from utils.event_bus import EventBus, EventType, Event
+        from tui.components.planning import PlanningComponent
+        from tui.components.reasoning import ReasoningComponent
+        from tui.components.execution import ExecutionComponent
+        from tui.components.content import ContentComponent
+        from tui.components.report import ReportComponent
+        from tui.session_manager import SessionManager
+        from tui.models import RequestType
 
-        # 流式事件处理函数
-        def handle_event(event_type: str, data: dict):
-            """处理流式事件，使用组件管理器显示"""
-            if event_type == "planning":
-                content = data.get("content", "")
-                output_manager.add_planning(content)
-            elif event_type == "thought_start":
-                iteration = data.get("iteration", 1)
-                output_manager.current_iteration = iteration
-            elif event_type == "thought_chunk":
-                # 推理内容会通过thought事件统一显示
-                pass
-            elif event_type == "thought_end":
-                pass
-            elif event_type == "thought":
-                iteration = data.get("iteration", 1)
-                content = data.get("content", "")
-                output_manager.add_reasoning(content, iteration)
-            elif event_type == "action_start":
-                iteration = data.get("iteration", 1)
-                tool = data.get("tool", "")
-                params = data.get("params", {})
-                script_info = _format_action_script(tool, params)
-                output_manager.add_execution(
-                    tool=tool, params=params, script=script_info, iteration=iteration
-                )
-            elif event_type == "action_result":
-                iteration = data.get("iteration", 1)
-                tool = data.get("tool", "")
-                success = data.get("success", False)
-                result_data = {
-                    "success": success,
-                    "result": data.get("result", "") if success else None,
-                    "error": data.get("error", "未知错误") if not success else None,
-                }
-                # 更新最后一次执行的执行结果
-                if output_manager.components["execution"]:
-                    output_manager.components["execution"][-1]["result"] = result_data
-                    # 重新显示执行结果
-                    output_manager._display_execution(
-                        output_manager.components["execution"][-1]
-                    )
-            elif event_type == "observation":
-                iteration = data.get("iteration", 1)
-                content = data.get("content", "")
-                tool = data.get("tool", "")
-                # 观察结果作为正文内容
-                obs_text = f"观察 {iteration}"
-                if tool:
-                    obs_text += f" ({tool})"
-                obs_text += f": {content}"
-                output_manager.add_content(obs_text)
-            elif event_type == "content":
-                content = data.get("content", "")
-                output_manager.add_content(content)
-            elif event_type == "report":
-                content = data.get("content", "")
-                output_manager.add_report(content)
-            elif event_type == "error":
-                error = data.get("error", "")
-                console.print(f"[red]错误: {error}[/red]")
+        event_bus = EventBus()
 
-        # 显示大大的 Hackbot 标识（类似 opencode 顶部）
+        # 初始化五大展示组件，订阅 EventBus
+        planning_comp = PlanningComponent(console, event_bus)
+        reasoning_comp = ReasoningComponent(console, event_bus)
+        execution_comp = ExecutionComponent(console, event_bus)
+        content_comp = ContentComponent(console, event_bus)
+        report_comp = ReportComponent(console, event_bus)
+
+        # 错误事件处理
+        def _on_error(evt: Event):
+            error = evt.data.get("error", "")
+            console.print(f"[red]错误: {error}[/red]")
+        event_bus.subscribe(EventType.ERROR, _on_error)
+
+        # 创建 SessionManager
+        session_mgr = SessionManager(
+            event_bus=event_bus,
+            console=console,
+            agents=agents,
+            planner=planner_agent,
+        )
+
+        # ---- 显示欢迎界面 ----
         from utils.hackbot_banner import print_hackbot_banner
-
         print_hackbot_banner(console)
 
-        mode_desc = "自动模式" if agent == "hackbot" else "专家模式（敏感操作需确认）"
+        # 状态栏
+        model_name = ""
+        if hasattr(agent_instance, "get_current_model"):
+            model_name = agent_instance.get_current_model() or "ollama"
+        mode_desc = "auto" if agent == "hackbot" else "expert"
+        tool_count = len(getattr(agent_instance, "security_tools", []))
 
-        # 显示简化的欢迎信息（不使用 Panel，更简洁）
-        console.print(
-            f"[dim]智能体:[/dim] [green]{agent}[/green] [dim]({mode_desc})[/dim] | "
-            f"[dim]语音:[/dim] [green]{'开启' if voice else '关闭'}[/green] | "
-            f"[dim]使用上下键切换历史，左右键移动光标[/dim]"
-        )
+        def _print_status_bar():
+            """打印底部状态栏"""
+            w = console.width or 80
+            left = Text.assemble(
+                (" hackbot ", "bold white on bright_blue"),
+                (" ", ""),
+                (f" {agent} ", f"bold white on {'green' if agent == 'hackbot' else 'magenta'}"),
+                (" ", ""),
+                (f" {mode_desc} ", "bold white on bright_black"),
+            )
+            right = Text.assemble(
+                (f" {tool_count} tools ", "dim"),
+                ("│", "dim"),
+                (f" {model_name} ", "dim"),
+            )
+            # 拼接状态栏
+            console.print(Text.assemble(
+                (" ", ""),
+                *left._spans and left or left,
+            ))
+            console.print()
+
+        # 简洁状态栏
+        console.print(Text.assemble(
+            (" ", ""),
+            (" hackbot ", "bold white on bright_blue"),
+            (" ", ""),
+            (f" {agent} ", f"bold white on {'green' if agent == 'hackbot' else 'magenta'}"),
+            (" ", ""),
+            (f" {mode_desc} ", "bold white on bright_black"),
+            (" ", ""),
+            (f" {tool_count} tools ", "dim on default"),
+            (" ", ""),
+            (f" {model_name} ", "dim"),
+        ))
         console.print()
 
-        # 快速示例消息
         console.print(
             Panel(
-                f"[bold cyan]💡 不知道做什么？试试这些：[/bold cyan]\n"
-                f"[yellow]•[/yellow] [cyan]Scan localhost for open ports[/cyan]       - 扫描本地开放端口\n"
-                f"[yellow]•[/yellow] [cyan]Check system status[/cyan]               - 查看系统状态\n"
-                f"[yellow]•[/yellow] [cyan]Crawl https://example.com[/cyan]          - 爬取网页内容\n"
-                f"[yellow]•[/yellow] [cyan]Analyze vulnerabilities[/cyan]           - 分析系统漏洞\n"
-                f"[yellow]•[/yellow] [cyan]List all running processes[/cyan]       - 列出运行进程\n"
-                f"[yellow]•[/yellow] [cyan]Execute 'ls -la' command[/cyan]          - 执行系统命令\n"
-                f"\n[dim]直接输入以上任意命令开始探索！[/dim]",
-                title="🚀 快速开始",
-                border_style="blue",
+                "[bold cyan]不知道做什么？试试这些：[/bold cyan]\n\n"
+                "  [yellow]•[/yellow] [cyan]Scan localhost for open ports[/cyan]    扫描本地开放端口\n"
+                "  [yellow]•[/yellow] [cyan]Check system status[/cyan]              查看系统状态\n"
+                "  [yellow]•[/yellow] [cyan]Analyze vulnerabilities[/cyan]          分析系统漏洞\n"
+                "  [yellow]•[/yellow] [cyan]List all running processes[/cyan]       列出运行进程\n"
+                "\n[dim]  输入 / 查看所有命令 · exit 退出[/dim]",
+                title="[bold bright_blue]Quick Start[/bold bright_blue]",
+                border_style="bright_blue",
+                box=box.ROUNDED,
+                padding=(0, 1),
             )
         )
-        console.print()
 
-        # 进入时检查当前 LLM 后端是否可用
+        # 检查 LLM 可用性
         if hasattr(agent_instance, "get_current_model"):
             cur = agent_instance.get_current_model()
             p = cur.split(" / ", 1)[0].strip().lower() if cur else "ollama"
@@ -655,8 +654,7 @@ def interactive(
                 console.print(
                     Panel(
                         "[yellow]当前使用 Ollama，但未检测到本机 Ollama 服务。[/yellow]\n"
-                        "请先启动 Ollama（如运行 [cyan]ollama serve[/cyan] 或打开 Ollama 应用）后再发送消息，\n"
-                        "或输入 [cyan]/model[/cyan] 切换到 DeepSeek。",
+                        "请先启动 Ollama 或输入 [cyan]/model[/cyan] 切换到 DeepSeek。",
                         title="[bold]LLM 不可用[/bold]",
                         border_style="yellow",
                     )
@@ -665,50 +663,125 @@ def interactive(
                 console.print(
                     Panel(
                         "[yellow]当前使用 DeepSeek，但未配置 DEEPSEEK_API_KEY。[/yellow]\n"
-                        "请在 [cyan].env[/cyan] 中设置后重试，或输入 [cyan]/model[/cyan] 切换到 Ollama。",
+                        "请在 .env 中设置后重试，或输入 [cyan]/model[/cyan] 切换到 Ollama。",
                         title="[bold]LLM 未配置[/bold]",
                         border_style="yellow",
                     )
                 )
 
-        # 创建增强输入框，历史记录保存在用户目录，类似 opencode 风格
+        # 创建增强输入框
         history_file = Path.home() / ".hackbot" / "input_history.txt"
         enhanced_input = EnhancedInput(
             history_file=history_file,
-            prompt="",
             placeholder='Ask anything... "Scan localhost for open ports"',
             console=console,
-            current_agent=agent,  # 传递当前使用的agent
+            current_agent=agent,
         )
 
+        # ---- 主交互循环 ----
         while True:
             try:
+                console.print()  # 与上方内容保持间距
                 if voice:
-                    console.print("\n[yellow]请说话（按Enter结束录音）...[/yellow]")
+                    console.print("[yellow]请说话（按Enter结束录音）...[/yellow]")
                     user_input = await enhanced_input.prompt_input_async("或直接输入文字: ")
                 else:
                     user_input = await enhanced_input.prompt_input_async()
 
+                # EOF / 管道关闭
+                if user_input is None or (not user_input.strip() and not sys.stdin.isatty()):
+                    console.print("[yellow]再见！[/yellow]")
+                    break
                 if not user_input.strip():
                     continue
-                # 斜杠命令前缀匹配：/m → /model，/ac → /accept 等
+
+                # ---- 斜杠命令处理 ----
                 if user_input.strip().startswith("/"):
                     normalized, hint = normalize_slash_input(user_input)
                     if hint is not None:
                         console.print(hint)
                         continue
                     user_input = normalized
+
                 lower_input = user_input.strip().lower()
+
                 if lower_input in ["exit", "quit"]:
                     console.print("[yellow]再见！[/yellow]")
                     break
 
                 if lower_input == "clear":
                     agent_instance.clear_memory()
+                    reasoning_comp.clear()
+                    execution_comp.clear()
                     console.print("[green]✓ 对话历史已清空[/green]")
                     continue
 
-                # ---- /model 切换（opencode 风格：无参时弹出选择 Ollama/DeepSeek）----
+                # ---- /thinking: 切换推理过程显示 ----
+                if lower_input == "/thinking":
+                    visible = reasoning_comp.toggle_visibility()
+                    status = "开启" if visible else "关闭"
+                    console.print(f"[cyan]✓ 推理过程显示已{status}[/cyan]")
+                    continue
+
+                # ---- /details: 切换执行详情模式 ----
+                if lower_input == "/details":
+                    detail = execution_comp.toggle_detail_mode()
+                    mode = "详细" if detail else "简洁"
+                    console.print(f"[cyan]✓ 执行详情已切换为{mode}模式[/cyan]")
+                    continue
+
+                # ---- /compact: 压缩会话历史 ----
+                if lower_input == "/compact":
+                    console.print("[dim]正在压缩会话...[/dim]")
+                    compact_text = await session_mgr.compact_current_session()
+                    console.print(
+                        Panel(
+                            compact_text,
+                            title="[bold cyan]Session Compact[/bold cyan]",
+                            border_style="cyan",
+                        )
+                    )
+                    continue
+
+                # ---- /sessions: 列出会话 ----
+                if lower_input == "/sessions":
+                    sessions = session_mgr.list_sessions()
+                    if not sessions:
+                        console.print("[yellow]暂无会话[/yellow]")
+                    else:
+                        table = Table(title="会话列表", show_header=True, header_style="bold magenta")
+                        table.add_column("ID", style="cyan", width=10)
+                        table.add_column("名称", style="green")
+                        table.add_column("Agent", style="yellow")
+                        table.add_column("消息数", style="blue")
+                        table.add_column("状态", style="white")
+                        for s in sessions:
+                            is_current = "← 当前" if session_mgr.current_session and s.id == session_mgr.current_session.id else ""
+                            table.add_row(s.id, s.name, s.agent_type, str(len(s.messages)), is_current)
+                        console.print(table)
+                    continue
+
+                # ---- /new: 新建会话 ----
+                if lower_input == "/new":
+                    new_sess = session_mgr.new_session(agent_type=agent)
+                    agent_instance.clear_memory()
+                    reasoning_comp.clear()
+                    execution_comp.clear()
+                    console.print(f"[green]✓ 已创建新会话: {new_sess.name} ({new_sess.id})[/green]")
+                    continue
+
+                # ---- /export: 导出对话 ----
+                if lower_input.startswith("/export"):
+                    from datetime import datetime as dt
+                    export_path = Path(f"exports/session_{dt.now().strftime('%Y%m%d_%H%M%S')}.md")
+                    success = await session_mgr.export_session(export_path)
+                    if success:
+                        console.print(f"[green]✓ 对话已导出到: {export_path}[/green]")
+                    else:
+                        console.print("[red]导出失败[/red]")
+                    continue
+
+                # ---- /model 切换 ----
                 if lower_input.startswith("/model"):
                     parts = user_input.strip().split()
                     if hasattr(agent_instance, "switch_model") and hasattr(
@@ -760,16 +833,8 @@ def interactive(
                     if hasattr(agent_instance, "handle_accept"):
                         parts = user_input.strip().split()
                         choice = int(parts[1]) if len(parts) > 1 else 1
-                        response = await agent_instance.handle_accept(
-                            choice, on_event=handle_event
-                        )
-                        console.print(
-                            Panel(
-                                Markdown(response),
-                                title="[bold green]智能体[/bold green]",
-                                border_style="green",
-                            )
-                        )
+                        response = await agent_instance.handle_accept(choice)
+                        content_comp.display_assistant_message(response, agent)
                     else:
                         console.print(
                             "[yellow]当前智能体不支持 /accept（hackbot 自动模式无需确认）[/yellow]"
@@ -825,74 +890,41 @@ def interactive(
                             console.print(table)
                     continue
 
-                # ---- 处理消息（ReAct 循环）----
-                # 将输入添加到历史记录
+                # ---- 处理消息（通过 SessionManager 编排）----
                 enhanced_input.add_to_history(user_input)
 
-                # 先通过规划器判断请求类型
-                planning_result = await planner_agent.process(user_input)
+                # 清除上一轮的组件状态
+                reasoning_comp.clear()
+                execution_comp.clear()
 
-                # 如果是简单回复，直接显示
-                if not any(
-                    keyword in planning_result
-                    for keyword in ["**执行计划**:", "**开始执行**"]
-                ):
-                    console.print(
-                        Panel(
-                            Markdown(planning_result),
-                            title="[bold green]助手[/bold green]",
-                            border_style="green",
-                        )
+                # 显示用户消息
+                console.print(
+                    Text.assemble(
+                        ("  ", ""),
+                        ("You: ", "bold bright_blue"),
+                        (user_input, ""),
                     )
-                else:
-                    # 是技术请求，显示规划结果并执行
-                    if "**执行计划**:" in planning_result:
-                        # 显示规划
-                        plan_lines = planning_result.split("**执行计划**:")
-                        if len(plan_lines) > 1:
-                            console.print(
-                                Panel(
-                                    plan_lines[0].strip()
-                                    + "\n\n**执行计划**:"
-                                    + plan_lines[1].split("**开始执行**")[0],
-                                    title="[bold blue]任务规划[/bold blue]",
-                                    border_style="blue",
-                                )
-                            )
-                        else:
-                            console.print(
-                                Panel(
-                                    planning_result.split("**开始执行**")[0],
-                                    title="[bold blue]任务规划[/bold blue]",
-                                    border_style="blue",
-                                )
-                            )
-                    else:
-                        console.print(
-                            Panel(
-                                planning_result,
-                                title="[bold blue]任务规划[/bold blue]",
-                                border_style="blue",
-                            )
-                        )
+                )
+                console.print()
 
-                    # 执行核心 agent
-                    response = await agent_instance.process(
-                        user_input, on_event=handle_event
-                    )
+                # 通过 SessionManager 编排完整流程：
+                # Planner -> Core Agent (ReAct) -> Summary
+                response = await session_mgr.handle_message(
+                    user_input, agent_type=agent
+                )
 
-                    console.print(
-                        Panel(
-                            Markdown(response),
-                            title=f"[bold green]{agent}[/bold green]",
-                            border_style="green",
-                        )
-                    )
+                # 仅简单请求（无 planning todos）才直接展示回复
+                # 技术请求的输出已通过 Planning/Reasoning/Execution/Report 组件展示
+                if response and not planning_comp.todos:
+                    content_comp.display_assistant_message(response, agent)
 
                 if voice:
-                    with console.status("[bold green]生成语音中..."):
-                        audio_data = await tts.synthesize(response)
-                    console.print("[dim]（语音响应已生成）[/dim]")
+                    try:
+                        with console.status("[bold green]生成语音中..."):
+                            audio_data = await tts.synthesize(response)
+                        console.print("[dim]（语音响应已生成）[/dim]")
+                    except Exception:
+                        pass
 
             except KeyboardInterrupt:
                 console.print("\n[yellow]再见！[/yellow]")
