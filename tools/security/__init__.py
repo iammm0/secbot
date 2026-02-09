@@ -10,25 +10,53 @@ from tools.security.recon_tool import ReconTool
 from tools.security.attack_test_tool import AttackTestTool
 from tools.security.exploit_tool import ExploitTool
 
-# 基础工具（hackbot + superhackbot 都可用）
-BASIC_SECURITY_TOOLS = [
+# 引入扩展工具包
+from tools.network import NETWORK_TOOLS
+from tools.defense import DEFENSE_TOOLS
+from tools.utility import UTILITY_TOOLS
+from tools.web import WEB_TOOLS
+from tools.command_tool import CommandTool
+from tools.crawler_tool import CrawlerTool
+
+# ---------------------------------------------------------------
+# 核心安全工具
+# ---------------------------------------------------------------
+CORE_SECURITY_TOOLS = [
     PortScanTool(),
     ServiceDetectTool(),
     VulnScanTool(),
     ReconTool(),
 ]
 
+# ---------------------------------------------------------------
+# 基础工具（hackbot + superhackbot 都可用）
+# 包含核心安全 + 网络 + 防御 + 实用 + Web + 系统命令 + 爬虫
+# ---------------------------------------------------------------
+BASIC_SECURITY_TOOLS = (
+    CORE_SECURITY_TOOLS
+    + NETWORK_TOOLS
+    + DEFENSE_TOOLS
+    + UTILITY_TOOLS
+    + WEB_TOOLS
+    + [CommandTool(), CrawlerTool()]
+)
+
+# ---------------------------------------------------------------
 # 高级工具（仅 superhackbot 可用，需用户确认）
+# ---------------------------------------------------------------
 ADVANCED_SECURITY_TOOLS = [
     AttackTestTool(),
     ExploitTool(),
 ]
 
+# ---------------------------------------------------------------
 # 全部安全工具
+# ---------------------------------------------------------------
 ALL_SECURITY_TOOLS = BASIC_SECURITY_TOOLS + ADVANCED_SECURITY_TOOLS
 
 __all__ = [
     "PortScanTool", "ServiceDetectTool", "VulnScanTool", "ReconTool",
     "AttackTestTool", "ExploitTool",
+    "CORE_SECURITY_TOOLS",
     "BASIC_SECURITY_TOOLS", "ADVANCED_SECURITY_TOOLS", "ALL_SECURITY_TOOLS",
 ]
