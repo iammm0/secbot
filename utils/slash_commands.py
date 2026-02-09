@@ -1,7 +1,8 @@
 """
 交互式斜杠命令前缀匹配：用户输入 / 后匹配最接近的命令，支持快速选择。
+输入 "/" 时可对将要执行的命令进行补全。
 """
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 # 按长度降序，以便优先匹配 /audit export
 SLASH_COMMANDS = (
@@ -60,3 +61,19 @@ def normalize_slash_input(raw: str) -> Tuple[Optional[str], Optional[str]]:
     # 多选时取最短展开（如 /a → /audit）
     best = min(matches, key=len)
     return (best + rest, None)
+
+
+def get_slash_completions(prefix: str) -> List[str]:
+    """
+    根据当前输入前缀返回可补全的斜杠命令列表，供输入框补全使用。
+    输入 "/" 或 "/au" 等时返回匹配的命令。
+    """
+    prefix = prefix.strip().lower()
+    if not prefix or not prefix.startswith("/"):
+        return []
+    # 匹配：命令以 prefix 开头，或 prefix 是某命令的前缀
+    matches = [
+        c for c in SLASH_COMMANDS
+        if c.startswith(prefix) or (prefix.startswith(c.split()[0]) if " " in c else prefix.startswith(c))
+    ]
+    return sorted(matches)
