@@ -1,6 +1,7 @@
 # PyInstaller spec: 打包 Hackbot 为各平台可执行程序
 # 使用方式: pyinstaller hackbot.spec
-# 产物: dist/hackbot (或 dist/hackbot.exe)
+# 产物: dist/hackbot/ 目录，内含 hackbot（或 hackbot.exe）及依赖
+# 使用 onedir 模式避免单文件体积超过 4GB 导致 Linux CI 报 struct.error
 
 import sys
 
@@ -66,6 +67,14 @@ a = Analysis(
         'PIL',
         'pytest',
         'IPython',
+        # 项目不依赖 PyTorch/TensorFlow，排除以减小体积、加快构建
+        'torch',
+        'torchvision',
+        'torchaudio',
+        'tensorflow',
+        'keras',
+        'tensorboard',
+        'onnxruntime',
     ],
     noarchive=False,
     optimize=0,
@@ -73,12 +82,12 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
+# onedir 模式：可执行文件 + 依赖目录，避免单文件超过 4GB 限制（Linux CI struct.error）
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='hackbot',
     debug=False,
     bootloader_ignore_signals=False,
@@ -92,4 +101,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    name='hackbot',
 )
