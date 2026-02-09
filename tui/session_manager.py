@@ -140,11 +140,19 @@ class SessionManager:
         if self.current_session:
             self.current_session.add_message(MessageRole.USER, user_input)
 
+        # 通知 UI：进入规划阶段（便于加载组件显示「规划中」）
+        await self.event_bus.emit_simple_async(
+            EventType.TASK_PHASE, phase="planning", detail=""
+        )
+
         # ---- 阶段 1：规划 ----
         plan_result = await self._run_planning(user_input)
 
         # 如果是简单请求，直接返回
         if plan_result.request_type in (RequestType.GREETING, RequestType.SIMPLE):
+            await self.event_bus.emit_simple_async(
+                EventType.TASK_PHASE, phase="done", detail=""
+            )
             response = plan_result.direct_response or ""
             if self.current_session:
                 self.current_session.add_message(MessageRole.ASSISTANT, response)
@@ -163,11 +171,17 @@ class SessionManager:
             self._bridge_agent_event(event_type, data, plan_result)
 
         # 编排流程下：规划与报告由 SessionManager 各做一次，agent 只做 reasoning + action
+        # 传入当前计划步骤，便于 agent 在未完成所有步骤前不提前输出 Final Answer
+        todos_snapshot = [
+            {"id": t.id, "content": t.content, "status": getattr(t.status, "value", str(t.status))}
+            for t in plan_result.todos
+        ]
         response = await agent_instance.process(
             user_input,
             on_event=event_bridge,
             skip_planning=True,
             skip_report=True,
+            todos=todos_snapshot,
         )
 
         # ---- 阶段 3：摘要 ----
