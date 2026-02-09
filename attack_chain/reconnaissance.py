@@ -57,15 +57,14 @@ class Reconnaissance:
     async def _scan_ports(self, target: str) -> List[Dict]:
         """扫描开放端口"""
         from scanner.port_scanner import PortScanner
-        
+
         scanner = PortScanner()
         host = target.split(":")[0] if ":" in target else target.replace("http://", "").replace("https://", "").split("/")[0]
-        
-        # 扫描常见端口
+
+        # 扫描常见端口（PortScanner 使用 scan_host，返回 Dict 含 "ports" 列表）
         common_ports = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 5432, 8080]
-        ports = await scanner.scan_ports(host, ports=common_ports)
-        
-        return ports
+        result = await scanner.scan_host(host, ports=common_ports)
+        return result.get("ports", [])
     
     async def _identify_services(self, target: str) -> List[Dict]:
         """识别服务"""
