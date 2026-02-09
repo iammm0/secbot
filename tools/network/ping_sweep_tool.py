@@ -1,0 +1,89 @@
+"""Ping 扫描工具：对 IP 段进行存活检测"""
+import asyncio
+import ipaddress
+import platform
+from typing import Any, Dict, List
+from tools.base import BaseTool, ToolResult
+
+
+class PingSweepTool(BaseTool):
+    """Ping 扫描工具：探测目标网段中存活的主机"""
+
+    sensitivity = "low"
+
+    def __init__(self):
+        super().__init__(
+            name="ping_sweep",
+            description="Ping扫描指定目标或网段，检测存活主机。参数: target(IP/域名/CIDR网段如192.168.1.0/24), timeout(超时秒数, 默认2)",
+        )
+
+    async def _ping_one(self, host: str, timeout: int = 2) -> Dict:
+        """Ping 单个主机"""
+        param = "-n" if platform.system().lower() == "windows" else "-c"
+        timeout_param = "-w" if platform.system().lower() == "windows" else "-W"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ping", param, "1", timeout_param, str(timeout), str(host),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout + 3)
+            alive = proc.returncode == 0
+            output = stdout.decode(errors="ignore")
+            # 提取延迟
+            latency = None
+            if alive:
+                for token in output.split():
+                    if "time=" in token:
+                        latency = token.split("=")[1].replace("ms", "").strip()
+                        break
+            return {"host": str(host), "alive": alive, "latency_ms": latency}
+        except (asyncio.TimeoutError, Exception):
+            return {"host": str(host), "alive": False, "latency_ms": None}
+
+    async def execute(self, **kwargs) -> ToolResult:
+        target = kwargs.get("target", "")
+        if not target:
+            return ToolResult(success=False, result=None, error="缺少参数: target")
+
+        timeout = int(kwargs.get("timeout", 2))
+
+        try:
+            hosts: List[str] = []
+            # 判断是否为网段
+            if "/" in target:
+                network = ipaddress.ip_network(target, strict=False)
+                # 限制最大扫描 256 个 IP
+                hosts = [str(ip) for ip in list(network.hosts())[:256]]
+            else:
+                hosts = [target]
+
+            # 并发 Ping
+            tasks = [self._ping_one(h, timeout) for h in hosts]
+            results = await asyncio.gather(*tasks)
+
+            alive_hosts = [r for r in results if r["alive"]]
+
+            return ToolResult(
+                success=True,
+                result={
+                    "target": target,
+                    "total_scanned": len(results),
+                    "alive_count": len(alive_hosts),
+                    "alive_hosts": alive_hosts,
+                    "dead_count": len(results) - len(alive_hosts),
+                },
+            )
+        except Exception as e:
+            return ToolResult(success=False, result=None, error=str(e))
+
+    def get_schema(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "sensitivity": self.sensitivity,
+            "parameters": {
+                "target": {"type": "string", "description": "IP/域名/CIDR 网段", "required": True},
+                "timeout": {"type": "integer", "description": "超时秒数", "default": 2},
+            },
+        }
