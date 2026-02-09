@@ -1,6 +1,6 @@
 """
 SessionManager：会话编排管理器
-编排 Planner -> Core Agent (hackbot/superhackbot) -> Summary 的完整流程
+编排 路由 -> Q&A / Planner -> Core Agent (hackbot/superhackbot) -> Summary 的完整流程
 管理会话生命周期和事件分发
 """
 
@@ -12,6 +12,8 @@ from typing import Dict, List, Optional
 from rich.console import Console
 
 from agents.planner_agent import PlannerAgent
+from agents.qa_agent import QAAgent
+from agents.router import route as message_route
 from agents.summary_agent import SummaryAgent
 from tui.models import (
     InteractionSummary,
@@ -32,7 +34,7 @@ class SessionManager:
 
     职责：
     1. 管理会话的创建、切换、恢复
-    2. 编排 Planner -> Core Agent -> Summary 的完整流程
+    2. 路由：简单问候/项目了解 -> QAAgent；操作类 -> Planner -> Core Agent -> Summary
     3. 通过 EventBus 将流程事件分发给 UI 组件
     4. 维护消息历史
     """
@@ -43,11 +45,13 @@ class SessionManager:
         console: Console,
         agents: Optional[Dict] = None,
         planner: Optional[PlannerAgent] = None,
+        qa_agent: Optional[QAAgent] = None,
         summary_agent: Optional[SummaryAgent] = None,
     ):
         self.event_bus = event_bus
         self.console = console
         self.planner = planner or PlannerAgent()
+        self.qa_agent = qa_agent or QAAgent()
         self.summary_agent = summary_agent or SummaryAgent()
         self.agents = agents or {}
 
@@ -124,17 +128,19 @@ class SessionManager:
         self,
         user_input: str,
         agent_type: Optional[str] = None,
+        plan_override: Optional[PlanResult] = None,
     ) -> str:
         """
         处理单条消息的完整编排流程：
-        1. PlannerAgent 分析请求 -> 生成 todos（或直接回复）
-        2. 核心 Agent (hackbot/superhackbot) 执行 ReAct 循环
-        3. 执行过程中实时更新 todo 状态
+        1. 路由：简单问候/项目了解 -> QAAgent 简要回复；否则进入规划
+        2. 规划（或使用 plan_override）：PlannerAgent 生成 todos
+        3. 核心 Agent 执行 ReAct 循环，实时更新 todo 状态
         4. SummaryAgent 总结交互结果
 
         Args:
             user_input: 用户输入
             agent_type: 指定 agent 类型（覆盖会话默认值）
+            plan_override: 若提供则跳过规划阶段，直接使用该计划执行（用于 /plan 后 /start）
 
         Returns:
             最终响应文本
@@ -146,23 +152,53 @@ class SessionManager:
         # 每轮新消息清空工具执行记录，供本轮摘要使用
         self._current_tool_results = []
 
+        # ---- 路由：简单问候/项目了解 -> Q&A Agent ----
+        if plan_override is None and message_route(user_input) == "qa":
+            await self.event_bus.emit_simple_async(
+                EventType.TASK_PHASE, phase="done", detail=""
+            )
+            response = await self.qa_agent.answer(user_input)
+            if self.current_session:
+                self.current_session.add_message(MessageRole.ASSISTANT, response)
+            return response
+
         # 通知 UI：进入规划阶段（便于加载组件显示「规划中」）
         await self.event_bus.emit_simple_async(
             EventType.TASK_PHASE, phase="planning", detail=""
         )
 
-        # ---- 阶段 1：规划 ----
-        plan_result = await self._run_planning(user_input)
+        # ---- 阶段 1：规划（或使用既定计划）----
+        if plan_override is not None:
+            plan_result = plan_override
+            self.planner._current_plan = plan_result  # 便于执行时更新 todo 状态
+            # 仍需要发射 PLAN_START 以便 TUI 展示
+            if plan_result.todos:
+                await self.event_bus.emit_simple_async(
+                    EventType.PLAN_START,
+                    summary=plan_result.plan_summary,
+                    todos=[
+                        {
+                            "id": t.id,
+                            "content": t.content,
+                            "status": t.status.value,
+                            "depends_on": t.depends_on,
+                            "tool_hint": t.tool_hint,
+                        }
+                        for t in plan_result.todos
+                    ],
+                )
+        else:
+            plan_result = await self._run_planning(user_input)
 
-        # 如果是简单请求，直接返回
-        if plan_result.request_type in (RequestType.GREETING, RequestType.SIMPLE):
-            await self.event_bus.emit_simple_async(
-                EventType.TASK_PHASE, phase="done", detail=""
-            )
-            response = plan_result.direct_response or ""
-            if self.current_session:
-                self.current_session.add_message(MessageRole.ASSISTANT, response)
-            return response
+            # 若规划器仍判定为简单请求（与路由不一致时的兜底），直接返回
+            if plan_result.request_type in (RequestType.GREETING, RequestType.SIMPLE):
+                await self.event_bus.emit_simple_async(
+                    EventType.TASK_PHASE, phase="done", detail=""
+                )
+                response = plan_result.direct_response or ""
+                if self.current_session:
+                    self.current_session.add_message(MessageRole.ASSISTANT, response)
+                return response
 
         # ---- 阶段 2：执行 ----
         at = agent_type or self.get_current_agent_type()
@@ -403,7 +439,7 @@ class SessionManager:
         status: str,
         result_summary: Optional[str] = None,
     ):
-        """根据工具名自动更新匹配的 todo 状态"""
+        """根据工具名自动更新匹配的 todo 状态；每完成一个就标记为 completed，保证总结报告正确。"""
         matched = self.planner.find_todo_for_tool(tool_name)
         if matched:
             self.planner.update_todo(matched.id, status, result_summary)
@@ -413,14 +449,27 @@ class SessionManager:
                 status=status,
                 result_summary=result_summary,
             )
-        else:
-            # 尝试找下一个 pending todo
+            return
+        # 未按 tool_hint 匹配到时：in_progress 标到“下一个 pending”，completed 标到“当前 in_progress”
+        if status == "in_progress":
             next_todo = self.planner.find_next_pending_todo()
-            if next_todo and status == "in_progress":
+            if next_todo:
                 self.planner.update_todo(next_todo.id, status, result_summary)
                 self.event_bus.emit_simple(
                     EventType.PLAN_TODO,
                     todo_id=next_todo.id,
+                    status=status,
+                    result_summary=result_summary,
+                )
+        elif status == "completed":
+            in_progress_todo = self.planner.find_todo_in_progress()
+            if in_progress_todo:
+                self.planner.update_todo(
+                    in_progress_todo.id, status, result_summary
+                )
+                self.event_bus.emit_simple(
+                    EventType.PLAN_TODO,
+                    todo_id=in_progress_todo.id,
                     status=status,
                     result_summary=result_summary,
                 )
