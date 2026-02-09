@@ -77,8 +77,7 @@ dev = [
 ]
 
 [project.scripts]
-hackbot = "m_bot.cli:app"
-mbot = "m_bot.cli:app"  # Alias for backward compatibility
+hackbot = "hackbot.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/iammm0/hackbot"
@@ -88,7 +87,7 @@ Issues = "https://github.com/iammm0/hackbot/issues"
 
 [tool.setuptools]
 packages = [
-    "m_bot",
+    "hackbot",
     "agents",
     "attack_chain",
     "controller",

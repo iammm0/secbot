@@ -1212,6 +1212,107 @@ wheels = [
 ]
 
 [[package]]
+name = "hackbot"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "beautifulsoup4" },
+    { name = "chromadb" },
+    { name = "distro" },
+    { name = "faiss-cpu" },
+    { name = "faster-whisper" },
+    { name = "gtts" },
+    { name = "httpx" },
+    { name = "langchain" },
+    { name = "langchain-community" },
+    { name = "langchain-core" },
+    { name = "langchain-experimental" },
+    { name = "langchain-ollama" },
+    { name = "langchain-openai" },
+    { name = "loguru" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "paramiko" },
+    { name = "playwright" },
+    { name = "psutil" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pydub" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "pyttsx3" },
+    { name = "pywinrm" },
+    { name = "pyyaml" },
+    { name = "redis" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "selenium" },
+    { name = "sqlalchemy" },
+    { name = "tiktoken" },
+    { name = "typer" },
+    { name = "websockets" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "flake8" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9.1" },
+    { name = "beautifulsoup4", specifier = ">=4.12.2" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
+    { name = "chromadb", specifier = ">=0.4.22" },
+    { name = "distro", specifier = ">=1.8.0" },
+    { name = "faiss-cpu", specifier = ">=1.7.4" },
+    { name = "faster-whisper", specifier = ">=1.0.0" },
+    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
+    { name = "gtts", specifier = ">=2.5.0" },
+    { name = "httpx", specifier = ">=0.26.0" },
+    { name = "langchain", specifier = ">=0.1.0" },
+    { name = "langchain-community", specifier = ">=0.0.20" },
+    { name = "langchain-core", specifier = ">=0.1.23" },
+    { name = "langchain-experimental", specifier = ">=0.0.50" },
+    { name = "langchain-ollama", specifier = ">=0.1.0" },
+    { name = "langchain-openai", specifier = ">=0.2.0" },
+    { name = "loguru", specifier = ">=0.7.2" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "numpy", specifier = ">=1.24.0" },
+    { name = "paramiko", specifier = ">=3.4.0" },
+    { name = "playwright", specifier = ">=1.41.0" },
+    { name = "psutil", specifier = ">=5.9.0" },
+    { name = "pydantic", specifier = ">=2.5.3" },
+    { name = "pydantic-settings", specifier = ">=2.1.0" },
+    { name = "pydub", specifier = ">=0.25.1" },
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.3" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.3" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "python-multipart", specifier = ">=0.0.6" },
+    { name = "pyttsx3", specifier = ">=2.90" },
+    { name = "pywinrm", specifier = ">=0.4.3" },
+    { name = "pyyaml", specifier = ">=6.0.1" },
+    { name = "redis", specifier = ">=5.0.1" },
+    { name = "requests", specifier = ">=2.31.0" },
+    { name = "rich", specifier = ">=13.7.0" },
+    { name = "selenium", specifier = ">=4.17.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.25" },
+    { name = "tiktoken", specifier = ">=0.5.2" },
+    { name = "typer", specifier = ">=0.9.0" },
+    { name = "websockets", specifier = ">=12.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "hf-xet"
 version = "1.2.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -1854,107 +1955,6 @@ sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/3a/05/a1dae3dffd1116
 wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c", size = 61595, upload-time = "2024-12-06T11:20:54.538Z" },
 ]
-
-[[package]]
-name = "m-bot"
-version = "1.0.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "beautifulsoup4" },
-    { name = "chromadb" },
-    { name = "distro" },
-    { name = "faiss-cpu" },
-    { name = "faster-whisper" },
-    { name = "gtts" },
-    { name = "httpx" },
-    { name = "langchain" },
-    { name = "langchain-community" },
-    { name = "langchain-core" },
-    { name = "langchain-experimental" },
-    { name = "langchain-ollama" },
-    { name = "langchain-openai" },
-    { name = "loguru" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "paramiko" },
-    { name = "playwright" },
-    { name = "psutil" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pydub" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "pyttsx3" },
-    { name = "pywinrm" },
-    { name = "pyyaml" },
-    { name = "redis" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "selenium" },
-    { name = "sqlalchemy" },
-    { name = "tiktoken" },
-    { name = "typer" },
-    { name = "websockets" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "flake8" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.9.1" },
-    { name = "beautifulsoup4", specifier = ">=4.12.2" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
-    { name = "chromadb", specifier = ">=0.4.22" },
-    { name = "distro", specifier = ">=1.8.0" },
-    { name = "faiss-cpu", specifier = ">=1.7.4" },
-    { name = "faster-whisper", specifier = ">=1.0.0" },
-    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "gtts", specifier = ">=2.5.0" },
-    { name = "httpx", specifier = ">=0.26.0" },
-    { name = "langchain", specifier = ">=0.1.0" },
-    { name = "langchain-community", specifier = ">=0.0.20" },
-    { name = "langchain-core", specifier = ">=0.1.23" },
-    { name = "langchain-experimental", specifier = ">=0.0.50" },
-    { name = "langchain-ollama", specifier = ">=0.1.0" },
-    { name = "langchain-openai", specifier = ">=0.2.0" },
-    { name = "loguru", specifier = ">=0.7.2" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "numpy", specifier = ">=1.24.0" },
-    { name = "paramiko", specifier = ">=3.4.0" },
-    { name = "playwright", specifier = ">=1.41.0" },
-    { name = "psutil", specifier = ">=5.9.0" },
-    { name = "pydantic", specifier = ">=2.5.3" },
-    { name = "pydantic-settings", specifier = ">=2.1.0" },
-    { name = "pydub", specifier = ">=0.25.1" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23.3" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.3" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "python-multipart", specifier = ">=0.0.6" },
-    { name = "pyttsx3", specifier = ">=2.90" },
-    { name = "pywinrm", specifier = ">=0.4.3" },
-    { name = "pyyaml", specifier = ">=6.0.1" },
-    { name = "redis", specifier = ">=5.0.1" },
-    { name = "requests", specifier = ">=2.31.0" },
-    { name = "rich", specifier = ">=13.7.0" },
-    { name = "selenium", specifier = ">=4.17.0" },
-    { name = "sqlalchemy", specifier = ">=2.0.25" },
-    { name = "tiktoken", specifier = ">=0.5.2" },
-    { name = "typer", specifier = ">=0.9.0" },
-    { name = "websockets", specifier = ">=12.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "markdown-it-py"
