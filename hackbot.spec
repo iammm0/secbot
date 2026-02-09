@@ -2,8 +2,11 @@
 # 使用方式: pyinstaller hackbot.spec
 # 产物: dist/hackbot/ 目录，内含 hackbot（或 hackbot.exe）及依赖
 # 使用 onedir 模式避免单文件体积超过 4GB 导致 Linux CI 报 struct.error
+# Linux 下启用 noarchive 避免 PYZ 过大导致 CArchiveWriter struct.error
 
 import sys
+
+IS_LINUX = sys.platform == 'linux'
 
 # 顶层包与模块（确保被打包）
 TOP_LEVEL = [
@@ -76,7 +79,7 @@ a = Analysis(
         'tensorboard',
         'onnxruntime',
     ],
-    noarchive=False,
+    noarchive=IS_LINUX,
     optimize=0,
 )
 
