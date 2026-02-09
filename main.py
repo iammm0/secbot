@@ -17,7 +17,6 @@ from rich import box
 from agents.planner_agent import PlannerAgent
 from agents.hackbot_agent import HackbotAgent
 from agents.superhackbot_agent import SuperHackbotAgent
-from config import settings
 from utils.logger import logger, restore_console_log_level
 from utils.audit import AuditTrail
 from utils.slash_commands import normalize_slash_input
@@ -25,20 +24,13 @@ from utils.speech import SpeechToText, TextToSpeech
 from utils.enhanced_input import EnhancedInput
 from utils.model_selector import run_model_selector, check_ollama_running, has_deepseek_api_key
 from utils.output_components import OutputComponentManager
-from utils.hackbot_banner import print_hackbot_banner
-from utils.opencode_layout import (
-    create_opencode_layout,
-)
 from utils.loading import LoadingComponent
-from rich.live import Live
-from rich.spinner import Spinner
 from crawler.scheduler import CrawlerScheduler
 from crawler.realtime import RealtimeCrawler
 from crawler.extractor import AIExtractor
 from system.controller import OSController
 from system.detector import OSDetector
 from prompts.manager import PromptManager
-from prompts.chain import PromptChain
 from database.manager import DatabaseManager
 from memory.database_memory import DatabaseMemory
 from scanner.port_scanner import PortScanner
@@ -46,7 +38,6 @@ from scanner.service_detector import ServiceDetector
 from scanner.vulnerability_scanner import VulnerabilityScanner
 from scanner.attack_tester import AttackTester
 from scanner.scheduler import AttackScheduler
-from database.models import AttackTask, ScanResult
 from defense.defense_manager import DefenseManager
 from controller.controller import MainController
 from datetime import datetime
@@ -557,12 +548,14 @@ def interactive(
         from tui.components.execution import ExecutionComponent
         from tui.components.content import ContentComponent
         from tui.components.report import ReportComponent
+        from tui.components.task_status import TaskStatusComponent
         from tui.session_manager import SessionManager
         from tui.models import RequestType
 
         event_bus = EventBus()
 
-        # 初始化五大展示组件，订阅 EventBus
+        # 初始化展示组件（含任务状态加载组件），订阅 EventBus
+        task_status_comp = TaskStatusComponent(console, event_bus)
         planning_comp = PlanningComponent(console, event_bus)
         reasoning_comp = ReasoningComponent(console, event_bus)
         execution_comp = ExecutionComponent(console, event_bus)
