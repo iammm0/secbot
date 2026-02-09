@@ -13,6 +13,8 @@ SLASH_COMMANDS = (
     "/model",
     "/accept",
     "/reject",
+    "/start",
+    "/plan",
     # v2 新增命令
     "/thinking",
     "/details",
@@ -28,13 +30,15 @@ SLASH_HELP = (
     "  [cyan]/accept[/cyan]    确认敏感操作\n"
     "  [cyan]/reject[/cyan]    拒绝敏感操作\n"
     "  [cyan]/audit[/cyan]     查看审计留痕\n"
+    "  [cyan]/plan[/cyan]      进入计划模式：编写安全测试计划\n"
+    "  [cyan]/start[/cyan]     计划模式下：确认计划并开始执行\n"
     "  [cyan]/thinking[/cyan]  切换推理过程显示\n"
     "  [cyan]/details[/cyan]   切换执行详情模式\n"
     "  [cyan]/compact[/cyan]   压缩会话历史\n"
     "  [cyan]/sessions[/cyan]  列出/切换会话\n"
     "  [cyan]/new[/cyan]       新建会话\n"
     "  [cyan]/export[/cyan]    导出对话为 Markdown\n"
-    "例: [dim]/m[/dim] → /model, [dim]/th[/dim] → /thinking, [dim]/de[/dim] → /details"
+    "例: [dim]/m[/dim] → /model, [dim]/pl[/dim] → /plan, [dim]/st[/dim] → /start"
 )
 
 
@@ -116,6 +120,8 @@ COMMAND_DESCRIPTIONS = {
     "/reject": "拒绝敏感操作",
     "/audit": "查看操作留痕",
     "/audit export": "导出审计报告",
+    "/plan": "进入计划模式，编写自动化安全测试计划",
+    "/start": "计划模式下确认计划并开始执行",
     "/thinking": "切换推理过程的显示/隐藏",
     "/details": "切换工具执行详情的详细/简洁模式",
     "/compact": "压缩当前会话历史",
