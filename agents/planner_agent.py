@@ -217,6 +217,15 @@ class PlannerAgent(BaseAgent):
                 return todo
         return None
 
+    def find_todo_in_progress(self) -> Optional[TodoItem]:
+        """找到当前正在执行的 todo（status 为 in_progress），用于执行完成后标记为 completed"""
+        if not self._current_plan:
+            return None
+        for todo in self._current_plan.todos:
+            if todo.status == TodoStatus.IN_PROGRESS:
+                return todo
+        return None
+
     # ------------------------------------------------------------------
     # 快速分类
     # ------------------------------------------------------------------
