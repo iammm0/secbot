@@ -63,14 +63,15 @@ class AttackChain:
         
         port_scanner = PortScanner()
         vuln_scanner = VulnerabilityScanner()
-        
-        # 端口扫描
-        ports = await port_scanner.scan_ports(target)
-        
+
+        # 端口扫描（PortScanner 使用 scan_host）
+        scan_result = await port_scanner.scan_host(target)
+        ports = scan_result.get("ports", [])
+
         # 漏洞扫描
         vulnerabilities = []
         for port_info in ports:
-            if port_info.get("open"):
+            if port_info.get("status") == "open":
                 vulns = await vuln_scanner.scan_vulnerabilities(
                     target,
                     port_info["port"],
