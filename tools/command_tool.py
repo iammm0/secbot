@@ -1,11 +1,32 @@
 """
 命令执行工具：供智能体执行终端命令
+在 macOS 上自动将 Linux 风格的 netstat 等命令改写为兼容形式。
 """
+import re
 import subprocess
 import sys
 from typing import Optional
 from tools.base import BaseTool, ToolResult
 from utils.logger import logger
+
+
+def _adapt_command_for_platform(command: str) -> str:
+    """
+    在 macOS 上将常见 Linux 风格命令改写为兼容形式，避免 illegal option 报错。
+    """
+    if sys.platform != "darwin":
+        return command
+    cmd = command.strip()
+    # netstat 在 macOS 上不支持 -t -u -l -p -o 等 Linux 选项
+    if cmd.startswith("netstat ") or cmd == "netstat":
+        # 含 Linux 独有选项时改写：-tulpn / -tlnp / -an 等
+        if re.search(r"netstat\s+.*-[a-z]*[tulpo][a-z]*", cmd) or " -o " in cmd or " -p " in cmd:
+            # 仅查看监听/连接时用 -an（macOS 支持）；需要看 PID 时用 lsof
+            if "-l" in cmd or "-n" in cmd or "-a" in cmd or "-t" in cmd:
+                logger.info("将 Linux 风格 netstat 改写为 macOS 兼容: netstat -an")
+                return "netstat -an"
+            return "netstat -an"
+    return command
 
 
 class CommandTool(BaseTool):
@@ -14,7 +35,7 @@ class CommandTool(BaseTool):
     def __init__(self):
         super().__init__(
             name="execute_command",
-            description="执行系统终端命令。可以执行任何系统命令，包括文件操作、进程管理、网络操作等。"
+            description="执行系统终端命令。可执行文件操作、进程管理、网络等。在 macOS 上 netstat 不支持 -t/-u/-l/-p/-o 等 Linux 选项，会自动改为 netstat -an。"
         )
     
     async def execute(self, command: str, shell: bool = True, timeout: int = 30, cwd: Optional[str] = None) -> ToolResult:
@@ -31,8 +52,9 @@ class CommandTool(BaseTool):
             ToolResult: 执行结果
         """
         try:
+            command = _adapt_command_for_platform(command)
             logger.info(f"执行命令: {command}")
-            
+
             # 根据操作系统选择执行方式
             if sys.platform == "win32":
                 # Windows - 使用 cmd.exe 而不是 PowerShell
