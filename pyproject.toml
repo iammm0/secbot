@@ -81,10 +81,10 @@ hackbot = "m_bot.cli:app"
 mbot = "m_bot.cli:app"  # Alias for backward compatibility
 
 [project.urls]
-Homepage = "https://github.com/zhaomingjun/hackbot"
-Documentation = "https://github.com/zhaomingjun/hackbot/docs"
-Repository = "https://github.com/zhaomingjun/hackbot"
-Issues = "https://github.com/zhaomingjun/hackbot/issues"
+Homepage = "https://github.com/iammm0/hackbot"
+Documentation = "https://github.com/iammm0/hackbot/docs"
+Repository = "https://github.com/iammm0/hackbot"
+Issues = "https://github.com/iammm0/hackbot/issues"
 
 [tool.setuptools]
 packages = [
