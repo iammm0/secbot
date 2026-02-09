@@ -2,6 +2,7 @@
 ReasoningComponent：推理展示组件
 订阅 THINK_* 事件，展示 ReAct 循环中每一次 Thought
 支持流式渲染（Live 实时更新）、迭代编号、折叠历史、/thinking 切换显示
+自适应终端宽度，窄窗口不变形
 """
 
 from typing import List, Optional
@@ -19,6 +20,21 @@ from utils.event_bus import EventBus, EventType, Event
 
 # 流式刷新频率（次/秒）
 STREAM_REFRESH_PER_SECOND = 8
+# Live 面板最大行数（避免超长输出撑坏终端）
+MAX_STREAM_LINES = 30
+
+
+def _adaptive_padding(console: Console) -> tuple:
+    """根据终端宽度返回合适的 padding"""
+    try:
+        w = console.width or 80
+    except Exception:
+        w = 80
+    if w < 40:
+        return (0, 0)
+    if w < 60:
+        return (0, 1)
+    return (1, 2)
 
 
 class ReasoningComponent:
@@ -30,6 +46,7 @@ class ReasoningComponent:
     - 迭代编号清晰显示
     - 可折叠历史思考步骤，仅展开当前思考
     - 支持 /thinking 命令切换是否显示推理过程
+    - 自适应终端宽度
     """
 
     def __init__(self, console: Console, event_bus: Optional[EventBus] = None):
@@ -57,13 +74,18 @@ class ReasoningComponent:
         self._current_buffer = ""
         self._stop_live()
         if self._visible:
-            self._live = Live(
-                self._render_streaming_panel(),
-                console=self.console,
-                refresh_per_second=STREAM_REFRESH_PER_SECOND,
-                transient=False,
-            )
-            self._live.start()
+            try:
+                self._live = Live(
+                    self._render_streaming_panel(),
+                    console=self.console,
+                    refresh_per_second=STREAM_REFRESH_PER_SECOND,
+                    transient=False,
+                    vertical_overflow="ellipsis",
+                )
+                self._live.start()
+            except Exception:
+                # Live 启动失败（窗口太小或其他原因），跳过流式显示
+                self._live = None
 
     def _on_think_chunk(self, event: Event):
         """推理流式 token：追加并刷新 Live 显示"""
@@ -73,10 +95,11 @@ class ReasoningComponent:
             try:
                 self._live.update(self._render_streaming_panel())
             except Exception:
+                # 更新失败（可能终端正在缩放），静默跳过
                 pass
 
     def _on_think_end(self, event: Event):
-        """推理结束：写入历史、停止 Live；若刚才是流式显示则只更新 Live 后停止不重复打印，否则打印最终面板"""
+        """推理结束：写入历史、停止 Live"""
         content = event.data.get("thought", self._current_buffer)
         self.thoughts.append({
             "iteration": self._current_iteration,
@@ -85,7 +108,7 @@ class ReasoningComponent:
         })
         had_live = self._live is not None
         if had_live and self._visible:
-            # 用完整内容渲染最后一帧再停止，避免最后一帧为空
+            # 用完整内容渲染最后一帧再停止
             self._current_buffer = content
             try:
                 self._live.update(self._render_streaming_panel())
@@ -94,7 +117,7 @@ class ReasoningComponent:
         self._current_buffer = ""
         self._stop_live()
         if had_live and self._visible:
-            # 已通过 Live 展示过，不再 display() 避免 Reasoning - Iteration N 重复
+            # 已通过 Live 展示过，不再 display() 避免重复
             return
         self.display()
 
@@ -141,16 +164,19 @@ class ReasoningComponent:
     def _render_streaming_panel(self) -> Panel:
         """渲染当前缓冲区为流式输出用的 Panel（供 Live 更新），使用 Markdown 渲染"""
         content = self._current_buffer.strip() or "…"
-        # 限制流式面板高度，避免超长输出把终端撑坏
+        padding = _adaptive_padding(self.console)
+
+        # 限制流式面板高度
         lines = content.split("\n")
-        if len(lines) > 30:
-            content = "\n".join(lines[-30:])
+        if len(lines) > MAX_STREAM_LINES:
+            content = "\n".join(lines[-MAX_STREAM_LINES:])
+
         return Panel(
             Markdown(content),
             title=f"[bold cyan]Reasoning - Iteration {self._current_iteration}[/bold cyan]",
             border_style="cyan",
             box=box.ROUNDED,
-            padding=(1, 2),
+            padding=padding,
         )
 
     # ------------------------------------------------------------------
@@ -161,13 +187,19 @@ class ReasoningComponent:
         """渲染单条推理记录，使用 Markdown 渲染内容"""
         iteration = thought["iteration"]
         content = thought["content"]
+        padding = _adaptive_padding(self.console)
         renderable = Markdown(content) if content else Text("")
 
         if collapsed:
             # 折叠模式：显示摘要（纯文本）
             summary = content.replace("\n", " ").strip()
-            if len(summary) > 80:
-                summary = summary[:77] + "..."
+            try:
+                w = self.console.width or 80
+            except Exception:
+                w = 80
+            max_summary = max(w - 20, 30)
+            if len(summary) > max_summary:
+                summary = summary[:max_summary - 3] + "..."
             return CollapsiblePanel(
                 content=renderable,
                 title=f"[bold cyan]Reasoning - Iteration {iteration}[/bold cyan]",
@@ -181,7 +213,7 @@ class ReasoningComponent:
             title=f"[bold cyan]Reasoning - Iteration {iteration}[/bold cyan]",
             border_style="cyan",
             box=box.ROUNDED,
-            padding=(1, 2),
+            padding=padding,
         )
 
     def render(self) -> Optional[Panel]:

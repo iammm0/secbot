@@ -2,6 +2,7 @@
 ExecutionComponent：执行展示组件
 订阅 EXEC_* 事件，展示工具执行详情
 支持 spinner 动画、详细/简洁模式、/details 切换
+自适应终端宽度，窄窗口不变形
 """
 
 import json
@@ -17,6 +18,19 @@ from rich import box
 from utils.event_bus import EventBus, EventType, Event
 
 
+def _adaptive_padding(console: Console) -> tuple:
+    """根据终端宽度返回合适的 padding"""
+    try:
+        w = console.width or 80
+    except Exception:
+        w = 80
+    if w < 40:
+        return (0, 0)
+    if w < 60:
+        return (0, 1)
+    return (1, 2)
+
+
 class ExecutionComponent:
     """
     执行展示组件：
@@ -26,6 +40,7 @@ class ExecutionComponent:
     - 成功/失败用颜色区分（green/red）
     - 支持 /details 命令切换详细/简洁模式
     - 参数以 Table 格式渲染
+    - 自适应终端宽度
     """
 
     def __init__(self, console: Console, event_bus: Optional[EventBus] = None):
@@ -111,6 +126,22 @@ class ExecutionComponent:
         self.executions.clear()
 
     # ------------------------------------------------------------------
+    # 自适应列宽
+    # ------------------------------------------------------------------
+
+    def _get_col_widths(self) -> tuple:
+        """根据终端宽度计算列宽 (label_width, value_width_or_none)"""
+        try:
+            w = self.console.width or 80
+        except Exception:
+            w = 80
+        if w < 50:
+            return (8, None)
+        if w < 80:
+            return (10, None)
+        return (12, None)
+
+    # ------------------------------------------------------------------
     # 渲染
     # ------------------------------------------------------------------
 
@@ -134,14 +165,15 @@ class ExecutionComponent:
         iteration: int,
     ) -> Panel:
         """详细模式渲染"""
-        from rich.console import Group
+        padding = _adaptive_padding(self.console)
+        label_w, _ = self._get_col_widths()
 
         renderables = []
 
         # 工具信息表
-        tool_table = Table(show_header=False, box=None, padding=(0, 1))
-        tool_table.add_column(style="bold cyan", width=12)
-        tool_table.add_column(style="white")
+        tool_table = Table(show_header=False, box=None, padding=(0, 1), expand=True)
+        tool_table.add_column(style="bold cyan", width=label_w, no_wrap=True)
+        tool_table.add_column(style="white", ratio=1)
         tool_table.add_row("工具名称", f"[bold yellow]{tool}[/bold yellow]")
         if iteration:
             tool_table.add_row("迭代次数", f"[dim]{iteration}[/dim]")
@@ -152,10 +184,11 @@ class ExecutionComponent:
         # 参数表
         if params:
             params_table = Table(
-                show_header=True, header_style="bold", box=None, padding=(0, 1)
+                show_header=True, header_style="bold", box=None, padding=(0, 1), expand=True,
             )
-            params_table.add_column("参数名", style="cyan", width=20)
-            params_table.add_column("参数值", style="white")
+            param_label_w = min(label_w + 4, 20)
+            params_table.add_column("参数名", style="cyan", width=param_label_w, no_wrap=True)
+            params_table.add_column("参数值", style="white", ratio=1, overflow="fold")
 
             for key, value in params.items():
                 if isinstance(value, (dict, list)):
@@ -178,14 +211,20 @@ class ExecutionComponent:
             title=f"[bold yellow]Execution - {tool}[/bold yellow]",
             border_style="yellow",
             box=box.ROUNDED,
-            padding=(1, 2),
+            padding=padding,
         )
 
     def _render_compact(self, tool: str, params: dict, iteration: int) -> Panel:
         """简洁模式渲染"""
+        try:
+            w = self.console.width or 80
+        except Exception:
+            w = 80
+
         params_str = ", ".join(f"{k}={v}" for k, v in params.items())
-        if len(params_str) > 80:
-            params_str = params_str[:77] + "..."
+        max_len = max(w - 20, 30)
+        if len(params_str) > max_len:
+            params_str = params_str[:max_len - 3] + "..."
         content = f"[yellow]{tool}[/yellow]({params_str})"
         iter_label = f" #{iteration}" if iteration else ""
         return Panel(
@@ -206,6 +245,8 @@ class ExecutionComponent:
         if not self._visible:
             return
 
+        padding = _adaptive_padding(self.console)
+
         if result.get("success", False):
             result_content = result.get("result", "")
             if isinstance(result_content, (dict, list)):
@@ -225,7 +266,7 @@ class ExecutionComponent:
                     title="[bold green]Result - Success[/bold green]",
                     border_style="green",
                     box=box.ROUNDED,
-                    padding=(1, 2),
+                    padding=padding,
                 )
             )
         else:
@@ -236,7 +277,7 @@ class ExecutionComponent:
                     title="[bold red]Result - Failed[/bold red]",
                     border_style="red",
                     box=box.ROUNDED,
-                    padding=(1, 2),
+                    padding=padding,
                 )
             )
 

@@ -63,3 +63,20 @@ pydub>=0.25.1  # 音频处理工具
 # 远程控制
 paramiko>=3.4.0
 pywinrm>=0.4.3
+
+# OSINT 情报
+shodan>=1.31.0  # Shodan API（需 API Key）
+vt-py>=0.18.0  # VirusTotal API（需 API Key）
+
+# 搜索
+duckduckgo-search>=6.0.0  # DuckDuckGo 搜索（免费）
+
+# 协议探测
+impacket>=0.12.0  # SMB/LDAP/Kerberos 等协议
+pysnmp>=6.0.0  # SNMP 协议查询
+
+# 网络扫描
+scapy>=2.5.0  # ARP 扫描等底层网络操作
+
+# 云安全（可选）
+# boto3>=1.34.0  # AWS S3 操作（可选，不安装时使用 HTTP 方式）
