@@ -270,7 +270,7 @@ m-bot/
 ├── m_bot/                  # Package CLI module
 ├── agents/                 # Agent implementations
 │   ├── base.py            # Base agent class
-│   └── langchain_agent.py # LangChain agent
+│   └── tool_calling_agent.py # 工具调用智能体（LLM + 工具）
 ├── patterns/               # Design patterns
 │   └── react.py           # ReAct pattern
 ├── exploit/                # Exploitation module
