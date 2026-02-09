@@ -1,257 +1,200 @@
 """
-增强的输入框模块，使用prompt_toolkit实现历史记录和光标移动功能
-类似 opencode 风格的输入框
+OpenCode 风格输入框
+
+视觉效果:
+  ╭── > hackbot ───────────────────────────────────────────╮
+  │                                                        │
+  ╰──────────── / commands · ↑↓ history · enter send ──────╯
+
+功能：
+  - ↑↓ 历史记录切换
+  - / 命令自动补全
+  - Enter 发送
+  - placeholder 占位提示
 """
-from typing import Optional, List
+from typing import Optional
 import sys
 from pathlib import Path
-import os
 from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-from rich import box
 
-# 尝试导入 prompt_toolkit，如果失败则使用标准输入
+# prompt_toolkit 可选
 try:
     from prompt_toolkit import PromptSession
     from prompt_toolkit.history import FileHistory, InMemoryHistory
-    from prompt_toolkit.styles import Style
-    from prompt_toolkit.completion import Completer, Completion
-    from prompt_toolkit.document import Document
+    from prompt_toolkit.styles import Style as PTStyle
+    from prompt_toolkit.completion import Completion
+    from prompt_toolkit.patch_stdout import patch_stdout
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
-    PromptSession = None
-    FileHistory = None
-    InMemoryHistory = None
-    Style = None
-    Completer = None
-    Completion = None
-    Document = None
 
 
-class _SlashCommandCompleter:
-    """输入 '/' 后对斜杠命令进行补全的 Completer（同步+异步接口）"""
+# ------------------------------------------------------------------
+# 斜杠命令补全器
+# ------------------------------------------------------------------
+class _SlashCompleter:
+    """输入 / 后进行斜杠命令补全"""
 
     def __init__(self):
         try:
             from utils.slash_commands import get_slash_completions
-            self._get_completions = get_slash_completions
+            self._fn = get_slash_completions
         except Exception:
-            self._get_completions = lambda p: []
-
-    def _yield_completions(self, document):
-        text_before = document.text_before_cursor.strip()
-        if not text_before.startswith("/"):
-            return
-        for cmd in self._get_completions(text_before):
-            yield Completion(cmd, start_position=-len(document.text_before_cursor))
+            self._fn = lambda _: []
 
     def get_completions(self, document, complete_event):
-        yield from self._yield_completions(document)
+        text = document.text_before_cursor.strip()
+        if not text.startswith("/"):
+            return
+        for cmd in self._fn(text):
+            yield Completion(cmd, start_position=-len(text))
 
     async def get_completions_async(self, document, complete_event):
-        """prompt_toolkit 在异步环境下会调用此方法，需实现以免报错。"""
-        for c in self._yield_completions(document):
+        for c in self.get_completions(document, complete_event):
             yield c
 
 
+# ------------------------------------------------------------------
+# 核心输入组件
+# ------------------------------------------------------------------
 class EnhancedInput:
-    """增强的输入框，支持历史记录、光标移动等功能，类似 opencode 风格"""
-    
+    """OpenCode 风格的终端输入框"""
+
     def __init__(
         self,
         history_file: Optional[Path] = None,
         prompt: str = "",
-        placeholder: str = "在此输入，输入 / 可补全命令",
+        placeholder: str = 'Ask anything... "Scan localhost for open ports"',
         console: Optional[Console] = None,
         current_agent: str = "hackbot",
     ):
-        """
-        初始化增强输入框
-        
-        Args:
-            history_file: 历史记录文件路径，如果为None则使用内存历史
-            prompt: 提示符
-            placeholder: 占位符文本
-        """
-        self.prompt = prompt
         self.placeholder = placeholder
-        self.use_prompt_toolkit = PROMPT_TOOLKIT_AVAILABLE
-        self.history_file = history_file
-        self.history_list = []  # 简单的历史记录列表
-        self.history_index = -1
         self.console = console or Console()
-        self.current_agent = current_agent  # 当前使用的agent
-        
+        self.current_agent = current_agent
+        self.use_prompt_toolkit = PROMPT_TOOLKIT_AVAILABLE and sys.stdin.isatty()
+
         if not self.use_prompt_toolkit:
-            # 如果 prompt_toolkit 不可用，使用简单的历史记录
-            if history_file and history_file.exists():
-                try:
-                    with open(history_file, 'r', encoding='utf-8') as f:
-                        self.history_list = [line.strip() for line in f if line.strip()]
-                except Exception:
-                    self.history_list = []
             return
-        
-        # 设置历史记录
+
+        # ---- prompt_toolkit 初始化 ----
         try:
             if history_file:
                 history_file.parent.mkdir(parents=True, exist_ok=True)
                 history = FileHistory(str(history_file))
             else:
                 history = InMemoryHistory()
-            
-            # 定义样式
-            style = Style.from_dict({
-                'prompt': 'cyan bold',
-                'input': 'white',
-                'placeholder': 'dim',
+
+            style = PTStyle.from_dict({
+                "": "fg:#d4d4d4",
+                "prompt": "fg:#61afef bold",
+                "placeholder": "fg:#5c6370 italic",
             })
-            
-            # 创建会话（带斜杠命令补全：输入 / 后自动补全）
-            # prompt_toolkit 默认支持：上下键历史、左右键光标、/ 触发补全
-            self.session = PromptSession(
+
+            # 不自定义 key_bindings，使用 prompt_toolkit 默认行为
+            # 默认 multiline=False：Enter 提交，↑↓ 切换历史
+            self._session = PromptSession(
                 history=history,
                 style=style,
-                completer=_SlashCommandCompleter() if Completer else None,
+                completer=_SlashCompleter(),
+                enable_open_in_editor=False,
+                mouse_support=False,
             )
-        except Exception as e:
-            # 如果初始化失败，回退到标准输入
-            print(f"[警告] prompt_toolkit 初始化失败，使用标准输入: {e}", file=sys.stderr)
+        except Exception:
             self.use_prompt_toolkit = False
-    
+
+    # ------------------------------------------------------------------
+    # 公开 API
+    # ------------------------------------------------------------------
+
     def prompt_input(self, message: Optional[str] = None) -> str:
-        """
-        显示 OpenCode 风格输入框，光标在框内输入；输入 / 可补全斜杠命令。
-        同步调用时直接在本线程运行；异步环境请使用 await prompt_input_async()。
-        """
-        panel_placeholder = message if message else self.placeholder
+        placeholder = message or self.placeholder
         if not self.use_prompt_toolkit:
-            return self._prompt_fallback(panel_placeholder)
+            return self._fallback(placeholder)
         try:
-            return self._run_prompt_inside_box(panel_placeholder)
-        except KeyboardInterrupt:
+            return self._run(placeholder)
+        except (KeyboardInterrupt, EOFError):
             return ""
-        except EOFError:
-            return ""
-        except Exception as e:
-            print(f"[警告] prompt_toolkit 出错，使用标准输入: {e}", file=sys.stderr)
+        except Exception:
             self.use_prompt_toolkit = False
-            return self._prompt_fallback(panel_placeholder)
+            return self._fallback(placeholder)
 
     async def prompt_input_async(self, message: Optional[str] = None) -> str:
-        """
-        异步用：在子线程跑 prompt_toolkit，不阻塞事件循环，保留 / 补全与历史。
-        交互模式在 async 中应调用此方法而非 prompt_input。
-        """
-        import asyncio
-        panel_placeholder = message if message else self.placeholder
+        """异步输入：使用 prompt_toolkit 原生异步接口，确保键位正常工作"""
+        placeholder = message or self.placeholder
         if not self.use_prompt_toolkit:
-            return self._prompt_fallback(panel_placeholder)
+            return self._fallback(placeholder)
         try:
-            return await asyncio.to_thread(
-                self._run_prompt_inside_box,
-                panel_placeholder,
-            )
-        except KeyboardInterrupt:
+            return await self._run_async(placeholder)
+        except (KeyboardInterrupt, EOFError):
             return ""
-        except EOFError:
-            return ""
-        except Exception as e:
-            print(f"[警告] prompt_toolkit 出错，使用标准输入: {e}", file=sys.stderr)
+        except Exception:
             self.use_prompt_toolkit = False
-            return self._prompt_fallback(panel_placeholder)
+            return self._fallback(placeholder)
 
-    def _run_prompt_inside_box(self, placeholder: str) -> str:
-        """在「框内」运行 prompt_toolkit（上边框 + │ 输入行 + 下边框），支持 / 补全。"""
-        self._print_input_box_top()
-        self._print_suggestions_bar()
+    def add_to_history(self, text: str):
+        if not text.strip():
+            return
+        if self.use_prompt_toolkit:
+            try:
+                self._session.history.append_string(text)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # 内部实现
+    # ------------------------------------------------------------------
+
+    def _print_top_border(self):
+        """打印上边框"""
+        w = self.console.width or 80
+        agent = self.current_agent
+        title = f" > {agent} "
+        inner = w - 2
+        left = 2
+        right = max(0, inner - left - len(title))
+        self.console.print(f"[bright_blue]╭{'─' * left}{title}{'─' * right}╮[/bright_blue]")
+
+    def _print_bottom_border(self):
+        """打印下边框"""
+        w = self.console.width or 80
+        inner = w - 2
+        hint = " / commands · ↑↓ history · enter send "
+        right_b = max(0, inner - len(hint))
+        self.console.print(f"[bright_blue]╰{'─' * right_b}{hint}╯[/bright_blue]")
+
+    def _run(self, placeholder: str) -> str:
+        """同步模式运行（阻塞）"""
+        self._print_top_border()
         try:
-            text = self.session.prompt(
+            text = self._session.prompt(
                 "│ ",
                 placeholder=placeholder,
             )
-        finally:
-            self._print_input_box_bottom()
+        except (KeyboardInterrupt, EOFError):
+            text = ""
+        self._print_bottom_border()
         return text
 
-    def _prompt_fallback(self, placeholder: str) -> str:
-        """无 prompt_toolkit 时：同样框内输入（上边框 + │ 输入 + 下边框）。"""
-        self._print_input_box_top()
-        self._print_suggestions_bar()
+    async def _run_async(self, placeholder: str) -> str:
+        """异步模式运行：使用 prompt_toolkit 原生的 prompt_async，键位完全正常"""
+        self._print_top_border()
         try:
-            user_input = input("│ ")
+            with patch_stdout():
+                text = await self._session.prompt_async(
+                    "│ ",
+                    placeholder=placeholder,
+                )
         except (KeyboardInterrupt, EOFError):
-            user_input = ""
-        finally:
-            self._print_input_box_bottom()
-        return user_input
-    
-    def add_to_history(self, text: str):
-        """手动添加文本到历史记录"""
-        if not text.strip():
-            return
-        
-        if self.use_prompt_toolkit:
-            try:
-                self.session.history.append_string(text)
-            except Exception:
-                pass
-        
-        # 同时保存到简单历史记录列表
-        if text.strip() not in self.history_list:
-            self.history_list.append(text.strip())
-            # 限制历史记录数量
-            if len(self.history_list) > 1000:
-                self.history_list = self.history_list[-1000:]
-            
-            # 保存到文件
-            if self.history_file:
-                try:
-                    with open(self.history_file, 'a', encoding='utf-8') as f:
-                        f.write(text.strip() + '\n')
-                except Exception:
-                    pass
-    
-    # 输入框宽度（字符数），与框内输入行一致
-    _INPUT_BOX_WIDTH = 50
+            text = ""
+        self._print_bottom_border()
+        return text
 
-    def _print_input_box_top(self):
-        """打印输入框上边框（╭─ 输入 ───╮），光标下一行在框内。"""
-        w = self._INPUT_BOX_WIDTH
-        title = " 输入 "
-        rest = w - 2 - len(title)
-        left = rest // 2
-        right = rest - left
-        line = "╭" + "─" * left + title + "─" * right + "╮"
-        self.console.print(f"[bright_blue]{line}[/bright_blue]")
-
-    def _print_input_box_bottom(self):
-        """打印输入框下边框（╰──────╯）。"""
-        w = self._INPUT_BOX_WIDTH
-        self.console.print(f"[bright_blue]╰{'─' * (w - 2)}╯[/bright_blue]")
-
-    def _print_suggestions_bar(self):
-        """打印建议栏（Hackbot  SuperHackbot  输入 / 补全命令），在框上方。"""
-        agent_display = self.current_agent.capitalize()
-        other_agent = "SuperHackbot" if self.current_agent == "hackbot" else "Hackbot"
+    def _fallback(self, placeholder: str) -> str:
+        """无 prompt_toolkit 时的简洁回退"""
+        self._print_top_border()
         try:
-            from utils.opencode_layout import create_suggestions_bar
-            suggestions = create_suggestions_bar([agent_display, other_agent, "输入 / 补全命令"])
-            self.console.print(suggestions)
-        except (ImportError, Exception):
-            from rich.text import Text
-            t = Text(agent_display, style="bold bright_blue")
-            t.append(f"  {other_agent}", style="dim")
-            t.append("  输入 / 补全命令", style="dim")
-            self.console.print(t)
-
-    def _display_opencode_input_panel(self, placeholder_override: Optional[str] = None):
-        """兼容旧调用：画框顶+建议栏，实际输入由 prompt_input 内框内行完成。"""
-        self._print_input_box_top()
-        self._print_suggestions_bar()
-
-    def _display_opencode_style_input(self, prompt: str = ""):
-        """兼容旧调用"""
-        self._display_opencode_input_panel()
+            text = input("│ ")
+        except (KeyboardInterrupt, EOFError):
+            text = ""
+        self._print_bottom_border()
+        return text

@@ -1,21 +1,40 @@
 """
 交互式斜杠命令前缀匹配：用户输入 / 后匹配最接近的命令，支持快速选择。
 输入 "/" 时可对将要执行的命令进行补全。
+
+v2：新增 /thinking, /details, /compact, /sessions, /new, /export 命令
 """
 from typing import Tuple, Optional, List
 
-# 按长度降序，以便优先匹配 /audit export
+# 按长度降序，以便优先匹配如 /audit export
 SLASH_COMMANDS = (
     "/audit export",
     "/audit",
     "/model",
     "/accept",
     "/reject",
+    # v2 新增命令
+    "/thinking",
+    "/details",
+    "/compact",
+    "/sessions",
+    "/new",
+    "/export",
 )
 
 SLASH_HELP = (
-    "可用命令（输入前缀可匹配）: [cyan]/model[/cyan], [cyan]/accept[/cyan], [cyan]/reject[/cyan], [cyan]/audit[/cyan], [cyan]/audit export[/cyan]  "
-    "例: [dim]/m[/dim] → /model, [dim]/ac[/dim] → /accept"
+    "可用命令（输入前缀可匹配）:\n"
+    "  [cyan]/model[/cyan]     切换 LLM 模型\n"
+    "  [cyan]/accept[/cyan]    确认敏感操作\n"
+    "  [cyan]/reject[/cyan]    拒绝敏感操作\n"
+    "  [cyan]/audit[/cyan]     查看审计留痕\n"
+    "  [cyan]/thinking[/cyan]  切换推理过程显示\n"
+    "  [cyan]/details[/cyan]   切换执行详情模式\n"
+    "  [cyan]/compact[/cyan]   压缩会话历史\n"
+    "  [cyan]/sessions[/cyan]  列出/切换会话\n"
+    "  [cyan]/new[/cyan]       新建会话\n"
+    "  [cyan]/export[/cyan]    导出对话为 Markdown\n"
+    "例: [dim]/m[/dim] → /model, [dim]/th[/dim] → /thinking, [dim]/de[/dim] → /details"
 )
 
 
@@ -45,7 +64,12 @@ def normalize_slash_input(raw: str) -> Tuple[Optional[str], Optional[str]]:
     rest = " " + parts[1] if len(parts) > 1 else ""
 
     # 前缀匹配：命令以用户输入的首段开头，或用户首段是某命令的前缀
-    matches = [c for c in SLASH_COMMANDS if c.startswith(prefix) or (prefix.startswith(c.split()[0]) if " " in c else prefix.startswith(c))]
+    matches = [
+        c for c in SLASH_COMMANDS
+        if c.startswith(prefix) or (
+            prefix.startswith(c.split()[0]) if " " in c else prefix.startswith(c)
+        )
+    ]
     if not matches:
         return (None, f"未知命令: [red]{prefix}[/red]，输入 [dim]/[/dim] 查看可用命令")
 
@@ -74,6 +98,28 @@ def get_slash_completions(prefix: str) -> List[str]:
     # 匹配：命令以 prefix 开头，或 prefix 是某命令的前缀
     matches = [
         c for c in SLASH_COMMANDS
-        if c.startswith(prefix) or (prefix.startswith(c.split()[0]) if " " in c else prefix.startswith(c))
+        if c.startswith(prefix) or (
+            prefix.startswith(c.split()[0]) if " " in c else prefix.startswith(c)
+        )
     ]
     return sorted(matches)
+
+
+# ------------------------------------------------------------------
+# 命令处理器注册表（供 interactive 主循环使用）
+# ------------------------------------------------------------------
+
+# 将命令名映射到其描述（不包含处理逻辑，逻辑在 interactive 中实现）
+COMMAND_DESCRIPTIONS = {
+    "/model": "切换 LLM 模型（Ollama/DeepSeek）",
+    "/accept": "确认敏感操作（SuperHackbot 模式）",
+    "/reject": "拒绝敏感操作",
+    "/audit": "查看操作留痕",
+    "/audit export": "导出审计报告",
+    "/thinking": "切换推理过程的显示/隐藏",
+    "/details": "切换工具执行详情的详细/简洁模式",
+    "/compact": "压缩当前会话历史",
+    "/sessions": "列出/切换会话",
+    "/new": "新建会话",
+    "/export": "导出当前对话为 Markdown",
+}
