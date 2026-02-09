@@ -20,6 +20,7 @@ from utils.audit import AuditTrail
 from utils.slash_commands import normalize_slash_input
 from utils.speech import SpeechToText, TextToSpeech
 from utils.enhanced_input import EnhancedInput
+from utils.model_selector import run_model_selector, check_ollama_running, has_deepseek_api_key
 from utils.output_components import OutputComponentManager
 from utils.hackbot_banner import print_hackbot_banner
 from utils.opencode_layout import (
@@ -646,6 +647,30 @@ def interactive(
         )
         console.print()
 
+        # 进入时检查当前 LLM 后端是否可用
+        if hasattr(agent_instance, "get_current_model"):
+            cur = agent_instance.get_current_model()
+            p = cur.split(" / ", 1)[0].strip().lower() if cur else "ollama"
+            if p == "ollama" and not check_ollama_running():
+                console.print(
+                    Panel(
+                        "[yellow]当前使用 Ollama，但未检测到本机 Ollama 服务。[/yellow]\n"
+                        "请先启动 Ollama（如运行 [cyan]ollama serve[/cyan] 或打开 Ollama 应用）后再发送消息，\n"
+                        "或输入 [cyan]/model[/cyan] 切换到 DeepSeek。",
+                        title="[bold]LLM 不可用[/bold]",
+                        border_style="yellow",
+                    )
+                )
+            elif p == "deepseek" and not has_deepseek_api_key():
+                console.print(
+                    Panel(
+                        "[yellow]当前使用 DeepSeek，但未配置 DEEPSEEK_API_KEY。[/yellow]\n"
+                        "请在 [cyan].env[/cyan] 中设置后重试，或输入 [cyan]/model[/cyan] 切换到 Ollama。",
+                        title="[bold]LLM 未配置[/bold]",
+                        border_style="yellow",
+                    )
+                )
+
         # 创建增强输入框，历史记录保存在用户目录，类似 opencode 风格
         history_file = Path.home() / ".hackbot" / "input_history.txt"
         enhanced_input = EnhancedInput(
@@ -660,9 +685,9 @@ def interactive(
             try:
                 if voice:
                     console.print("\n[yellow]请说话（按Enter结束录音）...[/yellow]")
-                    user_input = enhanced_input.prompt_input("或直接输入文字: ")
+                    user_input = await enhanced_input.prompt_input_async("或直接输入文字: ")
                 else:
-                    user_input = enhanced_input.prompt_input()
+                    user_input = await enhanced_input.prompt_input_async()
 
                 if not user_input.strip():
                     continue
@@ -683,16 +708,31 @@ def interactive(
                     console.print("[green]✓ 对话历史已清空[/green]")
                     continue
 
-                # ---- /model 切换 ----
+                # ---- /model 切换（opencode 风格：无参时弹出选择 Ollama/DeepSeek）----
                 if lower_input.startswith("/model"):
                     parts = user_input.strip().split()
                     if hasattr(agent_instance, "switch_model") and hasattr(
                         agent_instance, "get_current_model"
                     ):
                         if len(parts) == 1:
-                            console.print(
-                                f"[cyan]当前模型: {agent_instance.get_current_model()}[/cyan]"
+                            cur = agent_instance.get_current_model()
+                            cur_parts = cur.split(" / ", 1)
+                            current_provider = cur_parts[0].strip() if len(cur_parts) > 0 else "ollama"
+                            current_model = cur_parts[1].strip() if len(cur_parts) > 1 else None
+                            provider, model = run_model_selector(
+                                console, current_provider=current_provider, current_model=current_model
                             )
+                            if provider is not None:
+                                try:
+                                    if model:
+                                        agent_instance.switch_model(provider=provider, model=model)
+                                    else:
+                                        agent_instance.switch_model(provider=provider)
+                                    console.print(
+                                        f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
+                                    )
+                                except Exception as e:
+                                    console.print(f"[red]切换失败: {e}[/red]")
                         elif len(parts) == 2:
                             try:
                                 agent_instance.switch_model(provider=parts[1])
