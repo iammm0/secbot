@@ -358,6 +358,24 @@ class SecurityReActAgent(BaseAgent):
                 response_parts.append(f"👁️ **Observation {iteration}**: {obs}\n")
                 continue
 
+            # ---- 若有计划步骤则严格按顺序执行：仅允许执行“下一步”对应工具 ----
+            next_todo = self._get_next_pending_todo()
+            if next_todo and next_todo.get("tool_hint"):
+                hint = (next_todo.get("tool_hint") or "").strip()
+                if hint and tool_name != hint:
+                    content = next_todo.get("content", next_todo.get("id", ""))
+                    obs = (
+                        f"必须按计划顺序执行。当前应执行: {content}，建议工具: {hint}。请使用该工具后再继续。"
+                    )
+                    self._react_history.append({"type": "observation", "content": obs})
+                    if self.audit:
+                        self.audit.record(self.name, "observation", obs)
+                    response_parts.append(
+                        f"⚡ **Action {iteration}**: {tool_name}({tool_params})\n"
+                    )
+                    response_parts.append(f"👁️ **Observation {iteration}**: {obs}\n")
+                    continue
+
             # ---- 敏感操作确认（superhackbot）----
             sensitivity = getattr(tool, "sensitivity", "low")
             if not self.auto_execute and sensitivity == "high" and self.confirmation:
@@ -429,6 +447,8 @@ class SecurityReActAgent(BaseAgent):
             # 明确显示工具执行结果
             if result.success:
                 response_parts.append(f"✅ **执行结果**:\n{obs}\n")
+                # 按计划执行时，将当前步骤标记为已完成，以便下一步解锁
+                self._mark_current_todo_completed(tool_name)
             else:
                 response_parts.append(f"❌ **执行失败**: {result.error}\n")
             # 触发观察事件
@@ -922,6 +942,52 @@ Final Answer: <最终结论和报告>
         except Exception as e:
             logger.error(f"工具 {tool.name} 执行失败: {e}")
             return ToolResult(success=False, result=None, error=str(e))
+
+    def _get_next_pending_todo(self) -> Optional[Dict[str, Any]]:
+        """返回当前计划中下一个应执行的步骤：status 为 pending 且依赖项均已完成。"""
+        todos = getattr(self, "_current_todos", None) or []
+        completed_ids = set()
+        for td in todos:
+            s = td.get("status") if isinstance(td, dict) else getattr(td, "status", None)
+            if s == "completed":
+                completed_ids.add(td.get("id") if isinstance(td, dict) else getattr(td, "id", ""))
+        for td in todos:
+            if isinstance(td, dict):
+                if td.get("status") != "pending":
+                    continue
+                deps = td.get("depends_on") or []
+                if not all(d in completed_ids for d in deps):
+                    continue
+                return td
+            if hasattr(td, "status") and getattr(td, "status", None) == "pending":
+                deps = getattr(td, "depends_on", None) or []
+                if not all(d in completed_ids for d in deps):
+                    continue
+                return {"id": getattr(td, "id", ""), "content": getattr(td, "content", ""), "status": "pending", "tool_hint": getattr(td, "tool_hint", None), "depends_on": deps}
+        return None
+
+    def _mark_current_todo_completed(self, tool_name: str):
+        """将“当前应执行”的那一步（与 tool_name 匹配或为首个 pending）标记为已完成。"""
+        todos = getattr(self, "_current_todos", None)
+        if not todos or not isinstance(todos, list):
+            return
+        for i, td in enumerate(todos):
+            if not isinstance(td, dict):
+                continue
+            if td.get("status") != "pending":
+                continue
+            hint = (td.get("tool_hint") or "").strip()
+            if hint and hint != tool_name:
+                continue
+            todos[i] = {**td, "status": "completed"}
+            logger.debug(f"计划步骤已标记完成: {td.get('id')} (工具 {tool_name})")
+            return
+        # 若无 tool_hint 匹配，将第一个 pending 标为完成
+        for i, td in enumerate(todos):
+            if isinstance(td, dict) and td.get("status") == "pending":
+                todos[i] = {**td, "status": "completed"}
+                logger.debug(f"计划步骤已标记完成: {td.get('id')}")
+                return
 
     def _format_observation(self, result: "ToolResult") -> str:
         """格式化工具执行结果。"""
