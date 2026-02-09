@@ -1,6 +1,7 @@
 """
 信息收集模块：收集系统和网络信息
 """
+import os
 import platform
 import socket
 import psutil
@@ -10,6 +11,15 @@ from datetime import datetime
 from utils.logger import logger
 
 
+def _current_user_fallback() -> str:
+    """当前用户名回退（不依赖 psutil.users）。"""
+    try:
+        import getpass
+        return getpass.getuser()
+    except Exception:
+        return os.environ.get("USER", os.environ.get("USERNAME", "unknown"))
+
+
 class InfoCollector:
     """信息收集器：收集主机和网络信息"""
     
@@ -17,31 +27,51 @@ class InfoCollector:
         self.collected_info: Dict = {}
     
     def collect_system_info(self) -> Dict:
-        """收集系统信息"""
-        info = {
-            "hostname": socket.gethostname(),
-            "platform": platform.system(),
-            "platform_version": platform.version(),
-            "architecture": platform.machine(),
-            "processor": platform.processor(),
-            "cpu_count": psutil.cpu_count(),
-            "cpu_freq": psutil.cpu_freq()._asdict() if psutil.cpu_freq() else None,
-            "memory_total": psutil.virtual_memory().total,
-            "memory_available": psutil.virtual_memory().available,
-            "disk_usage": {
-                partition.device: {
-                    "mountpoint": partition.mountpoint,
-                    "fstype": partition.fstype,
-                    "total": psutil.disk_usage(partition.mountpoint).total,
-                    "used": psutil.disk_usage(partition.mountpoint).used,
-                    "free": psutil.disk_usage(partition.mountpoint).free
-                }
-                for partition in psutil.disk_partitions()
-            },
-            "boot_time": datetime.fromtimestamp(psutil.boot_time()).isoformat(),
-            "timestamp": datetime.now().isoformat()
-        }
-        
+        """收集系统信息（逐项 try 避免单点失败导致整体报错）"""
+        info = {"timestamp": datetime.now().isoformat()}
+        try:
+            info["hostname"] = socket.gethostname()
+            info["platform"] = platform.system()
+            info["platform_version"] = platform.version()
+            info["architecture"] = platform.machine()
+            info["processor"] = platform.processor()
+            info["cpu_count"] = psutil.cpu_count()
+        except Exception as e:
+            logger.warning(f"收集基础系统信息异常: {e}")
+        try:
+            cf = psutil.cpu_freq()
+            info["cpu_freq"] = cf._asdict() if cf else None
+        except Exception as e:
+            logger.warning(f"cpu_freq 不可用: {e}")
+            info["cpu_freq"] = None
+        try:
+            vm = psutil.virtual_memory()
+            info["memory_total"] = vm.total
+            info["memory_available"] = vm.available
+        except Exception as e:
+            logger.warning(f"内存信息不可用: {e}")
+        try:
+            disk_usage = {}
+            for partition in psutil.disk_partitions():
+                try:
+                    du = psutil.disk_usage(partition.mountpoint)
+                    disk_usage[partition.device] = {
+                        "mountpoint": partition.mountpoint,
+                        "fstype": partition.fstype,
+                        "total": du.total,
+                        "used": du.used,
+                        "free": du.free,
+                    }
+                except Exception as e:
+                    logger.warning(f"磁盘 {partition.mountpoint} 不可用: {e}")
+            info["disk_usage"] = disk_usage
+        except Exception as e:
+            logger.warning(f"磁盘信息不可用: {e}")
+            info["disk_usage"] = {}
+        try:
+            info["boot_time"] = datetime.fromtimestamp(psutil.boot_time()).isoformat()
+        except Exception as e:
+            logger.warning(f"boot_time 不可用: {e}")
         self.collected_info["system"] = info
         logger.info("系统信息收集完成")
         return info
@@ -173,10 +203,20 @@ class InfoCollector:
                 except:
                     pass
             
+            # psutil 为 users()（小写）；部分环境无此接口，用 getpass/os 回退
+            current_user = None
+            try:
+                u = getattr(psutil, "users", None)
+                if callable(u) and u():
+                    current_user = u()[0].name
+            except Exception:
+                pass
+            if current_user is None:
+                current_user = _current_user_fallback()
             info = {
                 "users": users,
-                "current_user": psutil.Users()[0].name if psutil.Users() else None,
-                "timestamp": datetime.now().isoformat()
+                "current_user": current_user,
+                "timestamp": datetime.now().isoformat(),
             }
             
             self.collected_info["users"] = info

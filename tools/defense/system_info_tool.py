@@ -22,16 +22,31 @@ class SystemInfoTool(BaseTool):
 
             collector = InfoCollector()
             result = {}
+            errors = []
 
             if category in ("system", "all"):
-                result["system"] = collector.collect_system_info()
+                try:
+                    result["system"] = collector.collect_system_info()
+                except Exception as e:
+                    errors.append(f"system: {e}")
             if category in ("network", "all"):
-                result["network"] = collector.collect_network_info()
+                try:
+                    result["network"] = collector.collect_network_info()
+                except Exception as e:
+                    errors.append(f"network: {e}")
             if category in ("process", "all"):
-                result["processes"] = collector.collect_process_info()
+                try:
+                    result["processes"] = collector.collect_process_info()
+                except Exception as e:
+                    errors.append(f"processes: {e}")
             if category in ("user", "all"):
-                result["users"] = collector.collect_user_info()
+                try:
+                    result["users"] = collector.collect_user_info()
+                except Exception as e:
+                    errors.append(f"users: {e}")
 
+            if errors:
+                result["_partial_errors"] = errors
             return ToolResult(success=True, result=result)
         except Exception as e:
             return ToolResult(success=False, result=None, error=str(e))
