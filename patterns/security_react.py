@@ -52,14 +52,19 @@ def _create_llm(
         resolved = (model or settings.deepseek_model).strip()
         if resolved.lower() == "reasoner":
             resolved = settings.deepseek_reasoner_model
-        return ChatOpenAI(
+
+        # deepseek-reasoner 不支持 temperature 参数
+        is_reasoner = "reasoner" in resolved.lower()
+        kwargs = dict(
             api_key=SecretStr(settings.deepseek_api_key),
             base_url=(settings.deepseek_base_url).rstrip("/"),
             model=resolved,
-            temperature=temperature
-            if temperature is not None
-            else settings.deepseek_temperature,
         )
+        if not is_reasoner:
+            kwargs["temperature"] = (
+                temperature if temperature is not None else settings.deepseek_temperature
+            )
+        return ChatOpenAI(**kwargs)
     raise ValueError(f"不支持的推理后端: {p}")
 
 
@@ -81,6 +86,7 @@ class SecurityReActAgent(BaseAgent):
         auto_execute: bool = True,
         max_iterations: int = 10,
         audit_trail: Optional[AuditTrail] = None,
+        event_bus=None,
     ):
         super().__init__(name, system_prompt)
         self.security_tools = tools or []
@@ -89,6 +95,9 @@ class SecurityReActAgent(BaseAgent):
         self.max_iterations = max_iterations
         self.audit = audit_trail
         self.confirmation = UserConfirmation() if not auto_execute else None
+
+        # EventBus（可选，用于 TUI 组件集成）
+        self.event_bus = event_bus
 
         # LLM
         self._provider_override: Optional[str] = None
@@ -103,14 +112,44 @@ class SecurityReActAgent(BaseAgent):
         # ReAct 状态
         self._react_history: List[Dict[str, str]] = []  # 当前任务的 think/act/obs 历史
         self._waiting_for_confirm = False
+        self._skip_report = False  # 由 process(skip_report=True) 设置，供 handle_accept 使用
 
     def _emit_event(self, event_type: str, data: dict, on_event=None):
-        """触发事件回调"""
+        """触发事件回调，同时发射到 EventBus（如果已配置）"""
+        # 传统回调方式（向后兼容）
         if on_event and callable(on_event):
             try:
                 on_event(event_type, data)
             except Exception as e:
                 logger.error(f"事件回调错误: {e}")
+
+        # EventBus 方式（新 TUI 组件集成）
+        if self.event_bus:
+            try:
+                from utils.event_bus import EventType as ET, Event
+                _type_map = {
+                    "planning": ET.CONTENT,
+                    "thought_start": ET.THINK_START,
+                    "thought_chunk": ET.THINK_CHUNK,
+                    "thought_end": ET.THINK_END,
+                    "thought": ET.THINK_END,
+                    "action_start": ET.EXEC_START,
+                    "action_result": ET.EXEC_RESULT,
+                    "observation": ET.CONTENT,
+                    "content": ET.CONTENT,
+                    "report": ET.REPORT_END,
+                    "error": ET.ERROR,
+                }
+                mapped = _type_map.get(event_type)
+                if mapped:
+                    iteration = data.get("iteration", 0)
+                    self.event_bus.emit(Event(
+                        type=mapped,
+                        data=data,
+                        iteration=iteration,
+                    ))
+            except Exception as e:
+                logger.error(f"EventBus 发射错误: {e}")
 
     # ---- 模型切换 ----
 
@@ -225,7 +264,15 @@ class SecurityReActAgent(BaseAgent):
         """
         ReAct 主处理流程。
         如果有待确认的操作（superhackbot），返回方案列表等待 /accept。
+
+        kwargs:
+            skip_planning: 若为 True（由 SessionManager 编排时），不再在内部做规划与发射 planning 事件。
+            skip_report: 若为 True，不在内部生成/发射 report，由上层统一做一次报告。
         """
+        skip_planning = kwargs.get("skip_planning", False)
+        skip_report = kwargs.get("skip_report", False)
+        self._skip_report = skip_report  # 供 handle_accept 使用
+
         # 如果在等待确认且用户输入不是 /accept 或 /reject，提醒用户
         if self._waiting_for_confirm and self.confirmation:
             return (
@@ -239,18 +286,16 @@ class SecurityReActAgent(BaseAgent):
         if self.audit:
             self.audit.record(self.name, "result", f"用户输入: {user_input}")
 
-        # ---- 判断是否需要制定计划 ----
-        needs_planning = self._needs_planning(user_input)
-
         response_parts = []
-        if needs_planning:
-            # ---- 规划阶段 ----
-            planning = await self._plan(user_input, on_event)
-            self._emit_event("planning", {"content": planning}, on_event)
-            response_parts.append(f"📋 **规划**: {planning}\n")
-        else:
-            # 简单问候或对话，直接进入推理阶段
-            response_parts.append(f"💬 **对话**: {user_input}\n")
+        # ---- 规划阶段（仅在不跳过时执行：非编排场景下 agent 自己规划）----
+        if not skip_planning:
+            needs_planning = self._needs_planning(user_input)
+            if needs_planning:
+                planning = await self._plan(user_input, on_event)
+                self._emit_event("planning", {"content": planning}, on_event)
+                response_parts.append(f"📋 **规划**: {planning}\n")
+            else:
+                response_parts.append(f"💬 **对话**: {user_input}\n")
 
         iteration = 0
 
@@ -271,21 +316,8 @@ class SecurityReActAgent(BaseAgent):
             action_info = self._parse_action(thought, iteration)
 
             if action_info is None:
-                # LLM 认为任务完成，检查迭代次数
-                if iteration < 3:
-                    # 迭代次数太少，强制继续执行
-                    logger.warning(
-                        f"迭代 {iteration} 时检测到 Final Answer，但迭代次数太少，强制继续执行"
-                    )
-                    obs = "警告：迭代次数太少，尚未收集足够信息。请不要输出 Final Answer，继续分析并执行必要的安全扫描工具。"
-                    self._react_history.append({"type": "observation", "content": obs})
-                    if self.audit:
-                        self.audit.record(self.name, "observation", obs)
-                    response_parts.append(f"⚠️ **Observation {iteration}**: {obs}\n")
-                    # 继续下一次迭代
-                    continue
-                else:
-                    # 迭代次数足够，生成最终报告
+                # LLM 认为任务完成（Final Answer）
+                if not skip_report:
                     thoughts = [
                         item["content"]
                         for item in self._react_history
@@ -306,7 +338,7 @@ class SecurityReActAgent(BaseAgent):
                         self.audit.record(self.name, "result", conclusion)
                     response_parts.append(f"\n{conclusion}")
                     self._emit_event("report", {"content": conclusion}, on_event)
-                    break
+                break
 
             tool_name = action_info.get("tool", "")
             tool_params = action_info.get("params", {})
@@ -411,32 +443,33 @@ class SecurityReActAgent(BaseAgent):
             if self.audit:
                 self.audit.record(self.name, "result", "达到最大迭代次数")
 
-        # 如果没有明确的Final Answer，自动生成结论和报告
-        has_final_answer = any(
-            "Final Answer" in part
-            or "final answer" in part.lower()
-            or "📋 **最终结论和报告**" in part
-            for part in response_parts
-        )
-        if not has_final_answer:
-            thoughts = [
-                item["content"]
-                for item in self._react_history
-                if item["type"] == "thought"
-            ]
-            observations = [
-                item["content"]
-                for item in self._react_history
-                if item["type"] == "observation"
-            ]
-            summary_agent = SummaryAgent()
-            conclusion = await summary_agent.process(
-                user_input=user_input, thoughts=thoughts, observations=observations
+        # 如果没有明确的 Final Answer 且未跳过报告，自动生成结论和报告
+        if not skip_report:
+            has_final_answer = any(
+                "Final Answer" in part
+                or "final answer" in part.lower()
+                or "📋 **最终结论和报告**" in part
+                for part in response_parts
             )
-            if conclusion:
-                response_parts.append(f"\n{conclusion}")
-                if self.audit:
-                    self.audit.record(self.name, "result", conclusion)
+            if not has_final_answer:
+                thoughts = [
+                    item["content"]
+                    for item in self._react_history
+                    if item["type"] == "thought"
+                ]
+                observations = [
+                    item["content"]
+                    for item in self._react_history
+                    if item["type"] == "observation"
+                ]
+                summary_agent = SummaryAgent()
+                conclusion = await summary_agent.process(
+                    user_input=user_input, thoughts=thoughts, observations=observations
+                )
+                if conclusion:
+                    response_parts.append(f"\n{conclusion}")
+                    if self.audit:
+                        self.audit.record(self.name, "result", conclusion)
 
         full_response = "\n".join(response_parts)
         self.add_message("assistant", full_response)
@@ -532,24 +565,25 @@ class SecurityReActAgent(BaseAgent):
 
             action_info = self._parse_action(thought)
             if action_info is None:
-                thoughts = [
-                    item["content"]
-                    for item in self._react_history
-                    if item["type"] == "thought"
-                ]
-                observations = [
-                    item["content"]
-                    for item in self._react_history
-                    if item["type"] == "observation"
-                ]
-                summary_agent = SummaryAgent()
-                conclusion = await summary_agent.process(
-                    user_input=user_input, thoughts=thoughts, observations=observations
-                )
-                if self.audit:
-                    self.audit.record(self.name, "result", conclusion)
-                response_parts.append(f"\n{conclusion}")
-                self._emit_event("report", {"content": conclusion}, on_event)
+                if not getattr(self, "_skip_report", False):
+                    thoughts = [
+                        item["content"]
+                        for item in self._react_history
+                        if item["type"] == "thought"
+                    ]
+                    observations = [
+                        item["content"]
+                        for item in self._react_history
+                        if item["type"] == "observation"
+                    ]
+                    summary_agent = SummaryAgent()
+                    conclusion = await summary_agent.process(
+                        user_input=user_input, thoughts=thoughts, observations=observations
+                    )
+                    if self.audit:
+                        self.audit.record(self.name, "result", conclusion)
+                    response_parts.append(f"\n{conclusion}")
+                    self._emit_event("report", {"content": conclusion}, on_event)
                 break
 
             t_name = action_info.get("tool", "")
@@ -818,48 +852,46 @@ Final Answer: <最终结论和报告>
         """
         从 LLM 输出中解析 Action JSON。
         如果输出包含 Final Answer 则返回 None。
-
-        参数:
-            thought: LLM 输出文本
-            iteration: 当前迭代次数（从1开始）
+        支持嵌套花括号（如 "params": {"category": "process"}）。
         """
-        has_final_answer = (
-            "Final Answer:" in thought or "final answer:" in thought.lower()
-        )
+        if "Final Answer:" in thought or "final answer:" in thought.lower():
+            return None
 
-        if has_final_answer and iteration < 3:
-            logger.warning(
-                f"迭代 {iteration} 时检测到 Final Answer，但迭代次数太少，强制继续执行"
-            )
-        elif has_final_answer:
-            pass
-        else:
-            pass
-
-        # 尝试匹配 Action: {...}
-        action_match = re.search(r"Action:\s*(\{.*?\})", thought, re.DOTALL)
-        if action_match:
-            try:
-                action_json = json.loads(action_match.group(1))
-                return action_json
-            except json.JSONDecodeError:
-                pass
-
-        # 尝试匹配独立的 JSON 块
-        json_match = re.search(r'\{[^{}]*"tool"[^{}]*\}', thought, re.DOTALL)
-        if json_match:
-            try:
-                action_json = json.loads(json_match.group())
-                return action_json
-            except json.JSONDecodeError:
-                pass
-
-        if has_final_answer and iteration < 3:
-            logger.warning(
-                f"迭代 {iteration} 时检测到 Final Answer 但未找到 Action，返回虚拟 Action 以继续循环"
-            )
-            return {"tool": "continue_analysis", "params": {}}
-
+        # 1) 定位 Action: 后的第一个 {
+        action_label = re.search(r"Action:\s*\{", thought, re.IGNORECASE)
+        if action_label:
+            start = action_label.end() - 1  # 从 { 开始
+            depth = 0
+            for i in range(start, len(thought)):
+                if thought[i] == "{":
+                    depth += 1
+                elif thought[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(thought[start : i + 1])
+                        except json.JSONDecodeError:
+                            break
+            # 若括号匹配失败，继续尝试其他方式
+        # 2) 任意位置匹配包含 "tool" 的平衡花括号 JSON
+        for match in re.finditer(r'\{', thought):
+            start = match.start()
+            depth = 0
+            for i in range(start, len(thought)):
+                if thought[i] == "{":
+                    depth += 1
+                elif thought[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        snippet = thought[start : i + 1]
+                        if '"tool"' in snippet or "'tool'" in snippet:
+                            try:
+                                obj = json.loads(snippet)
+                                if isinstance(obj, dict) and "tool" in obj:
+                                    return obj
+                            except json.JSONDecodeError:
+                                pass
+                        break
         return None
 
     async def _execute_tool(self, tool: BaseTool, params: Dict[str, Any]) -> ToolResult:
