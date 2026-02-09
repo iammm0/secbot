@@ -8,7 +8,7 @@
 
 **一个智能化的自动化渗透测试机器人，具备AI驱动的安全测试能力**
 
-[English](README.md) | [中文](#m-bot-自动化渗透测试机器人)
+[English](README.md) | [中文](#hackbot-自动化渗透测试机器人)
 
 </div>
 
@@ -83,8 +83,8 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/iammm0/m-bot.git
-cd m-bot
+git clone https://github.com/iammm0/hackbot.git
+cd hackbot
 ```
 
 ### 2. 安装依赖
@@ -134,10 +134,10 @@ cp .env.example .env
 python -m build
 
 # 安装包 (使用 uv - 推荐)
-uv pip install dist/m_bot-1.0.0-py3-none-any.whl
+uv pip install dist/hackbot-1.0.0-py3-none-any.whl
 
 # 备选方案使用 pip
-# pip install dist/m_bot-1.0.0-py3-none-any.whl
+# pip install dist/hackbot-1.0.0-py3-none-any.whl
 
 # 现在可以直接使用 'hackbot' 命令
 hackbot --help
@@ -276,10 +276,10 @@ hackbot prompt-load my_prompt.yaml
 ## 📁 项目结构
 
 ```
-m-bot/
+hackbot/
 ├── main.py                 # CLI应用入口
 ├── config.py               # 配置管理
-├── m_bot/                  # 包CLI模块
+├── hackbot/                  # 包CLI模块
 ├── agents/                 # 智能体实现
 │   ├── base.py            # 基础智能体类
 │   └── tool_calling_agent.py # 工具调用智能体（LLM + 工具）
