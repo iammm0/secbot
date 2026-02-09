@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     """应用配置"""
     
     # 推理模型后端：ollama（本地 Ollama）| deepseek（DeepSeek 云端 API）
-    llm_provider: str = os.getenv("LLM_PROVIDER", "ollama")
+    llm_provider: str = os.getenv("LLM_PROVIDER", "deepseek")
     
     # Ollama 配置（当 LLM_PROVIDER=ollama 时使用）
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # 聊天模式: deepseek-chat；推理模式（思考链）: deepseek-reasoner
     deepseek_api_key: Optional[str] = os.getenv("DEEPSEEK_API_KEY")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
     deepseek_reasoner_model: str = os.getenv("DEEPSEEK_REASONER_MODEL", "deepseek-reasoner")
     deepseek_temperature: float = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.7"))
     
