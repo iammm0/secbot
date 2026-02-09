@@ -159,12 +159,15 @@ class SecurityReActAgent(BaseAgent):
     async def _call_llm(self, messages: List) -> str:
         """调用 LLM 并提取文本内容。"""
         import asyncio
+        from utils.model_selector import get_llm_connection_hint
 
         try:
             response = await asyncio.wait_for(self.llm.ainvoke(messages), timeout=30.0)
         except Exception as e:
             logger.error(f"LLM 调用失败: {e}")
-            return f"[LLM 调用失败: {e}]"
+            provider = (self._provider_override or getattr(settings, "llm_provider", None) or "ollama")
+            hint = get_llm_connection_hint(e, provider=provider)
+            return f"[LLM 调用失败: {hint}]"
 
         if hasattr(response, "content") and response.content:
             return str(response.content)
@@ -208,9 +211,12 @@ class SecurityReActAgent(BaseAgent):
 
             return full_response
         except Exception as e:
+            from utils.model_selector import get_llm_connection_hint
             logger.error(f"LLM 流式调用失败: {e}")
-            error_msg = f"[LLM 调用失败: {e}]"
-            self._emit_event("error", {"error": str(e)}, on_event)
+            provider = (self._provider_override or getattr(settings, "llm_provider", None) or "ollama")
+            hint = get_llm_connection_hint(e, provider=provider)
+            error_msg = f"[LLM 调用失败: {hint}]"
+            self._emit_event("error", {"error": hint}, on_event)
             return error_msg
 
     # ---- ReAct 核心 ----
