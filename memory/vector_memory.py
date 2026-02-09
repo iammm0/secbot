@@ -1,8 +1,10 @@
 """
 基于向量的记忆管理
 """
-from typing import List, Optional
+from typing import List
+
 import numpy as np
+
 from agents.base import AgentMessage
 from memory.base import BaseMemory
 from utils.embeddings import OllamaEmbeddings
