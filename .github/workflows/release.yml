@@ -40,25 +40,22 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build executable
+      - name: Build executable (onedir)
         shell: bash
         run: |
+          pyinstaller hackbot.spec
+          # 产物为 dist/hackbot/ 目录，打包为 zip 便于下载
           if [ "$RUNNER_OS" = "Windows" ]; then
-            pyinstaller hackbot.spec
-            mv dist/hackbot.exe "dist/hackbot-${{ matrix.name }}.exe"
+            cd dist && powershell Compress-Archive -Path hackbot -DestinationPath hackbot-${{ matrix.name }}.zip && cd ..
           else
-            pyinstaller hackbot.spec
-            mv dist/hackbot "dist/hackbot-${{ matrix.name }}"
-            chmod +x "dist/hackbot-${{ matrix.name }}"
+            cd dist && zip -r hackbot-${{ matrix.name }}.zip hackbot && cd ..
           fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: hackbot-${{ matrix.name }}
-          path: |
-            dist/hackbot-${{ matrix.name }}
-            dist/hackbot-${{ matrix.name }}.exe
+          path: dist/hackbot-${{ matrix.name }}.zip
 
   release:
     needs: build
@@ -87,17 +84,17 @@ jobs:
           body: |
             ## 安装与运行
 
-            1. 下载对应平台的程序（如 `hackbot-linux-amd64`、`hackbot-windows-amd64.exe`、`hackbot-darwin-arm64`）。
+            1. 下载对应平台的 zip（如 `hackbot-linux-amd64.zip`、`hackbot-windows-amd64.zip`、`hackbot-darwin-arm64.zip`），解压得到 `hackbot` 目录。
             2. 配置 **DeepSeek API Key**（启动前唯一必须条件）：
                - **环境变量**：`export DEEPSEEK_API_KEY=sk-xxx`（Linux/macOS）或 系统环境变量（Windows）
-               - **或** 在可执行文件同目录创建 `.env` 文件，内容：`DEEPSEEK_API_KEY=sk-xxx`
-            3. 运行程序（直接双击或终端执行），即可进入交互式安全测试界面。
+               - **或** 在 `hackbot` 目录内创建 `.env` 文件，内容：`DEEPSEEK_API_KEY=sk-xxx`
+            3. 进入 `hackbot` 目录，运行 `./hackbot`（Linux/macOS）或 `hackbot.exe`（Windows），即可进入交互式安全测试界面。
 
             获取 API Key：https://platform.deepseek.com
           draft: false
           files: |
-            artifacts/hackbot-linux-amd64/hackbot-linux-amd64
-            artifacts/hackbot-windows-amd64/hackbot-windows-amd64.exe
-            artifacts/hackbot-darwin-arm64/hackbot-darwin-arm64
+            artifacts/hackbot-linux-amd64/hackbot-linux-amd64.zip
+            artifacts/hackbot-windows-amd64/hackbot-windows-amd64.zip
+            artifacts/hackbot-darwin-arm64/hackbot-darwin-arm64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
