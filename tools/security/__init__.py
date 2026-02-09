@@ -15,6 +15,10 @@ from tools.network import NETWORK_TOOLS
 from tools.defense import DEFENSE_TOOLS
 from tools.utility import UTILITY_TOOLS
 from tools.web import WEB_TOOLS
+from tools.osint import OSINT_TOOLS
+from tools.protocol import PROTOCOL_TOOLS
+from tools.reporting import REPORTING_TOOLS
+from tools.cloud import CLOUD_TOOLS
 from tools.command_tool import CommandTool
 from tools.crawler_tool import CrawlerTool
 
@@ -30,7 +34,7 @@ CORE_SECURITY_TOOLS = [
 
 # ---------------------------------------------------------------
 # 基础工具（hackbot + superhackbot 都可用）
-# 包含核心安全 + 网络 + 防御 + 实用 + Web + 系统命令 + 爬虫
+# 包含核心安全 + 网络 + 防御 + 实用 + Web + OSINT + 协议 + 报告 + 云安全 + 系统命令 + 爬虫
 # ---------------------------------------------------------------
 BASIC_SECURITY_TOOLS = (
     CORE_SECURITY_TOOLS
@@ -38,6 +42,10 @@ BASIC_SECURITY_TOOLS = (
     + DEFENSE_TOOLS
     + UTILITY_TOOLS
     + WEB_TOOLS
+    + OSINT_TOOLS
+    + PROTOCOL_TOOLS
+    + REPORTING_TOOLS
+    + CLOUD_TOOLS
     + [CommandTool(), CrawlerTool()]
 )
 

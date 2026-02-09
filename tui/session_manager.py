@@ -59,6 +59,9 @@ class SessionManager:
         self.show_thinking: bool = True
         self.show_details: bool = True
 
+        # 当前轮次工具执行结果（含成功/失败），供摘要阶段使用
+        self._current_tool_results: List[Dict] = []
+
         # 创建默认会话
         self.new_session()
 
@@ -139,6 +142,9 @@ class SessionManager:
         # 记录用户消息
         if self.current_session:
             self.current_session.add_message(MessageRole.USER, user_input)
+
+        # 每轮新消息清空工具执行记录，供本轮摘要使用
+        self._current_tool_results = []
 
         # 通知 UI：进入规划阶段（便于加载组件显示「规划中」）
         await self.event_bus.emit_simple_async(
@@ -250,6 +256,7 @@ class SessionManager:
                 todos=plan_result.todos,
                 thoughts=thoughts,
                 observations=observations,
+                tool_results=self._current_tool_results,
                 interaction_type="technical",
                 brief=True,  # 最后报告：简要说下做了什么即可
             )
@@ -337,6 +344,14 @@ class SessionManager:
         elif event_type == "action_result":
             tool = data.get("tool", "")
             success = data.get("success", False)
+
+            # 记录本轮工具执行结果（含失败），供摘要 Agent 输出
+            self._current_tool_results.append({
+                "tool": tool,
+                "success": success,
+                "result": data.get("result") if success else None,
+                "error": data.get("error", "") if not success else None,
+            })
 
             # 自动更新 todo 状态
             status = "completed" if success else "pending"

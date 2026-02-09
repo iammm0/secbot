@@ -1,17 +1,12 @@
 """
-TaskStatusComponent：任务执行状态加载组件
-订阅规划/推理/执行/报告事件，在独立 Live 中显示当前任务类型与动画，
-让用户清楚知道 Hackbot 正在执行何种任务。
+TaskStatusComponent：任务执行状态组件
+订阅规划/推理/执行/报告事件，在终端中显示当前任务阶段。
+使用 console.print + \\r 覆盖方式而非 Live，避免与 ReasoningComponent 的 Live 冲突。
 """
 
-import threading
-import time
 from typing import Optional, Tuple
 
 from rich.console import Console
-from rich.live import Live
-from rich.panel import Panel
-from rich.spinner import Spinner
 from rich.text import Text
 
 from utils.event_bus import EventBus, EventType, Event
@@ -19,31 +14,31 @@ from utils.event_bus import EventBus, EventType, Event
 
 # 任务阶段与展示文案
 PHASE_LABELS = {
-    "planning": "规划中…",
-    "thinking": "推理中…",
-    "exec": "执行工具",   # 后接 detail: 工具名
-    "report": "生成报告中…",
-    "done": "任务完成",
+    "planning": ("magenta", "Planning", "规划中…"),
+    "thinking": ("cyan", "Thinking", "推理中…"),
+    "exec": ("yellow", "Executing", "执行工具"),
+    "report": ("green", "Report", "生成报告中…"),
+    "done": ("green", "Done", "任务完成"),
 }
+
+# Spinner 字符（简单旋转动画，每次调用切换）
+_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
 
 class TaskStatusComponent:
     """
-    任务状态加载组件：
+    任务状态组件：
     - 订阅 PLAN_START / THINK_* / EXEC_* / REPORT_* / ERROR
-    - 在后台线程用 Live 持续刷新一行：Spinner + 当前任务类型
-    - 收到 REPORT_END 或 ERROR 后显示「任务完成」并结束 Live
+    - 使用简洁的一行状态文本显示当前阶段
+    - 不使用 Live（避免与 ReasoningComponent 的 Live 冲突导致卡顿/变形）
     """
 
     def __init__(self, console: Console, event_bus: Optional[EventBus] = None):
         self.console = console
         self.event_bus = event_bus
-        self._lock = threading.Lock()
         self._phase: Optional[str] = None
         self._detail: str = ""
-        self._live_thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        self._done_show_until: float = 0  # 显示「完成」到该时间戳后退出
+        self._frame_idx: int = 0
 
         if event_bus:
             event_bus.subscribe(EventType.TASK_PHASE, self._on_task_phase)
@@ -56,107 +51,93 @@ class TaskStatusComponent:
             event_bus.subscribe(EventType.REPORT_END, self._on_report_end)
             event_bus.subscribe(EventType.ERROR, self._on_error)
 
-    def _set_phase(self, phase: str, detail: str = ""):
-        with self._lock:
-            self._phase = phase
-            self._detail = detail
+    # ------------------------------------------------------------------
+    # 渲染
+    # ------------------------------------------------------------------
 
-    def _get_phase(self) -> Tuple[Optional[str], str]:
-        with self._lock:
-            return (self._phase, self._detail)
-
-    def _start_live_thread(self):
-        if self._live_thread is not None and self._live_thread.is_alive():
+    def _print_status(self):
+        """打印一行简洁状态"""
+        if self._phase is None:
             return
-        self._stop_event.clear()
-        self._live_thread = threading.Thread(target=self._run_live, daemon=True)
-        self._live_thread.start()
 
-    def _run_live(self):
-        try:
-            with Live(
-                self._render(),
-                console=self.console,
-                refresh_per_second=10,
-                transient=False,
-            ) as live:
-                while not self._stop_event.is_set():
-                    live.update(self._render())
-                    self._stop_event.wait(timeout=0.1)
-                live.update(self._render())
-                time.sleep(1.2)
-        finally:
-            self._live_thread = None
+        info = PHASE_LABELS.get(self._phase)
+        if not info:
+            return
 
-    def _render(self):
-        phase, detail = self._get_phase()
-        if phase is None:
-            return Panel(
-                Text("就绪", style="dim"),
-                title="[bold cyan]状态[/bold cyan]",
-                border_style="dim",
-                padding=(0, 1),
+        color, tag, label = info
+
+        if self._phase == "done":
+            self.console.print(
+                Text.assemble(
+                    ("  ", ""),
+                    ("✓ ", f"bold {color}"),
+                    (f"{tag}", f"bold {color}"),
+                    (f"  {label}", f"{color}"),
+                )
             )
-        label = PHASE_LABELS.get(phase, phase)
-        if phase == "exec" and detail:
-            line = f"{label}: [bold yellow]{detail}[/bold yellow]"
         else:
-            line = label
-        if phase == "done":
-            return Panel(
-                Text("✓ ", style="bold green") + Text(line, style="green"),
-                title="[bold cyan]状态[/bold cyan]",
-                border_style="green",
-                padding=(0, 1),
+            # 简单 spinner
+            frame = _SPINNER_FRAMES[self._frame_idx % len(_SPINNER_FRAMES)]
+            self._frame_idx += 1
+
+            detail_text = ""
+            if self._phase == "exec" and self._detail:
+                detail_text = f": {self._detail}"
+
+            self.console.print(
+                Text.assemble(
+                    ("  ", ""),
+                    (f"{frame} ", f"bold {color}"),
+                    (f"{tag}", f"bold {color}"),
+                    (f"  {label}{detail_text}", f"{color}"),
+                )
             )
-        return Panel(
-            Spinner("dots", text=line, style="bold cyan"),
-            title="[bold cyan]状态[/bold cyan]",
-            border_style="cyan",
-            padding=(0, 1),
-        )
+
+    # ------------------------------------------------------------------
+    # 事件处理
+    # ------------------------------------------------------------------
 
     def _on_task_phase(self, event: Event):
         phase = event.data.get("phase", "")
         detail = event.data.get("detail", "")
         if phase:
-            self._set_phase(phase, detail)
-            if phase == "done":
-                self._start_live_thread()
-                self._stop_event.set()
-            else:
-                self._start_live_thread()
+            self._phase = phase
+            self._detail = detail
+            self._print_status()
 
     def _on_plan_start(self, event: Event):
-        self._set_phase("planning", "执行计划")
-        self._start_live_thread()
+        self._phase = "planning"
+        self._detail = ""
+        self._print_status()
 
     def _on_think_start(self, event: Event):
-        self._set_phase("thinking", "")
-        self._start_live_thread()
+        self._phase = "thinking"
+        self._detail = ""
+        # 不打印，因为 ReasoningComponent 会处理显示
 
     def _on_think_end(self, event: Event):
-        # 下一轮可能是 THINK_START 或 EXEC_START，这里可保持「推理中」或留空
         pass
 
     def _on_exec_start(self, event: Event):
         tool = event.data.get("tool", "") or event.data.get("params", {}).get("tool", "")
-        self._set_phase("exec", tool)
-        self._start_live_thread()
+        self._phase = "exec"
+        self._detail = tool
+        # 不打印，因为 ExecutionComponent 会处理显示
 
     def _on_exec_result(self, event: Event):
-        # 保持显示当前工具，直到下一阶段
         pass
 
     def _on_report_start(self, event: Event):
-        self._set_phase("report", "")
-        self._start_live_thread()
+        self._phase = "report"
+        self._detail = ""
+        self._print_status()
 
     def _on_report_end(self, event: Event):
-        self._set_phase("done", "")
-        self._done_show_until = time.time() + 1.2
-        self._stop_event.set()
+        self._phase = "done"
+        self._detail = ""
+        self._print_status()
 
     def _on_error(self, event: Event):
-        self._set_phase("done", "出错结束")
-        self._stop_event.set()
+        self._phase = "done"
+        self._detail = "出错结束"
+        self._print_status()

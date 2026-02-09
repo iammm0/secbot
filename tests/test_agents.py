@@ -2,15 +2,15 @@
 智能体测试
 """
 import pytest
-from agents.langchain_agent import LangChainAgent
+from agents.tool_calling_agent import ToolCallingAgent
 from patterns.react import ReActAgent
 
 
 @pytest.mark.asyncio
-async def test_langchain_agent():
-    """测试LangChain智能体"""
-    agent = LangChainAgent(name="TestLangChainAgent")
-    assert agent.name == "TestLangChainAgent"
+async def test_tool_calling_agent():
+    """测试工具调用智能体"""
+    agent = ToolCallingAgent(name="TestToolCallingAgent")
+    assert agent.name == "TestToolCallingAgent"
     assert len(agent.messages) > 0  # 应该有系统消息
 
 
@@ -24,7 +24,7 @@ async def test_react_agent():
 
 def test_agent_memory():
     """测试智能体记忆"""
-    agent = LangChainAgent(name="TestAgent")
+    agent = ToolCallingAgent(name="TestAgent")
     agent.add_message("user", "测试消息")
     assert len(agent.messages) > 0
     agent.clear_memory()

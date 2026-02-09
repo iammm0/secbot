@@ -1,0 +1,103 @@
+# 多平台构建 Hackbot 可执行程序并发布到 GitHub Release
+# 触发: 推送 tag 如 v1.0.0，或手动 workflow_dispatch
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            name: linux-amd64
+          - runner: windows-latest
+            name: windows-amd64
+          - runner: macos-14
+            name: darwin-arm64
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            pyinstaller hackbot.spec
+            mv dist/hackbot.exe "dist/hackbot-${{ matrix.name }}.exe"
+          else
+            pyinstaller hackbot.spec
+            mv dist/hackbot "dist/hackbot-${{ matrix.name }}"
+            chmod +x "dist/hackbot-${{ matrix.name }}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hackbot-${{ matrix.name }}
+          path: |
+            dist/hackbot-${{ matrix.name }}
+            dist/hackbot-${{ matrix.name }}.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version from tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=v0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Hackbot ${{ steps.tag.outputs.version }}
+          body: |
+            ## 安装与运行
+
+            1. 下载对应平台的程序（如 `hackbot-linux-amd64`、`hackbot-windows-amd64.exe`、`hackbot-darwin-arm64`）。
+            2. 配置 **DeepSeek API Key**（启动前唯一必须条件）：
+               - **环境变量**：`export DEEPSEEK_API_KEY=sk-xxx`（Linux/macOS）或 系统环境变量（Windows）
+               - **或** 在可执行文件同目录创建 `.env` 文件，内容：`DEEPSEEK_API_KEY=sk-xxx`
+            3. 运行程序（直接双击或终端执行），即可进入交互式安全测试界面。
+
+            获取 API Key：https://platform.deepseek.com
+          draft: false
+          files: |
+            artifacts/hackbot-linux-amd64/hackbot-linux-amd64
+            artifacts/hackbot-windows-amd64/hackbot-windows-amd64.exe
+            artifacts/hackbot-darwin-arm64/hackbot-darwin-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

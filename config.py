@@ -2,13 +2,17 @@
 配置管理模块
 """
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-# 加载环境变量
+# 加载环境变量：优先当前目录 .env；打包为单文件/可执行目录时，从可执行文件所在目录加载
 load_dotenv()
+if getattr(sys, "frozen", False):
+    _exe_dir = Path(sys.executable).resolve().parent
+    load_dotenv(_exe_dir / ".env")
 
 class Settings(BaseSettings):
     """应用配置"""
@@ -47,6 +51,10 @@ class Settings(BaseSettings):
     # 语音输出（TTS）配置
     tts_engine: str = os.getenv("TTS_ENGINE", "gtts")  # 文字转语音引擎（gtts/pyttsx3）
     
+    
+    # OSINT / 外部 API 配置
+    shodan_api_key: Optional[str] = os.getenv("SHODAN_API_KEY")
+    virustotal_api_key: Optional[str] = os.getenv("VIRUSTOTAL_API_KEY")
     
     # 数据库配置
     redis_url: Optional[str] = os.getenv("REDIS_URL")

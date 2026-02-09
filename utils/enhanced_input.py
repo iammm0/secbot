@@ -11,6 +11,7 @@ OpenCode 风格输入框
   - / 命令自动补全
   - Enter 发送
   - placeholder 占位提示
+  - 自适应终端宽度，窄窗口不溢出
 """
 from typing import Optional
 import sys
@@ -27,6 +28,10 @@ try:
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
+
+
+# 最小可用宽度（低于此值使用极简边框）
+MIN_FANCY_WIDTH = 30
 
 
 # ------------------------------------------------------------------
@@ -58,7 +63,7 @@ class _SlashCompleter:
 # 核心输入组件
 # ------------------------------------------------------------------
 class EnhancedInput:
-    """OpenCode 风格的终端输入框"""
+    """OpenCode 风格的终端输入框（自适应宽度）"""
 
     def __init__(
         self,
@@ -141,26 +146,60 @@ class EnhancedInput:
                 pass
 
     # ------------------------------------------------------------------
-    # 内部实现
+    # 自适应宽度的边框
     # ------------------------------------------------------------------
 
+    def _get_width(self) -> int:
+        """获取当前终端宽度（每次实时获取，应对窗口缩放）"""
+        try:
+            return self.console.width or 80
+        except Exception:
+            return 80
+
     def _print_top_border(self):
-        """打印上边框"""
-        w = self.console.width or 80
+        """打印上边框（自适应宽度）"""
+        w = self._get_width()
         agent = self.current_agent
+
+        if w < MIN_FANCY_WIDTH:
+            # 极窄窗口：简化边框
+            self.console.print(f"[bright_blue]── > {agent} ──[/bright_blue]")
+            return
+
         title = f" > {agent} "
-        inner = w - 2
+        inner = w - 2  # 减去 ╭ 和 ╮
         left = 2
         right = max(0, inner - left - len(title))
-        self.console.print(f"[bright_blue]╭{'─' * left}{title}{'─' * right}╮[/bright_blue]")
+        self.console.print(
+            f"[bright_blue]╭{'─' * left}{title}{'─' * right}╮[/bright_blue]"
+        )
 
     def _print_bottom_border(self):
-        """打印下边框"""
-        w = self.console.width or 80
-        inner = w - 2
+        """打印下边框（自适应宽度）"""
+        w = self._get_width()
+
+        if w < MIN_FANCY_WIDTH:
+            # 极窄窗口：简化边框
+            self.console.print("[bright_blue]──────────────[/bright_blue]")
+            return
+
+        inner = w - 2  # 减去 ╰ 和 ╯
         hint = " / commands · ↑↓ history · enter send "
+
+        # 如果宽度不够放完整 hint，截断
+        if inner < len(hint) + 2:
+            hint = " /cmd · ↑↓ · enter "
+        if inner < len(hint) + 2:
+            hint = ""
+
         right_b = max(0, inner - len(hint))
-        self.console.print(f"[bright_blue]╰{'─' * right_b}{hint}╯[/bright_blue]")
+        self.console.print(
+            f"[bright_blue]╰{'─' * right_b}{hint}╯[/bright_blue]"
+        )
+
+    # ------------------------------------------------------------------
+    # 内部实现
+    # ------------------------------------------------------------------
 
     def _run(self, placeholder: str) -> str:
         """同步模式运行（阻塞）"""

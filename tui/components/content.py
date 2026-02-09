@@ -15,6 +15,19 @@ from rich import box
 from utils.event_bus import EventBus, EventType, Event
 
 
+def _adaptive_padding(console: Console) -> tuple:
+    """根据终端宽度返回合适的 padding"""
+    try:
+        w = console.width or 80
+    except Exception:
+        w = 80
+    if w < 40:
+        return (0, 0)
+    if w < 60:
+        return (0, 1)
+    return (1, 2)
+
+
 class ContentComponent:
     """
     内容展示组件：
@@ -66,7 +79,7 @@ class ContentComponent:
                 title=panel_title,
                 border_style="blue",
                 box=box.ROUNDED,
-                padding=(1, 2),
+                padding=_adaptive_padding(self.console),
             )
         )
 
@@ -88,7 +101,7 @@ class ContentComponent:
                 title=title,
                 border_style="blue",
                 box=box.ROUNDED,
-                padding=(1, 2),
+                padding=_adaptive_padding(self.console),
             )
         )
 
@@ -103,7 +116,7 @@ class ContentComponent:
                 title=f"[bold green]{agent_name}[/bold green]",
                 border_style="green",
                 box=box.ROUNDED,
-                padding=(1, 2),
+                padding=_adaptive_padding(self.console),
             )
         )
 
