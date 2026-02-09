@@ -70,9 +70,9 @@
 
 若不想安装 Python，可直接使用**单文件可执行程序**（Windows / macOS / Linux）：
 
-1. 在 [Releases](https://github.com/iammm0/hackbot/releases) 下载对应平台文件（如 `hackbot-windows-amd64.exe`、`hackbot-linux-amd64`、`hackbot-darwin-arm64`）。
-2. **配置 DeepSeek API Key**（启动前唯一必须条件）：环境变量 `DEEPSEEK_API_KEY=sk-xxx`，或在可执行文件同目录创建 `.env` 写入该变量。
-3. 运行可执行文件即可进入交互式界面。
+1. 在 [Releases](https://github.com/iammm0/hackbot/releases) 下载对应平台 zip（如 `hackbot-linux-amd64.zip`），解压得到 `hackbot` 目录。
+2. **配置 DeepSeek API Key**（启动前唯一必须条件）：环境变量 `DEEPSEEK_API_KEY=sk-xxx`，或在 `hackbot` 目录内创建 `.env` 写入该变量。
+3. 进入 `hackbot` 目录，运行 `./hackbot`（Linux/macOS）或 `hackbot.exe`（Windows）即可进入交互式界面。
 
 详见 [发布版使用说明](docs/RELEASE.md)。
 
