@@ -62,7 +62,9 @@ def _create_llm(
         )
         if not is_reasoner:
             kwargs["temperature"] = (
-                temperature if temperature is not None else settings.deepseek_temperature
+                temperature
+                if temperature is not None
+                else settings.deepseek_temperature
             )
         return ChatOpenAI(**kwargs)
     raise ValueError(f"不支持的推理后端: {p}")
@@ -112,7 +114,9 @@ class SecurityReActAgent(BaseAgent):
         # ReAct 状态
         self._react_history: List[Dict[str, str]] = []  # 当前任务的 think/act/obs 历史
         self._waiting_for_confirm = False
-        self._skip_report = False  # 由 process(skip_report=True) 设置，供 handle_accept 使用
+        self._skip_report = (
+            False  # 由 process(skip_report=True) 设置，供 handle_accept 使用
+        )
 
     def _emit_event(self, event_type: str, data: dict, on_event=None):
         """触发事件回调，同时发射到 EventBus（如果已配置）"""
@@ -127,6 +131,7 @@ class SecurityReActAgent(BaseAgent):
         if self.event_bus:
             try:
                 from utils.event_bus import EventType as ET, Event
+
                 _type_map = {
                     "planning": ET.CONTENT,
                     "thought_start": ET.THINK_START,
@@ -143,11 +148,13 @@ class SecurityReActAgent(BaseAgent):
                 mapped = _type_map.get(event_type)
                 if mapped:
                     iteration = data.get("iteration", 0)
-                    self.event_bus.emit(Event(
-                        type=mapped,
-                        data=data,
-                        iteration=iteration,
-                    ))
+                    self.event_bus.emit(
+                        Event(
+                            type=mapped,
+                            data=data,
+                            iteration=iteration,
+                        )
+                    )
             except Exception as e:
                 logger.error(f"EventBus 发射错误: {e}")
 
@@ -204,7 +211,11 @@ class SecurityReActAgent(BaseAgent):
             response = await asyncio.wait_for(self.llm.ainvoke(messages), timeout=30.0)
         except Exception as e:
             logger.error(f"LLM 调用失败: {e}")
-            provider = (self._provider_override or getattr(settings, "llm_provider", None) or "ollama")
+            provider = (
+                self._provider_override
+                or getattr(settings, "llm_provider", None)
+                or "ollama"
+            )
             hint = get_llm_connection_hint(e, provider=provider)
             return f"[LLM 调用失败: {hint}]"
 
@@ -251,8 +262,13 @@ class SecurityReActAgent(BaseAgent):
             return full_response
         except Exception as e:
             from utils.model_selector import get_llm_connection_hint
+
             logger.error(f"LLM 流式调用失败: {e}")
-            provider = (self._provider_override or getattr(settings, "llm_provider", None) or "ollama")
+            provider = (
+                self._provider_override
+                or getattr(settings, "llm_provider", None)
+                or "ollama"
+            )
             hint = get_llm_connection_hint(e, provider=provider)
             error_msg = f"[LLM 调用失败: {hint}]"
             self._emit_event("error", {"error": hint}, on_event)
@@ -364,9 +380,7 @@ class SecurityReActAgent(BaseAgent):
                 hint = (next_todo.get("tool_hint") or "").strip()
                 if hint and tool_name != hint:
                     content = next_todo.get("content", next_todo.get("id", ""))
-                    obs = (
-                        f"必须按计划顺序执行。当前应执行: {content}，建议工具: {hint}。请使用该工具后再继续。"
-                    )
+                    obs = f"必须按计划顺序执行。当前应执行: {content}，建议工具: {hint}。请使用该工具后再继续。"
                     self._react_history.append({"type": "observation", "content": obs})
                     if self.audit:
                         self.audit.record(self.name, "observation", obs)
@@ -600,7 +614,9 @@ class SecurityReActAgent(BaseAgent):
                     ]
                     summary_agent = SummaryAgent()
                     conclusion = await summary_agent.process(
-                        user_input=user_input, thoughts=thoughts, observations=observations
+                        user_input=user_input,
+                        thoughts=thoughts,
+                        observations=observations,
                     )
                     if self.audit:
                         self.audit.record(self.name, "result", conclusion)
@@ -814,12 +830,20 @@ class SecurityReActAgent(BaseAgent):
             for td in self._current_todos:
                 c = td.get("content", td.get("id", ""))
                 s = td.get("status", "pending")
-                icon = {"completed": "[x]", "in_progress": "[~]", "cancelled": "[-]"}.get(s, "[ ]")
+                icon = {
+                    "completed": "[x]",
+                    "in_progress": "[~]",
+                    "cancelled": "[-]",
+                }.get(s, "[ ]")
                 lines.append(f"  {icon} {c}")
-            todos_section = "\n## 当前计划步骤（完成前勿输出 Final Answer）\n" + "\n".join(lines) + """
+            todos_section = (
+                "\n## 当前计划步骤（完成前勿输出 Final Answer）\n"
+                + "\n".join(lines)
+                + """
 
 **重要**：在未完成上述所有计划步骤、或已明确说明某步无法完成（如工具失败）的原因前，不要输出 Final Answer。若某步失败导致无法继续，可在 Final Answer 中说明并列出未完成项。
 """
+            )
 
         prompt = f"""你是一个安全测试专家，使用 ReAct 模式工作。
 
@@ -910,7 +934,7 @@ Final Answer: <最终结论和报告>
                             break
             # 若括号匹配失败，继续尝试其他方式
         # 2) 任意位置匹配包含 "tool" 的平衡花括号 JSON
-        for match in re.finditer(r'\{', thought):
+        for match in re.finditer(r"\{", thought):
             start = match.start()
             depth = 0
             for i in range(start, len(thought)):
@@ -938,19 +962,75 @@ Final Answer: <最终结论和报告>
             logger.info(f"工具 {tool.name} 执行成功: {result.success}")
             if not result.success:
                 logger.error(f"工具 {tool.name} 执行失败: {result.error}")
+                # 检测权限相关错误并提供更好的提示
+                error_msg = result.error or ""
+                if any(
+                    keyword in error_msg
+                    for keyword in [
+                        "Permission denied",
+                        "could not open /dev",
+                        "running Scapy as root",
+                        "sudo",
+                        "Operation not permitted",
+                        "Need root privileges",
+                        "must be run as root",
+                    ]
+                ):
+                    # 构建增强的错误信息
+                    hint_msg = self._get_permission_hint(tool.name, error_msg)
+                    result.error = f"{error_msg}\n\n{hint_msg}"
             return result
         except Exception as e:
             logger.error(f"工具 {tool.name} 执行失败: {e}")
-            return ToolResult(success=False, result=None, error=str(e))
+            error_msg = str(e)
+            hint = self._get_permission_hint(tool.name, error_msg)
+            enhanced_error = f"{error_msg}\n\n{hint}" if hint else error_msg
+            return ToolResult(success=False, result=None, error=enhanced_error)
+
+    def _get_permission_hint(self, tool_name: str, error_msg: str) -> str:
+        """根据工具和错误信息生成权限相关的提示"""
+        hints = {
+            "arp_scan": [
+                "💡 提示: 此工具需要网络接口的直接访问权限。",
+                "请尝试以下解决方案之一:",
+                "  1. 使用 sudo 运行: sudo python -m ...",
+                "  2. 或者使用系统命令方式（无需 root）: pip install scapy 时未安装依赖",
+                "  3. 检查是否有其他网络工具占用了接口",
+            ],
+            "nmap_scan": [
+                "💡 提示: Nmap 需要 root 权限进行原始数据包扫描。",
+                "请尝试: sudo nmap ...",
+            ],
+            "packet_capture": [
+                "💡 提示: 数据包捕获需要 root 权限或适当的能力。",
+                "请尝试: sudo python ...",
+            ],
+        }
+
+        tool_hints = hints.get(tool_name, [])
+        if not tool_hints:
+            # 通用权限提示
+            tool_hints = [
+                "💡 提示: 此操作可能需要管理员权限。",
+                "如需继续，请使用 sudo 重新运行命令。",
+            ]
+
+        return "\n".join(tool_hints)
 
     def _get_next_pending_todo(self) -> Optional[Dict[str, Any]]:
         """返回当前计划中下一个应执行的步骤：status 为 pending 且依赖项均已完成。"""
         todos = getattr(self, "_current_todos", None) or []
         completed_ids = set()
         for td in todos:
-            s = td.get("status") if isinstance(td, dict) else getattr(td, "status", None)
+            s = (
+                td.get("status")
+                if isinstance(td, dict)
+                else getattr(td, "status", None)
+            )
             if s == "completed":
-                completed_ids.add(td.get("id") if isinstance(td, dict) else getattr(td, "id", ""))
+                completed_ids.add(
+                    td.get("id") if isinstance(td, dict) else getattr(td, "id", "")
+                )
         for td in todos:
             if isinstance(td, dict):
                 if td.get("status") != "pending":
@@ -963,7 +1043,13 @@ Final Answer: <最终结论和报告>
                 deps = getattr(td, "depends_on", None) or []
                 if not all(d in completed_ids for d in deps):
                     continue
-                return {"id": getattr(td, "id", ""), "content": getattr(td, "content", ""), "status": "pending", "tool_hint": getattr(td, "tool_hint", None), "depends_on": deps}
+                return {
+                    "id": getattr(td, "id", ""),
+                    "content": getattr(td, "content", ""),
+                    "status": "pending",
+                    "tool_hint": getattr(td, "tool_hint", None),
+                    "depends_on": deps,
+                }
         return None
 
     def _mark_current_todo_completed(self, tool_name: str):
