@@ -2,6 +2,8 @@
 ContentComponent：内容展示组件
 展示 agent 的普通回复内容（非推理、非执行的对话内容）
 支持 Markdown 渲染
+
+优化：添加 emoji 标题、统一间距处理
 """
 
 from typing import Optional
@@ -12,20 +14,8 @@ from rich.markdown import Markdown
 from rich.text import Text
 from rich import box
 
+from tui.utils import adaptive_padding
 from utils.event_bus import EventBus, EventType, Event
-
-
-def _adaptive_padding(console: Console) -> tuple:
-    """根据终端宽度返回合适的 padding"""
-    try:
-        w = console.width or 80
-    except Exception:
-        w = 80
-    if w < 40:
-        return (0, 0)
-    if w < 60:
-        return (0, 1)
-    return (1, 2)
 
 
 class ContentComponent:
@@ -72,14 +62,14 @@ class ContentComponent:
 
         renderable = Markdown(content or "")
 
-        panel_title = title or "[bold blue]Content[/bold blue]"
+        panel_title = title or "[bold blue]📝 Content[/bold blue]"
         self.console.print(
             Panel(
                 renderable,
                 title=panel_title,
                 border_style="blue",
                 box=box.ROUNDED,
-                padding=_adaptive_padding(self.console),
+                padding=adaptive_padding(self.console),
             )
         )
 
@@ -88,7 +78,7 @@ class ContentComponent:
         if not self._visible:
             return
 
-        title_parts = ["Observation"]
+        title_parts = ["👁 Observation"]
         if iteration:
             title_parts.append(f"#{iteration}")
         if tool:
@@ -101,7 +91,7 @@ class ContentComponent:
                 title=title,
                 border_style="blue",
                 box=box.ROUNDED,
-                padding=_adaptive_padding(self.console),
+                padding=adaptive_padding(self.console),
             )
         )
 
@@ -113,10 +103,10 @@ class ContentComponent:
         self.console.print(
             Panel(
                 Markdown(content),
-                title=f"[bold green]{agent_name}[/bold green]",
+                title=f"[bold green]🤖 {agent_name}[/bold green]",
                 border_style="green",
                 box=box.ROUNDED,
-                padding=_adaptive_padding(self.console),
+                padding=adaptive_padding(self.console),
             )
         )
 
@@ -128,7 +118,7 @@ class ContentComponent:
         self.console.print(
             Panel(
                 Markdown(content or ""),
-                title=f"[bold bright_blue]{username}[/bold bright_blue]",
+                title=f"[bold bright_blue]💬 {username}[/bold bright_blue]",
                 border_style="bright_blue",
                 box=box.ROUNDED,
                 padding=(0, 1),
