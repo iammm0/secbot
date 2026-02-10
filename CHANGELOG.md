@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2025-02-10
+
+### Fixed
+
+- Windows 构建：Install dependencies / Build executable 步骤指定 `shell: bash`，避免 PowerShell 解析 Bash 条件语句报错。
+
+---
+
 ## [1.2.2] - 2025-02-10
 
 ### Added
@@ -46,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 初始功能：ReAct 安全测试智能体、规划/推理/执行/报告 TUI、多工具与编排流程等。
 
+[1.2.3]: https://github.com/iammm0/hackbot/releases/tag/v1.2.3
 [1.2.2]: https://github.com/iammm0/hackbot/releases/tag/v1.2.2
 [1.2.0]: https://github.com/iammm0/hackbot/releases/tag/v1.2.0
 [1.0.0]: https://github.com/iammm0/hackbot/releases/tag/v1.0.0
