@@ -15,20 +15,8 @@ from rich import box
 from tui.models import TodoItem, TodoStatus, PlanResult
 from tui.widgets.todo_list import render_todo_list
 from tui.widgets.collapsible import CollapsiblePanel
+from tui.utils import adaptive_padding
 from utils.event_bus import EventBus, EventType, Event
-
-
-def _adaptive_padding(console: Console) -> tuple:
-    """根据终端宽度返回合适的 padding"""
-    try:
-        w = console.width or 80
-    except Exception:
-        w = 80
-    if w < 40:
-        return (0, 0)
-    if w < 60:
-        return (0, 1)
-    return (1, 2)
 
 
 class PlanningComponent:
@@ -144,7 +132,18 @@ class PlanningComponent:
                 parts.append(Text())
             parts.append(render_todo_list(self.todos))
             stats = self.get_completion_stats()
-            parts.append(Text(f"\n\n  进度: {stats['completed']}/{stats['total']}", style="dim"))
+            # 进度条文本
+            progress_text = Text()
+            progress_text.append(f"\n  进度: ", style="dim")
+            done = stats['completed']
+            total = stats['total']
+            if total > 0:
+                filled = int((done / total) * 10)
+                bar = "█" * filled + "░" * (10 - filled)
+                color = "green" if done == total else "yellow"
+                progress_text.append(f"{bar} ", style=color)
+            progress_text.append(f"{done}/{total}", style="dim")
+            parts.append(progress_text)
             content = Group(*parts)
 
         if self.collapsed:
@@ -152,7 +151,7 @@ class PlanningComponent:
             summary = f"计划 ({stats['completed']}/{stats['total']} 完成)"
             return CollapsiblePanel(
                 content=content,
-                title="[bold magenta]Planning[/bold magenta]",
+                title="[bold magenta]📋 Planning[/bold magenta]",
                 border_style="magenta",
                 collapsed_summary=summary,
                 collapsed=True,
@@ -160,13 +159,31 @@ class PlanningComponent:
 
         return Panel(
             content,
-            title="[bold magenta]Planning[/bold magenta]",
+            title="[bold magenta]📋 Planning[/bold magenta]",
             border_style="magenta",
             box=box.ROUNDED,
-            padding=_adaptive_padding(self.console),
+            padding=adaptive_padding(self.console),
         )
 
     def display(self):
-        """直接打印到控制台"""
-        if self._visible:
+        """直接打印到控制台。简单目标（1 步）只显示单行，不展开完整规划面板。"""
+        if not self._visible:
+            return
+        # 简单目标不要过度规划：仅 1 步时单行展示
+        if len(self.todos) == 1:
+            first = self.todos[0]
+            content = first.content[:60] + "..." if len(first.content) > 60 else first.content
+            line = Text.assemble(
+                ("📋 计划: ", "bold magenta"),
+                (content, "magenta"),
+            )
+            if first.status == TodoStatus.IN_PROGRESS:
+                line.append("  ", "")
+                line.append("(执行中...)", "dim yellow")
+            elif first.status == TodoStatus.COMPLETED:
+                line.append("  ", "")
+                line.append("✓" if not first.result_summary else f"✓ {first.result_summary}", "dim green")
+            self.console.print(line)
+            return
+        if self.todos:
             self.console.print(self.render())
