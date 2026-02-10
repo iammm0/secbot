@@ -42,9 +42,7 @@ jobs:
         run: pyinstaller hackbot.spec
 
       - name: Package artifact (zip)
-        shell: bash
-        run: |
-          cd dist && zip -r hackbot-${{ matrix.name }}.zip hackbot && cd ..
+        run: python -c "import shutil,os; os.chdir('dist'); shutil.make_archive('hackbot-${{ matrix.name }}', 'zip', '.', 'hackbot')"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
