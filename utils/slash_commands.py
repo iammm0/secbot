@@ -15,6 +15,8 @@ SLASH_COMMANDS = (
     "/reject",
     "/start",
     "/plan",
+    "/agent",
+    "/ask",
     # v2 新增命令
     "/thinking",
     "/details",
@@ -24,22 +26,17 @@ SLASH_COMMANDS = (
     "/export",
 )
 
-SLASH_HELP = (
-    "可用命令（输入前缀可匹配）:\n"
-    "  [cyan]/model[/cyan]     切换 LLM 模型\n"
-    "  [cyan]/accept[/cyan]    确认敏感操作\n"
-    "  [cyan]/reject[/cyan]    拒绝敏感操作\n"
-    "  [cyan]/audit[/cyan]     查看审计留痕\n"
-    "  [cyan]/plan[/cyan]      进入计划模式：编写安全测试计划\n"
-    "  [cyan]/start[/cyan]     计划模式下：确认计划并开始执行\n"
-    "  [cyan]/thinking[/cyan]  切换推理过程显示\n"
-    "  [cyan]/details[/cyan]   切换执行详情模式\n"
-    "  [cyan]/compact[/cyan]   压缩会话历史\n"
-    "  [cyan]/sessions[/cyan]  列出/切换会话\n"
-    "  [cyan]/new[/cyan]       新建会话\n"
-    "  [cyan]/export[/cyan]    导出对话为 Markdown\n"
-    "例: [dim]/m[/dim] → /model, [dim]/pl[/dim] → /plan, [dim]/st[/dim] → /start"
-)
+def _build_slash_help() -> str:
+    """根据 COMMAND_DESCRIPTIONS 生成「命令 — 简要说明」帮助文案。"""
+    lines = ["可用命令（输入前缀可匹配）:"]
+    for cmd in SLASH_COMMANDS:
+        desc = COMMAND_DESCRIPTIONS.get(cmd, "")
+        lines.append(f"  [cyan]{cmd}[/cyan]  —  {desc}")
+    lines.append("例: [dim]/m[/dim] → /model, [dim]/pl[/dim] → /plan, [dim]/st[/dim] → /start")
+    return "\n".join(lines)
+
+
+# SLASH_HELP 在文件末尾根据 COMMAND_DESCRIPTIONS 生成
 
 
 def normalize_slash_input(raw: str) -> Tuple[Optional[str], Optional[str]]:
@@ -96,17 +93,27 @@ def get_slash_completions(prefix: str) -> List[str]:
     根据当前输入前缀返回可补全的斜杠命令列表，供输入框补全使用。
     输入 "/" 或 "/au" 等时返回匹配的命令。
     """
+    return [cmd for cmd, _ in get_slash_completions_with_descriptions(prefix)]
+
+
+def get_slash_completions_with_descriptions(prefix: str) -> List[Tuple[str, str]]:
+    """
+    返回 (命令, 简要说明) 列表，供补全时展示「命令 — 说明」。
+    """
     prefix = prefix.strip().lower()
     if not prefix or not prefix.startswith("/"):
         return []
-    # 匹配：命令以 prefix 开头，或 prefix 是某命令的前缀
     matches = [
         c for c in SLASH_COMMANDS
         if c.startswith(prefix) or (
             prefix.startswith(c.split()[0]) if " " in c else prefix.startswith(c)
         )
     ]
-    return sorted(matches)
+    out = []
+    for cmd in sorted(matches):
+        desc = COMMAND_DESCRIPTIONS.get(cmd, "")
+        out.append((cmd, desc))
+    return out
 
 
 # ------------------------------------------------------------------
@@ -122,6 +129,8 @@ COMMAND_DESCRIPTIONS = {
     "/audit export": "导出审计报告",
     "/plan": "进入计划模式，编写自动化安全测试计划",
     "/start": "计划模式下确认计划并开始执行",
+    "/agent": "切换 default（hackbot）或 super（superhackbot）模式",
+    "/ask": "切换 Ask 模式：对当前对话上下文提问，不执行推理或动作",
     "/thinking": "切换推理过程的显示/隐藏",
     "/details": "切换工具执行详情的详细/简洁模式",
     "/compact": "压缩当前会话历史",
@@ -129,3 +138,6 @@ COMMAND_DESCRIPTIONS = {
     "/new": "新建会话",
     "/export": "导出当前对话为 Markdown",
 }
+
+# 用 COMMAND_DESCRIPTIONS 生成帮助文案，保证与补全说明一致
+SLASH_HELP = _build_slash_help()
