@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
-from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 from rich import box
@@ -26,6 +25,7 @@ from utils.enhanced_input import EnhancedInput
 from utils.model_selector import run_model_selector, check_ollama_running, has_deepseek_api_key
 from utils.output_components import OutputComponentManager
 from utils.loading import LoadingComponent
+from tui.utils import smart_render_text
 from crawler.scheduler import CrawlerScheduler
 from crawler.realtime import RealtimeCrawler
 from crawler.extractor import AIExtractor
@@ -335,7 +335,7 @@ def chat(
                 # 显示响应
                 console.print(
                     Panel(
-                        Markdown(response),
+                        smart_render_text(response, prefer_markdown=True),
                         title="[bold green]智能体响应[/bold green]",
                         border_style="green",
                     )
@@ -393,7 +393,7 @@ def voice(
             # 3. 显示响应
             console.print(
                 Panel(
-                    Markdown(response_text),
+                    smart_render_text(response_text, prefer_markdown=True),
                     title="[bold green]智能体响应[/bold green]",
                     border_style="green",
                 )
@@ -537,6 +537,7 @@ def interactive(
         restore_console_log_level()
 
     async def _interactive():
+        nonlocal agent
         # ---- 初始化 ----
         loading = LoadingComponent(console)
         with loading.show_loading("正在初始化智能体..."):
@@ -583,6 +584,9 @@ def interactive(
         plan_mode = False
         pending_plan_result = None
 
+        # Ask 模式状态：对当前上下文提问，不执行推理/动作
+        ask_mode = False
+
         # ---- 显示欢迎界面 ----
         from utils.hackbot_banner import print_hackbot_banner
         print_hackbot_banner(console)
@@ -592,6 +596,8 @@ def interactive(
         if hasattr(agent_instance, "get_current_model"):
             model_name = agent_instance.get_current_model() or "ollama"
         mode_desc = "auto" if agent == "hackbot" else "expert"
+        # 第二个标签用 default/super 区分，避免与品牌名「hackbot」重复
+        agent_badge = "default" if agent == "hackbot" else "super"
         tool_count = len(getattr(agent_instance, "security_tools", []))
 
         def _print_status_bar():
@@ -600,7 +606,7 @@ def interactive(
             left = Text.assemble(
                 (" hackbot ", "bold white on bright_blue"),
                 (" ", ""),
-                (f" {agent} ", f"bold white on {'green' if agent == 'hackbot' else 'magenta'}"),
+                (f" {agent_badge} ", f"bold white on {'green' if agent == 'hackbot' else 'magenta'}"),
                 (" ", ""),
                 (f" {mode_desc} ", "bold white on bright_black"),
             )
@@ -616,12 +622,12 @@ def interactive(
             ))
             console.print()
 
-        # 简洁状态栏
+        # 简洁状态栏（品牌 hackbot + 智能体标签 default/super，避免重复「hackbot」）
         console.print(Text.assemble(
             (" ", ""),
             (" hackbot ", "bold white on bright_blue"),
             (" ", ""),
-            (f" {agent} ", f"bold white on {'green' if agent == 'hackbot' else 'magenta'}"),
+            (f" {agent_badge} ", f"bold white on {'green' if agent == 'hackbot' else 'magenta'}"),
             (" ", ""),
             (f" {mode_desc} ", "bold white on bright_black"),
             (" ", ""),
@@ -631,7 +637,7 @@ def interactive(
         ))
         console.print()
 
-        # 自适应宽度的欢迎面板
+        # 自适应宽度的欢迎面板（含默认 / SuperHackbot 模式说明与切换方式）
         w = console.width or 80
         if w >= 70:
             qs_content = (
@@ -640,6 +646,11 @@ def interactive(
                 "  [yellow]•[/yellow] [cyan]Scan localhost for open ports[/cyan]    扫描本地开放端口\n"
                 "  [yellow]•[/yellow] [cyan]Check system status[/cyan]              查看系统状态\n"
                 "  [yellow]•[/yellow] [cyan]/plan[/cyan] 编写测试计划，[cyan]/start[/cyan] 执行计划\n"
+                "  [yellow]•[/yellow] [cyan]/ask[/cyan] 对当前对话上下文提问（不执行动作）\n"
+                "\n"
+                "  [bold]模式[/bold] default（自动）| super（专家）；当前: "
+                + ("[green]default[/green]" if agent == "hackbot" else "[magenta]super[/magenta]")
+                + " 。输入 [cyan]/agent[/cyan] 切换；启动时 [cyan]-a hackbot[/cyan] | [cyan]-a superhackbot[/cyan]。\n"
                 "\n[dim]  输入 / 查看所有命令 · exit 退出[/dim]"
             )
         else:
@@ -648,6 +659,7 @@ def interactive(
                 "[bold cyan]试试这些：[/bold cyan]\n"
                 " [yellow]•[/yellow] [cyan]你能做什么[/cyan] / [cyan]Scan localhost[/cyan]\n"
                 " [yellow]•[/yellow] [cyan]/plan[/cyan] 编写计划 [cyan]/start[/cyan] 执行\n"
+                " [yellow]•[/yellow] [cyan]/ask[/cyan] 上下文提问 · [cyan]/agent[/cyan] 切换 default/super\n"
                 "[dim] / 命令 · exit 退出[/dim]"
             )
 
@@ -728,6 +740,7 @@ def interactive(
                     agent_instance.clear_memory()
                     reasoning_comp.clear()
                     execution_comp.clear()
+                    ask_mode = False
                     console.print("[green]✓ 对话历史已清空[/green]")
                     continue
 
@@ -782,6 +795,9 @@ def interactive(
                     agent_instance.clear_memory()
                     reasoning_comp.clear()
                     execution_comp.clear()
+                    ask_mode = False
+                    plan_mode = False
+                    pending_plan_result = None
                     console.print(f"[green]✓ 已创建新会话: {new_sess.name} ({new_sess.id})[/green]")
                     continue
 
@@ -871,7 +887,7 @@ def interactive(
                         report = audit_trail.export_report()
                         console.print(
                             Panel(
-                                Markdown(report),
+                                smart_render_text(report, prefer_markdown=True),
                                 title="[bold blue]审计报告[/bold blue]",
                                 border_style="blue",
                             )
@@ -905,8 +921,50 @@ def interactive(
                             console.print(table)
                     continue
 
+                # ---- /agent：切换默认模式（hackbot）或 SuperHackbot 模式（superhackbot）----
+                if lower_input.startswith("/agent"):
+                    parts = user_input.strip().split()
+                    if len(parts) == 1:
+                        console.print(
+                            f"当前模式: [bold]{'default (hackbot)' if agent == 'hackbot' else 'super (superhackbot)'}[/bold]。\n"
+                            "切换: [cyan]/agent hackbot[/cyan] → 默认自动模式  [cyan]/agent superhackbot[/cyan] → 专家模式"
+                        )
+                        continue
+                    choice = parts[1].strip().lower()
+                    if choice in ("hackbot", "default"):
+                        agent = "hackbot"
+                    elif choice in ("superhackbot", "super"):
+                        agent = "superhackbot"
+                    else:
+                        console.print(f"[yellow]未知模式: {choice}[/yellow]，可用: hackbot / default / superhackbot / super")
+                        continue
+                    agent_instance = get_agent(agent)
+                    if session_mgr.current_session:
+                        session_mgr.current_session.agent_type = agent
+                    mode_name = "default（自动）" if agent == "hackbot" else "super（专家）"
+                    console.print(f"[green]✓ 已切换为 {mode_name} 模式[/green]")
+                    continue
+
+                # ---- /ask：切换 Ask 模式（对上下文提问，不执行动作）----
+                if lower_input == "/ask":
+                    ask_mode = not ask_mode
+                    if ask_mode:
+                        # 进入 ask 模式时退出 plan 模式
+                        plan_mode = False
+                        pending_plan_result = None
+                        console.print(
+                            "[bold cyan]已进入 Ask 模式。[/bold cyan]\n"
+                            "在此模式下，你的输入会基于当前对话上下文进行回答，[bold]不会执行任何推理或工具动作[/bold]。\n"
+                            "再次输入 [cyan]/ask[/cyan] 可退出 Ask 模式。"
+                        )
+                    else:
+                        console.print("[cyan]已退出 Ask 模式，恢复正常交互。[/cyan]")
+                    continue
+
                 # ---- /plan：进入计划模式 ----
                 if lower_input == "/plan":
+                    # 进入 plan 模式时退出 ask 模式
+                    ask_mode = False
                     plan_mode = True
                     pending_plan_result = None
                     console.print(
@@ -981,6 +1039,23 @@ def interactive(
                     else:
                         reply = plan_result.direct_response or "请更具体地描述要执行的安全测试步骤（如：扫描某 IP 的端口、漏洞检测等）。"
                         content_comp.display_assistant_message(reply, agent)
+                    continue
+
+                # ---- Ask 模式下：对当前上下文提问，不执行推理/动作 ----
+                if ask_mode:
+                    enhanced_input.add_to_history(user_input)
+                    console.print(
+                        Text.assemble(
+                            ("  ", ""),
+                            ("[ask] ", "bold cyan"),
+                            ("You: ", "bold bright_blue"),
+                            (user_input, ""),
+                        )
+                    )
+                    console.print()
+                    with console.status("[bold cyan]正在基于上下文回答..."):
+                        response = await session_mgr.handle_ask_message(user_input)
+                    content_comp.display_assistant_message(response, "Ask")
                     continue
 
                 # ---- 处理消息（通过 SessionManager 编排：路由 -> Q&A / 规划 -> 执行）----
