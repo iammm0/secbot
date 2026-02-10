@@ -15,13 +15,19 @@ from utils.logger import logger
 # 项目能力简要说明（供「能做什么」类问题使用）
 PROJECT_CAPABILITIES = """**Hackbot 能做什么**
 
-1. **安全扫描**：端口扫描、服务识别、漏洞扫描
-2. **信息收集**：系统信息、网络发现、内网主机探测
-3. **系统操作**：命令执行、进程/文件查看（需授权）
-4. **远程控制**：对授权主机的 SSH/WinRM、上传下载
-5. **防御与报告**：安全扫描报告、入侵检测、审计留痕
+1. **安全巡检**：端口扫描、服务识别、漏洞扫描、入侵检测
+2. **数字取证**：记录攻击行为、收集证据、支持法律诉讼
+3. **信息收集**：系统信息、网络发现、内网主机探测
+4. **系统操作**：命令执行、进程/文件查看（需授权）
+5. **远程控制**：对授权主机的 SSH/WinRM、上传下载
+6. **防御与报告**：安全巡检报告、入侵检测、审计留痕、取证报告
 
-直接说出你的需求即可；也可输入 [cyan]/plan[/cyan] 先编写测试计划，再用 [cyan]/start[/cyan] 执行。"""
+**核心特色：攻击取证**
+- 完整记录攻击者 IP、时间、攻击手法
+- 固化攻击证据（原始日志、哈希校验）
+- 生成符合法律要求的取证报告
+
+直接说出你的需求即可；也可输入 [cyan]/plan[/cyan] 先编写巡检计划，再用 [cyan]/start[/cyan] 执行。"""
 
 
 # Ask 模式系统提示词
@@ -48,7 +54,7 @@ class QAAgent(BaseAgent):
     def __init__(self, name: str = "QAAgent"):
         system_prompt = """你是 Hackbot 的轻量问答助手。只做简短、友好的回复。
 - 问候类：简短回应即可
-- 询问「能做什么」「有什么功能」：简要列举安全扫描、系统操作、远程控制等，并提示用户直接说需求或使用 /plan 编写计划
+- 询问「能做什么」「有什么功能」：简要列举安全巡检、数字取证、系统操作、远程控制等能力，并提示用户直接说需求或使用 /plan 编写计划
 - 询问对话/上下文：根据当前会话简要说明
 不要展开长篇说明，不要调用任何工具。"""
         super().__init__(name=name, system_prompt=system_prompt)
@@ -60,6 +66,7 @@ class QAAgent(BaseAgent):
         if self._llm is None:
             try:
                 from patterns.security_react import _create_llm
+
                 self._llm = _create_llm()
                 logger.info("QAAgent: LLM 实例已创建（用于 Ask 模式）")
             except Exception as e:
@@ -94,7 +101,7 @@ class QAAgent(BaseAgent):
         # 目前未接 LLM，对未匹配的简单问统一给引导
         return (
             "收到。若是想了解我能做什么，可以说「你能做什么」或「有什么功能」。\n"
-            "若要执行扫描、检测等操作，直接说出目标或输入 [cyan]/plan[/cyan] 编写测试计划。"
+            "若要执行巡检、检测或取证任务，直接说出目标或输入 [cyan]/plan[/cyan] 编写巡检计划。"
         )
 
     async def answer_with_context(
@@ -134,20 +141,18 @@ class QAAgent(BaseAgent):
                 context_lines.append(f"[{role_label}]: {content}")
 
             context_block = "\n\n".join(context_lines)
-            messages.append(HumanMessage(
-                content=f"以下是当前对话的上下文记录：\n\n{context_block}"
-            ))
-            messages.append(AIMessage(
-                content="好的，我已了解当前对话上下文。请问你想了解什么？"
-            ))
+            messages.append(
+                HumanMessage(content=f"以下是当前对话的上下文记录：\n\n{context_block}")
+            )
+            messages.append(
+                AIMessage(content="好的，我已了解当前对话上下文。请问你想了解什么？")
+            )
 
         # 用户的实际问题
         messages.append(HumanMessage(content=user_input))
 
         try:
-            response = await asyncio.wait_for(
-                self._llm.ainvoke(messages), timeout=30.0
-            )
+            response = await asyncio.wait_for(self._llm.ainvoke(messages), timeout=30.0)
             if hasattr(response, "content") and response.content:
                 return str(response.content)
             return str(response)
@@ -162,7 +167,10 @@ class QAAgent(BaseAgent):
         lower = text.lower().strip()
 
         # 再见/退出
-        if any(x in lower for x in ["再见", "拜拜", "bye", "quit", "exit"]) and len(text) < 20:
+        if (
+            any(x in lower for x in ["再见", "拜拜", "bye", "quit", "exit"])
+            and len(text) < 20
+        ):
             return "再见！需要时随时叫我。"
 
         # 感谢
@@ -171,15 +179,16 @@ class QAAgent(BaseAgent):
 
         # 问候
         if any(x in lower for x in ["早上好", "早安", "上午好"]):
-            return "早上好！今天想做什么安全测试？"
+            return "早上好！今天想做什么安全巡检？"
         if "下午好" in lower:
-            return "下午好！需要我帮你做扫描或检测吗？"
+            return "下午好！需要我帮你做巡检或取证吗？"
         if any(x in lower for x in ["晚上好", "晚安"]):
             return "晚上好！有什么可以帮你的？"
         if any(x in lower for x in ["你好", "hello", "hi", "嗨"]) and len(text) < 15:
             return (
-                "你好！我是 Hackbot，做安全测试与自动化。\n"
-                "可以说「你能做什么」了解能力，或直接说需求（如：扫描本机端口）。"
+                "你好！我是 Hackbot，做安全巡检与数字取证。\n"
+                "特色：攻击证据记录，支持法律诉讼。\n"
+                "可以说「你能做什么」了解能力，或直接说需求（如：巡检本机服务）。"
             )
 
         # 项目能力 / 能做什么 / 帮助

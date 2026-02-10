@@ -34,8 +34,8 @@ class PlannerAgent(BaseAgent):
 ### 1. 判断请求类型
 - **问候类**：你好、hello、早上/下午/晚上好、再见、谢谢等
 - **闲聊类**：询问天气、闲聊、关于 Hackbot 本身的问题
-- **非技术类**：不属于安全测试、系统操作、代码分析等技术范畴的请求
-- **技术类**：安全扫描、系统操作、命令执行、代码分析等需要工具执行的请求
+- **非技术类**：不属于安全巡检、系统操作、代码分析等技术范畴的请求
+- **技术类**：安全巡检、漏洞扫描、攻击取证、系统操作、命令执行等需要工具执行的请求
 
 ### 2. 简单请求直接回复
 对于问候、闲聊、非技术请求，直接给出友好、简洁的回复，不需要调用任何工具。
@@ -43,6 +43,11 @@ class PlannerAgent(BaseAgent):
 ### 3. 技术请求 — 结构化规划
 对于需要执行操作的技术请求，将任务分解为结构化 JSON 格式的 TodoList。
 每个 Todo 必须包含：id、content、tool_hint（可选）、depends_on（依赖列表）。
+
+### 4. 巡检与取证任务的特殊处理
+对于安全巡检或攻击取证任务，规划时需注意：
+- 巡检任务：按顺序执行信息收集→端口扫描→漏洞检测→报告生成
+- 取证任务：优先确保证据完整性，记录攻击者信息、时间线、攻击载荷
 
 ## 输出格式
 
@@ -235,22 +240,57 @@ class PlannerAgent(BaseAgent):
         user_input_lower = user_input.strip().lower()
 
         greetings = [
-            "你好", "hello", "hi", "hey", "嗨",
-            "早上好", "早安", "上午好", "下午好", "傍晚好",
-            "晚上好", "晚安", "再见", "拜拜", "bye",
-            "quit", "exit", "谢谢", "thanks", "thank you",
-            "抱歉", "对不起", "sorry", "打扰了", "麻烦你",
+            "你好",
+            "hello",
+            "hi",
+            "hey",
+            "嗨",
+            "早上好",
+            "早安",
+            "上午好",
+            "下午好",
+            "傍晚好",
+            "晚上好",
+            "晚安",
+            "再见",
+            "拜拜",
+            "bye",
+            "quit",
+            "exit",
+            "谢谢",
+            "thanks",
+            "thank you",
+            "抱歉",
+            "对不起",
+            "sorry",
+            "打扰了",
+            "麻烦你",
         ]
 
         chitchat = [
-            "你是谁", "你是什么", "who are you",
-            "天气", "weather", "今天怎么样", "how are you",
-            "介绍一下", "tell me about", "有什么功能", "能做什么",
-            "帮助", "help", "帮助我", "随便聊聊", "chat",
+            "你是谁",
+            "你是什么",
+            "who are you",
+            "天气",
+            "weather",
+            "今天怎么样",
+            "how are you",
+            "介绍一下",
+            "tell me about",
+            "有什么功能",
+            "能做什么",
+            "帮助",
+            "help",
+            "帮助我",
+            "随便聊聊",
+            "chat",
         ]
 
         for g in greetings:
-            if user_input_lower.strip() == g.lower() or user_input_lower.strip().startswith(g.lower()):
+            if (
+                user_input_lower.strip() == g.lower()
+                or user_input_lower.strip().startswith(g.lower())
+            ):
                 return "greeting"
 
         for c in chitchat:
@@ -259,12 +299,41 @@ class PlannerAgent(BaseAgent):
 
         if len(user_input.strip()) < 15:
             action_keywords = [
-                "扫描", "测试", "检查", "执行", "运行", "分析", "检测",
-                "scan", "test", "check", "execute", "run", "analyze", "detect",
-                "攻击", "exploit", "探索", "explore", "查找", "find",
-                "搜索", "search", "列出", "list", "显示", "show",
-                "获取", "get", "连接", "connect", "登录", "login",
-                "ssh", "访问", "access",
+                "扫描",
+                "测试",
+                "检查",
+                "执行",
+                "运行",
+                "分析",
+                "检测",
+                "scan",
+                "test",
+                "check",
+                "execute",
+                "run",
+                "analyze",
+                "detect",
+                "攻击",
+                "exploit",
+                "探索",
+                "explore",
+                "查找",
+                "find",
+                "搜索",
+                "search",
+                "列出",
+                "list",
+                "显示",
+                "show",
+                "获取",
+                "get",
+                "连接",
+                "connect",
+                "登录",
+                "login",
+                "ssh",
+                "访问",
+                "access",
             ]
             if not any(kw in user_input_lower for kw in action_keywords):
                 return "simple"
@@ -390,6 +459,7 @@ class PlannerAgent(BaseAgent):
                 except ImportError:
                     raise ImportError("需安装 langchain-openai")
                 from pydantic import SecretStr
+
                 model = settings.deepseek_model
                 is_reasoner = "reasoner" in model.lower()
                 llm_kwargs = dict(
@@ -417,7 +487,10 @@ class PlannerAgent(BaseAgent):
 
         except Exception as e:
             from utils.model_selector import get_llm_connection_hint
-            hint = get_llm_connection_hint(e, provider=provider if 'provider' in dir() else "ollama")
+
+            hint = get_llm_connection_hint(
+                e, provider=provider if "provider" in dir() else "ollama"
+            )
             logger.error(f"规划 LLM 调用失败: {e}")
             plan = self._fallback_plan(user_input)
             plan.plan_summary += f"\n[!] {hint}"
@@ -432,12 +505,14 @@ class PlannerAgent(BaseAgent):
                 data = json.loads(json_match.group())
                 todos = []
                 for td in data.get("todos", []):
-                    todos.append(TodoItem(
-                        id=td.get("id", f"step_{len(todos)+1}"),
-                        content=td.get("content", ""),
-                        tool_hint=td.get("tool_hint"),
-                        depends_on=td.get("depends_on", []),
-                    ))
+                    todos.append(
+                        TodoItem(
+                            id=td.get("id", f"step_{len(todos) + 1}"),
+                            content=td.get("content", ""),
+                            tool_hint=td.get("tool_hint"),
+                            depends_on=td.get("depends_on", []),
+                        )
+                    )
                 return PlanResult(
                     request_type=RequestType.TECHNICAL,
                     todos=todos,
@@ -455,21 +530,50 @@ class PlannerAgent(BaseAgent):
         todos = []
 
         if any(k in user_input_lower for k in ["scan", "端口", "port"]):
-            todos.append(TodoItem(id="step_1", content="执行端口扫描", tool_hint="port_scan"))
-            todos.append(TodoItem(id="step_2", content="识别开放服务", tool_hint="service_detect", depends_on=["step_1"]))
+            todos.append(
+                TodoItem(id="step_1", content="执行端口扫描", tool_hint="port_scan")
+            )
+            todos.append(
+                TodoItem(
+                    id="step_2",
+                    content="识别开放服务",
+                    tool_hint="service_detect",
+                    depends_on=["step_1"],
+                )
+            )
         elif any(k in user_input_lower for k in ["vuln", "漏洞"]):
-            todos.append(TodoItem(id="step_1", content="执行漏洞扫描", tool_hint="vuln_scan"))
-            todos.append(TodoItem(id="step_2", content="分析检测结果", depends_on=["step_1"]))
+            todos.append(
+                TodoItem(id="step_1", content="执行漏洞扫描", tool_hint="vuln_scan")
+            )
+            todos.append(
+                TodoItem(id="step_2", content="分析检测结果", depends_on=["step_1"])
+            )
         elif any(k in user_input_lower for k in ["system", "系统", "status", "状态"]):
-            todos.append(TodoItem(id="step_1", content="获取系统信息", tool_hint="system_info"))
-            todos.append(TodoItem(id="step_2", content="查看系统状态", tool_hint="system_status"))
+            todos.append(
+                TodoItem(id="step_1", content="获取系统信息", tool_hint="system_info")
+            )
+            todos.append(
+                TodoItem(id="step_2", content="查看系统状态", tool_hint="system_status")
+            )
         elif any(k in user_input_lower for k in ["crawl", "爬取", "网页"]):
-            todos.append(TodoItem(id="step_1", content="爬取目标网页", tool_hint="crawler"))
+            todos.append(
+                TodoItem(id="step_1", content="爬取目标网页", tool_hint="crawler")
+            )
         elif any(k in user_input_lower for k in ["command", "命令", "execute", "执行"]):
-            todos.append(TodoItem(id="step_1", content="执行指定命令", tool_hint="execute_command"))
+            todos.append(
+                TodoItem(
+                    id="step_1", content="执行指定命令", tool_hint="execute_command"
+                )
+            )
         else:
             todos.append(TodoItem(id="step_1", content=f"分析用户需求: {user_input}"))
-            todos.append(TodoItem(id="step_2", content="根据需求选择合适的工具执行", depends_on=["step_1"]))
+            todos.append(
+                TodoItem(
+                    id="step_2",
+                    content="根据需求选择合适的工具执行",
+                    depends_on=["step_1"],
+                )
+            )
 
         return PlanResult(
             request_type=RequestType.TECHNICAL,
