@@ -18,6 +18,47 @@ from rich import box
 from utils.event_bus import EventBus, EventType, Event
 
 
+COLLAPSE_THRESHOLD = 500
+
+
+class CollapsiblePanel:
+    def __init__(
+        self,
+        content: str,
+        title: str,
+        border_style: str = "blue",
+        collapsed: bool = False,
+        console: Optional[Console] = None,
+    ):
+        self.content = content
+        self.title = title
+        self.border_style = border_style
+        self._collapsed = collapsed
+        self.console = console
+
+    def toggle(self):
+        self._collapsed = not self._collapsed
+
+    def render(self) -> Panel:
+        if self._collapsed or len(self.content) > COLLAPSE_THRESHOLD:
+            if self._collapsed:
+                display_content = f"[dim]{self.title} (点击展开)[/dim]"
+            else:
+                display_content = (
+                    self.content[:COLLAPSE_THRESHOLD] + "\n... (内容过长，点击展开)"
+                )
+        else:
+            display_content = self.content
+
+        return Panel(
+            Text.from_markup(display_content),
+            title=f"[bold {self.border_style}]{self.title}[/bold {self.border_style}]",
+            border_style=self.border_style,
+            box=box.ROUNDED,
+            padding=_adaptive_padding(self.console) if self.console else (1, 2),
+        )
+
+
 def _adaptive_padding(console: Console) -> tuple:
     """根据终端宽度返回合适的 padding"""
     try:
@@ -184,10 +225,16 @@ class ExecutionComponent:
         # 参数表
         if params:
             params_table = Table(
-                show_header=True, header_style="bold", box=None, padding=(0, 1), expand=True,
+                show_header=True,
+                header_style="bold",
+                box=None,
+                padding=(0, 1),
+                expand=True,
             )
             param_label_w = min(label_w + 4, 20)
-            params_table.add_column("参数名", style="cyan", width=param_label_w, no_wrap=True)
+            params_table.add_column(
+                "参数名", style="cyan", width=param_label_w, no_wrap=True
+            )
             params_table.add_column("参数值", style="white", ratio=1, overflow="fold")
 
             for key, value in params.items():
@@ -224,7 +271,7 @@ class ExecutionComponent:
         params_str = ", ".join(f"{k}={v}" for k, v in params.items())
         max_len = max(w - 20, 30)
         if len(params_str) > max_len:
-            params_str = params_str[:max_len - 3] + "..."
+            params_str = params_str[: max_len - 3] + "..."
         content = f"[yellow]{tool}[/yellow]({params_str})"
         iter_label = f" #{iteration}" if iteration else ""
         return Panel(
@@ -245,8 +292,6 @@ class ExecutionComponent:
         if not self._visible:
             return
 
-        padding = _adaptive_padding(self.console)
-
         if result.get("success", False):
             result_content = result.get("result", "")
             if isinstance(result_content, (dict, list)):
@@ -256,30 +301,24 @@ class ExecutionComponent:
             else:
                 result_content = str(result_content)
 
-            # 截断过长结果
-            if len(result_content) > 2000:
-                result_content = result_content[:2000] + "\n... (结果已截断)"
-
-            self.console.print(
-                Panel(
-                    Markdown(result_content),
-                    title="[bold green]Result - Success[/bold green]",
-                    border_style="green",
-                    box=box.ROUNDED,
-                    padding=padding,
-                )
+            collapsible = CollapsiblePanel(
+                content=result_content,
+                title="Result - Success",
+                border_style="green",
+                collapsed=len(result_content) > COLLAPSE_THRESHOLD,
+                console=self.console,
             )
+            self.console.print(collapsible.render())
         else:
             error = result.get("error", "未知错误")
-            self.console.print(
-                Panel(
-                    Markdown(str(error)),
-                    title="[bold red]Result - Failed[/bold red]",
-                    border_style="red",
-                    box=box.ROUNDED,
-                    padding=padding,
-                )
+            collapsible = CollapsiblePanel(
+                content=str(error),
+                title="Result - Failed",
+                border_style="red",
+                collapsed=len(str(error)) > COLLAPSE_THRESHOLD,
+                console=self.console,
             )
+            self.console.print(collapsible.render())
 
     def display(self):
         """显示最后一条执行记录"""
