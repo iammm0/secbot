@@ -5,7 +5,7 @@ import os
 from openai import OpenAI
 
 # 从.env读取API密钥
-with open(".env", "r") as f:
+with open("../.env", "r") as f:
     for line in f:
         if line.startswith("DEEPSEEK_API_KEY="):
             api_key = line.strip().split("=", 1)[1].strip()
