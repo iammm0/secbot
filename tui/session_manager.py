@@ -519,6 +519,45 @@ class SessionManager:
     # 便捷方法
     # ------------------------------------------------------------------
 
+    async def handle_ask_message(self, user_input: str) -> str:
+        """
+        Ask 模式：仅根据当前会话上下文回答问题，不执行任何推理/动作。
+
+        流程：
+        1. 从当前会话提取对话历史
+        2. 连同用户问题一起传给 QAAgent.answer_with_context
+        3. 记录消息并返回回复
+
+        Args:
+            user_input: 用户在 Ask 模式下的提问
+
+        Returns:
+            QAAgent 基于上下文的回答
+        """
+        # 提取当前会话的对话历史
+        conversation_history: List[Dict] = []
+        if self.current_session and self.current_session.messages:
+            for msg in self.current_session.messages:
+                conversation_history.append({
+                    "role": msg.role.value,
+                    "content": msg.content,
+                })
+
+        # 记录用户消息
+        if self.current_session:
+            self.current_session.add_message(MessageRole.USER, user_input)
+
+        # 调用 QAAgent 的上下文问答
+        response = await self.qa_agent.answer_with_context(
+            user_input, conversation_history
+        )
+
+        # 记录助手回复
+        if self.current_session:
+            self.current_session.add_message(MessageRole.ASSISTANT, response)
+
+        return response
+
     async def compact_current_session(self) -> str:
         """压缩当前会话"""
         if not self.current_session or not self.current_session.messages:
