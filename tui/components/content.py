@@ -15,6 +15,48 @@ from rich import box
 from utils.event_bus import EventBus, EventType, Event
 
 
+COLLAPSE_THRESHOLD = 500
+
+
+class CollapsiblePanel:
+    def __init__(
+        self,
+        content: str,
+        title: str,
+        border_style: str = "blue",
+        collapsed: bool = False,
+        console: Optional[Console] = None,
+    ):
+        self.content = content
+        self.title = title
+        self.border_style = border_style
+        self._collapsed = collapsed
+        self.console = console
+
+    def toggle(self):
+        self._collapsed = not self._collapsed
+
+    def render(self) -> Panel:
+        if self._collapsed or len(self.content) > COLLAPSE_THRESHOLD:
+            display_content = (
+                self.content[:COLLAPSE_THRESHOLD] + "\n... (内容过长，点击展开)"
+            )
+            if self._collapsed:
+                display_content = (
+                    f"[dim]{self.title} (点击展开)[/dim]\n... (内容已折叠)"
+                )
+        else:
+            display_content = self.content
+
+        return Panel(
+            Text.from_markup(display_content),
+            title=f"[bold {self.border_style}]{self.title}[/bold {self.border_style}]",
+            border_style=self.border_style,
+            box=box.ROUNDED,
+            padding=_adaptive_padding(self.console) if self.console else (1, 2),
+        )
+
+
 def _adaptive_padding(console: Console) -> tuple:
     """根据终端宽度返回合适的 padding"""
     try:
@@ -94,16 +136,15 @@ class ContentComponent:
         if tool:
             title_parts.append(f"({tool})")
 
-        title = f"[bold blue]{' '.join(title_parts)}[/bold blue]"
-        self.console.print(
-            Panel(
-                Markdown(content or ""),
-                title=title,
-                border_style="blue",
-                box=box.ROUNDED,
-                padding=_adaptive_padding(self.console),
-            )
+        title = " ".join(title_parts)
+        collapsible = CollapsiblePanel(
+            content=content or "",
+            title=title,
+            border_style="blue",
+            collapsed=len(content or "") > COLLAPSE_THRESHOLD,
+            console=self.console,
         )
+        self.console.print(collapsible.render())
 
     def display_assistant_message(self, content: str, agent_name: str = "Assistant"):
         """显示助手消息（Markdown 格式）"""
