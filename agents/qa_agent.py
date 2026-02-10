@@ -2,8 +2,10 @@
 QAAgent：专门处理简单问候与项目/上下文问答
 - 简单问候：简要回复，不调用工具、不进入规划流程
 - 项目能力/上下文了解：简要说明 Hackbot 能做什么、当前对话上下文
+- Ask 模式：带上下文的 LLM 问答，仅回答问题，不执行任何动作
 """
 
+import asyncio
 from typing import Optional, List
 
 from agents.base import BaseAgent
@@ -22,10 +24,25 @@ PROJECT_CAPABILITIES = """**Hackbot 能做什么**
 直接说出你的需求即可；也可输入 [cyan]/plan[/cyan] 先编写测试计划，再用 [cyan]/start[/cyan] 执行。"""
 
 
+# Ask 模式系统提示词
+ASK_SYSTEM_PROMPT = """你是 Hackbot 的 Ask 模式助手。你的任务是**仅根据当前对话上下文**来回答用户的问题。
+
+规则：
+- 仅根据对话上下文中已有的信息来回答
+- 如果上下文中没有相关信息，坦诚说明「当前对话中暂无相关信息」
+- 不要编造或猜测上下文中不存在的数据
+- 不要调用任何工具，不要执行任何操作
+- 回答应简洁、准确、有条理
+- 如果涉及扫描结果、漏洞发现等安全数据，引用上下文中的具体内容
+- 使用 Markdown 格式化输出以提高可读性"""
+
+
 class QAAgent(BaseAgent):
     """
     问答 Agent：仅做简短回复，不调用工具、不生成执行计划。
     用于：问候、闲聊、了解项目能力、了解对话上下文等。
+
+    Ask 模式：带上下文的 LLM 问答。
     """
 
     def __init__(self, name: str = "QAAgent"):
@@ -35,7 +52,19 @@ class QAAgent(BaseAgent):
 - 询问对话/上下文：根据当前会话简要说明
 不要展开长篇说明，不要调用任何工具。"""
         super().__init__(name=name, system_prompt=system_prompt)
+        self._llm = None  # 延迟初始化
         logger.info("初始化 QAAgent")
+
+    def _ensure_llm(self):
+        """延迟创建 LLM 实例（仅 ask 模式需要）"""
+        if self._llm is None:
+            try:
+                from patterns.security_react import _create_llm
+                self._llm = _create_llm()
+                logger.info("QAAgent: LLM 实例已创建（用于 Ask 模式）")
+            except Exception as e:
+                logger.error(f"QAAgent: 创建 LLM 实例失败: {e}")
+                raise
 
     async def process(self, user_input: str, **kwargs) -> str:
         """BaseAgent 接口：处理用户输入并返回简短回复"""
@@ -67,6 +96,66 @@ class QAAgent(BaseAgent):
             "收到。若是想了解我能做什么，可以说「你能做什么」或「有什么功能」。\n"
             "若要执行扫描、检测等操作，直接说出目标或输入 [cyan]/plan[/cyan] 编写测试计划。"
         )
+
+    async def answer_with_context(
+        self,
+        user_input: str,
+        conversation_history: List[dict],
+    ) -> str:
+        """
+        Ask 模式：带对话上下文的 LLM 问答。
+        仅根据上下文回答问题，不执行任何动作。
+
+        Args:
+            user_input: 用户当前的问题
+            conversation_history: 对话历史，格式 [{"role": "user"|"assistant", "content": "..."}]
+
+        Returns:
+            LLM 根据上下文生成的回答
+        """
+        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+
+        self._ensure_llm()
+
+        # 构建消息列表
+        messages = [SystemMessage(content=ASK_SYSTEM_PROMPT)]
+
+        # 注入对话上下文
+        if conversation_history:
+            # 限制上下文长度，取最近 20 条对话避免 token 超限
+            recent = conversation_history[-20:]
+            context_lines = []
+            for msg in recent:
+                role_label = "用户" if msg.get("role") == "user" else "助手"
+                content = msg.get("content", "")
+                # 截断过长的单条消息
+                if len(content) > 2000:
+                    content = content[:2000] + "\n... (已截断)"
+                context_lines.append(f"[{role_label}]: {content}")
+
+            context_block = "\n\n".join(context_lines)
+            messages.append(HumanMessage(
+                content=f"以下是当前对话的上下文记录：\n\n{context_block}"
+            ))
+            messages.append(AIMessage(
+                content="好的，我已了解当前对话上下文。请问你想了解什么？"
+            ))
+
+        # 用户的实际问题
+        messages.append(HumanMessage(content=user_input))
+
+        try:
+            response = await asyncio.wait_for(
+                self._llm.ainvoke(messages), timeout=30.0
+            )
+            if hasattr(response, "content") and response.content:
+                return str(response.content)
+            return str(response)
+        except asyncio.TimeoutError:
+            return "Ask 模式回答超时，请稍后重试。"
+        except Exception as e:
+            logger.error(f"QAAgent ask_with_context 错误: {e}")
+            return f"Ask 模式回答出错: {e}"
 
     def _rule_based_reply(self, text: str) -> Optional[str]:
         """规则匹配：问候、感谢、再见、帮助、项目能力等"""
