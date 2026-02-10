@@ -3,12 +3,23 @@
 Hackbot 提供**单文件可执行程序**，可在 Windows、macOS、Linux 终端直接运行，无需安装 Python。  
 **启动前唯一必须条件：配置 DeepSeek API Key。**
 
+## 发布新版本（维护者）
+
+1. 在 `pyproject.toml` 和 `hackbot/__init__.py` 中将版本号改为目标版本（如 `1.2.0`）。
+2. 更新 `CHANGELOG.md` 中对应版本的变更说明。
+3. 提交并推送后，打 tag 触发 GitHub Actions 构建并创建 Release：
+   ```bash
+   git tag v1.2.0
+   git push origin v1.2.0
+   ```
+4. 在 [Releases](https://github.com/iammm0/hackbot/releases) 中可编辑该 Release 的说明或附件。
+
 ## 下载
 
 - **GitHub Release**：在 [Releases](https://github.com/iammm0/hackbot/releases) 中下载对应平台 **zip**，解压后得到 `hackbot` 目录：
   - `hackbot-windows-amd64.zip` — Windows
-  - `hackbot-linux-amd64.zip` — Linux
-  - `hackbot-darwin-arm64.zip` — macOS (Apple Silicon)
+  - `hackbot-darwin-arm64.zip` — macOS（Apple 芯片）
+  - `hackbot-darwin-amd64.zip` — macOS（Intel 处理器）
 
 ## 配置 DeepSeek API Key
 

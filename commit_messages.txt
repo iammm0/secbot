@@ -1,7 +1,0 @@
-# 本次提交说明（UTF-8）
-
-feat(utils): 新增模型选择器
-feat(agents): 更新规划智能体
-feat(patterns): 更新安全 React 模式
-feat(utils): 更新增强输入与斜杠命令
-feat(cli): 更新 CLI 与主入口
