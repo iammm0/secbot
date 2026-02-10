@@ -11,16 +11,16 @@ ReportComponent：报告展示组件
 
 from pathlib import Path
 from typing import Optional
+import time
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.markdown import Markdown
 from rich.text import Text
 from rich.live import Live
 from rich import box
 
 from tui.models import InteractionSummary
-from tui.utils import adaptive_padding
+from tui.utils import adaptive_padding, smart_render_text
 from utils.event_bus import EventBus, EventType, Event
 
 
@@ -28,6 +28,8 @@ from utils.event_bus import EventBus, EventType, Event
 REPORT_REFRESH_PER_SECOND = 12
 # 流式面板最大行数
 REPORT_MAX_STREAM_LINES = 60
+# 高频 chunk 更新节流，提升流畅度
+REPORT_MIN_UPDATE_INTERVAL = 1 / 24
 
 
 class ReportComponent:
@@ -49,6 +51,7 @@ class ReportComponent:
         self._visible: bool = True
         self._live: Optional[Live] = None
         self._cursor_frame: int = 0
+        self._last_live_update_at: float = 0.0
 
         if event_bus:
             event_bus.subscribe(EventType.REPORT_START, self._on_report_start)
@@ -102,6 +105,7 @@ class ReportComponent:
         self._buffer = ""
         self._full_report = ""
         self._cursor_frame = 0
+        self._last_live_update_at = 0.0
         self._stop_live()
         if self._visible:
             try:
@@ -121,8 +125,12 @@ class ReportComponent:
         chunk = event.data.get("chunk", "")
         self._buffer += chunk
         if self._visible and self._live:
+            now = time.monotonic()
+            if now - self._last_live_update_at < REPORT_MIN_UPDATE_INTERVAL:
+                return
             try:
                 self._live.update(self._render_streaming_panel())
+                self._last_live_update_at = now
             except Exception:
                 pass
 
@@ -161,7 +169,7 @@ class ReportComponent:
         # 主报告面板 — 使用 DOUBLE 边框突出重要性
         self.console.print(
             Panel(
-                Markdown(self._full_report),
+                smart_render_text(self._full_report, prefer_markdown=True),
                 title="[bold green]📊 Report[/bold green]",
                 border_style="green",
                 box=box.DOUBLE,
@@ -202,7 +210,7 @@ class ReportComponent:
             return None
 
         return Panel(
-            Markdown(self._full_report),
+            smart_render_text(self._full_report, prefer_markdown=True),
             title="[bold green]📊 Report[/bold green]",
             border_style="green",
             box=box.DOUBLE,
