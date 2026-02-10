@@ -1,3 +1,6 @@
+# 构建兼容：llvmlite/numba 与 setuptools 70+ 的 spawn(dry_run) 不兼容，约束 setuptools
+setuptools>=68.0,<70
+
 # 核心AI和智能体框架
 langchain>=0.1.0
 langchain-community>=0.0.20
