@@ -20,7 +20,11 @@ from utils.audit import AuditTrail
 from utils.slash_commands import normalize_slash_input
 from utils.speech import SpeechToText, TextToSpeech
 from utils.enhanced_input import EnhancedInput
-from utils.model_selector import run_model_selector, check_ollama_running, has_deepseek_api_key
+from utils.model_selector import (
+    run_model_selector,
+    check_ollama_running,
+    has_deepseek_api_key,
+)
 from crawler.scheduler import CrawlerScheduler
 from crawler.realtime import RealtimeCrawler
 from crawler.extractor import AIExtractor
@@ -69,6 +73,15 @@ agents = {
     "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit_trail),
     "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit_trail),
 }
+
+# 初始化所有 Agent（确保模块加载时全部初始化）
+from agents.qa_agent import QAAgent
+from agents.planner_agent import PlannerAgent
+from agents.summary_agent import SummaryAgent
+
+_qa_agent = QAAgent()
+_planner_agent = PlannerAgent()
+_summary_agent = SummaryAgent()
 
 # 为智能体添加数据库记忆
 for agent_name, agent_instance in agents.items():
@@ -174,8 +187,10 @@ def chat(
             console.print(f"[cyan]🤖 使用智能体: {agent}[/cyan]")
             console.print(f"[yellow]💬 你的消息: {message}[/yellow]\n")
 
-            with console.status("[bold green]思考中..."):
-                response = await agent_instance.process(message)
+            # 实时显示 ReAct 执行过程
+            response = await agent_instance.process(
+                message, on_event=_realtime_event_handler(console)
+            )
 
             # 显示响应
             console.print(
@@ -359,245 +374,11 @@ def clear(
             console.print(f"[red]错误: 未知的智能体类型 '{agent}'[/red]")
             raise typer.Exit(1)
         agents[agent].clear_memory()
-    console.print(f"[green]✓ 已清空智能体 '{agent}' 的记忆[/green]")
-
-
-async def run_interactive_mode(
-    agent: str = "hackbot",
-    voice: bool = False,
-    verbose: bool = False,
-):
-    """运行交互模式的核心逻辑"""
-    if verbose:
-        restore_console_log_level("DEBUG")
+        console.print(f"[green]✓ 已清空智能体 '{agent}' 的记忆[/green]")
     else:
-        restore_console_log_level()
-
-    agent_instance = get_agent(agent)
-
-    mode_desc = "自动模式" if agent == "hackbot" else "专家模式（敏感操作需确认）"
-
-    console.print(
-        Panel(
-            f"[bold cyan]Hackbot 交互模式[/bold cyan]\n"
-            f"智能体: [green]{agent}[/green] ({mode_desc})\n"
-            f"语音模式: [green]{'开启' if voice else '关闭'}[/green]\n\n"
-            f"[bold]命令:[/bold]\n"
-            f"  [cyan]exit[/cyan] / [cyan]quit[/cyan] / [cyan]/exit[/cyan] / [cyan]/quit[/cyan]  退出\n"
-            f"  [cyan]clear[/cyan]         清空对话历史\n"
-            f"  [cyan]/model[/cyan]        选择模型（无参打开 Ollama/DeepSeek 选择，或 /model ollama gemma3:1b）\n"
-            f"  [cyan]/accept N[/cyan]     确认执行方案 N（superhackbot 模式）\n"
-            f"  [cyan]/reject[/cyan]       拒绝当前方案\n"
-            f"  [cyan]/audit[/cyan]        查看操作留痕\n"
-            f"  [cyan]/audit export[/cyan] 导出审计报告\n\n"
-            f"[dim]提示: 使用上下键切换历史记录，左右键移动光标[/dim]",
-            title="欢迎",
-            border_style="blue",
-        )
-    )
-
-    # 进入时检查当前 LLM 后端是否可用，避免出现 Connection refused 后才提示
-    if hasattr(agent_instance, "get_current_model"):
-        cur = agent_instance.get_current_model()
-        p = cur.split(" / ", 1)[0].strip().lower() if cur else "ollama"
-        if p == "ollama" and not check_ollama_running():
-            console.print(
-                Panel(
-                    "[yellow]当前使用 Ollama，但未检测到本机 Ollama 服务。[/yellow]\n"
-                    "请先启动 Ollama（如运行 [cyan]ollama serve[/cyan] 或打开 Ollama 应用）后再发送消息，\n"
-                    "或输入 [cyan]/model[/cyan] 切换到 DeepSeek。",
-                    title="[bold]LLM 不可用[/bold]",
-                    border_style="yellow",
-                )
-            )
-        elif p == "deepseek" and not has_deepseek_api_key():
-            console.print(
-                Panel(
-                    "[yellow]当前使用 DeepSeek，但未配置 DEEPSEEK_API_KEY。[/yellow]\n"
-                    "请在 [cyan].env[/cyan] 中设置后重试，或输入 [cyan]/model[/cyan] 切换到 Ollama。",
-                    title="[bold]LLM 未配置[/bold]",
-                    border_style="yellow",
-                )
-            )
-
-    # 创建增强输入框，历史记录保存在用户目录
-    history_file = Path.home() / ".hackbot" / "input_history.txt"
-    enhanced_input = EnhancedInput(
-        history_file=history_file,
-        prompt="你: ",
-        placeholder="输入消息（上下键切换历史，左右键移动光标）...",
-    )
-
-    while True:
-        try:
-            if voice:
-                console.print("\n[yellow]请说话（按Enter结束录音）...[/yellow]")
-                user_input = await enhanced_input.prompt_input_async("或直接输入文字: ")
-            else:
-                user_input = await enhanced_input.prompt_input_async()
-
-            if not user_input.strip():
-                continue
-            # 斜杠命令前缀匹配：/m → /model，/ac → /accept 等
-            if user_input.strip().startswith("/"):
-                normalized, hint = normalize_slash_input(user_input)
-                if hint is not None:
-                    console.print(hint)
-                    continue
-                user_input = normalized
-            lower_input = user_input.strip().lower()
-            if lower_input in ["exit", "quit", "/exit", "/quit"]:
-                console.print("[yellow]再见！[/yellow]")
-                break
-
-            if lower_input == "clear":
-                agent_instance.clear_memory()
-                console.print("[green]✓ 对话历史已清空[/green]")
-                continue
-
-            # ---- /model 切换（opencode 风格：无参时弹出选择 Ollama/DeepSeek，并做服务与 API 检查）----
-            if lower_input.startswith("/model"):
-                parts = user_input.strip().split()
-                if hasattr(agent_instance, "switch_model") and hasattr(
-                    agent_instance, "get_current_model"
-                ):
-                    if len(parts) == 1:
-                        # 无参：OpenCode 风格模型选择（Ollama 检查本机服务，DeepSeek 检查 API Key）
-                        cur = agent_instance.get_current_model()
-                        cur_parts = cur.split(" / ", 1)
-                        current_provider = cur_parts[0].strip() if len(cur_parts) > 0 else "ollama"
-                        current_model = cur_parts[1].strip() if len(cur_parts) > 1 else None
-                        provider, model = run_model_selector(
-                            console, current_provider=current_provider, current_model=current_model
-                        )
-                        if provider is not None:
-                            try:
-                                if model:
-                                    agent_instance.switch_model(provider=provider, model=model)
-                                else:
-                                    agent_instance.switch_model(provider=provider)
-                                console.print(
-                                    f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
-                                )
-                            except Exception as e:
-                                console.print(f"[red]切换失败: {e}[/red]")
-                    elif len(parts) == 2:
-                        try:
-                            agent_instance.switch_model(provider=parts[1])
-                            console.print(
-                                f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
-                            )
-                        except Exception as e:
-                            console.print(f"[red]切换失败: {e}[/red]")
-                    else:
-                        try:
-                            agent_instance.switch_model(
-                                provider=parts[1], model=parts[2]
-                            )
-                            console.print(
-                                f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
-                            )
-                        except Exception as e:
-                            console.print(f"[red]切换失败: {e}[/red]")
-                else:
-                    console.print("[yellow]当前智能体不支持模型切换[/yellow]")
-                continue
-
-            # ---- /accept N ----
-            if lower_input.startswith("/accept"):
-                if hasattr(agent_instance, "handle_accept"):
-                    parts = user_input.strip().split()
-                    choice = int(parts[1]) if len(parts) > 1 else 1
-                    with console.status("[bold green]执行已确认操作..."):
-                        response = await agent_instance.handle_accept(choice)
-                    console.print(
-                        Panel(
-                            Markdown(response),
-                            title="[bold green]智能体[/bold green]",
-                            border_style="green",
-                        )
-                    )
-                else:
-                    console.print(
-                        "[yellow]当前智能体不支持 /accept（hackbot 自动模式无需确认）[/yellow]"
-                    )
-                continue
-
-            # ---- /reject ----
-            if lower_input == "/reject":
-                if hasattr(agent_instance, "handle_reject"):
-                    response = await agent_instance.handle_reject()
-                    console.print(f"[yellow]{response}[/yellow]")
-                else:
-                    console.print("[yellow]当前智能体不支持 /reject[/yellow]")
-                continue
-
-            # ---- /audit ----
-            if lower_input.startswith("/audit"):
-                if lower_input == "/audit export":
-                    report = audit_trail.export_report()
-                    console.print(
-                        Panel(
-                            Markdown(report),
-                            title="[bold blue]审计报告[/bold blue]",
-                            border_style="blue",
-                        )
-                    )
-                else:
-                    records = audit_trail.get_trail(limit=20)
-                    if not records:
-                        console.print("[yellow]暂无操作记录[/yellow]")
-                    else:
-                        table = Table(
-                            title="操作留痕",
-                            show_header=True,
-                            header_style="bold magenta",
-                        )
-                        table.add_column("#", style="dim", width=4)
-                        table.add_column("时间", style="cyan", width=10)
-                        table.add_column("类型", style="green", width=12)
-                        table.add_column("内容", style="white")
-                        for i, rec in enumerate(records, 1):
-                            ts = (
-                                rec.timestamp.strftime("%H:%M:%S")
-                                if rec.timestamp
-                                else "?"
-                            )
-                            content = (
-                                rec.content[:80] + "..."
-                                if len(rec.content) > 80
-                                else rec.content
-                            )
-                            table.add_row(str(i), ts, rec.step_type, content)
-                        console.print(table)
-                continue
-
-            # ---- 处理消息（ReAct 循环）----
-            # 将输入添加到历史记录
-            enhanced_input.add_to_history(user_input)
-
-            with console.status("[bold green]思考中..."):
-                response = await agent_instance.process(user_input)
-
-            console.print(
-                Panel(
-                    Markdown(response),
-                    title=f"[bold green]{agent}[/bold green]",
-                    border_style="green",
-                )
-            )
-
-            if voice:
-                with console.status("[bold green]生成语音中..."):
-                    audio_data = await tts.synthesize(response)
-                console.print("[dim]（语音响应已生成）[/dim]")
-
-        except KeyboardInterrupt:
-            console.print("\n[yellow]再见！[/yellow]")
-            break
-        except Exception as e:
-            logger.error(f"交互错误: {e}")
-            console.print(f"[red]错误: {e}[/red]")
+        for agent_instance in agents.values():
+            agent_instance.clear_memory()
+        console.print("[green]✓ 已清空所有智能体的记忆[/green]")
 
 
 @app.command()
@@ -608,239 +389,20 @@ def interactive(
     voice: bool = typer.Option(False, "--voice", "-v", help="启用语音交互模式"),
     verbose: bool = typer.Option(False, "--verbose", "-V", help="显示详细日志"),
 ):
-    """交互式聊天模式（ReAct 安全测试）"""
-    if verbose:
-        restore_console_log_level("DEBUG")
-    else:
-        restore_console_log_level()
+    """交互式聊天模式（OpenCode 风格 ReAct 安全测试，与 python main.py interactive 界面一致）"""
+    from hackbot.run_interactive import run_interactive_ui
 
-    async def _interactive():
-        agent_instance = get_agent(agent)
-
-        mode_desc = "自动模式" if agent == "hackbot" else "专家模式（敏感操作需确认）"
-
-        console.print(
-            Panel(
-                f"[bold cyan]Hackbot 交互模式[/bold cyan]\n"
-                f"智能体: [green]{agent}[/green] ({mode_desc})\n"
-                f"语音模式: [green]{'开启' if voice else '关闭'}[/green]\n\n"
-                f"[bold]命令:[/bold]\n"
-                f"  [cyan]exit[/cyan] / [cyan]quit[/cyan]  退出\n"
-                f"  [cyan]clear[/cyan]         清空对话历史\n"
-                f"  [cyan]/model[/cyan]        选择模型（无参打开 Ollama/DeepSeek 选择，或 /model ollama gemma3:1b）\n"
-                f"  [cyan]/accept N[/cyan]     确认执行方案 N（superhackbot 模式）\n"
-                f"  [cyan]/reject[/cyan]       拒绝当前方案\n"
-                f"  [cyan]/audit[/cyan]        查看操作留痕\n"
-                f"  [cyan]/audit export[/cyan] 导出审计报告\n\n"
-                f"[dim]提示: 使用上下键切换历史记录，左右键移动光标[/dim]",
-                title="欢迎",
-                border_style="blue",
-            )
-        )
-
-        # 进入时检查当前 LLM 后端是否可用
-        if hasattr(agent_instance, "get_current_model"):
-            cur = agent_instance.get_current_model()
-            p = cur.split(" / ", 1)[0].strip().lower() if cur else "ollama"
-            if p == "ollama" and not check_ollama_running():
-                console.print(
-                    Panel(
-                        "[yellow]当前使用 Ollama，但未检测到本机 Ollama 服务。[/yellow]\n"
-                        "请先启动 Ollama（如运行 [cyan]ollama serve[/cyan] 或打开 Ollama 应用）后再发送消息，\n"
-                        "或输入 [cyan]/model[/cyan] 切换到 DeepSeek。",
-                        title="[bold]LLM 不可用[/bold]",
-                        border_style="yellow",
-                    )
-                )
-            elif p == "deepseek" and not has_deepseek_api_key():
-                console.print(
-                    Panel(
-                        "[yellow]当前使用 DeepSeek，但未配置 DEEPSEEK_API_KEY。[/yellow]\n"
-                        "请在 [cyan].env[/cyan] 中设置后重试，或输入 [cyan]/model[/cyan] 切换到 Ollama。",
-                        title="[bold]LLM 未配置[/bold]",
-                        border_style="yellow",
-                    )
-                )
-
-        # 创建增强输入框，历史记录保存在用户目录
-        history_file = Path.home() / ".hackbot" / "input_history.txt"
-        enhanced_input = EnhancedInput(
-            history_file=history_file,
-            prompt="你: ",
-            placeholder="输入消息（上下键切换历史，左右键移动光标）...",
-        )
-
-        while True:
-            try:
-                if voice:
-                    console.print("\n[yellow]请说话（按Enter结束录音）...[/yellow]")
-                    user_input = await enhanced_input.prompt_input_async("或直接输入文字: ")
-                else:
-                    user_input = await enhanced_input.prompt_input_async()
-
-                if not user_input.strip():
-                    continue
-                # 斜杠命令前缀匹配：/m → /model，/ac → /accept 等
-                if user_input.strip().startswith("/"):
-                    normalized, hint = normalize_slash_input(user_input)
-                    if hint is not None:
-                        console.print(hint)
-                        continue
-                    user_input = normalized
-                lower_input = user_input.strip().lower()
-                if lower_input in ["exit", "quit", "/exit", "/quit"]:
-                    console.print("[yellow]再见！[/yellow]")
-                    break
-
-                if lower_input == "clear":
-                    agent_instance.clear_memory()
-                    console.print("[green]✓ 对话历史已清空[/green]")
-                    continue
-
-                # ---- /model 切换（opencode 风格：无参时弹出选择 Ollama/DeepSeek）----
-                if lower_input.startswith("/model"):
-                    parts = user_input.strip().split()
-                    if hasattr(agent_instance, "switch_model") and hasattr(
-                        agent_instance, "get_current_model"
-                    ):
-                        if len(parts) == 1:
-                            cur = agent_instance.get_current_model()
-                            cur_parts = cur.split(" / ", 1)
-                            current_provider = cur_parts[0].strip() if len(cur_parts) > 0 else "ollama"
-                            current_model = cur_parts[1].strip() if len(cur_parts) > 1 else None
-                            provider, model = run_model_selector(
-                                console, current_provider=current_provider, current_model=current_model
-                            )
-                            if provider is not None:
-                                try:
-                                    if model:
-                                        agent_instance.switch_model(provider=provider, model=model)
-                                    else:
-                                        agent_instance.switch_model(provider=provider)
-                                    console.print(
-                                        f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
-                                    )
-                                except Exception as e:
-                                    console.print(f"[red]切换失败: {e}[/red]")
-                        elif len(parts) == 2:
-                            try:
-                                agent_instance.switch_model(provider=parts[1])
-                                console.print(
-                                    f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
-                                )
-                            except Exception as e:
-                                console.print(f"[red]切换失败: {e}[/red]")
-                        else:
-                            try:
-                                agent_instance.switch_model(
-                                    provider=parts[1], model=parts[2]
-                                )
-                                console.print(
-                                    f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
-                                )
-                            except Exception as e:
-                                console.print(f"[red]切换失败: {e}[/red]")
-                    else:
-                        console.print("[yellow]当前智能体不支持模型切换[/yellow]")
-                    continue
-
-                # ---- /accept N ----
-                if lower_input.startswith("/accept"):
-                    if hasattr(agent_instance, "handle_accept"):
-                        parts = user_input.strip().split()
-                        choice = int(parts[1]) if len(parts) > 1 else 1
-                        with console.status("[bold green]执行已确认操作..."):
-                            response = await agent_instance.handle_accept(choice)
-                        console.print(
-                            Panel(
-                                Markdown(response),
-                                title="[bold green]智能体[/bold green]",
-                                border_style="green",
-                            )
-                        )
-                    else:
-                        console.print(
-                            "[yellow]当前智能体不支持 /accept（hackbot 自动模式无需确认）[/yellow]"
-                        )
-                    continue
-
-                # ---- /reject ----
-                if lower_input == "/reject":
-                    if hasattr(agent_instance, "handle_reject"):
-                        response = await agent_instance.handle_reject()
-                        console.print(f"[yellow]{response}[/yellow]")
-                    else:
-                        console.print("[yellow]当前智能体不支持 /reject[/yellow]")
-                    continue
-
-                # ---- /audit ----
-                if lower_input.startswith("/audit"):
-                    if lower_input == "/audit export":
-                        report = audit_trail.export_report()
-                        console.print(
-                            Panel(
-                                Markdown(report),
-                                title="[bold blue]审计报告[/bold blue]",
-                                border_style="blue",
-                            )
-                        )
-                    else:
-                        records = audit_trail.get_trail(limit=20)
-                        if not records:
-                            console.print("[yellow]暂无操作记录[/yellow]")
-                        else:
-                            table = Table(
-                                title="操作留痕",
-                                show_header=True,
-                                header_style="bold magenta",
-                            )
-                            table.add_column("#", style="dim", width=4)
-                            table.add_column("时间", style="cyan", width=10)
-                            table.add_column("类型", style="green", width=12)
-                            table.add_column("内容", style="white")
-                            for i, rec in enumerate(records, 1):
-                                ts = (
-                                    rec.timestamp.strftime("%H:%M:%S")
-                                    if rec.timestamp
-                                    else "?"
-                                )
-                                content = (
-                                    rec.content[:80] + "..."
-                                    if len(rec.content) > 80
-                                    else rec.content
-                                )
-                                table.add_row(str(i), ts, rec.step_type, content)
-                            console.print(table)
-                    continue
-
-                # ---- 处理消息（ReAct 循环）----
-                # 将输入添加到历史记录
-                enhanced_input.add_to_history(user_input)
-
-                with console.status("[bold green]思考中..."):
-                    response = await agent_instance.process(user_input)
-
-                console.print(
-                    Panel(
-                        Markdown(response),
-                        title=f"[bold green]{agent}[/bold green]",
-                        border_style="green",
-                    )
-                )
-
-                if voice:
-                    with console.status("[bold green]生成语音中..."):
-                        audio_data = await tts.synthesize(response)
-                    console.print("[dim]（语音响应已生成）[/dim]")
-
-            except KeyboardInterrupt:
-                console.print("\n[yellow]再见！[/yellow]")
-                break
-            except Exception as e:
-                logger.error(f"交互错误: {e}")
-                console.print(f"[red]错误: {e}[/red]")
-
-    asyncio.run(run_interactive_mode(agent, voice, verbose))
+    run_interactive_ui(
+        agent=agent,
+        voice=voice,
+        verbose=verbose,
+        console=console,
+        get_agent=get_agent,
+        agents=agents,
+        planner_agent=_planner_agent,
+        qa_agent=_qa_agent,
+        audit_trail=audit_trail,
+    )
 
 
 # @app.command()  # 已禁用，简化CLI
@@ -2023,18 +1585,20 @@ def generate_payload(
 def main(ctx: typer.Context):
     """Hackbot CLI - Enter interactive mode when no command is provided"""
     import sys
+    from hackbot.run_interactive import run_interactive_ui
 
-    # Check if we have any arguments besides the script name
-    # If no arguments at all, run interactive mode
-    # Typer will handle --help automatically before reaching this callback
-    # So if we reach here with no invoked subcommand, it means no valid command was given
-    # We should run interactive mode only when truly no arguments were provided
     if ctx.invoked_subcommand is None and len(sys.argv) == 1:
-        import asyncio
-
-        # Run interactive mode with default settings
-        asyncio.run(run_interactive_mode(agent="hackbot", voice=False, verbose=False))
-    # Otherwise, Typer will handle the command or show appropriate error
+        run_interactive_ui(
+            agent="hackbot",
+            voice=False,
+            verbose=False,
+            console=console,
+            get_agent=get_agent,
+            agents=agents,
+            planner_agent=_planner_agent,
+            qa_agent=_qa_agent,
+            audit_trail=audit_trail,
+        )
 
 
 __all__ = ["app"]
