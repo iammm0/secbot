@@ -9,13 +9,12 @@ from typing import List, Optional
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.text import Text
-from rich.markdown import Markdown
 from rich import box
 
 from tui.models import TodoItem, TodoStatus, PlanResult
 from tui.widgets.todo_list import render_todo_list
 from tui.widgets.collapsible import CollapsiblePanel
-from tui.utils import adaptive_padding
+from tui.utils import adaptive_padding, smart_render_text
 from utils.event_bus import EventBus, EventType, Event
 
 
@@ -128,7 +127,7 @@ class PlanningComponent:
         else:
             parts = []
             if self.plan_summary:
-                parts.append(Markdown(self.plan_summary))
+                parts.append(smart_render_text(self.plan_summary, prefer_markdown=True))
                 parts.append(Text())
             parts.append(render_todo_list(self.todos))
             stats = self.get_completion_stats()

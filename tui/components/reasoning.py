@@ -11,16 +11,16 @@ ReasoningComponent：推理展示组件
 """
 
 from typing import List, Optional
+import time
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from rich.markdown import Markdown
 from rich.live import Live
 from rich import box
 
 from tui.widgets.collapsible import CollapsiblePanel
-from tui.utils import adaptive_padding
+from tui.utils import adaptive_padding, smart_render_text
 from utils.event_bus import EventBus, EventType, Event
 
 
@@ -28,6 +28,8 @@ from utils.event_bus import EventBus, EventType, Event
 STREAM_REFRESH_PER_SECOND = 12
 # Live 面板最大行数（避免超长输出撑坏终端）
 MAX_STREAM_LINES = 50
+# 对高频 chunk 做更新节流，减少 Live.update() 造成的卡顿
+MIN_STREAM_UPDATE_INTERVAL = 1 / 24
 
 
 class ReasoningComponent:
@@ -52,6 +54,7 @@ class ReasoningComponent:
         self._show_history: bool = False  # 是否展示历史思考
         self._live: Optional[Live] = None  # 流式输出用 Live 实例
         self._cursor_frame: int = 0  # 光标闪烁帧计数器
+        self._last_live_update_at: float = 0.0
 
         if event_bus:
             event_bus.subscribe(EventType.THINK_START, self._on_think_start)
@@ -67,6 +70,7 @@ class ReasoningComponent:
         self._current_iteration = event.data.get("iteration", len(self.thoughts) + 1)
         self._current_buffer = ""
         self._cursor_frame = 0
+        self._last_live_update_at = 0.0
         self._stop_live()
         if self._visible:
             try:
@@ -87,8 +91,12 @@ class ReasoningComponent:
         chunk = event.data.get("chunk", "")
         self._current_buffer += chunk
         if self._visible and self._live:
+            now = time.monotonic()
+            if now - self._last_live_update_at < MIN_STREAM_UPDATE_INTERVAL:
+                return
             try:
                 self._live.update(self._render_streaming_panel())
+                self._last_live_update_at = now
             except Exception:
                 # 更新失败（可能终端正在缩放），静默跳过
                 pass
@@ -138,6 +146,7 @@ class ReasoningComponent:
         self._current_buffer = ""
         self._current_iteration = 0
         self._cursor_frame = 0
+        self._last_live_update_at = 0.0
 
     def _stop_live(self):
         """安全停止 Live 实例"""
@@ -186,7 +195,7 @@ class ReasoningComponent:
         iteration = thought["iteration"]
         content = thought["content"]
         padding = adaptive_padding(self.console)
-        renderable = Markdown(content) if content else Text("")
+        renderable = smart_render_text(content, prefer_markdown=True) if content else Text("")
 
         if collapsed:
             # 折叠模式：显示摘要（纯文本）
