@@ -18,6 +18,7 @@ from utils.logger import logger
 def _create_summary_llm():
     """创建 LLM 实例（复用 security_react 的逻辑）"""
     from config import settings
+
     try:
         from langchain_ollama import ChatOllama
     except ImportError:
@@ -87,13 +88,18 @@ class SummaryAgent(BaseAgent):
 - 整体评估
 - 后续建议
 
-### 7. 执行失败的工具（若有）
+### 7. 攻击取证信息（若适用）
+- 若检测到攻击行为，单独列出「攻击取证报告」小节
+- 包含：攻击者IP、攻击时间、攻击手法、证据完整性状态
+
+### 8. 执行失败的工具（若有）
 - 若有工具执行失败，请单独列出「执行失败的工具」小节，写明工具名与失败原因，便于后续排查。
 
 ## 输出风格
 - 专业、清晰的技术报告风格
 - 使用 Markdown 格式
-- 关键信息用加粗标注"""
+- 关键信息用加粗标注
+- 攻击取证信息需标注证据完整性"""
 
         super().__init__(name=name, system_prompt=system_prompt)
         logger.info("初始化 SummaryAgent v2")
@@ -141,8 +147,12 @@ class SummaryAgent(BaseAgent):
             )
         else:
             report_prompt = self._build_report_prompt_v2(
-                user_input, todos, thoughts, observations,
-                tool_results, interaction_type,
+                user_input,
+                todos,
+                thoughts,
+                observations,
+                tool_results,
+                interaction_type,
             )
 
         # 调用 LLM 生成报告
@@ -154,7 +164,9 @@ class SummaryAgent(BaseAgent):
             todo_completion=todo_completion,
             key_findings=self._extract_findings(observations),
             action_summary=self._extract_actions(tool_results),
-            risk_assessment=self._extract_risk_assessment(raw_report) if interaction_type == "technical" else None,
+            risk_assessment=self._extract_risk_assessment(raw_report)
+            if interaction_type == "technical"
+            else None,
             recommendations=self._extract_recommendations(raw_report),
             overall_conclusion=self._extract_conclusion(raw_report),
             raw_report=raw_report,
@@ -228,10 +240,13 @@ class SummaryAgent(BaseAgent):
         try:
             llm = _create_summary_llm()
             from langchain_core.messages import SystemMessage, HumanMessage
-            response = llm.invoke([
-                SystemMessage(content="你是一个会话压缩专家。"),
-                HumanMessage(content=compact_prompt),
-            ])
+
+            response = llm.invoke(
+                [
+                    SystemMessage(content="你是一个会话压缩专家。"),
+                    HumanMessage(content=compact_prompt),
+                ]
+            )
             return response.content if hasattr(response, "content") else str(response)
         except Exception as e:
             logger.error(f"会话压缩失败: {e}")
@@ -266,9 +281,11 @@ class SummaryAgent(BaseAgent):
         """构建简要总结的 prompt（最后报告：简要说下做了什么即可）"""
         todo_lines = []
         for t in todos:
-            status_icon = {"completed": "[x]", "in_progress": "[~]", "cancelled": "[-]"}.get(
-                t.status.value, "[ ]"
-            )
+            status_icon = {
+                "completed": "[x]",
+                "in_progress": "[~]",
+                "cancelled": "[-]",
+            }.get(t.status.value, "[ ]")
             todo_lines.append(f"  {status_icon} {t.content}")
         tools_used = []
         failed_tools = []
@@ -277,10 +294,12 @@ class SummaryAgent(BaseAgent):
                 if tr.get("tool"):
                     tools_used.append(tr["tool"])
                 if not tr.get("success", True) and tr.get("tool"):
-                    failed_tools.append({
-                        "tool": tr.get("tool", ""),
-                        "error": tr.get("error", "未知错误"),
-                    })
+                    failed_tools.append(
+                        {
+                            "tool": tr.get("tool", ""),
+                            "error": tr.get("error", "未知错误"),
+                        }
+                    )
 
         failed_section = ""
         if failed_tools:
@@ -290,7 +309,7 @@ class SummaryAgent(BaseAgent):
         return f"""请用 3～5 句话简要总结本次交互（不要长报告）：
 
 - 用户请求：{user_input}
-- Todo 完成：{todo_completion.get('completed', 0)}/{todo_completion.get('total', 0)} 项
+- Todo 完成：{todo_completion.get("completed", 0)}/{todo_completion.get("total", 0)} 项
 - 执行的工具：{", ".join(tools_used) if tools_used else "无"}
 - 观察结果条数：{len(observations)}{failed_section}
 
@@ -327,13 +346,19 @@ class SummaryAgent(BaseAgent):
             for tr in tool_results:
                 if tr.get("tool"):
                     tools_used.append(tr["tool"])
-            failed = [tr for tr in tool_results if not tr.get("success", True) and tr.get("tool")]
+            failed = [
+                tr
+                for tr in tool_results
+                if not tr.get("success", True) and tr.get("tool")
+            ]
             if failed:
                 lines = [
                     f"- **{tr.get('tool', '')}**: {tr.get('error', '未知错误')}"
                     for tr in failed
                 ]
-                failed_tools_section = "\n## 执行失败的工具\n\n" + "\n".join(lines) + "\n"
+                failed_tools_section = (
+                    "\n## 执行失败的工具\n\n" + "\n".join(lines) + "\n"
+                )
 
         prompt = f"""请根据以下执行结果生成报告。
 
@@ -427,10 +452,13 @@ class SummaryAgent(BaseAgent):
         try:
             llm = _create_summary_llm()
             from langchain_core.messages import SystemMessage, HumanMessage
-            response = llm.invoke([
-                SystemMessage(content=self.system_prompt),
-                HumanMessage(content=prompt),
-            ])
+
+            response = llm.invoke(
+                [
+                    SystemMessage(content=self.system_prompt),
+                    HumanMessage(content=prompt),
+                ]
+            )
             report = response.content if hasattr(response, "content") else str(response)
             return report
         except Exception as e:
@@ -460,7 +488,9 @@ class SummaryAgent(BaseAgent):
                 findings.append(text)
         return findings[:10]  # 最多 10 条
 
-    def _extract_actions(self, tool_results: Optional[List[Dict[str, Any]]]) -> List[str]:
+    def _extract_actions(
+        self, tool_results: Optional[List[Dict[str, Any]]]
+    ) -> List[str]:
         """提取已执行的操作摘要"""
         if not tool_results:
             return []
