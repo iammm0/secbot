@@ -38,7 +38,10 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build executable (onedir)
+      - name: Build executable (PyInstaller onedir)
+        run: pyinstaller hackbot.spec
+
+      - name: Package artifact (zip)
         shell: bash
         run: |
           cd dist && zip -r hackbot-${{ matrix.name }}.zip hackbot && cd ..
