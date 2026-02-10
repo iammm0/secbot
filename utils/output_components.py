@@ -6,12 +6,12 @@ chat 命令和其他非交互式命令通过此接口渲染输出。
 from typing import List, Dict, Optional
 from rich.console import Console
 from rich.panel import Panel
-from rich.markdown import Markdown
 from rich.live import Live
 from rich.layout import Layout
 from rich.text import Text
 from rich.table import Table
 from datetime import datetime
+from tui.utils import smart_render_text
 
 
 class OutputComponentManager:
@@ -129,7 +129,7 @@ class OutputComponentManager:
     def _display_planning(self, content: str):
         self.console.print(
             Panel(
-                Markdown(content or ""),
+                smart_render_text(content or "", prefer_markdown=True),
                 title="[bold magenta]Planning[/bold magenta]",
                 border_style="magenta",
                 padding=(1, 2),
@@ -139,7 +139,7 @@ class OutputComponentManager:
     def _display_reasoning(self, content: str, iteration: int):
         self.console.print(
             Panel(
-                Markdown(content or ""),
+                smart_render_text(content or "", prefer_markdown=True),
                 title=f"[bold cyan]Reasoning - Iteration {iteration}[/bold cyan]",
                 border_style="cyan",
                 padding=(1, 2),
@@ -195,7 +195,7 @@ class OutputComponentManager:
                     result_content = str(result_content)
                 self.console.print(
                     Panel(
-                        Markdown(result_content or ""),
+                        smart_render_text(result_content or "", prefer_markdown=True),
                         title="[bold green]Result - Success[/bold green]",
                         border_style="green",
                         padding=(1, 2),
@@ -205,7 +205,7 @@ class OutputComponentManager:
                 error = result.get("error", "未知错误")
                 self.console.print(
                     Panel(
-                        Markdown(str(error)),
+                        smart_render_text(str(error), prefer_markdown=True),
                         title="[bold red]Result - Failed[/bold red]",
                         border_style="red",
                         padding=(1, 2),
@@ -215,7 +215,7 @@ class OutputComponentManager:
     def _display_content(self, content: str):
         self.console.print(
             Panel(
-                Markdown(content or ""),
+                smart_render_text(content or "", prefer_markdown=True),
                 title="[bold blue]Content[/bold blue]",
                 border_style="blue",
                 padding=(1, 2),
@@ -225,7 +225,7 @@ class OutputComponentManager:
     def _display_report(self, content: str):
         self.console.print(
             Panel(
-                Markdown(content or ""),
+                smart_render_text(content or "", prefer_markdown=True),
                 title="[bold green]Report[/bold green]",
                 border_style="green",
                 padding=(1, 2),

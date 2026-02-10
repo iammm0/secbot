@@ -38,12 +38,12 @@ MIN_FANCY_WIDTH = 30
 # 斜杠命令补全器
 # ------------------------------------------------------------------
 class _SlashCompleter:
-    """输入 / 后进行斜杠命令补全"""
+    """输入 / 后进行斜杠命令补全，选项带简要说明"""
 
     def __init__(self):
         try:
-            from utils.slash_commands import get_slash_completions
-            self._fn = get_slash_completions
+            from utils.slash_commands import get_slash_completions_with_descriptions
+            self._fn = get_slash_completions_with_descriptions
         except Exception:
             self._fn = lambda _: []
 
@@ -51,8 +51,9 @@ class _SlashCompleter:
         text = document.text_before_cursor.strip()
         if not text.startswith("/"):
             return
-        for cmd in self._fn(text):
-            yield Completion(cmd, start_position=-len(text))
+        for cmd, desc in self._fn(text):
+            display = f"{cmd}  —  {desc}" if desc else cmd
+            yield Completion(cmd, start_position=-len(text), display=display)
 
     async def get_completions_async(self, document, complete_event):
         for c in self.get_completions(document, complete_event):
