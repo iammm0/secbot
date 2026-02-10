@@ -2,6 +2,8 @@
 TaskStatusComponent：任务执行状态组件
 订阅规划/推理/执行/报告事件，在终端中显示当前任务阶段。
 使用 console.print + \\r 覆盖方式而非 Live，避免与 ReasoningComponent 的 Live 冲突。
+
+优化：使用语义化 emoji 图标替代 spinner，更直观地传达当前阶段
 """
 
 from typing import Optional, Tuple
@@ -12,13 +14,13 @@ from rich.text import Text
 from utils.event_bus import EventBus, EventType, Event
 
 
-# 任务阶段与展示文案
+# 任务阶段与展示文案：(颜色, 英文标签, 中文描述, emoji 图标)
 PHASE_LABELS = {
-    "planning": ("magenta", "Planning", "规划中…"),
-    "thinking": ("cyan", "Thinking", "推理中…"),
-    "exec": ("yellow", "Executing", "执行工具"),
-    "report": ("green", "Report", "生成报告中…"),
-    "done": ("green", "Done", "任务完成"),
+    "planning": ("magenta", "Planning", "规划中...", "📋"),
+    "thinking": ("cyan", "Thinking", "推理中...", "💭"),
+    "exec": ("yellow", "Executing", "执行工具", "⚡"),
+    "report": ("green", "Report", "生成报告中...", "📊"),
+    "done": ("green", "Done", "任务完成", "✅"),
 }
 
 # Spinner 字符（简单旋转动画，每次调用切换）
@@ -64,19 +66,19 @@ class TaskStatusComponent:
         if not info:
             return
 
-        color, tag, label = info
+        color, tag, label, emoji = info
 
         if self._phase == "done":
             self.console.print(
                 Text.assemble(
                     ("  ", ""),
-                    ("✓ ", f"bold {color}"),
+                    (f"{emoji} ", f"bold {color}"),
                     (f"{tag}", f"bold {color}"),
                     (f"  {label}", f"{color}"),
                 )
             )
         else:
-            # 简单 spinner
+            # 简单 spinner + emoji
             frame = _SPINNER_FRAMES[self._frame_idx % len(_SPINNER_FRAMES)]
             self._frame_idx += 1
 
@@ -87,6 +89,7 @@ class TaskStatusComponent:
             self.console.print(
                 Text.assemble(
                     ("  ", ""),
+                    (f"{emoji} ", f"bold {color}"),
                     (f"{frame} ", f"bold {color}"),
                     (f"{tag}", f"bold {color}"),
                     (f"  {label}{detail_text}", f"{color}"),

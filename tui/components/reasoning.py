@@ -3,6 +3,11 @@ ReasoningComponent：推理展示组件
 订阅 THINK_* 事件，展示 ReAct 循环中每一次 Thought
 支持流式渲染（Live 实时更新）、迭代编号、折叠历史、/thinking 切换显示
 自适应终端宽度，窄窗口不变形
+
+优化要点：
+- 流式阶段使用 Text（轻量）渲染，最终静态阶段用 Markdown（完整格式化）
+- 流式阶段附带闪烁打字光标动画 ▌
+- 流式结束后通过 transient=True 清除 Live 帧，统一由 display() 输出 Markdown 最终版
 """
 
 from typing import List, Optional
@@ -15,26 +20,14 @@ from rich.live import Live
 from rich import box
 
 from tui.widgets.collapsible import CollapsiblePanel
+from tui.utils import adaptive_padding
 from utils.event_bus import EventBus, EventType, Event
 
 
-# 流式刷新频率（次/秒）
-STREAM_REFRESH_PER_SECOND = 8
+# 流式刷新频率（次/秒）— 12 FPS 兼顾流畅与性能
+STREAM_REFRESH_PER_SECOND = 12
 # Live 面板最大行数（避免超长输出撑坏终端）
-MAX_STREAM_LINES = 30
-
-
-def _adaptive_padding(console: Console) -> tuple:
-    """根据终端宽度返回合适的 padding"""
-    try:
-        w = console.width or 80
-    except Exception:
-        w = 80
-    if w < 40:
-        return (0, 0)
-    if w < 60:
-        return (0, 1)
-    return (1, 2)
+MAX_STREAM_LINES = 50
 
 
 class ReasoningComponent:
@@ -42,7 +35,7 @@ class ReasoningComponent:
     推理展示组件：
 
     - 展示 ReAct 循环的每一次 Thought
-    - 支持流式渲染（token-by-token）
+    - 支持流式渲染（token-by-token），使用 Text 轻量渲染 + 闪烁光标
     - 迭代编号清晰显示
     - 可折叠历史思考步骤，仅展开当前思考
     - 支持 /thinking 命令切换是否显示推理过程
@@ -58,6 +51,7 @@ class ReasoningComponent:
         self._visible: bool = True  # /thinking 切换
         self._show_history: bool = False  # 是否展示历史思考
         self._live: Optional[Live] = None  # 流式输出用 Live 实例
+        self._cursor_frame: int = 0  # 光标闪烁帧计数器
 
         if event_bus:
             event_bus.subscribe(EventType.THINK_START, self._on_think_start)
@@ -72,6 +66,7 @@ class ReasoningComponent:
         """推理开始：启动 Live 流式输出"""
         self._current_iteration = event.data.get("iteration", len(self.thoughts) + 1)
         self._current_buffer = ""
+        self._cursor_frame = 0
         self._stop_live()
         if self._visible:
             try:
@@ -79,7 +74,7 @@ class ReasoningComponent:
                     self._render_streaming_panel(),
                     console=self.console,
                     refresh_per_second=STREAM_REFRESH_PER_SECOND,
-                    transient=False,
+                    transient=True,  # 流式帧结束后自动清除，由 display() 输出最终版
                     vertical_overflow="ellipsis",
                 )
                 self._live.start()
@@ -99,26 +94,17 @@ class ReasoningComponent:
                 pass
 
     def _on_think_end(self, event: Event):
-        """推理结束：写入历史、停止 Live"""
+        """推理结束：写入历史、停止 Live、输出最终 Markdown 版本"""
         content = event.data.get("thought", self._current_buffer)
         self.thoughts.append({
             "iteration": self._current_iteration,
             "content": content,
             "collapsed": True,
         })
-        had_live = self._live is not None
-        if had_live and self._visible:
-            # 用完整内容渲染最后一帧再停止
-            self._current_buffer = content
-            try:
-                self._live.update(self._render_streaming_panel())
-            except Exception:
-                pass
+        # 停止 Live（transient=True 会自动清除流式帧）
         self._current_buffer = ""
         self._stop_live()
-        if had_live and self._visible:
-            # 已通过 Live 展示过，不再 display() 避免重复
-            return
+        # 统一用 display() 输出最终 Markdown 渲染版
         self.display()
 
     # ------------------------------------------------------------------
@@ -151,6 +137,7 @@ class ReasoningComponent:
         self.thoughts.clear()
         self._current_buffer = ""
         self._current_iteration = 0
+        self._cursor_frame = 0
 
     def _stop_live(self):
         """安全停止 Live 实例"""
@@ -162,20 +149,31 @@ class ReasoningComponent:
             self._live = None
 
     def _render_streaming_panel(self) -> Panel:
-        """渲染当前缓冲区为流式输出用的 Panel（供 Live 更新），使用 Markdown 渲染"""
-        content = self._current_buffer.strip() or "…"
-        padding = _adaptive_padding(self.console)
+        """
+        渲染当前缓冲区为流式输出用的 Panel（供 Live 更新）。
+        流式阶段使用 Text 而非 Markdown，避免反复解析 Markdown 的开销。
+        末尾附带闪烁打字光标 ▌。
+        """
+        content = self._current_buffer.strip() or "..."
+        padding = adaptive_padding(self.console)
 
         # 限制流式面板高度
         lines = content.split("\n")
         if len(lines) > MAX_STREAM_LINES:
             content = "\n".join(lines[-MAX_STREAM_LINES:])
 
+        # 闪烁光标：利用帧计数器，奇偶帧交替显示/隐藏
+        self._cursor_frame += 1
+        cursor_char = " \u258c" if self._cursor_frame % 2 == 0 else "  "
+
+        text = Text(content)
+        text.append(cursor_char, style="bold cyan")
+
         return Panel(
-            Markdown(content),
-            title=f"[bold cyan]Reasoning - Iteration {self._current_iteration}[/bold cyan]",
-            border_style="cyan",
-            box=box.ROUNDED,
+            text,
+            title=f"[bold cyan]\u258c Reasoning - Iteration {self._current_iteration}[/bold cyan]",
+            border_style="dim cyan",
+            box=box.SIMPLE,
             padding=padding,
         )
 
@@ -184,10 +182,10 @@ class ReasoningComponent:
     # ------------------------------------------------------------------
 
     def render_thought(self, thought: dict, collapsed: bool = False) -> Panel:
-        """渲染单条推理记录，使用 Markdown 渲染内容"""
+        """渲染单条推理记录，使用 Markdown 渲染内容（完整格式化）"""
         iteration = thought["iteration"]
         content = thought["content"]
-        padding = _adaptive_padding(self.console)
+        padding = adaptive_padding(self.console)
         renderable = Markdown(content) if content else Text("")
 
         if collapsed:
@@ -202,7 +200,7 @@ class ReasoningComponent:
                 summary = summary[:max_summary - 3] + "..."
             return CollapsiblePanel(
                 content=renderable,
-                title=f"[bold cyan]Reasoning - Iteration {iteration}[/bold cyan]",
+                title=f"[bold cyan]💭 Reasoning - Iteration {iteration}[/bold cyan]",
                 border_style="cyan",
                 collapsed_summary=summary,
                 collapsed=True,
@@ -210,7 +208,7 @@ class ReasoningComponent:
 
         return Panel(
             renderable,
-            title=f"[bold cyan]Reasoning - Iteration {iteration}[/bold cyan]",
+            title=f"[bold cyan]💭 Reasoning - Iteration {iteration}[/bold cyan]",
             border_style="cyan",
             box=box.ROUNDED,
             padding=padding,
@@ -238,7 +236,7 @@ class ReasoningComponent:
             for thought in self.thoughts[:-1]:
                 self.console.print(self.render_thought(thought, collapsed=True))
 
-        # 打印最新思考（展开）
+        # 打印最新思考（展开）— 使用 Markdown 做最终完整格式化渲染
         if self.thoughts:
             self.console.print(
                 self.render_thought(self.thoughts[-1], collapsed=False)

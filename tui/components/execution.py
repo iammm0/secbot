@@ -3,6 +3,11 @@ ExecutionComponent：执行展示组件
 订阅 EXEC_* 事件，展示工具执行详情
 支持 spinner 动画、详细/简洁模式、/details 切换
 自适应终端宽度，窄窗口不变形
+
+优化：
+- 参数区使用 SIMPLE_HEAD 表格样式带细线分隔
+- 脚本代码区使用 dim 背景风格突出显示
+- 结果面板使用更鲜明的 emoji 标识成功/失败
 """
 
 import json
@@ -13,22 +18,11 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich.markdown import Markdown
+from rich.rule import Rule
 from rich import box
 
+from tui.utils import adaptive_padding
 from utils.event_bus import EventBus, EventType, Event
-
-
-def _adaptive_padding(console: Console) -> tuple:
-    """根据终端宽度返回合适的 padding"""
-    try:
-        w = console.width or 80
-    except Exception:
-        w = 80
-    if w < 40:
-        return (0, 0)
-    if w < 60:
-        return (0, 1)
-    return (1, 2)
 
 
 class ExecutionComponent:
@@ -39,7 +33,7 @@ class ExecutionComponent:
     - 支持执行中 spinner 动画
     - 成功/失败用颜色区分（green/red）
     - 支持 /details 命令切换详细/简洁模式
-    - 参数以 Table 格式渲染
+    - 参数以 Table 格式渲染，带细线分隔
     - 自适应终端宽度
     """
 
@@ -76,7 +70,7 @@ class ExecutionComponent:
         """工具执行进度"""
         progress = event.data.get("progress", "")
         if self._visible:
-            self.console.print(f"  [dim yellow]... {progress}[/dim yellow]")
+            self.console.print(f"  [dim yellow]⏳ {progress}[/dim yellow]")
 
     def _on_exec_result(self, event: Event):
         """工具执行结果"""
@@ -165,7 +159,7 @@ class ExecutionComponent:
         iteration: int,
     ) -> Panel:
         """详细模式渲染"""
-        padding = _adaptive_padding(self.console)
+        padding = adaptive_padding(self.console)
         label_w, _ = self._get_col_widths()
 
         renderables = []
@@ -181,10 +175,17 @@ class ExecutionComponent:
         renderables.append(Text.from_markup("[bold]工具信息:[/bold]"))
         renderables.append(tool_table)
 
-        # 参数表
+        # 参数表（带细线分隔的表头）
         if params:
+            renderables.append(Text(""))
+            renderables.append(Rule(style="dim yellow"))
+
             params_table = Table(
-                show_header=True, header_style="bold", box=None, padding=(0, 1), expand=True,
+                show_header=True,
+                header_style="bold",
+                box=box.SIMPLE_HEAD,
+                padding=(0, 1),
+                expand=True,
             )
             param_label_w = min(label_w + 4, 20)
             params_table.add_column("参数名", style="cyan", width=param_label_w, no_wrap=True)
@@ -197,18 +198,26 @@ class ExecutionComponent:
                     value_str = str(value)
                 params_table.add_row(key, value_str)
 
-            renderables.append(Text(""))
             renderables.append(Text.from_markup("[bold]参数信息:[/bold]"))
             renderables.append(params_table)
 
+        # 脚本代码区（dim 风格突出显示）
         if script:
             renderables.append(Text(""))
+            renderables.append(Rule(style="dim yellow"))
             renderables.append(Text.from_markup("[bold]执行脚本/代码:[/bold]"))
-            renderables.append(Markdown(f"```\n{script}\n```"))
+            # 使用 Panel 内嵌代码块，dim 背景区分
+            code_panel = Panel(
+                Text(script, style="dim white"),
+                border_style="dim yellow",
+                box=box.SIMPLE,
+                padding=(0, 1),
+            )
+            renderables.append(code_panel)
 
         return Panel(
             Group(*renderables),
-            title=f"[bold yellow]Execution - {tool}[/bold yellow]",
+            title=f"[bold yellow]⚡ Execution - {tool}[/bold yellow]",
             border_style="yellow",
             box=box.ROUNDED,
             padding=padding,
@@ -229,7 +238,7 @@ class ExecutionComponent:
         iter_label = f" #{iteration}" if iteration else ""
         return Panel(
             content,
-            title=f"[bold yellow]Exec{iter_label}[/bold yellow]",
+            title=f"[bold yellow]⚡ Exec{iter_label}[/bold yellow]",
             border_style="yellow",
             box=box.ROUNDED,
             padding=(0, 1),
@@ -245,7 +254,7 @@ class ExecutionComponent:
         if not self._visible:
             return
 
-        padding = _adaptive_padding(self.console)
+        padding = adaptive_padding(self.console)
 
         if result.get("success", False):
             result_content = result.get("result", "")
@@ -263,7 +272,7 @@ class ExecutionComponent:
             self.console.print(
                 Panel(
                     Markdown(result_content),
-                    title="[bold green]Result - Success[/bold green]",
+                    title="[bold green]✅ Result - Success[/bold green]",
                     border_style="green",
                     box=box.ROUNDED,
                     padding=padding,
@@ -274,7 +283,7 @@ class ExecutionComponent:
             self.console.print(
                 Panel(
                     Markdown(str(error)),
-                    title="[bold red]Result - Failed[/bold red]",
+                    title="[bold red]❌ Result - Failed[/bold red]",
                     border_style="red",
                     box=box.ROUNDED,
                     padding=padding,
