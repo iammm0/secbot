@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any
 
 from agents.base import BaseAgent
 from tools.base import BaseTool, ToolResult
+from utils.context_info import get_agent_context_block
 from utils.logger import logger
 
 try:
@@ -246,6 +247,7 @@ class WebResearchAgent(BaseAgent):
             history_text += f"\n[{t}] {content}"
 
         tools_desc = self._get_tools_description()
+        context_block = get_agent_context_block()
 
         prompt = f"""你是一个 Web 研究专家，使用 ReAct 模式工作。
 
@@ -272,6 +274,7 @@ Final Answer: <完整的研究报告>
 5. **api_client 精确**：当需要结构化数据（天气、IP、GitHub 等）时使用
 6. **Final Answer 必须完整**：包含信息来源、主要发现、结论
 
+{context_block}
 ## 当前任务
 
 用户查询: {user_input}
