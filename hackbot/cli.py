@@ -116,13 +116,11 @@ _session_id = str(uuid.uuid4())
 # 全局审计留痕
 audit_trail = AuditTrail(db_manager, _session_id)
 
-# 全局智能体实例（ReAct 模式）
-agents = {
-    "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit_trail),
-    "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit_trail),
-}
+# 全局智能体缓存（按需创建，避免未配置 DEEPSEEK_API_KEY 时导入即报错）
+# 用户可先进入 CLI 运行 secbot-config config 配置 API Key，再使用 chat/interactive 等
+agents: dict = {}
 
-# 初始化所有 Agent（确保模块加载时全部初始化）
+# 其他 Agent（不依赖 LLM 配置，可安全在模块加载时初始化）
 from core.agents.qa_agent import QAAgent
 from core.agents.planner_agent import PlannerAgent
 from core.agents.summary_agent import SummaryAgent
@@ -130,11 +128,6 @@ from core.agents.summary_agent import SummaryAgent
 _qa_agent = QAAgent()
 _planner_agent = PlannerAgent()
 _summary_agent = SummaryAgent()
-
-# 为智能体添加记忆
-for agent_name, agent_instance in agents.items():
-    memory_manager = MemoryManager()
-    agent_instance.memory = memory_manager
 
 # 全局语音处理实例
 stt = SpeechToText()
@@ -146,47 +139,22 @@ defense_manager = DefenseManager(auto_response=True)
 # 全局主控制器
 main_controller = MainController()
 
-
-def get_agent(agent_type: str):
-    """获取智能体实例"""
-    if agent_type not in agents:
-        console.print(f"[red]错误: 未知的智能体类型 '{agent_type}'[/red]")
-        console.print(f"[yellow]可用类型: {', '.join(agents.keys())}[/yellow]")
-        raise typer.Exit(1)
-    return agents[agent_type]
-
-
-# 初始化所有 Agent（确保模块加载时全部初始化）
-from core.agents.qa_agent import QAAgent
-from core.agents.planner_agent import PlannerAgent
-from core.agents.summary_agent import SummaryAgent
-
-_qa_agent = QAAgent()
-_planner_agent = PlannerAgent()
-_summary_agent = SummaryAgent()
-
-# 为智能体添加记忆
-for agent_name, agent_instance in agents.items():
-    memory_manager = MemoryManager()
-    agent_instance.memory = memory_manager
-
-# 全局语音处理实例
-stt = SpeechToText()
-tts = TextToSpeech()
-
-# 全局防御管理器
-defense_manager = DefenseManager(auto_response=True)
-
-# 全局主控制器
-main_controller = MainController()
+_AGENT_TYPES = ("hackbot", "superhackbot")
 
 
 def get_agent(agent_type: str):
-    """获取智能体实例"""
-    if agent_type not in agents:
+    """获取智能体实例（首次请求时创建并缓存，此时已通过 require_llm_configured 检查）"""
+    if agent_type not in _AGENT_TYPES:
         console.print(f"[red]错误: 未知的智能体类型 '{agent_type}'[/red]")
-        console.print(f"[yellow]可用类型: {', '.join(agents.keys())}[/yellow]")
+        console.print(f"[yellow]可用类型: {', '.join(_AGENT_TYPES)}[/yellow]")
         raise typer.Exit(1)
+    if agent_type not in agents:
+        if agent_type == "hackbot":
+            instance = HackbotAgent(name="Hackbot", audit_trail=audit_trail)
+        else:
+            instance = SuperHackbotAgent(name="SuperHackbot", audit_trail=audit_trail)
+        instance.memory = MemoryManager()
+        agents[agent_type] = instance
     return agents[agent_type]
 
 
@@ -298,6 +266,7 @@ def voice(
     text_only: bool = typer.Option(False, "--text-only", help="只返回文字，不生成语音"),
 ):
     """语音聊天"""
+    require_llm_configured()
 
     async def _voice():
         try:
@@ -442,11 +411,14 @@ def clear(
 ):
     """清空对话历史"""
     if agent:
-        if agent not in agents:
+        if agent not in _AGENT_TYPES:
             console.print(f"[red]错误: 未知的智能体类型 '{agent}'[/red]")
             raise typer.Exit(1)
-        agents[agent].clear_memory()
-        console.print(f"[green]✓ 已清空智能体 '{agent}' 的记忆[/green]")
+        if agent in agents:
+            agents[agent].clear_memory()
+            console.print(f"[green]✓ 已清空智能体 '{agent}' 的记忆[/green]")
+        else:
+            console.print(f"[dim]智能体 '{agent}' 尚未使用，无需清空记忆[/dim]")
     else:
         for agent_instance in agents.values():
             agent_instance.clear_memory()

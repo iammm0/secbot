@@ -122,20 +122,14 @@ _session_id = str(uuid.uuid4())
 # 全局审计留痕
 audit_trail = AuditTrail(db_manager, _session_id)
 
-# 全局智能体实例（ReAct 模式）
-agents = {
-    "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit_trail),
-    "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit_trail),
-}
+# 全局智能体缓存（按需创建，避免未配置 DeepSeek API Key 时导入即报错）
+agents: dict = {}
 
 # 全局规划器与问答智能体
 planner_agent = PlannerAgent()
 qa_agent = QAAgent()
 
-# 为智能体添加记忆
-for agent_name, agent_instance in agents.items():
-    memory_manager = MemoryManager()
-    agent_instance.memory = memory_manager
+_AGENT_TYPES = ("hackbot", "superhackbot")
 
 # 全局语音处理实例
 stt = SpeechToText()
@@ -149,11 +143,18 @@ main_controller = MainController()
 
 
 def get_agent(agent_type: str):
-    """获取智能体实例"""
-    if agent_type not in agents:
+    """获取智能体实例（首次请求时创建并缓存）"""
+    if agent_type not in _AGENT_TYPES:
         console.print(f"[red]错误: 未知的智能体类型 '{agent_type}'[/red]")
-        console.print(f"[yellow]可用类型: {', '.join(agents.keys())}[/yellow]")
+        console.print(f"[yellow]可用类型: {', '.join(_AGENT_TYPES)}[/yellow]")
         raise typer.Exit(1)
+    if agent_type not in agents:
+        if agent_type == "hackbot":
+            instance = HackbotAgent(name="Hackbot", audit_trail=audit_trail)
+        else:
+            instance = SuperHackbotAgent(name="SuperHackbot", audit_trail=audit_trail)
+        instance.memory = MemoryManager()
+        agents[agent_type] = instance
     return agents[agent_type]
 
 
@@ -654,11 +655,14 @@ def clear(
 ):
     """清空对话历史"""
     if agent:
-        if agent not in agents:
+        if agent not in _AGENT_TYPES:
             console.print(f"[red]错误: 未知的智能体类型 '{agent}'[/red]")
             raise typer.Exit(1)
-        agents[agent].clear_memory()
-        console.print(f"[green]✓ 已清空智能体 '{agent}' 的记忆[/green]")
+        if agent in agents:
+            agents[agent].clear_memory()
+            console.print(f"[green]✓ 已清空智能体 '{agent}' 的记忆[/green]")
+        else:
+            console.print(f"[dim]智能体 '{agent}' 尚未使用，无需清空记忆[/dim]")
     else:
         for agent_instance in agents.values():
             agent_instance.clear_memory()
@@ -731,8 +735,7 @@ def interactive(
     voice: bool = typer.Option(False, "--voice", "-v", help="启用语音交互模式"),
     verbose: bool = typer.Option(False, "--verbose", "-V", help="显示详细日志"),
 ):
-    """交互式聊天模式（OpenCode 风格 ReAct 安全测试）"""
-    require_llm_configured()
+    """交互式聊天模式（OpenCode 风格 ReAct 安全测试）。不提前检查 API Key，可在 /model deepseek 时输入。"""
     from hackbot.run_interactive import run_interactive_ui
 
     run_interactive_ui(
@@ -1786,7 +1789,6 @@ def _require_deepseek_api_key() -> None:
 def config():
     """配置 API Key（交互式）"""
     import keyring
-    import getpass
 
     console.print(
         Panel(
@@ -1814,7 +1816,7 @@ def config():
     else:
         console.print(f"\n当前 {provider} 未配置")
 
-    new_key = getpass.getpass(f"\n输入新的 {provider} API Key: ")
+    new_key = input(f"\n输入新的 {provider} API Key: ").strip()
 
     if new_key:
         keyring.set_password("secbot", provider, new_key)
@@ -1870,11 +1872,10 @@ def main(ctx: typer.Context):
 
       hackbot
 
-    开发时可用：python main.py（效果相同）。交互界面内输入 / 可查看斜杠命令（如 /list-tools、/plan、/agent）。
+    开发时可用：python main.py（效果相同）。进入后使用 /model 选择后端，选 deepseek 时可输入 API Key。
     单次执行示例：hackbot chat "扫描本机开放端口"
     更多命令见下方「Commands」。
     """
-    _require_deepseek_api_key()
     if ctx.invoked_subcommand is None:
         ctx.invoke(
             interactive,

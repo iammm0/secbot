@@ -4,6 +4,7 @@
 
 import os
 import sys
+import sqlite3
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
@@ -15,13 +16,36 @@ if getattr(sys, "frozen", False):
     _exe_dir = Path(sys.executable).resolve().parent
     load_dotenv(_exe_dir / ".env")
 
+# 与 DatabaseManager 一致：相对路径以 config 包所在目录为基准（settings.project_root）
+_config_dir = Path(__file__).resolve().parent
 
-def _get_api_key_from_keyring(provider: str) -> Optional[str]:
-    """从 keyring 获取 API Key"""
+
+def _get_db_path() -> Path:
+    """解析 DATABASE_URL 得到 SQLite 文件路径，与 DatabaseManager 使用同一路径（避免写入了读不到）"""
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./data/hackbot.db")
+    if db_url and db_url.startswith("sqlite:///"):
+        path_str = db_url.replace("sqlite:///", "")
+        if path_str.startswith("./"):
+            return _config_dir / path_str[2:]
+        return Path(path_str)
+    return _config_dir / "data" / "hackbot.db"
+
+
+def _get_api_key_from_sqlite(key: str) -> Optional[str]:
+    """从 SQLite user_configs 表读取 API Key（不依赖 DatabaseManager，避免循环导入）"""
     try:
-        import keyring
-
-        return keyring.get_password("secbot", provider)
+        db_path = _get_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        if not db_path.exists():
+            return None
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        try:
+            cur = conn.execute("SELECT value FROM user_configs WHERE key = ?", (key,))
+            row = cur.fetchone()
+            return row["value"] if row else None
+        finally:
+            conn.close()
     except Exception:
         return None
 
@@ -47,13 +71,10 @@ class Settings(BaseSettings):
     )
 
     # DeepSeek 配置（当 LLM_PROVIDER=deepseek 时使用，OpenAI 兼容 API）
-    # 优先从 keyring 获取，其次从环境变量
+    # 仅从 SQLite user_configs 读取，需通过 secbot-config config 配置
     @property
     def deepseek_api_key(self) -> Optional[str]:
-        keyring_key = _get_api_key_from_keyring("deepseek")
-        if keyring_key:
-            return keyring_key
-        return os.getenv("DEEPSEEK_API_KEY")
+        return _get_api_key_from_sqlite("deepseek_api_key")
 
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
