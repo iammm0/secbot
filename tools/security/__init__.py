@@ -21,6 +21,7 @@ from tools.reporting import REPORTING_TOOLS
 from tools.cloud import CLOUD_TOOLS
 from tools.command_tool import CommandTool
 from tools.crawler_tool import CrawlerTool
+from tools.web_research import WEB_RESEARCH_TOOLS
 
 # ---------------------------------------------------------------
 # 核心安全工具
@@ -34,7 +35,7 @@ CORE_SECURITY_TOOLS = [
 
 # ---------------------------------------------------------------
 # 基础工具（hackbot + superhackbot 都可用）
-# 包含核心安全 + 网络 + 防御 + 实用 + Web + OSINT + 协议 + 报告 + 云安全 + 系统命令 + 爬虫
+# 包含核心安全 + 网络 + 防御 + 实用 + Web + OSINT + 协议 + 报告 + 云安全 + 系统命令 + 爬虫 + Web研究
 # ---------------------------------------------------------------
 BASIC_SECURITY_TOOLS = (
     CORE_SECURITY_TOOLS
@@ -47,6 +48,7 @@ BASIC_SECURITY_TOOLS = (
     + REPORTING_TOOLS
     + CLOUD_TOOLS
     + [CommandTool(), CrawlerTool()]
+    + WEB_RESEARCH_TOOLS
 )
 
 # ---------------------------------------------------------------
