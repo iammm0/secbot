@@ -27,7 +27,7 @@ PROJECT_CAPABILITIES = """**Hackbot 能做什么**
 - 固化攻击证据（原始日志、哈希校验）
 - 生成符合法律要求的取证报告
 
-直接说出你的需求即可；也可输入 [cyan]/plan[/cyan] 先编写巡检计划，再用 [cyan]/start[/cyan] 执行。"""
+直接说出你的需求即可；也可输入 `/plan` 先编写巡检计划，再用 `/start` 执行。"""
 
 
 # Ask 模式系统提示词
@@ -101,7 +101,7 @@ class QAAgent(BaseAgent):
         # 目前未接 LLM，对未匹配的简单问统一给引导
         return (
             "收到。若是想了解我能做什么，可以说「你能做什么」或「有什么功能」。\n"
-            "若要执行巡检、检测或取证任务，直接说出目标或输入 [cyan]/plan[/cyan] 编写巡检计划。"
+            "若要执行巡检、检测或取证任务，直接说出目标或输入 `/plan` 编写巡检计划。"
         )
 
     async def answer_with_context(
