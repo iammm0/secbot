@@ -106,11 +106,6 @@ class SecurityReActAgent(BaseAgent):
         self._provider_override: Optional[str] = None
         self._model_override: Optional[str] = None
         self.llm = _create_llm()
-        self.model = (
-            settings.ollama_model
-            if (settings.llm_provider or "ollama").strip().lower() == "ollama"
-            else settings.deepseek_model
-        )
 
         # ReAct 状态
         self._react_history: List[Dict[str, str]] = []  # 当前任务的 think/act/obs 历史

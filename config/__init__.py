@@ -16,6 +16,16 @@ if getattr(sys, "frozen", False):
     load_dotenv(_exe_dir / ".env")
 
 
+def _get_api_key_from_keyring(provider: str) -> Optional[str]:
+    """从 keyring 获取 API Key"""
+    try:
+        import keyring
+
+        return keyring.get_password("secbot", provider)
+    except Exception:
+        return None
+
+
 class Settings(BaseSettings):
     """应用配置"""
 
@@ -37,8 +47,14 @@ class Settings(BaseSettings):
     )
 
     # DeepSeek 配置（当 LLM_PROVIDER=deepseek 时使用，OpenAI 兼容 API）
-    # 聊天模式: deepseek-chat；推理模式（思考链）: deepseek-reasoner
-    deepseek_api_key: Optional[str] = os.getenv("DEEPSEEK_API_KEY")
+    # 优先从 keyring 获取，其次从环境变量
+    @property
+    def deepseek_api_key(self) -> Optional[str]:
+        keyring_key = _get_api_key_from_keyring("deepseek")
+        if keyring_key:
+            return keyring_key
+        return os.getenv("DEEPSEEK_API_KEY")
+
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
     deepseek_reasoner_model: str = os.getenv(
@@ -66,8 +82,19 @@ class Settings(BaseSettings):
     tts_engine: str = os.getenv("TTS_ENGINE", "gtts")  # 文字转语音引擎（gtts/pyttsx3）
 
     # OSINT / 外部 API 配置
-    shodan_api_key: Optional[str] = os.getenv("SHODAN_API_KEY")
-    virustotal_api_key: Optional[str] = os.getenv("VIRUSTOTAL_API_KEY")
+    @property
+    def shodan_api_key(self) -> Optional[str]:
+        keyring_key = _get_api_key_from_keyring("shodan")
+        if keyring_key:
+            return keyring_key
+        return os.getenv("SHODAN_API_KEY")
+
+    @property
+    def virustotal_api_key(self) -> Optional[str]:
+        keyring_key = _get_api_key_from_keyring("virustotal")
+        if keyring_key:
+            return keyring_key
+        return os.getenv("VIRUSTOTAL_API_KEY")
 
     # 数据库配置
     redis_url: Optional[str] = os.getenv("REDIS_URL")
