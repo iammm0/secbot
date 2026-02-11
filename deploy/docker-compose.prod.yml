@@ -3,7 +3,7 @@ version: '3.8'
 services:
   m-bot:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     container_name: m-bot
     restart: unless-stopped
