@@ -7,7 +7,7 @@ SessionManager：会话编排管理器
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional
 
 from rich.console import Console
 
@@ -47,6 +47,7 @@ class SessionManager:
         planner: Optional[PlannerAgent] = None,
         qa_agent: Optional[QAAgent] = None,
         summary_agent: Optional[SummaryAgent] = None,
+        get_root_password: Optional[Callable[[str], Awaitable[Optional[str]]]] = None,
     ):
         self.event_bus = event_bus
         self.console = console
@@ -54,6 +55,7 @@ class SessionManager:
         self.qa_agent = qa_agent or QAAgent()
         self.summary_agent = summary_agent or SummaryAgent()
         self.agents = agents or {}
+        self.get_root_password = get_root_password
 
         # 会话管理
         self.sessions: Dict[str, Session] = {}
@@ -224,6 +226,7 @@ class SessionManager:
             skip_planning=True,
             skip_report=True,
             todos=todos_snapshot,
+            get_root_password=getattr(self, "get_root_password", None),
         )
 
         # ---- 阶段 3：摘要 ----
@@ -410,7 +413,7 @@ class SessionManager:
                 EventType.CONTENT,
                 content=data.get("content", ""),
                 type="text",
-                title=f"[bold blue]Observation #{iteration}[/bold blue]",
+                title="[bold blue]观察[/bold blue]",
             )
 
         elif event_type == "content":
