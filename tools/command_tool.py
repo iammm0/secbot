@@ -38,61 +38,52 @@ class CommandTool(BaseTool):
             description="执行系统终端命令。可执行文件操作、进程管理、网络等。在 macOS 上 netstat 不支持 -t/-u/-l/-p/-o 等 Linux 选项，会自动改为 netstat -an。"
         )
     
-    async def execute(self, command: str, shell: bool = True, timeout: int = 30, cwd: Optional[str] = None) -> ToolResult:
+    async def execute(
+        self,
+        command: str,
+        shell: bool = True,
+        timeout: int = 30,
+        cwd: Optional[str] = None,
+        stdin_data: Optional[str] = None,
+    ) -> ToolResult:
         """
         执行系统命令
-        
+
         Args:
             command: 要执行的命令
             shell: 是否使用shell执行（默认True）
             timeout: 超时时间（秒，默认30）
             cwd: 工作目录（可选）
-            
-        Returns:
-            ToolResult: 执行结果
+            stdin_data: 可选，传入标准输入（如 sudo 密码），不写入命令行以保证安全
         """
         try:
             command = _adapt_command_for_platform(command)
+            # 日志中不打印可能包含密码的 stdin_data
             logger.info(f"执行命令: {command}")
 
-            # 根据操作系统选择执行方式
+            run_kw = dict(
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                encoding="utf-8",
+                errors="ignore",
+                cwd=cwd,
+            )
+            if stdin_data is not None:
+                run_kw["input"] = stdin_data
+
             if sys.platform == "win32":
-                # Windows - 使用 cmd.exe 而不是 PowerShell
                 if shell:
-                    # 使用 cmd.exe 执行命令
-                    # 格式: cmd /c "command"
                     cmd_command = f'cmd /c "{command}"'
-                    result = subprocess.run(
-                        cmd_command,
-                        shell=False,  # 不使用 shell，直接执行 cmd
-                        capture_output=True,
-                        text=True,
-                        timeout=timeout,
-                        encoding="utf-8",
-                        errors="ignore",
-                        cwd=cwd
-                    )
+                    result = subprocess.run(cmd_command, shell=False, **run_kw)
                 else:
-                    # 不使用 shell，直接执行命令
-                    result = subprocess.run(
-                        command.split(),
-                        capture_output=True,
-                        text=True,
-                        timeout=timeout,
-                        encoding="utf-8",
-                        errors="ignore",
-                        cwd=cwd
-                    )
+                    result = subprocess.run(command.split(), **run_kw)
             else:
-                # Linux/macOS
                 result = subprocess.run(
                     command,
                     shell=shell,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
                     executable="/bin/bash" if sys.platform != "darwin" else "/bin/zsh",
-                    cwd=cwd
+                    **run_kw,
                 )
             
             success = result.returncode == 0
