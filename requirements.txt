@@ -1,5 +1,5 @@
 # 构建兼容：llvmlite/numba 与 setuptools 70+ 的 spawn(dry_run) 不兼容，约束 setuptools
-setuptools>=68.0,<70
+setuptools>=78.1.1,<70
 
 # 核心AI和智能体框架
 langchain>=0.1.0
@@ -80,6 +80,11 @@ pysnmp>=6.0.0  # SNMP 协议查询
 
 # 网络扫描
 scapy>=2.5.0  # ARP 扫描等底层网络操作
+
+# FastAPI 路由层
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+sse-starlette>=2.0.0
 
 # 云安全（可选）
 # boto3>=1.34.0  # AWS S3 操作（可选，不安装时使用 HTTP 方式）
