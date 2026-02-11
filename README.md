@@ -27,6 +27,7 @@
 ### Core Capabilities
 
 - 🤖 **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
+- 🌐 **AI Web Research Agent**: Independent sub-agent with ReAct loop for internet research—smart search, page extraction, multi-page crawling, and API interaction
 - 💻 **CLI Interface**: Built with Typer for intuitive command-line interaction
 - 🎤 **Voice Interaction**: Complete speech-to-text and text-to-speech functionality
 - 🕷️ **AI Web Crawler**: Real-time web information capture and monitoring
@@ -50,6 +51,14 @@
 - 🔍 **Network Discovery**: Automatic discovery of all hosts in the network
 - 🎯 **Authorization Management**: Manage legal authorization for target hosts
 - 🖥️ **Remote Control**: Remote command execution and file transfer on authorized hosts
+
+### Web Research (Internet Capabilities)
+
+- 🔎 **Smart Search**: DuckDuckGo search → fetch result pages → AI summarization and synthesis
+- 📄 **Page Extract**: Extract page content by mode—plain text, structured (tables/lists), or custom AI schema
+- 🕸️ **Deep Crawl**: BFS multi-page crawling from a start URL with depth/URL filter and optional AI extraction
+- 🔌 **API Client**: Generic REST client with presets (weather, IP info, GitHub, exchange rates, DNS, etc.)
+- 🤖 **Web Research Tool**: Delegate to the Web Research sub-agent for autonomous research or call tools directly
 
 ### Additional Features
 
@@ -147,6 +156,22 @@ hackbot chat "Hello, introduce yourself"
 
 # List available agents
 hackbot list-agents
+```
+
+### Web Research (via Chat)
+
+```bash
+# Delegate to Web Research sub-agent (auto search → crawl → summarize)
+hackbot chat "Research the latest CVE-2024 vulnerabilities and summarize"
+
+# Direct smart search
+hackbot chat "Use smart_search to find Python asyncio best practices"
+
+# Extract content from a URL
+hackbot chat "Use page_extract to get the main content from https://example.com"
+
+# Call a public API (e.g. weather)
+hackbot chat "Use api_client with preset weather and query Beijing"
 ```
 
 ### Penetration Testing Commands
@@ -266,13 +291,14 @@ hackbot prompt-load my_prompt.yaml
 ```
 hackbot/
 ├── main.py                 # CLI application entry
-├── config.py               # Configuration management
-├── hackbot/                  # Package CLI module
+├── config/                 # Configuration management
+├── hackbot/                # Package CLI module
 ├── agents/                 # Agent implementations
 │   ├── base.py            # Base agent class
-│   └── tool_calling_agent.py # 工具调用智能体（LLM + 工具）
+│   ├── tool_calling_agent.py # Tool-calling agent (LLM + tools)
+│   └── web_research_agent.py # Web research sub-agent (ReAct + smart_search/page_extract/deep_crawl/api_client)
 ├── patterns/               # Design patterns
-│   └── react.py           # ReAct pattern
+│   └── security_react.py  # ReAct pattern for security agents
 ├── exploit/                # Exploitation module
 │   ├── exploit_engine.py  # Exploit engine
 │   ├── web_exploits.py    # Web exploits
@@ -297,6 +323,10 @@ hackbot/
 ├── prompts/                # Prompt management
 ├── system/                 # OS control
 ├── tools/                  # Tools and plugins
+│   ├── security/          # Core security tools (port scan, vuln scan, etc.)
+│   ├── network/           # Network tools (HTTP, DNS, SSL, etc.)
+│   ├── web_research/      # Web research tools (smart_search, page_extract, deep_crawl, api_client, web_research)
+│   └── ...                # Other tool categories
 └── utils/                  # Utility functions
 ```
 
@@ -328,7 +358,7 @@ build.bat
 - [Prompt Guide](docs/PROMPT_GUIDE.md)
 - [Speech Guide](docs/SPEECH_GUIDE.md)
 - [SQLite Setup](docs/SQLITE_SETUP.md)
-- [Deployment Guide](DEPLOYMENT.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 
 ## 🤝 Contributing
 

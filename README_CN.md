@@ -8,7 +8,7 @@
 
 **一个智能化的自动化渗透测试机器人，具备AI驱动的安全测试能力**
 
-[English](README.md) | [中文](#hackbot-自动化渗透测试机器人)
+[English](README_EN.md) | [中文](#hackbot-自动化渗透测试机器人)
 
 </div>
 
@@ -349,7 +349,7 @@ build.bat
 - [提示词指南](docs/PROMPT_GUIDE.md)
 - [语音指南](docs/SPEECH_GUIDE.md)
 - [SQLite设置](docs/SQLITE_SETUP.md)
-- [部署指南](DEPLOYMENT.md)
+- [部署指南](docs/DEPLOYMENT.md)
 
 ## 🤝 贡献
 
