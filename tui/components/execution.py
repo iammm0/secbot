@@ -216,8 +216,6 @@ class ExecutionComponent:
         tool_table.add_column(style="bold cyan", width=label_w, no_wrap=True)
         tool_table.add_column(style="white", ratio=1)
         tool_table.add_row("工具名称", f"[bold yellow]{tool}[/bold yellow]")
-        if iteration:
-            tool_table.add_row("迭代次数", f"[dim]{iteration}[/dim]")
 
         renderables.append(Text.from_markup("[bold]工具信息:[/bold]"))
         renderables.append(tool_table)
@@ -255,7 +253,7 @@ class ExecutionComponent:
 
         return Panel(
             Group(*renderables),
-            title=f"[bold yellow]Execution - {tool}[/bold yellow]",
+            title=f"[bold yellow]执行 - {tool}[/bold yellow]",
             border_style="yellow",
             box=box.ROUNDED,
             padding=padding,
@@ -273,10 +271,9 @@ class ExecutionComponent:
         if len(params_str) > max_len:
             params_str = params_str[: max_len - 3] + "..."
         content = f"[yellow]{tool}[/yellow]({params_str})"
-        iter_label = f" #{iteration}" if iteration else ""
         return Panel(
             content,
-            title=f"[bold yellow]Exec{iter_label}[/bold yellow]",
+            title=f"[bold yellow]执行 - {tool}[/bold yellow]",
             border_style="yellow",
             box=box.ROUNDED,
             padding=(0, 1),

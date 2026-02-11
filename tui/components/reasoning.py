@@ -180,7 +180,7 @@ class ReasoningComponent:
 
         return Panel(
             text,
-            title=f"[bold cyan]\u258c Reasoning - Iteration {self._current_iteration}[/bold cyan]",
+            title="[bold cyan]\u258c 推理[/bold cyan]",
             border_style="dim cyan",
             box=box.SIMPLE,
             padding=padding,
@@ -209,7 +209,7 @@ class ReasoningComponent:
                 summary = summary[:max_summary - 3] + "..."
             return CollapsiblePanel(
                 content=renderable,
-                title=f"[bold cyan]💭 Reasoning - Iteration {iteration}[/bold cyan]",
+                title="[bold cyan]💭 推理[/bold cyan]",
                 border_style="cyan",
                 collapsed_summary=summary,
                 collapsed=True,
@@ -217,7 +217,7 @@ class ReasoningComponent:
 
         return Panel(
             renderable,
-            title=f"[bold cyan]💭 Reasoning - Iteration {iteration}[/bold cyan]",
+            title="[bold cyan]💭 推理[/bold cyan]",
             border_style="cyan",
             box=box.ROUNDED,
             padding=padding,
