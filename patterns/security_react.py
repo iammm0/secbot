@@ -290,6 +290,8 @@ class SecurityReActAgent(BaseAgent):
         self._skip_report = skip_report  # 供 handle_accept 使用
         # 当前计划步骤（由 SessionManager 传入），用于 prompt 中提示“未完成不输出 Final Answer”
         self._current_todos = kwargs.get("todos") or []
+        # 需要 root 时询问密码的回调（由交互层传入）
+        self._get_root_password = kwargs.get("get_root_password")
 
         # 如果在等待确认且用户输入不是 /accept 或 /reject，提醒用户
         if self._waiting_for_confirm and self.confirmation:
@@ -955,8 +957,39 @@ Final Answer: <最终结论和报告>
         return None
 
     async def _execute_tool(self, tool: BaseTool, params: Dict[str, Any]) -> ToolResult:
-        """执行工具调用。"""
-        logger.info(f"执行工具: {tool.name}, 参数: {params}")
+        """执行工具调用。对 execute_command 且含 sudo 时按 root 策略处理密码。"""
+        import sys
+        from utils.root_policy import load_root_policy, needs_root_password
+
+        if tool.name == "execute_command" and sys.platform != "win32":
+            command = (params.get("command") or "").strip()
+            policy_data = load_root_policy()
+            root_cmd = policy_data.get("root_command", "sudo")
+            policy = policy_data.get("root_policy", "ask")
+
+            if needs_root_password(command, root_cmd):
+                if policy == "ask" and getattr(self, "_get_root_password", None):
+                    get_pwd = self._get_root_password
+                    try:
+                        password = await get_pwd(command) if callable(get_pwd) else None
+                    except Exception as e:
+                        logger.warning(f"获取 root 密码时出错: {e}")
+                        password = None
+                    if not password:
+                        return ToolResult(
+                            success=False,
+                            result=None,
+                            error="需要 root 权限但未提供密码（已取消或未输入）。可使用 /root-config always 配置为不询问。",
+                        )
+                    # 使用 sudo -S 从 stdin 读密码，避免密码出现在命令行
+                    rest = command[len(root_cmd) :].strip()
+                    params = dict(params)
+                    params["command"] = f"{root_cmd} -S -p '' -- {rest}" if rest else f"{root_cmd} -S -p '' -- true"
+                    params["stdin_data"] = password + "\n"
+                # policy == "always_allow" 时直接执行原命令，不注入密码
+
+        log_params = {k: v for k, v in params.items() if k != "stdin_data"}
+        logger.info(f"执行工具: {tool.name}, 参数: {log_params}")
         try:
             result = await tool.execute(**params)
             logger.info(f"工具 {tool.name} 执行成功: {result.success}")
