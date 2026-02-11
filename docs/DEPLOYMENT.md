@@ -310,7 +310,7 @@ pip install -e . --upgrade
 ## 支持
 
 如有问题，请查看：
-- [README.md](README.md) - 项目说明
+- [README.md](../README.md) - 项目说明
 - [docs/](docs/) - 详细文档
 - [Issues](https://github.com/zhaomingjun/m-bot/issues) - 问题反馈
 

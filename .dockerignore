@@ -65,7 +65,7 @@ data/redis/*
 .gitattributes
 
 # Docker
-Dockerfile*
+deploy/Dockerfile
 docker-compose*.yml
 .dockerignore
 
