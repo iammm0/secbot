@@ -1,0 +1,55 @@
+# 本地开发环境 Docker Compose 配置
+# 用于快速启动 ChromaDB 和 Redis 服务
+
+services:
+  # ChromaDB - 向量数据库
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: m-bot-chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      # 使用本地目录存储数据，便于开发和备份
+      - ./data/chromadb:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+      - ALLOW_RESET=TRUE
+    restart: unless-stopped
+    healthcheck:
+      # ChromaDB v1 API已弃用，使用v2 API检查服务状态
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8000/api/v2 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - m-bot-network
+
+  # Redis - 内存数据库和缓存
+  redis:
+    image: redis:7-alpine
+    container_name: m-bot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      # 使用本地目录存储数据，便于开发和备份
+      - ./data/redis:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-m-bot-redis-password}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-m-bot-redis-password}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - m-bot-network
+
+networks:
+  m-bot-network:
+    driver: bridge
