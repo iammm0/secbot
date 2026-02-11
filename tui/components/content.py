@@ -130,12 +130,9 @@ class ContentComponent:
         if not self._visible:
             return
 
-        title_parts = ["Observation"]
-        if iteration:
-            title_parts.append(f"#{iteration}")
+        title_parts = ["观察"]
         if tool:
             title_parts.append(f"({tool})")
-
         title = " ".join(title_parts)
         collapsible = CollapsiblePanel(
             content=content or "",
