@@ -2,6 +2,7 @@
 全部工具导入 & 基础执行测试
 运行: python tests/test_all_tools.py
 """
+
 import asyncio
 import sys
 from pathlib import Path
@@ -36,7 +37,7 @@ def skip(name: str, reason: str = ""):
 # ===================================================================
 def test_import_and_schema():
     print("\n=== 1. 导入 & Schema ===")
-    from tools.security import ALL_SECURITY_TOOLS
+    from tools.pentest.security import ALL_SECURITY_TOOLS
     from tools.base import BaseTool
 
     for t in ALL_SECURITY_TOOLS:
@@ -46,7 +47,11 @@ def test_import_and_schema():
         has_name = schema.get("name") == name
         has_desc = bool(schema.get("description"))
         ok = is_tool and has_name and has_desc
-        mark(f"{name:22s} schema", ok, f"params={list(schema.get('parameters', {}).keys())}")
+        mark(
+            f"{name:22s} schema",
+            ok,
+            f"params={list(schema.get('parameters', {}).keys())}",
+        )
 
 
 # ===================================================================
@@ -54,11 +59,15 @@ def test_import_and_schema():
 # ===================================================================
 def test_unique_names():
     print("\n=== 2. 名称唯一性 ===")
-    from tools.security import ALL_SECURITY_TOOLS
+    from tools.pentest.security import ALL_SECURITY_TOOLS
 
     names = [t.name for t in ALL_SECURITY_TOOLS]
     duplicates = [n for n in names if names.count(n) > 1]
-    mark("所有工具名称唯一", len(set(duplicates)) == 0, f"重复: {set(duplicates)}" if duplicates else f"{len(names)} 个名称均唯一")
+    mark(
+        "所有工具名称唯一",
+        len(set(duplicates)) == 0,
+        f"重复: {set(duplicates)}" if duplicates else f"{len(names)} 个名称均唯一",
+    )
 
 
 # ===================================================================
@@ -66,35 +75,57 @@ def test_unique_names():
 # ===================================================================
 async def test_hash_tool():
     from tools.utility.hash_tool import HashTool
+
     t = HashTool()
     # 计算哈希
     r = await t.execute(action="hash", text="hello")
     mark("hash_tool hash", r.success and "MD5" in r.result["hashes"])
     # 识别
-    r2 = await t.execute(action="identify", hash_value="5d41402abc4b2a76b9719d911017c592")
+    r2 = await t.execute(
+        action="identify", hash_value="5d41402abc4b2a76b9719d911017c592"
+    )
     mark("hash_tool identify", r2.success and "MD5" in r2.result["possible_types"])
     # 验证
-    r3 = await t.execute(action="verify", text="hello", hash_value="5d41402abc4b2a76b9719d911017c592", algorithm="md5")
+    r3 = await t.execute(
+        action="verify",
+        text="hello",
+        hash_value="5d41402abc4b2a76b9719d911017c592",
+        algorithm="md5",
+    )
     mark("hash_tool verify", r3.success and r3.result["match"])
 
 
 async def test_encode_decode_tool():
     from tools.utility.encode_decode_tool import EncodeDecodeTool
+
     t = EncodeDecodeTool()
     r = await t.execute(action="encode", format="base64", text="hello world")
-    mark("encode_decode base64 encode", r.success and r.result["output"] == "aGVsbG8gd29ybGQ=")
+    mark(
+        "encode_decode base64 encode",
+        r.success and r.result["output"] == "aGVsbG8gd29ybGQ=",
+    )
     r2 = await t.execute(action="decode", format="base64", text="aGVsbG8gd29ybGQ=")
-    mark("encode_decode base64 decode", r2.success and r2.result["output"] == "hello world")
+    mark(
+        "encode_decode base64 decode",
+        r2.success and r2.result["output"] == "hello world",
+    )
     r3 = await t.execute(action="encode", format="hex", text="AB")
     mark("encode_decode hex encode", r3.success and r3.result["output"] == "4142")
     r4 = await t.execute(action="encode", format="url", text="hello world&foo=bar")
-    mark("encode_decode url encode", r4.success and "hello%20world" in r4.result["output"])
+    mark(
+        "encode_decode url encode",
+        r4.success and "hello%20world" in r4.result["output"],
+    )
     r5 = await t.execute(action="auto_detect", text="aGVsbG8gd29ybGQ=")
-    mark("encode_decode auto_detect", r5.success and "base64" in r5.result.get("detected_decodings", {}))
+    mark(
+        "encode_decode auto_detect",
+        r5.success and "base64" in r5.result.get("detected_decodings", {}),
+    )
 
 
 async def test_file_analyze_tool():
     from tools.utility.file_analyze_tool import FileAnalyzeTool
+
     t = FileAnalyzeTool()
     # 分析自己
     r = await t.execute(path=str(Path(__file__)))
@@ -106,6 +137,7 @@ async def test_file_analyze_tool():
 
 async def test_log_analyze_tool():
     from tools.utility.log_analyze_tool import LogAnalyzeTool
+
     t = LogAnalyzeTool()
     sample = """
 2024-01-15 10:00:01 ERROR Failed password for admin from 192.168.1.100
@@ -118,13 +150,16 @@ async def test_log_analyze_tool():
     r = await t.execute(log_text=sample)
     mark("log_analyze", r.success)
     events = r.result["summary"]["security_events"]
-    mark("log_analyze found_login", events.get("failed_login", 0) > 0, f"events={events}")
+    mark(
+        "log_analyze found_login", events.get("failed_login", 0) > 0, f"events={events}"
+    )
     mark("log_analyze found_sqli", events.get("sql_injection", 0) > 0)
     mark("log_analyze found_xss", events.get("xss_attempt", 0) > 0)
 
 
 async def test_jwt_analyze_tool():
     from tools.web.jwt_analyze_tool import JwtAnalyzeTool
+
     t = JwtAnalyzeTool()
     # 标准 JWT (header.payload.signature)
     # header: {"alg":"HS256","typ":"JWT"}, payload: {"sub":"1234567890","name":"Test","iat":1516239022}
@@ -136,25 +171,38 @@ async def test_jwt_analyze_tool():
     # none 算法
     none_token = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIn0."
     r2 = await t.execute(token=none_token)
-    mark("jwt_analyze none_alg", r2.success and any(v["severity"] == "CRITICAL" for v in r2.result.get("vulnerabilities", [])))
+    mark(
+        "jwt_analyze none_alg",
+        r2.success
+        and any(
+            v["severity"] == "CRITICAL" for v in r2.result.get("vulnerabilities", [])
+        ),
+    )
 
 
 async def test_dns_tool():
-    from tools.network.dns_lookup_tool import DnsLookupTool
+    from tools.pentest.network.dns_lookup_tool import DnsLookupTool
+
     t = DnsLookupTool()
     r = await t.execute(domain="localhost")
-    mark("dns_lookup localhost", r.success, f"resolved={r.result.get('resolved_ip') if r.result else None}")
+    mark(
+        "dns_lookup localhost",
+        r.success,
+        f"resolved={r.result.get('resolved_ip') if r.result else None}",
+    )
 
 
 async def test_ping_sweep():
-    from tools.network.ping_sweep_tool import PingSweepTool
+    from tools.pentest.network.ping_sweep_tool import PingSweepTool
+
     t = PingSweepTool()
     r = await t.execute(target="127.0.0.1", timeout=2)
     mark("ping_sweep localhost", r.success and r.result["alive_count"] >= 1)
 
 
 async def test_banner_grab():
-    from tools.network.banner_grab_tool import BannerGrabTool
+    from tools.pentest.network.banner_grab_tool import BannerGrabTool
+
     t = BannerGrabTool()
     # 只扫一个不太可能开的端口（快速返回）
     r = await t.execute(host="127.0.0.1", ports=[65432])
@@ -163,6 +211,7 @@ async def test_banner_grab():
 
 async def test_system_info():
     from tools.defense.system_info_tool import SystemInfoTool
+
     t = SystemInfoTool()
     r = await t.execute(category="system")
     mark("system_info", r.success and "system" in r.result)
@@ -172,6 +221,7 @@ async def test_system_info():
 
 async def test_network_analyze():
     from tools.defense.network_analyze_tool import NetworkAnalyzeTool
+
     t = NetworkAnalyzeTool()
     r = await t.execute(include_traffic=False)
     mark("network_analyze", r.success and "total_connections" in r.result)
@@ -179,6 +229,7 @@ async def test_network_analyze():
 
 async def test_self_vuln_scan():
     from tools.defense.self_vuln_scan_tool import SelfVulnScanTool
+
     t = SelfVulnScanTool()
     r = await t.execute(scan_type="system")
     mark("self_vuln_scan", r.success)
@@ -186,6 +237,7 @@ async def test_self_vuln_scan():
 
 async def test_intrusion_detect():
     from tools.defense.intrusion_detect_tool import IntrusionDetectTool
+
     t = IntrusionDetectTool()
     r = await t.execute(hours=1)
     mark("intrusion_detect", r.success)
@@ -193,8 +245,8 @@ async def test_intrusion_detect():
 
 def test_agents_have_tools():
     print("\n=== 4. Agent 工具数量 ===")
-    from agents.hackbot_agent import HackbotAgent
-    from agents.superhackbot_agent import SuperHackbotAgent
+    from core.agents.hackbot_agent import HackbotAgent
+    from core.agents.superhackbot_agent import SuperHackbotAgent
     from database.manager import DatabaseManager
     from utils.audit import AuditTrail
 
@@ -204,8 +256,16 @@ def test_agents_have_tools():
     h = HackbotAgent(audit_trail=audit)
     s = SuperHackbotAgent(audit_trail=audit)
 
-    mark(f"Hackbot tools count", len(h.security_tools) >= 25, f"count={len(h.security_tools)}")
-    mark(f"SuperHackbot tools count", len(s.security_tools) >= 25, f"count={len(s.security_tools)}")
+    mark(
+        f"Hackbot tools count",
+        len(h.security_tools) >= 25,
+        f"count={len(h.security_tools)}",
+    )
+    mark(
+        f"SuperHackbot tools count",
+        len(s.security_tools) >= 25,
+        f"count={len(s.security_tools)}",
+    )
     mark("SuperHackbot > Hackbot", len(s.security_tools) > len(h.security_tools))
 
     # 验证工具名称唯一
@@ -214,7 +274,11 @@ def test_agents_have_tools():
     h_dups = [n for n in h_names if h_names.count(n) > 1]
     s_dups = [n for n in s_names if s_names.count(n) > 1]
     mark("Hackbot names unique", not h_dups, f"重复: {set(h_dups)}" if h_dups else "")
-    mark("SuperHackbot names unique", not s_dups, f"重复: {set(s_dups)}" if s_dups else "")
+    mark(
+        "SuperHackbot names unique",
+        not s_dups,
+        f"重复: {set(s_dups)}" if s_dups else "",
+    )
 
 
 # ===================================================================
@@ -240,9 +304,9 @@ if __name__ == "__main__":
 
     test_agents_have_tools()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  PASS: {PASS}  FAIL: {FAIL}  SKIP: {SKIP}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if FAIL > 0:
         sys.exit(1)

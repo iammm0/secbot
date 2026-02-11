@@ -11,7 +11,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich import box
 
-from tui.models import TodoItem, TodoStatus, PlanResult
+from core.models import TodoItem, TodoStatus, PlanResult
 from tui.widgets.todo_list import render_todo_list
 from tui.widgets.collapsible import CollapsiblePanel
 from tui.utils import adaptive_padding, smart_render_text
@@ -55,13 +55,15 @@ class PlanningComponent:
             if isinstance(td, TodoItem):
                 self.todos.append(td)
             elif isinstance(td, dict):
-                self.todos.append(TodoItem(
-                    id=td.get("id", ""),
-                    content=td.get("content", ""),
-                    status=TodoStatus(td.get("status", "pending")),
-                    depends_on=td.get("depends_on", []),
-                    tool_hint=td.get("tool_hint"),
-                ))
+                self.todos.append(
+                    TodoItem(
+                        id=td.get("id", ""),
+                        content=td.get("content", ""),
+                        status=TodoStatus(td.get("status", "pending")),
+                        depends_on=td.get("depends_on", []),
+                        tool_hint=td.get("tool_hint"),
+                    )
+                )
         self.display()
 
     def _on_plan_todo(self, event: Event):
@@ -134,8 +136,8 @@ class PlanningComponent:
             # 进度条文本
             progress_text = Text()
             progress_text.append(f"\n  进度: ", style="dim")
-            done = stats['completed']
-            total = stats['total']
+            done = stats["completed"]
+            total = stats["total"]
             if total > 0:
                 filled = int((done / total) * 10)
                 bar = "█" * filled + "░" * (10 - filled)
@@ -171,7 +173,9 @@ class PlanningComponent:
         # 简单目标不要过度规划：仅 1 步时单行展示
         if len(self.todos) == 1:
             first = self.todos[0]
-            content = first.content[:60] + "..." if len(first.content) > 60 else first.content
+            content = (
+                first.content[:60] + "..." if len(first.content) > 60 else first.content
+            )
             line = Text.assemble(
                 ("📋 计划: ", "bold magenta"),
                 (content, "magenta"),
@@ -181,7 +185,10 @@ class PlanningComponent:
                 line.append("(执行中...)", "dim yellow")
             elif first.status == TodoStatus.COMPLETED:
                 line.append("  ", "")
-                line.append("✓" if not first.result_summary else f"✓ {first.result_summary}", "dim green")
+                line.append(
+                    "✓" if not first.result_summary else f"✓ {first.result_summary}",
+                    "dim green",
+                )
             self.console.print(line)
             return
         if self.todos:

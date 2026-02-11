@@ -2,6 +2,7 @@
 WebResearchTool：桥接工具，让主 Agent 可以委托 Web 研究任务给 WebResearchAgent 子 Agent。
 也支持直接指定模式（search / extract / crawl / api）跳过子 Agent 的 ReAct 循环。
 """
+
 from typing import Any, Dict
 from tools.base import BaseTool, ToolResult
 from utils.logger import logger
@@ -36,7 +37,9 @@ class WebResearchTool(BaseTool):
         preset = kwargs.get("preset", "").strip()
 
         if not query and mode == "auto":
-            return ToolResult(success=False, result=None, error="缺少参数: query（研究主题）")
+            return ToolResult(
+                success=False, result=None, error="缺少参数: query（研究主题）"
+            )
 
         try:
             if mode == "auto":
@@ -51,7 +54,8 @@ class WebResearchTool(BaseTool):
                 return await self._direct_api(url, preset, query, kwargs)
             else:
                 return ToolResult(
-                    success=False, result=None,
+                    success=False,
+                    result=None,
                     error=f"不支持的模式: {mode}，请使用 auto/search/extract/crawl/api",
                 )
         except Exception as e:
@@ -64,7 +68,7 @@ class WebResearchTool(BaseTool):
 
     async def _auto_research(self, query: str) -> ToolResult:
         """创建 WebResearchAgent 子 Agent 执行自主研究"""
-        from agents.web_research_agent import WebResearchAgent
+        from core.agents.web_research_agent import WebResearchAgent
 
         agent = WebResearchAgent(max_iterations=8)
         logger.info(f"[WebResearch] 创建子 Agent，研究主题: {query}")
@@ -87,7 +91,9 @@ class WebResearchTool(BaseTool):
     async def _direct_search(self, query: str, kwargs: dict) -> ToolResult:
         """直接调用 SmartSearchTool"""
         if not query:
-            return ToolResult(success=False, result=None, error="search 模式缺少 query 参数")
+            return ToolResult(
+                success=False, result=None, error="search 模式缺少 query 参数"
+            )
 
         from tools.web_research.smart_search_tool import SmartSearchTool
 
@@ -101,7 +107,9 @@ class WebResearchTool(BaseTool):
     async def _direct_extract(self, url: str, kwargs: dict) -> ToolResult:
         """直接调用 PageExtractTool"""
         if not url:
-            return ToolResult(success=False, result=None, error="extract 模式缺少 url 参数")
+            return ToolResult(
+                success=False, result=None, error="extract 模式缺少 url 参数"
+            )
 
         from tools.web_research.page_extract_tool import PageExtractTool
 
@@ -116,7 +124,9 @@ class WebResearchTool(BaseTool):
     async def _direct_crawl(self, url: str, kwargs: dict) -> ToolResult:
         """直接调用 DeepCrawlTool"""
         if not url:
-            return ToolResult(success=False, result=None, error="crawl 模式缺少 url 参数")
+            return ToolResult(
+                success=False, result=None, error="crawl 模式缺少 url 参数"
+            )
 
         from tools.web_research.deep_crawl_tool import DeepCrawlTool
 
@@ -130,11 +140,14 @@ class WebResearchTool(BaseTool):
             same_domain=kwargs.get("same_domain", True),
         )
 
-    async def _direct_api(self, url: str, preset: str, query: str, kwargs: dict) -> ToolResult:
+    async def _direct_api(
+        self, url: str, preset: str, query: str, kwargs: dict
+    ) -> ToolResult:
         """直接调用 ApiClientTool"""
         if not url and not preset:
             return ToolResult(
-                success=False, result=None,
+                success=False,
+                result=None,
                 error="api 模式需要提供 url 或 preset 参数",
             )
 
@@ -159,16 +172,40 @@ class WebResearchTool(BaseTool):
             "description": self.description,
             "sensitivity": self.sensitivity,
             "parameters": {
-                "query": {"type": "string", "description": "研究主题/搜索关键词", "required": True},
+                "query": {
+                    "type": "string",
+                    "description": "研究主题/搜索关键词",
+                    "required": True,
+                },
                 "mode": {
                     "type": "string",
                     "description": "模式: auto(子Agent自主研究) / search(智能搜索) / extract(网页提取) / crawl(深度爬取) / api(API调用)",
                     "default": "auto",
                 },
-                "url": {"type": "string", "description": "extract/crawl 模式的目标 URL", "required": False},
-                "preset": {"type": "string", "description": "api 模式的内置模板名", "required": False},
-                "max_results": {"type": "integer", "description": "search 模式的结果数量", "default": 3},
-                "max_depth": {"type": "integer", "description": "crawl 模式的最大深度", "default": 2},
-                "max_pages": {"type": "integer", "description": "crawl 模式的最大页面数", "default": 10},
+                "url": {
+                    "type": "string",
+                    "description": "extract/crawl 模式的目标 URL",
+                    "required": False,
+                },
+                "preset": {
+                    "type": "string",
+                    "description": "api 模式的内置模板名",
+                    "required": False,
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "search 模式的结果数量",
+                    "default": 3,
+                },
+                "max_depth": {
+                    "type": "integer",
+                    "description": "crawl 模式的最大深度",
+                    "default": 2,
+                },
+                "max_pages": {
+                    "type": "integer",
+                    "description": "crawl 模式的最大页面数",
+                    "default": 10,
+                },
             },
         }

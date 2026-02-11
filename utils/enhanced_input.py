@@ -13,6 +13,7 @@ OpenCode 风格输入框
   - placeholder 占位提示
   - 自适应终端宽度，窄窗口不溢出
 """
+
 from typing import Optional
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ try:
     from prompt_toolkit.styles import Style as PTStyle
     from prompt_toolkit.completion import Completion
     from prompt_toolkit.patch_stdout import patch_stdout
+
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
@@ -43,6 +45,7 @@ class _SlashCompleter:
     def __init__(self):
         try:
             from utils.slash_commands import get_slash_completions_with_descriptions
+
             self._fn = get_slash_completions_with_descriptions
         except Exception:
             self._fn = lambda _: []
@@ -70,16 +73,19 @@ class EnhancedInput:
         self,
         history_file: Optional[Path] = None,
         prompt: str = "",
-        placeholder: str = '输入 / 快捷操作，或直接给我下达任务…',
+        placeholder: str = "输入 / 快捷操作，或直接给我下达任务…",
         console: Optional[Console] = None,
         current_agent: str = "hackbot",
         current_mode: str = "默认",
+        force_prompt_toolkit: bool = False,
     ):
         self.placeholder = placeholder
         self.console = console or Console()
         self.current_agent = current_agent
         self.current_mode = current_mode  # 默认 | Ask | Plan | 模拟攻击
-        self.use_prompt_toolkit = PROMPT_TOOLKIT_AVAILABLE and sys.stdin.isatty()
+        self.use_prompt_toolkit = PROMPT_TOOLKIT_AVAILABLE and (
+            sys.stdin.isatty() or force_prompt_toolkit
+        )
 
         if not self.use_prompt_toolkit:
             return
@@ -92,11 +98,13 @@ class EnhancedInput:
             else:
                 history = InMemoryHistory()
 
-            style = PTStyle.from_dict({
-                "": "fg:#d4d4d4",
-                "prompt": "fg:#61afef bold",
-                "placeholder": "fg:#5c6370 italic",
-            })
+            style = PTStyle.from_dict(
+                {
+                    "": "fg:#d4d4d4",
+                    "prompt": "fg:#61afef bold",
+                    "placeholder": "fg:#5c6370 italic",
+                }
+            )
 
             # 不自定义 key_bindings，使用 prompt_toolkit 默认行为
             # 默认 multiline=False：Enter 提交，↑↓ 切换历史
@@ -196,9 +204,7 @@ class EnhancedInput:
             hint = ""
 
         right_b = max(0, inner - len(hint))
-        self.console.print(
-            f"[bright_blue]╰{'─' * right_b}{hint}╯[/bright_blue]"
-        )
+        self.console.print(f"[bright_blue]╰{'─' * right_b}{hint}╯[/bright_blue]")
 
     # ------------------------------------------------------------------
     # 内部实现
