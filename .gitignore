@@ -64,6 +64,10 @@ data/
 .pytest_cache/
 .mypy_cache/
 
+# Node.js (React Native app)
+node_modules/
+app/.expo/
+
 # 其他
 .DS_Store
 *.bak
