@@ -140,7 +140,7 @@ class OutputComponentManager:
         self.console.print(
             Panel(
                 smart_render_text(content or "", prefer_markdown=True),
-                title=f"[bold cyan]Reasoning - Iteration {iteration}[/bold cyan]",
+                title="[bold cyan]推理[/bold cyan]",
                 border_style="cyan",
                 padding=(1, 2),
             )
@@ -153,13 +153,11 @@ class OutputComponentManager:
         params = execution_data["params"]
         script = execution_data.get("script")
         result = execution_data.get("result")
-        iteration = execution_data.get("iteration", 1)
 
         tool_table = Table(show_header=False, box=None, padding=(0, 1))
         tool_table.add_column(style="bold cyan", width=12)
         tool_table.add_column(style="white")
         tool_table.add_row("工具名称", f"[bold yellow]{tool}[/bold yellow]")
-        tool_table.add_row("迭代次数", f"[dim]{iteration}[/dim]")
 
         params_table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
         params_table.add_column("参数名", style="cyan", width=20)
@@ -180,7 +178,7 @@ class OutputComponentManager:
         self.console.print(
             Panel(
                 "\n".join(parts),
-                title=f"[bold yellow]Execution - {tool}[/bold yellow]",
+                title=f"[bold yellow]执行 - {tool}[/bold yellow]",
                 border_style="yellow",
                 padding=(1, 2),
             )

@@ -3,12 +3,29 @@
 输入 "/" 时可对将要执行的命令进行补全。
 
 v2：新增 /thinking, /details, /compact, /sessions, /new, /export 命令
+v3：大量集成 main.py CLI 命令（list-agents, list-tools, system-info, db-stats 等）
 """
 from typing import Tuple, Optional, List
 
-# 按长度降序，以便优先匹配如 /audit export
+# 按长度降序，以便优先匹配如 /audit export、/list-tools 等
 SLASH_COMMANDS = (
     "/audit export",
+    "/defense-blocked",
+    "/defense-report",
+    "/defense-status",
+    "/defense-scan",
+    "/list-authorizations",
+    "/list-processes",
+    "/list-targets",
+    "/system-status",
+    "/system-info",
+    "/prompt-list",
+    "/db-history",
+    "/list-tools",
+    "/list-agents",
+    "/file-list",
+    "/db-stats",
+    "/clear",
     "/audit",
     "/model",
     "/accept",
@@ -17,13 +34,13 @@ SLASH_COMMANDS = (
     "/plan",
     "/agent",
     "/ask",
-    # v2 新增命令
     "/thinking",
     "/details",
     "/compact",
     "/sessions",
     "/new",
     "/export",
+    "/root-config",
 )
 
 def _build_slash_help() -> str:
@@ -137,6 +154,24 @@ COMMAND_DESCRIPTIONS = {
     "/sessions": "列出/切换会话",
     "/new": "新建会话",
     "/export": "导出当前对话为 Markdown",
+    # CLI 集成命令（与 main.py --help 对应）
+    "/list-agents": "列出可用智能体（hackbot / superhackbot）",
+    "/list-tools": "列出已集成工具（可接 agent/category 参数）",
+    "/clear": "清空当前对话历史与记忆",
+    "/system-info": "显示系统信息（OS、架构、Python 等）",
+    "/system-status": "显示系统状态（CPU、内存、磁盘）",
+    "/list-processes": "列出运行中的进程（可接 --filter 名）",
+    "/file-list": "列出目录文件（可接路径，默认当前目录）",
+    "/prompt-list": "列出提示词模板与链",
+    "/db-stats": "显示数据库统计",
+    "/db-history": "查看对话历史（可接 --limit）",
+    "/defense-scan": "执行完整安全扫描",
+    "/defense-status": "查看防御系统状态",
+    "/defense-blocked": "列出/管理封禁 IP",
+    "/defense-report": "生成防御报告",
+    "/list-targets": "列出发现的目标主机",
+    "/list-authorizations": "列出所有授权",
+    "/root-config": "配置 root 权限策略：ask（每次询问密码）/ always（不询问）",
 }
 
 # 用 COMMAND_DESCRIPTIONS 生成帮助文案，保证与补全说明一致

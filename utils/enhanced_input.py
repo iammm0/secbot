@@ -70,13 +70,15 @@ class EnhancedInput:
         self,
         history_file: Optional[Path] = None,
         prompt: str = "",
-        placeholder: str = 'Ask anything... "Scan localhost for open ports"',
+        placeholder: str = '输入 / 快捷操作，或直接给我下达任务…',
         console: Optional[Console] = None,
         current_agent: str = "hackbot",
+        current_mode: str = "默认",
     ):
         self.placeholder = placeholder
         self.console = console or Console()
         self.current_agent = current_agent
+        self.current_mode = current_mode  # 默认 | Ask | Plan | 模拟攻击
         self.use_prompt_toolkit = PROMPT_TOOLKIT_AVAILABLE and sys.stdin.isatty()
 
         if not self.use_prompt_toolkit:
@@ -158,17 +160,17 @@ class EnhancedInput:
             return 80
 
     def _print_top_border(self):
-        """打印上边框（自适应宽度）"""
+        """打印上边框（自适应宽度），清晰标记当前模式"""
         w = self._get_width()
-        agent = self.current_agent
+        mode = getattr(self, "current_mode", "默认")
 
         if w < MIN_FANCY_WIDTH:
-            # 极窄窗口：简化边框
-            self.console.print(f"[bright_blue]── > {agent} ──[/bright_blue]")
+            self.console.print(f"[bright_blue]── 模式: {mode} ──[/bright_blue]")
             return
 
-        title = f" > {agent} "
-        inner = w - 2  # 减去 ╭ 和 ╮
+        # 模式：默认 | Ask | Plan | 模拟攻击
+        title = f" 模式: {mode} "
+        inner = w - 2
         left = 2
         right = max(0, inner - left - len(title))
         self.console.print(
