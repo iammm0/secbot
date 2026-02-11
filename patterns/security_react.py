@@ -12,6 +12,7 @@ from agents.summary_agent import SummaryAgent
 from tools.base import BaseTool, ToolResult
 from utils.audit import AuditTrail
 from utils.confirmation import UserConfirmation, ActionOption
+from utils.context_info import get_agent_context_block
 from utils.logger import logger
 
 try:
@@ -786,9 +787,11 @@ class SecurityReActAgent(BaseAgent):
     async def _plan(self, user_input: str, on_event=None) -> str:
         """规划阶段：分析任务，制定执行计划"""
         tools_desc = self._get_tools_description()
+        context_block = get_agent_context_block()
 
         planning_prompt = f"""你是一个安全测试专家。请分析用户请求，制定详细的执行计划。
 
+{context_block}
 ## 用户请求
 {user_input}
 
@@ -847,6 +850,8 @@ class SecurityReActAgent(BaseAgent):
 """
             )
 
+        context_block = get_agent_context_block()
+
         prompt = f"""你是一个安全测试专家，使用 ReAct 模式工作。
 
 {tools_desc}
@@ -881,6 +886,7 @@ Final Answer: <最终结论和报告>
 
 4. **不要过早结束**：如果你只进行了一两次工具调用，很可能还没有收集到足够信息。继续思考下一步需要做什么。
 {todos_section}
+{context_block}
 ## 当前任务
 
 用户请求: {user_input}
