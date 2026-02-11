@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  m-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: m-bot
+    restart: unless-stopped
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./agents.db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CHROMA_HOST=${CHROMA_HOST:-chromadb}
+      - CHROMA_PORT=${CHROMA_PORT:-8000}
+      - STT_MODEL=${STT_MODEL:-base}
+      - TTS_ENGINE=${TTS_ENGINE:-gtts}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    networks:
+      - m-bot-network
+    depends_on:
+      - chromadb
+      - redis
+    command: python main.py chat "你好"
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: m-bot-chromadb
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/chromadb:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - m-bot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: m-bot-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    command: redis-server --appendonly yes
+    networks:
+      - m-bot-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  m-bot-network:
+    driver: bridge
+
