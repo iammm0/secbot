@@ -65,6 +65,11 @@ dependencies = [
     "pydub>=0.25.1",
     "paramiko>=3.4.0",
     "pywinrm>=0.4.3",
+
+    # FastAPI 路由层
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "sse-starlette>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -78,6 +83,7 @@ dev = [
 
 [project.scripts]
 hackbot = "hackbot.cli:app"
+hackbot-server = "router.main:run_server"
 
 [project.urls]
 Homepage = "https://github.com/iammm0/hackbot"
@@ -116,6 +122,8 @@ packages = [
     "tui.components",
     "tui.widgets",
     "utils",
+    "router",
+    "router.routers",
 ]
 
 [tool.setuptools.package-data]
