@@ -5,7 +5,7 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -25,8 +25,9 @@ def run_interactive_ui(
     planner_agent: Any,
     qa_agent: Any,
     audit_trail: Any,
+    cli_handlers: Optional[Dict[str, Callable[[str], None]]] = None,
 ) -> None:
-    """运行完整的 OpenCode 风格交互界面（banner、状态栏、Quick Start、EventBus、SessionManager、全部斜杠命令）。"""
+    """运行完整的 OpenCode 风格交互界面（banner、状态栏、Quick Start、EventBus、SessionManager、全部斜杠命令）。cli_handlers 为斜杠命令到 CLI 处理器的映射（如 /list-tools -> list_tools）。"""
     from utils.logger import restore_console_log_level
     from utils.loading import LoadingComponent
     from utils.event_bus import EventBus, EventType, Event
@@ -53,8 +54,10 @@ def run_interactive_ui(
         nonlocal agent
         loading = LoadingComponent(console)
         with loading.show_loading("正在初始化智能体..."):
+            restore_console_log_level("WARNING")  # 初始化期间不展示 INFO 日志
             agent_instance = get_agent(agent)
             await asyncio.sleep(0.3)
+        restore_console_log_level("DEBUG" if verbose else None)  # 恢复交互阶段日志级别
 
         event_bus = EventBus()
         task_status_comp = TaskStatusComponent(console, event_bus)
@@ -70,12 +73,30 @@ def run_interactive_ui(
 
         event_bus.subscribe(EventType.ERROR, _on_error)
 
+        async def _get_root_password(command: str):
+            """需要 root 权限时由执行层调用，提示用户输入密码（不写入命令行）。"""
+            console.print(
+                Panel(
+                    f"[yellow]以下命令需要 root 权限：[/yellow]\n[dim]{command}[/dim]\n\n"
+                    "请输入 root 密码（直接回车取消）：",
+                    title="[bold]Root 权限确认[/bold]",
+                    border_style="yellow",
+                )
+            )
+            loop = asyncio.get_event_loop()
+            try:
+                pwd = await loop.run_in_executor(None, lambda: input())
+                return (pwd or "").strip() or None
+            except (EOFError, KeyboardInterrupt):
+                return None
+
         session_mgr = SessionManager(
             event_bus=event_bus,
             console=console,
             agents=agents,
             planner=planner_agent,
             qa_agent=qa_agent,
+            get_root_password=_get_root_password,
         )
 
         plan_mode = False
@@ -109,11 +130,10 @@ def run_interactive_ui(
         if w >= 70:
             qs_content = (
                 "[bold cyan]不知道做什么？试试这些：[/bold cyan]\n\n"
+                "  [yellow]•[/yellow] [cyan]扫描当前主机所在内网环境[/cyan]    推荐首条，发现内网主机与端口\n"
                 "  [yellow]•[/yellow] [cyan]你好[/cyan] / [cyan]你能做什么[/cyan]        问候或了解能力（走问答）\n"
-                "  [yellow]•[/yellow] [cyan]Scan localhost for open ports[/cyan]    扫描本地开放端口\n"
-                "  [yellow]•[/yellow] [cyan]Check system status[/cyan]              查看系统状态\n"
-                "  [yellow]•[/yellow] [cyan]/plan[/cyan] 编写测试计划，[cyan]/start[/cyan] 执行计划\n"
-                "  [yellow]•[/yellow] [cyan]/ask[/cyan] 对当前对话上下文提问（不执行动作）\n"
+                "  [yellow]•[/yellow] [cyan]Scan localhost for open ports[/cyan]    扫描本机开放端口\n"
+                "  [yellow]•[/yellow] [cyan]/plan[/cyan] 编写测试计划，[cyan]/start[/cyan] 执行计划 · [cyan]/ask[/cyan] 仅提问不执行\n"
                 "\n"
                 "  [bold]模式[/bold] default（自动）| super（专家）；当前: "
                 + ("[green]default[/green]" if agent == "hackbot" else "[magenta]super[/magenta]")
@@ -123,9 +143,8 @@ def run_interactive_ui(
         else:
             qs_content = (
                 "[bold cyan]试试这些：[/bold cyan]\n"
-                " [yellow]•[/yellow] [cyan]你能做什么[/cyan] / [cyan]Scan localhost[/cyan]\n"
-                " [yellow]•[/yellow] [cyan]/plan[/cyan] 编写计划 [cyan]/start[/cyan] 执行\n"
-                " [yellow]•[/yellow] [cyan]/ask[/cyan] 上下文提问 · [cyan]/agent[/cyan] 切换 default/super\n"
+                " [yellow]•[/yellow] [cyan]扫描当前主机所在内网环境[/cyan]\n"
+                " [yellow]•[/yellow] [cyan]/plan[/cyan] 编写计划 [cyan]/start[/cyan] 执行 · [cyan]/ask[/cyan] 提问\n"
                 "[dim] / 命令 · exit 退出[/dim]"
             )
 
@@ -164,15 +183,27 @@ def run_interactive_ui(
         history_file = Path.home() / ".hackbot" / "input_history.txt"
         enhanced_input = EnhancedInput(
             history_file=history_file,
-            placeholder='Ask anything... "Scan localhost for open ports"',
+            placeholder='输入 / 快捷操作，或直接给我下达任务…',
             console=console,
             current_agent=agent,
+            current_mode="默认",
         )
 
         from utils.logger import logger
 
         while True:
             try:
+                # 在输入框边框中清晰标记当前模式：默认 | Ask | Plan | 模拟攻击
+                if ask_mode:
+                    enhanced_input.current_mode = "Ask"
+                elif plan_mode:
+                    enhanced_input.current_mode = "Plan"
+                elif agent == "superhackbot":
+                    enhanced_input.current_mode = "模拟攻击"
+                else:
+                    enhanced_input.current_mode = "默认"
+                enhanced_input.current_agent = agent
+
                 console.print()
                 if voice:
                     console.print("[yellow]请说话（按Enter结束录音）...[/yellow]")
@@ -385,20 +416,25 @@ def run_interactive_ui(
                         console.print(
                             "[bold cyan]已进入 Ask 模式。[/bold cyan]\n"
                             "在此模式下，你的输入会基于当前对话上下文进行回答，[bold]不会执行任何推理或工具动作[/bold]。\n"
-                            "再次输入 [cyan]/ask[/cyan] 可退出 Ask 模式。"
+                            "想退出时再次输入 [cyan]/ask[/cyan] 即可。"
                         )
                     else:
                         console.print("[cyan]已退出 Ask 模式，恢复正常交互。[/cyan]")
                     continue
 
                 if lower_input == "/plan":
-                    ask_mode = False
-                    plan_mode = True
-                    pending_plan_result = None
-                    console.print(
-                        "[cyan]已进入计划模式。[/cyan] 请用自然语言描述你的安全测试计划（例如：对 127.0.0.1 做端口扫描再漏洞扫描）。\n"
-                        "确认计划后输入 [bold]/start[/bold] 开始执行。"
-                    )
+                    if plan_mode:
+                        plan_mode = False
+                        pending_plan_result = None
+                        console.print("[cyan]已退出计划模式，恢复正常交互。[/cyan]")
+                    else:
+                        ask_mode = False
+                        plan_mode = True
+                        pending_plan_result = None
+                        console.print(
+                            "[cyan]已进入计划模式。[/cyan] 请用自然语言描述你的安全测试计划（例如：对 127.0.0.1 做端口扫描再漏洞扫描）。\n"
+                            "确认计划后输入 [bold]/start[/bold] 开始执行。想退出时再次输入 [cyan]/plan[/cyan] 即可。"
+                        )
                     continue
 
                 if lower_input == "/start":
@@ -425,6 +461,52 @@ def run_interactive_ui(
                     if response and not planning_comp.todos:
                         content_comp.display_assistant_message(response, agent)
                     continue
+
+                # Root 权限策略配置：/root-config [ask|always]
+                if lower_input.startswith("/root-config"):
+                    from utils.root_policy import load_root_policy, save_root_policy
+                    rest = lower_input[len("/root-config") :].strip().lower()
+                    if rest in ("ask", "每次询问", "询问"):
+                        save_root_policy(root_policy="ask")
+                        console.print("[green]✓ 已设置为「每次询问」：执行需 root 的命令时会提示输入密码[/green]")
+                    elif rest in ("always", "always_allow", "总是允许", "不询问"):
+                        save_root_policy(root_policy="always_allow")
+                        console.print(
+                            "[green]✓ 已设置为「总是允许」：不询问密码直接执行（需系统已配置 sudo NOPASSWD 或手动处理）[/green]"
+                        )
+                    else:
+                        cur = load_root_policy()
+                        console.print(
+                            Panel(
+                                f"提权命令: [cyan]{cur['root_command']}[/cyan]\n"
+                                f"策略: [yellow]{cur['root_policy']}[/yellow]\n\n"
+                                "  [dim]ask[/dim] = 每次执行需 root 的命令时询问密码\n"
+                                "  [dim]always[/dim] = 不询问，直接执行（需系统已配置 NOPASSWD）\n\n"
+                                "用法: [cyan]/root-config ask[/cyan] 或 [cyan]/root-config always[/cyan]",
+                                title="[bold]Root 权限策略[/bold]",
+                                border_style="blue",
+                            )
+                        )
+                    continue
+
+                # 派发与 main.py CLI 集成的斜杠命令（/list-tools、/system-info 等）
+                if cli_handlers:
+                    matched_cmd = None
+                    rest = ""
+                    for cmd in sorted(cli_handlers.keys(), key=len, reverse=True):
+                        if lower_input == cmd or lower_input.startswith(cmd + " "):
+                            matched_cmd = cmd
+                            rest = lower_input[len(cmd) :].strip()
+                            break
+                    if matched_cmd is not None:
+                        handler = cli_handlers[matched_cmd]
+                        try:
+                            loop = asyncio.get_event_loop()
+                            await loop.run_in_executor(None, lambda: handler(rest))
+                        except Exception as e:
+                            logger.error(f"斜杠命令 {matched_cmd} 执行错误: {e}")
+                            console.print(f"[red]执行失败: {e}[/red]")
+                        continue
 
                 if plan_mode:
                     enhanced_input.add_to_history(user_input)
