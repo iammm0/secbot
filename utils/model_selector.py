@@ -1,6 +1,7 @@
 """
 OpenCode 风格的模型选择：/model 无参时展示可选后端（Ollama / DeepSeek），
 Ollama 会检查本机服务是否运行，DeepSeek 会检查并提示配置 API Key。
+选择 DeepSeek 时若未配置密钥，会弹出输入框并保存到 SQLite。
 """
 from typing import Optional, Tuple, List
 
@@ -46,8 +47,46 @@ def get_ollama_models(base_url: Optional[str] = None) -> List[str]:
 
 
 def has_deepseek_api_key() -> bool:
-    """是否已配置 DeepSeek API Key（环境变量或 .env）。"""
+    """是否已配置 DeepSeek API Key（从 SQLite 读取）。"""
     return bool(settings.deepseek_api_key and settings.deepseek_api_key.strip())
+
+
+def prompt_and_save_deepseek_api_key(console: Optional[Console] = None) -> bool:
+    """
+    若未配置 DeepSeek API Key，提示用户输入并保存到 SQLite。
+    返回 True 表示已配置（原本就有或本次输入并保存成功），False 表示未输入或保存失败。
+    """
+    if has_deepseek_api_key():
+        return True
+    try:
+        from database.manager import DatabaseManager
+        from database.models import UserConfig
+
+        if console:
+            console.print(
+                "[yellow]尚未配置 DeepSeek API Key，请输入（将保存到 SQLite）。[/yellow]"
+            )
+        key = input("DEEPSEEK_API_KEY: ").strip()
+        if not key:
+            if console:
+                console.print("[dim]未输入，已取消[/dim]")
+            return False
+        db = DatabaseManager()
+        db.save_config(
+            UserConfig(
+                key="deepseek_api_key",
+                value=key,
+                category="api_keys",
+                description="DeepSeek API Key",
+            )
+        )
+        if console:
+            console.print("[green]✓ 已保存到 SQLite[/green]")
+        return True
+    except Exception as e:
+        if console:
+            console.print(f"[red]保存失败: {e}[/red]")
+        return False
 
 
 def get_llm_connection_hint(exception: Exception, provider: Optional[str] = None) -> str:
@@ -139,12 +178,8 @@ def run_model_selector(
 
     if choice == "2":
         if not deepseek_ok:
-            console.print(
-                "[yellow]尚未配置 DeepSeek API Key。[/yellow]\n"
-                "请在项目根目录的 [cyan].env[/cyan] 中设置：[cyan]DEEPSEEK_API_KEY=sk-xxx[/cyan]\n"
-                "获取 Key: [link]https://platform.deepseek.com[/link]"
-            )
-            return (None, None)
+            if not prompt_and_save_deepseek_api_key(console):
+                return (None, None)
         provider = PROVIDER_DEEPSEEK
         console.print("[dim]常用模型: {}[/dim]".format(", ".join(DEEPSEEK_MODELS)))
         model_input = input(
