@@ -1,5 +1,5 @@
 """
-M-Bot CLI应用入口
+Hackbot CLI 应用入口
 """
 
 import asyncio
@@ -46,7 +46,9 @@ import uuid
 import json
 
 app = typer.Typer(
-    name="m-bot", help="M-Bot: 智能体设计模式实验平台 CLI", add_completion=False
+    name="hackbot",
+    add_completion=False,
+    no_args_is_help=False,  # 无参数时直接进入 interactive，不显示 help
 )
 console = Console()
 
@@ -503,6 +505,90 @@ def list_agents():
 
 
 @app.command()
+def list_tools(
+    agent: str = typer.Option(
+        "all",
+        "--agent",
+        "-a",
+        help="按智能体筛选: hackbot(仅基础工具) / superhackbot(含高级工具) / all",
+    ),
+    category: str = typer.Option(
+        "all",
+        "--category",
+        "-c",
+        help="按分类筛选: core / basic / advanced / all",
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="显示完整描述"
+    ),
+):
+    """列出已集成的工具（按智能体或分类展示）"""
+    from tools.security import (
+        CORE_SECURITY_TOOLS,
+        BASIC_SECURITY_TOOLS,
+        ADVANCED_SECURITY_TOOLS,
+        ALL_SECURITY_TOOLS,
+    )
+
+    # 按分类选择工具列表
+    if category == "core":
+        tools_by_cat = [("核心安全", CORE_SECURITY_TOOLS)]
+    elif category == "basic":
+        tools_by_cat = [("基础工具", BASIC_SECURITY_TOOLS)]
+    elif category == "advanced":
+        tools_by_cat = [("高级工具", ADVANCED_SECURITY_TOOLS)]
+    else:
+        tools_by_cat = [
+            ("核心安全", CORE_SECURITY_TOOLS),
+            ("基础工具(含网络/防御/Web/OSINT等)", BASIC_SECURITY_TOOLS),
+            ("高级工具(需确认)", ADVANCED_SECURITY_TOOLS),
+        ]
+
+    # 按智能体过滤：hackbot 只有 BASIC，superhackbot 有 ALL
+    if agent == "hackbot":
+        allowed = set(t.name for t in BASIC_SECURITY_TOOLS)
+    elif agent == "superhackbot":
+        allowed = set(t.name for t in ALL_SECURITY_TOOLS)
+    else:
+        allowed = None  # all：不过滤
+
+    table = Table(
+        title="已集成工具",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("名称", style="cyan")
+    table.add_column("描述", style="yellow", max_width=60 if not verbose else None)
+    table.add_column("分类", style="green")
+    table.add_column("敏感度", style="blue")
+    table.add_column("可用智能体", style="magenta")
+
+    basic_set = set(id(t) for t in BASIC_SECURITY_TOOLS)
+    advanced_set = set(id(t) for t in ADVANCED_SECURITY_TOOLS)
+    seen = set()
+    for cat_label, tool_list in tools_by_cat:
+        for t in tool_list:
+            if t.name in seen:
+                continue
+            if allowed is not None and t.name not in allowed:
+                continue
+            seen.add(t.name)
+            sens = getattr(t, "sensitivity", "low")
+            if agent != "all":
+                agents_str = agent
+            else:
+                agents_str = "superhackbot" if id(t) in advanced_set else "hackbot, superhackbot"
+            desc = t.description if verbose else (t.description[:57] + "..." if len(t.description) > 60 else t.description)
+            table.add_row(t.name, desc, cat_label, sens, agents_str)
+
+    console.print(table)
+    console.print(
+        "\n[dim]使用 --agent hackbot|superhackbot|all 按智能体筛选，"
+        "--category core|basic|advanced|all 按分类筛选，--verbose 显示完整描述[/dim]"
+    )
+
+
+@app.command()
 def clear(
     agent: Optional[str] = typer.Option(
         None, "--agent", "-a", help="清空指定智能体的记忆（默认清空所有）"
@@ -519,6 +605,64 @@ def clear(
         for agent_instance in agents.values():
             agent_instance.clear_memory()
         console.print("[green]✓ 已清空所有智能体的记忆[/green]")
+
+
+def _slash_parse_list_tools(rest: str):
+    """解析 /list-tools 后的可选参数：agent、category、verbose"""
+    agent, category, verbose = "all", "all", False
+    if rest:
+        parts = rest.lower().split()
+        for p in parts:
+            if p in ("hackbot", "superhackbot", "all"):
+                agent = p
+            elif p in ("core", "basic", "advanced"):
+                category = p
+            elif p in ("-v", "--verbose", "v", "verbose"):
+                verbose = True
+    return {"agent": agent, "category": category, "verbose": verbose}
+
+
+def _slash_parse_filter(rest: str):
+    """解析 /list-processes 后的可选过滤名"""
+    parts = (rest or "").strip().split(maxsplit=1)
+    return {"filter_name": parts[0] if parts else None}
+
+
+def _slash_parse_path(rest: str, default: str = "."):
+    """解析 /file-list 后的可选路径"""
+    path = (rest or "").strip() or default
+    return {"path": path, "recursive": False}
+
+
+def _slash_parse_limit(rest: str, default: int = 10):
+    """解析 /db-history 后的可选 --limit"""
+    try:
+        n = int((rest or "").strip().split()[-1]) if rest else default
+        return {"limit": max(1, min(n, 100))}
+    except (ValueError, IndexError):
+        return {"limit": default}
+
+
+def _build_slash_cli_handlers():
+    """构建斜杠命令 -> CLI 处理器的映射（供交互式 / 命令调用）"""
+    return {
+        "/list-agents": lambda rest: list_agents(),
+        "/list-tools": lambda rest: list_tools(**_slash_parse_list_tools(rest or "")),
+        "/clear": lambda rest: clear(),
+        "/system-info": lambda rest: system_info(),
+        "/system-status": lambda rest: system_status(),
+        "/list-processes": lambda rest: list_processes(**_slash_parse_filter(rest)),
+        "/file-list": lambda rest: file_list(**_slash_parse_path(rest)),
+        "/prompt-list": lambda rest: prompt_list(),
+        "/db-stats": lambda rest: db_stats(),
+        "/db-history": lambda rest: db_history(**_slash_parse_limit(rest)),
+        "/defense-scan": lambda rest: defense_scan(),
+        "/defense-status": lambda rest: defense_monitor(status=True),
+        "/defense-blocked": lambda rest: defense_blocked(list_ips=True),
+        "/defense-report": lambda rest: defense_report(),
+        "/list-targets": lambda rest: list_targets(),
+        "/list-authorizations": lambda rest: list_authorizations(),
+    }
 
 
 @app.command()
@@ -542,6 +686,7 @@ def interactive(
         planner_agent=planner_agent,
         qa_agent=qa_agent,
         audit_trail=audit_trail,
+        cli_handlers=_build_slash_cli_handlers(),
     )
 
 
@@ -1578,10 +1723,24 @@ def _require_deepseek_api_key() -> None:
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
-    """Hackbot: AI 驱动的安全测试与自动化平台。启动前请配置 DEEPSEEK_API_KEY。"""
+    """快速上手
+
+    安装后只需一条命令即可进入交互模式（与 Hackbot 对话、执行安全扫描等）：
+
+      hackbot
+
+    开发时可用：python main.py（效果相同）。交互界面内输入 / 可查看斜杠命令（如 /list-tools、/plan、/agent）。
+    单次执行示例：hackbot chat "扫描本机开放端口"
+    更多命令见下方「Commands」。
+    """
     _require_deepseek_api_key()
     if ctx.invoked_subcommand is None:
-        ctx.invoke(interactive)
+        ctx.invoke(
+            interactive,
+            agent="hackbot",
+            voice=False,
+            verbose=False,
+        )
 
 
 if __name__ == "__main__":
