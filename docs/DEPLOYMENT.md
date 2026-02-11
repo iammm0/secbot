@@ -1,6 +1,6 @@
-# M-Bot 部署指南
+# Hackbot 部署指南
 
-本文档介绍如何打包和部署 M-Bot 应用。
+本文档介绍如何打包和部署 Hackbot 应用。
 
 ## 目录
 
@@ -11,47 +11,43 @@
 
 ## Python 包安装
 
+Hackbot 使用 [uv](https://github.com/astral-sh/uv) 作为包管理器。
+
 ### 方式一：从源码安装
 
 ```bash
 # 克隆仓库
-git clone https://github.com/zhaomingjun/m-bot.git
-cd m-bot
+git clone https://github.com/iammm0/hackbot.git
+cd hackbot
 
-# 安装依赖
-pip install -r requirements.txt
+# 安装依赖 (使用 uv)
+uv sync
 
 # 安装包（开发模式）
-pip install -e .
-
-# 或安装为系统包
-pip install .
+uv pip install -e .
 ```
 
 ### 方式二：构建分发包
 
 ```bash
-# 安装构建工具
-pip install build wheel
-
-# 构建分发包
-python -m build
+# 构建分发包 (使用 uv)
+uv run python -m build
 
 # 构建结果在 dist/ 目录
-# - dist/m-bot-1.0.0.tar.gz (源码包)
-# - dist/m_bot-1.0.0-py3-none-any.whl (wheel 包)
+# - dist/hackbot-1.0.0.tar.gz (源码包)
+# - dist/hackbot-1.0.0-py3-none-any.whl (wheel 包)
 
 # 安装构建的包
-pip install dist/m_bot-1.0.0-py3-none-any.whl
+uv pip install dist/hackbot-*.whl
 ```
 
 ### 使用安装后的命令
 
-安装后可以直接使用 `m-bot` 命令：
+安装后可以直接使用 `hackbot` 命令：
 
 ```bash
-m-bot --help
-m-bot chat "你好"
+hackbot --help
+hackbot chat "你好"
 ```
 
 ## Docker 部署
@@ -60,10 +56,10 @@ m-bot chat "你好"
 
 ```bash
 # 构建 Docker 镜像
-docker build -t m-bot:latest .
+docker build -t hackbot:latest .
 
 # 查看镜像
-docker images | grep m-bot
+docker images | grep hackbot
 ```
 
 ### 运行容器
@@ -74,12 +70,12 @@ docker-compose up -d
 
 # 或直接运行
 docker run -d \
-  --name m-bot \
+  --name hackbot \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/logs:/app/logs \
   -v $(pwd)/.env:/app/.env:ro \
   -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-  m-bot:latest
+  hackbot:latest
 ```
 
 ### 使用生产环境配置
@@ -89,7 +85,7 @@ docker run -d \
 docker-compose -f docker-compose.prod.yml up -d
 
 # 查看日志
-docker-compose -f docker-compose.prod.yml logs -f m-bot
+docker-compose -f docker-compose.prod.yml logs -f hackbot
 
 # 停止服务
 docker-compose -f docker-compose.prod.yml down
@@ -123,8 +119,8 @@ docker-compose -f docker-compose.prod.yml down
 
 ```bash
 # 1. 克隆或复制项目文件
-git clone https://github.com/zhaomingjun/m-bot.git
-cd m-bot
+git clone https://github.com/iammm0/hackbot.git
+cd hackbot
 
 # 2. 配置环境变量
 cp env.example .env
@@ -143,8 +139,8 @@ docker-compose -f docker-compose.prod.yml logs -f
 #### 2. 直接使用 Python
 
 ```bash
-# 1. 安装依赖
-pip install -r requirements.txt
+# 1. 安装依赖 (使用 uv)
+uv sync
 
 # 2. 配置环境变量
 cp env.example .env
@@ -154,24 +150,23 @@ nano .env
 docker-compose up -d chromadb redis
 
 # 4. 运行应用
-python main.py chat "你好"
+uv run python main.py chat "你好"
 ```
 
 ### 系统服务（systemd）
 
-创建 systemd 服务文件 `/etc/systemd/system/m-bot.service`：
+创建 systemd 服务文件 `/etc/systemd/system/hackbot.service`：
 
 ```ini
 [Unit]
-Description=M-Bot Security Agent
+Description=Hackbot Security Agent
 After=network.target
 
 [Service]
 Type=simple
 User=your-user
-WorkingDirectory=/path/to/m-bot
-Environment="PATH=/path/to/venv/bin"
-ExecStart=/path/to/venv/bin/python main.py interactive
+WorkingDirectory=/path/to/hackbot
+ExecStart=/path/to/hackbot/.venv/bin/python main.py interactive
 Restart=always
 RestartSec=10
 
@@ -182,9 +177,9 @@ WantedBy=multi-user.target
 启用服务：
 
 ```bash
-sudo systemctl enable m-bot
-sudo systemctl start m-bot
-sudo systemctl status m-bot
+sudo systemctl enable hackbot
+sudo systemctl start hackbot
+sudo systemctl status hackbot
 ```
 
 ## 配置说明
@@ -225,26 +220,26 @@ sudo systemctl status m-bot
 
 ```bash
 # 检查 Docker 容器
-docker ps | grep m-bot
+docker ps | grep hackbot
 
 # 检查日志
-docker logs m-bot
+docker logs hackbot
 
 # 测试 CLI
-python main.py --help
+uv run python main.py --help
 ```
 
 ### 运行测试
 
 ```bash
 # 运行单元测试
-pytest tests/
+uv run pytest tests/
 
 # 测试数据库连接
-python tests/test_db_connection.py
+uv run python tests/test_db_connection.py
 
 # 测试智能体
-python tests/test_agents.py
+uv run python tests/test_agents.py
 ```
 
 ## 故障排查
@@ -263,8 +258,8 @@ python tests/test_agents.py
 
 3. **依赖安装失败**
    - 使用 Python 3.10+
-   - 更新 pip: `pip install --upgrade pip`
-   - 使用虚拟环境隔离依赖
+   - 使用 uv 更新: `uv pip install --upgrade uv`
+   - 确保 uv 已正确安装
 
 4. **Docker 构建失败**
    - 检查 Dockerfile 语法
@@ -275,13 +270,13 @@ python tests/test_agents.py
 
 ```bash
 # Docker 日志
-docker logs -f m-bot
+docker logs -f hackbot
 
 # 应用日志
 tail -f logs/agent.log
 
 # 系统日志（systemd）
-journalctl -u m-bot -f
+journalctl -u hackbot -f
 ```
 
 ## 更新部署
@@ -295,8 +290,8 @@ docker-compose -f docker-compose.prod.yml build --no-cache
 docker-compose -f docker-compose.prod.yml up -d
 
 # 或更新 Python 包
-pip install --upgrade -r requirements.txt
-pip install -e . --upgrade
+uv sync
+uv pip install -e . --upgrade
 ```
 
 ## 安全建议
@@ -312,5 +307,5 @@ pip install -e . --upgrade
 如有问题，请查看：
 - [README.md](../README.md) - 项目说明
 - [docs/](docs/) - 详细文档
-- [Issues](https://github.com/zhaomingjun/m-bot/issues) - 问题反馈
+- [Issues](https://github.com/iammm0/hackbot/issues) - 问题反馈
 

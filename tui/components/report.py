@@ -19,7 +19,7 @@ from rich.text import Text
 from rich.live import Live
 from rich import box
 
-from tui.models import InteractionSummary
+from core.models import InteractionSummary
 from tui.utils import adaptive_padding, smart_render_text
 from utils.event_bus import EventBus, EventType, Event
 
@@ -192,14 +192,20 @@ class ReportComponent:
             stats.append("  任务: ", style="dim")
             stats.append(
                 f"{tc.get('completed', 0)}/{tc.get('total', 0)} 完成",
-                style="green" if tc.get("completed", 0) == tc.get("total", 0) else "yellow",
+                style="green"
+                if tc.get("completed", 0) == tc.get("total", 0)
+                else "yellow",
             )
 
         if self._summary.key_findings:
-            stats.append(f"  |  发现: {len(self._summary.key_findings)} 项", style="dim")
+            stats.append(
+                f"  |  发现: {len(self._summary.key_findings)} 项", style="dim"
+            )
 
         if self._summary.recommendations:
-            stats.append(f"  |  建议: {len(self._summary.recommendations)} 条", style="dim")
+            stats.append(
+                f"  |  建议: {len(self._summary.recommendations)} 条", style="dim"
+            )
 
         if str(stats):
             self.console.print(stats)

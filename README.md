@@ -71,7 +71,7 @@
 ## 📋 Requirements
 
 - Python 3.10+
-- [uv](https://github.com/astral-sh/uv) (recommended package manager) or pip
+- [uv](https://github.com/astral-sh/uv) - Fast Python package manager
 - Ollama (for LLM inference)
 - Dependencies are managed in `pyproject.toml`
 
@@ -86,7 +86,6 @@ cd hackbot
 
 ### 2. Install Dependencies
 
-#### Using uv (Recommended)
 [uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver.
 
 ```bash
@@ -95,11 +94,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install dependencies using uv
 uv sync
-```
-
-#### Using pip (Alternative)
-```bash
-pip install -r requirements.txt
 ```
 
 ### 3. Install and Start Ollama
@@ -127,14 +121,11 @@ Edit `.env` file:
 ### 5. Build and Install (Optional)
 
 ```bash
-# Build package
-python -m build
+# Build package using uv
+uv run python -m build
 
-# Install package (using uv - recommended)
+# Install package
 uv pip install dist/hackbot-1.0.0-py3-none-any.whl
-
-# Alternative using pip
-# pip install dist/hackbot-1.0.0-py3-none-any.whl
 
 # Now you can use 'hackbot' command directly
 hackbot --help
@@ -292,6 +283,45 @@ hackbot prompt-load my_prompt.yaml
 hackbot/
 ├── main.py                 # CLI application entry
 ├── config/                 # Configuration management
+├── core/                   # Core runtime logic
+│   ├── agents/            # Agent implementations
+│   │   ├── base.py       # Base agent class
+│   │   ├── hackbot_agent.py
+│   │   └── ...
+│   ├── patterns/          # Design patterns (ReAct, Plan-Execute)
+│   ├── attack_chain/      # Automated attack chain
+│   ├── memory/           # Memory system (3-layer: short-term, episodic, long-term)
+│   │   ├── manager.py
+│   │   └── vector_store.py  # SQLite vector storage (sqlite-vec)
+│   └── models.py          # Shared models (TodoItem, PlanResult, etc.)
+├── tools/                  # Tools and plugins
+│   ├── pentest/          # Penetration testing tools
+│   │   ├── security/    # Security scanning (port scan, vuln scan, etc.)
+│   │   └── network/     # Network enumeration (DNS, HTTP, SSL, etc.)
+│   ├── offense/          # Offensive tools
+│   │   ├── exploit/     # Exploitation modules
+│   │   ├── payload/     # Payload generators
+│   │   ├── control/     # Remote control (command execution)
+│   │   └── crawler/     # Web crawler
+│   ├── defense/          # Defense tools
+│   ├── osint/           # OSINT tools
+│   ├── protocol/        # Protocol analysis
+│   ├── reporting/       # Report generation
+│   ├── web/             # Web security tools
+│   └── web_research/    # Web research tools
+├── skills/              # Markdown-based skills (OpenAI Agent Skills format)
+│   ├── loader.py        # Skill loader
+│   ├── injector.py      # Skill injector for agents
+│   └── base/            # Base skills (nmap-usage, etc.)
+├── prompts/             # Prompt management
+├── database/            # SQLite database management
+├── controller/          # Remote control (authorization, network discovery)
+├── system/              # OS control
+└── utils/               # Utility functions
+```
+hackbot/
+├── main.py                 # CLI application entry
+├── config/                 # Configuration management
 ├── hackbot/                # Package CLI module
 ├── agents/                 # Agent implementations
 │   ├── base.py            # Base agent class
@@ -341,16 +371,19 @@ pytest tests/
 ### Building Package
 
 ```bash
-# Windows
-build.bat
+# Using uv (recommended)
+uv run python -m build
 
-# Linux/Mac
+# Or using the build script
 ./build.sh
 ```
 
 ## 📚 Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md)
+- [API Documentation](docs/API.md)
+- [Mobile App Guide](docs/APP.md)
+- [Skills & Memory System](docs/SKILLS_AND_MEMORY.md)
 - [Database Guide](docs/DATABASE_GUIDE.md)
 - [Docker Setup](docs/DOCKER_SETUP.md)
 - [Ollama Setup](docs/OLLAMA_SETUP.md)

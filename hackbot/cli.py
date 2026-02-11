@@ -11,8 +11,8 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.table import Table
 
-from agents.hackbot_agent import HackbotAgent
-from agents.superhackbot_agent import SuperHackbotAgent
+from core.agents.hackbot_agent import HackbotAgent
+from core.agents.superhackbot_agent import SuperHackbotAgent
 from config import settings
 from utils.logger import logger, restore_console_log_level
 from utils.audit import AuditTrail
@@ -32,12 +32,7 @@ from system.detector import OSDetector
 from prompts.manager import PromptManager
 from prompts.chain import PromptChain
 from database.manager import DatabaseManager
-from memory.database_memory import DatabaseMemory
-from scanner.port_scanner import PortScanner
-from scanner.service_detector import ServiceDetector
-from scanner.vulnerability_scanner import VulnerabilityScanner
-from scanner.attack_tester import AttackTester
-from scanner.scheduler import AttackScheduler
+from core.memory import MemoryManager
 from database.models import AttackTask, ScanResult
 from defense.defense_manager import DefenseManager
 from controller.controller import MainController
@@ -73,31 +68,22 @@ agents = {
 }
 
 # 初始化所有 Agent（确保模块加载时全部初始化）
-from agents.qa_agent import QAAgent
-from agents.planner_agent import PlannerAgent
-from agents.summary_agent import SummaryAgent
+from core.agents.qa_agent import QAAgent
+from core.agents.planner_agent import PlannerAgent
+from core.agents.summary_agent import SummaryAgent
 
 _qa_agent = QAAgent()
 _planner_agent = PlannerAgent()
 _summary_agent = SummaryAgent()
 
-# 为智能体添加数据库记忆
+# 为智能体添加记忆
 for agent_name, agent_instance in agents.items():
-    db_memory = DatabaseMemory(
-        db_manager, agent_type=agent_name, session_id=_session_id
-    )
-    agent_instance.db_memory = db_memory
+    memory_manager = MemoryManager()
+    agent_instance.memory = memory_manager
 
 # 全局语音处理实例
 stt = SpeechToText()
 tts = TextToSpeech()
-
-# 全局网络扫描和攻击测试工具
-port_scanner = PortScanner()
-service_detector = ServiceDetector()
-vulnerability_scanner = VulnerabilityScanner()
-attack_tester = AttackTester()
-attack_scheduler = AttackScheduler()
 
 # 全局防御管理器
 defense_manager = DefenseManager(auto_response=True)
@@ -186,9 +172,7 @@ def chat(
             console.print(f"[yellow]💬 你的消息: {message}[/yellow]\n")
 
             # 实时显示 ReAct 执行过程
-            response = await agent_instance.process(
-                message, on_event=_realtime_event_handler(console)
-            )
+            response = await agent_instance.process(message)
 
             # 显示响应
             console.print(
@@ -1492,7 +1476,7 @@ def attack_chain(
 
     async def _attack_chain():
         try:
-            from attack_chain.attack_chain import AttackChain
+            from core.attack_chain.attack_chain import AttackChain
 
             console.print(f"[cyan]开始执行完整攻击链: {target}[/cyan]\n")
             console.print(

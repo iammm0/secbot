@@ -1,0 +1,49 @@
+# Hackbot 重构提交计划
+
+## 提交 1：模块重构 agents → core/agents
+- 移动 agents/ → core/agents/
+- 更新所有导入路径
+
+## 提交 2：模块重构 patterns → core/patterns
+- 移动 patterns/ → core/patterns/
+- 更新所有导入路径
+
+## 提交 3：模块重构 attack_chain → core/attack_chain
+- 移动 attack_chain/ → core/attack_chain/
+- 更新所有导入路径
+
+## 提交 4：新增 skills 模块
+- 创建 skills/ 目录
+- 实现 loader.py, injector.py
+- 遵循 OpenAI Agent Skills 标准
+
+## 提交 5：新增 core/memory 三层记忆系统
+- 创建 core/memory/ 目录
+- 实现 manager.py (短期/情景/长期记忆)
+- 实现 vector_store.py (SQLite 向量存储)
+
+## 提交 6：工具归类 pentest 和 offense
+- 创建 tools/pentest/
+- 创建 tools/offense/
+- 移动相关工具到对应目录
+
+## 提交 7：数据库重命名 m_bot.db → hackbot.db
+- 更新 config/__init__.py
+- 更新 database/manager.py
+- 重命名数据文件
+
+## 提交 8：交互修复 prompt_toolkit 依赖和斜杠命令补全
+- 添加 prompt_toolkit 依赖
+- 修复 EnhancedInput force_prompt_toolkit 参数
+- 修复 run_interactive.py 中的调用
+
+## 提交 9：文档更新
+- 新增 docs/API.md
+- 新增 docs/APP.md
+- 新增 docs/SKILLS_AND_MEMORY.md
+- 更新 README.md, README_CN.md, README_EN.md
+
+## 提交 10：依赖管理移除 pip 统一使用 uv
+- 删除 requirements.txt
+- 更新 pyproject.toml
+- 清理未使用的依赖

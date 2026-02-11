@@ -62,7 +62,7 @@
 ## 📋 Requirements
 
 - Python 3.10+
-- [uv](https://github.com/astral-sh/uv) (recommended package manager) or pip
+- [uv](https://github.com/astral-sh/uv) - Fast Python package manager
 - Ollama (for LLM inference)
 - Dependencies are managed in `pyproject.toml`
 
@@ -77,7 +77,6 @@ cd hackbot
 
 ### 2. Install Dependencies
 
-#### Using uv (Recommended)
 [uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver.
 
 ```bash
@@ -86,11 +85,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install dependencies using uv
 uv sync
-```
-
-#### Using pip (Alternative)
-```bash
-pip install -r requirements.txt
 ```
 
 ### 3. Install and Start Ollama
@@ -118,14 +112,11 @@ Edit `.env` file:
 ### 5. Build and Install (Optional)
 
 ```bash
-# Build package
-python -m build
+# Build package (using uv)
+uv run python -m build
 
-# Install package (using uv - recommended)
+# Install package
 uv pip install dist/hackbot-1.0.0-py3-none-any.whl
-
-# Alternative using pip
-# pip install dist/hackbot-1.0.0-py3-none-any.whl
 
 # Now you can use 'hackbot' command directly
 hackbot --help
@@ -311,16 +302,18 @@ pytest tests/
 ### Building Package
 
 ```bash
-# Windows
-build.bat
+# Using uv (recommended)
+uv run python -m build
 
-# Linux/Mac
+# Or using the build script
 ./build.sh
 ```
 
 ## 📚 Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md)
+- [API Documentation](docs/API.md)
+- [Mobile App Guide](docs/APP.md)
 - [Database Guide](docs/DATABASE_GUIDE.md)
 - [Docker Setup](docs/DOCKER_SETUP.md)
 - [Ollama Setup](docs/OLLAMA_SETUP.md)
@@ -328,7 +321,7 @@ build.bat
 - [Prompt Guide](docs/PROMPT_GUIDE.md)
 - [Speech Guide](docs/SPEECH_GUIDE.md)
 - [SQLite Setup](docs/SQLITE_SETUP.md)
-- [Deployment Guide](DEPLOYMENT.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 
 ## 🤝 Contributing
 

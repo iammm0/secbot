@@ -2,12 +2,12 @@
 爬虫任务调度器
 """
 import asyncio
-from typing import List, Dict, Optional
-from datetime import datetime
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+from typing import List, Dict, Optional
 
-from crawler.base import BaseCrawler, CrawlResult
+from crawler.base import CrawlResult
 from crawler.realtime import RealtimeCrawler
 from utils.logger import logger
 

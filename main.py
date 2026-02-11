@@ -13,16 +13,20 @@ from rich.table import Table
 from rich.text import Text
 from rich import box
 
-from agents.planner_agent import PlannerAgent
-from agents.qa_agent import QAAgent
-from agents.hackbot_agent import HackbotAgent
-from agents.superhackbot_agent import SuperHackbotAgent
+from core.agents.planner_agent import PlannerAgent
+from core.agents.qa_agent import QAAgent
+from core.agents.hackbot_agent import HackbotAgent
+from core.agents.superhackbot_agent import SuperHackbotAgent
 from utils.logger import logger, restore_console_log_level
 from utils.audit import AuditTrail
 from utils.slash_commands import normalize_slash_input
 from utils.speech import SpeechToText, TextToSpeech
 from utils.enhanced_input import EnhancedInput
-from utils.model_selector import run_model_selector, check_ollama_running, has_deepseek_api_key
+from utils.model_selector import (
+    run_model_selector,
+    check_ollama_running,
+    has_deepseek_api_key,
+)
 from utils.output_components import OutputComponentManager
 from utils.loading import LoadingComponent
 from tui.utils import smart_render_text
@@ -33,12 +37,7 @@ from system.controller import OSController
 from system.detector import OSDetector
 from prompts.manager import PromptManager
 from database.manager import DatabaseManager
-from memory.database_memory import DatabaseMemory
-from scanner.port_scanner import PortScanner
-from scanner.service_detector import ServiceDetector
-from scanner.vulnerability_scanner import VulnerabilityScanner
-from scanner.attack_tester import AttackTester
-from scanner.scheduler import AttackScheduler
+from core.memory import MemoryManager
 from defense.defense_manager import DefenseManager
 from controller.controller import MainController
 from datetime import datetime
@@ -74,23 +73,14 @@ agents = {
 planner_agent = PlannerAgent()
 qa_agent = QAAgent()
 
-# 为智能体添加数据库记忆
+# 为智能体添加记忆
 for agent_name, agent_instance in agents.items():
-    db_memory = DatabaseMemory(
-        db_manager, agent_type=agent_name, session_id=_session_id
-    )
-    agent_instance.db_memory = db_memory
+    memory_manager = MemoryManager()
+    agent_instance.memory = memory_manager
 
 # 全局语音处理实例
 stt = SpeechToText()
 tts = TextToSpeech()
-
-# 全局网络扫描和攻击测试工具
-port_scanner = PortScanner()
-service_detector = ServiceDetector()
-vulnerability_scanner = VulnerabilityScanner()
-attack_tester = AttackTester()
-attack_scheduler = AttackScheduler()
 
 # 全局防御管理器
 defense_manager = DefenseManager(auto_response=True)
@@ -518,12 +508,10 @@ def list_tools(
         "-c",
         help="按分类筛选: core / basic / advanced / all",
     ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="显示完整描述"
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="显示完整描述"),
 ):
     """列出已集成的工具（按智能体或分类展示）"""
-    from tools.security import (
+    from tools.pentest.security import (
         CORE_SECURITY_TOOLS,
         BASIC_SECURITY_TOOLS,
         ADVANCED_SECURITY_TOOLS,
@@ -577,8 +565,18 @@ def list_tools(
             if agent != "all":
                 agents_str = agent
             else:
-                agents_str = "superhackbot" if id(t) in advanced_set else "hackbot, superhackbot"
-            desc = t.description if verbose else (t.description[:57] + "..." if len(t.description) > 60 else t.description)
+                agents_str = (
+                    "superhackbot" if id(t) in advanced_set else "hackbot, superhackbot"
+                )
+            desc = (
+                t.description
+                if verbose
+                else (
+                    t.description[:57] + "..."
+                    if len(t.description) > 60
+                    else t.description
+                )
+            )
             table.add_row(t.name, desc, cat_label, sens, agents_str)
 
     console.print(table)
@@ -1702,10 +1700,12 @@ def revoke(
 def _require_deepseek_api_key() -> None:
     """发布版启动条件：使用 DeepSeek 时必须已配置 API Key，否则退出并提示。"""
     from config import settings
+
     provider = (settings.llm_provider or "deepseek").strip().lower()
     if provider != "deepseek":
         return
     from utils.model_selector import has_deepseek_api_key
+
     if has_deepseek_api_key():
         return
     console.print(

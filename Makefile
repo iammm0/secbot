@@ -1,10 +1,10 @@
 .PHONY: help install build clean test docker-build docker-up docker-down deploy
 
 help:
-	@echo "M-Bot 构建和部署命令"
+	@echo "Hackbot 构建和部署命令"
 	@echo ""
 	@echo "可用命令:"
-	@echo "  make install      - 安装依赖"
+	@echo "  make install      - 安装依赖 (使用 uv)"
 	@echo "  make build        - 构建 Python 包"
 	@echo "  make clean        - 清理构建文件"
 	@echo "  make test         - 运行测试"
@@ -14,13 +14,10 @@ help:
 	@echo "  make deploy       - 部署到生产环境"
 
 install:
-	pip install --upgrade pip
-	pip install -r requirements.txt
-	pip install -e .
+	uv sync
 
 build:
-	python3 -m pip install --upgrade pip build wheel
-	python3 -m build
+	uv run python -m build
 
 clean:
 	rm -rf build/ dist/ *.egg-info/
@@ -28,10 +25,10 @@ clean:
 	find . -type f -name "*.pyc" -delete
 
 test:
-	pytest tests/ -v
+	uv run pytest tests/ -v
 
 docker-build:
-	docker build -t m-bot:latest .
+	docker build -t hackbot:latest .
 
 docker-up:
 	docker-compose -f docker-compose.prod.yml up -d
@@ -41,5 +38,5 @@ docker-down:
 
 deploy: clean build
 	@echo "构建完成，安装方式："
-	@echo "pip install dist/m_bot-1.0.0-py3-none-any.whl"
+	@echo "uv pip install dist/hackbot-*.whl"
 

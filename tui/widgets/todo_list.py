@@ -8,15 +8,15 @@ from typing import List
 
 from rich.text import Text
 
-from tui.models import TodoItem, TodoStatus
+from core.models import TodoItem, TodoStatus
 
 
 # 状态 -> (图标, 文本颜色, 是否高亮整行)
 _STATUS_MAP = {
-    TodoStatus.PENDING:     ("⬜", "dim", False),
+    TodoStatus.PENDING: ("⬜", "dim", False),
     TodoStatus.IN_PROGRESS: ("🔄", "bold yellow", True),
-    TodoStatus.COMPLETED:   ("✅", "green", False),
-    TodoStatus.CANCELLED:   ("⛔", "red dim", False),
+    TodoStatus.COMPLETED: ("✅", "green", False),
+    TodoStatus.CANCELLED: ("⛔", "red dim", False),
 }
 
 
