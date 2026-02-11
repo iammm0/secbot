@@ -3,8 +3,8 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "m-bots"
-version = "1.2.9"
+name = "secbot"
+version = "1.0.0"
 description = "Hackbot: AI-powered automated penetration testing robot"
 readme = "README.md"
 requires-python = ">=3.10"
