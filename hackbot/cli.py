@@ -1,6 +1,5 @@
 """
-M-Bot CLI应用入口
-这个模块用于包安装后的命令行入口点
+Hackbot CLI 入口（包安装后通过 hackbot 命令调用）
 """
 
 import asyncio
@@ -48,9 +47,8 @@ import json
 
 app = typer.Typer(
     name="hackbot",
-    help="Hackbot: AI-powered automated penetration testing robot CLI",
     add_completion=False,
-    invoke_without_command=True,
+    no_args_is_help=False,
 )
 
 console = Console()
@@ -1581,13 +1579,22 @@ def generate_payload(
         raise typer.Exit(1)
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
-    """Hackbot CLI - Enter interactive mode when no command is provided"""
+    """快速上手
+
+    直接运行（不加任何参数）即可进入交互模式：
+
+      hackbot
+
+    交互界面内输入 / 可查看斜杠命令（如 /list-tools、/plan、/agent）。
+    单次执行示例：hackbot chat "扫描本机开放端口"
+    更多命令见下方「Commands」。
+    """
     import sys
     from hackbot.run_interactive import run_interactive_ui
 
-    if ctx.invoked_subcommand is None and len(sys.argv) == 1:
+    if ctx.invoked_subcommand is None:
         run_interactive_ui(
             agent="hackbot",
             voice=False,
