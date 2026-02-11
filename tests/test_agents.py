@@ -1,9 +1,10 @@
 """
 智能体测试
 """
+
 import pytest
-from agents.tool_calling_agent import ToolCallingAgent
-from patterns.react import ReActAgent
+from core.agents.tool_calling_agent import ToolCallingAgent
+from core.patterns.react import ReActAgent
 
 
 @pytest.mark.asyncio
@@ -29,4 +30,3 @@ def test_agent_memory():
     assert len(agent.messages) > 0
     agent.clear_memory()
     assert len(agent.messages) == 1  # 只保留系统消息
-

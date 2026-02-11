@@ -6,11 +6,11 @@
 import uuid
 from functools import lru_cache
 
-from agents.hackbot_agent import HackbotAgent
-from agents.superhackbot_agent import SuperHackbotAgent
-from agents.qa_agent import QAAgent
-from agents.planner_agent import PlannerAgent
-from agents.summary_agent import SummaryAgent
+from core.agents.hackbot_agent import HackbotAgent
+from core.agents.superhackbot_agent import SuperHackbotAgent
+from core.agents.qa_agent import QAAgent
+from core.agents.planner_agent import PlannerAgent
+from core.agents.summary_agent import SummaryAgent
 from database.manager import DatabaseManager
 from memory.database_memory import DatabaseMemory
 from defense.defense_manager import DefenseManager
@@ -73,7 +73,9 @@ class _Singletons:
             audit = cls.audit_trail()
             cls._agents = {
                 "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit),
-                "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit),
+                "superhackbot": SuperHackbotAgent(
+                    name="SuperHackbot", audit_trail=audit
+                ),
             }
             # 为智能体添加数据库记忆
             for agent_name, agent_instance in cls._agents.items():
@@ -133,6 +135,7 @@ class _Singletons:
 # FastAPI Depends 快捷函数
 # ---------------------------------------------------------------------------
 
+
 def get_db_manager() -> DatabaseManager:
     return _Singletons.db_manager()
 
@@ -149,7 +152,9 @@ def get_agent(agent_type: str):
     """获取指定类型的智能体，不存在时抛出 ValueError。"""
     agents_map = _Singletons.agents()
     if agent_type not in agents_map:
-        raise ValueError(f"未知的智能体类型 '{agent_type}'，可选: {', '.join(agents_map.keys())}")
+        raise ValueError(
+            f"未知的智能体类型 '{agent_type}'，可选: {', '.join(agents_map.keys())}"
+        )
     return agents_map[agent_type]
 
 

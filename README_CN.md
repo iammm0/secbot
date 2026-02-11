@@ -62,8 +62,8 @@
 ## 📋 系统要求
 
 - Python 3.10+
-- [uv](https://github.com/astral-sh/uv) (推荐包管理器) 或 pip
-- Ollama (用于LLM推理)
+- [uv](https://github.com/astral-sh/uv) - 快速 Python 包管理器
+- Ollama (用于 LLM 推理)
 - 依赖在 `pyproject.toml` 中管理
 
 ## 📦 发布版（免 Python 安装）
@@ -89,20 +89,14 @@ cd hackbot
 
 ### 2. 安装依赖
 
-#### 使用 uv (推荐)
-[uv](https://github.com/astral-sh/uv) 是一个快速的Python包安装器和解析器。
+[uv](https://github.com/astral-sh/uv) 是一个快速的 Python 包安装器和解析器。
 
 ```bash
-# 如果尚未安装uv，请先安装
+# 如果尚未安装 uv，请先安装
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 使用uv安装依赖
+# 使用 uv 安装依赖
 uv sync
-```
-
-#### 使用 pip (备选方案)
-```bash
-pip install -r requirements.txt
 ```
 
 ### 3. 安装并启动Ollama
@@ -130,14 +124,11 @@ cp .env.example .env
 ### 5. 构建并安装（可选）
 
 ```bash
-# 构建包
-python -m build
+# 构建包 (使用 uv)
+uv run python -m build
 
-# 安装包 (使用 uv - 推荐)
+# 安装包
 uv pip install dist/hackbot-1.0.0-py3-none-any.whl
-
-# 备选方案使用 pip
-# pip install dist/hackbot-1.0.0-py3-none-any.whl
 
 # 现在可以直接使用 'hackbot' 命令
 hackbot --help
@@ -278,47 +269,42 @@ hackbot prompt-load my_prompt.yaml
 ```
 hackbot/
 ├── main.py                 # CLI应用入口
-├── config.py               # 配置管理
-├── hackbot/                  # 包CLI模块
-├── agents/                 # 智能体实现
-│   ├── base.py            # 基础智能体类
-│   └── tool_calling_agent.py # 工具调用智能体（LLM + 工具）
-├── patterns/               # 设计模式
-│   └── react.py           # ReAct模式
-├── exploit/                # 漏洞利用模块
-│   ├── exploit_engine.py  # 漏洞利用引擎
-│   ├── web_exploits.py    # Web漏洞利用
-│   ├── network_exploits.py # 网络漏洞利用
-│   └── post_exploitation.py # 后渗透利用
-├── attack_chain/           # 自动化攻击链
-│   ├── attack_chain.py     # 主攻击链
-│   ├── reconnaissance.py   # 信息收集
-│   └── exploitation.py    # 漏洞利用协调
-├── payloads/               # Payload生成器
-│   ├── web_payloads.py     # Web payload
-│   └── network_payloads.py # 网络payload
-├── scanner/                # 扫描工具
-│   ├── port_scanner.py     # 端口扫描
-│   ├── service_detector.py # 服务检测
-│   └── vulnerability_scanner.py # 漏洞扫描
-├── defense/                # 防御系统
-├── controller/             # 远程控制
-├── crawler/                # 网络爬虫
-├── database/               # 数据库管理
-├── memory/                 # 记忆管理
-├── prompts/                # 提示词管理
-├── system/                 # 操作系统控制
-├── tools/                  # 工具和插件（52 个安全工具）
-│   ├── security/           # 核心安全（端口扫描/服务检测/漏洞扫描/侦察/攻击/利用）
-│   ├── network/            # 网络（DNS/WHOIS/SSL/HTTP/Ping/路由/子域名/Banner/ARP扫描）
-│   ├── defense/            # 防御（安全自检/漏洞扫描/网络分析/入侵检测/系统信息）
-│   ├── utility/            # 实用（哈希/编码/IP地理/文件分析/CVE/日志/密码审计/密钥扫描/依赖审计/Payload生成）
-│   ├── web/                # Web安全（目录枚举/WAF/技术栈/安全头/CORS/JWT/参数Fuzz/SSRF检测）
-│   ├── osint/              # OSINT情报（Shodan/VirusTotal/证书透明度/凭据泄露）
-│   ├── protocol/           # 协议探测（SMB/Redis/MySQL/SNMP）
-│   ├── reporting/          # 报告生成（Markdown/HTML/JSON）
-│   └── cloud/              # 云安全（元数据探测/S3桶枚举/容器检测）
-└── utils/                  # 工具函数
+├── config/                 # 配置管理
+├── core/                   # 核心运行逻辑
+│   ├── agents/            # 智能体实现
+│   │   ├── base.py       # 基础智能体类
+│   │   ├── hackbot_agent.py
+│   │   └── ...
+│   ├── patterns/          # 设计模式 (ReAct, Plan-Execute)
+│   ├── attack_chain/      # 自动化攻击链
+│   ├── memory/          # 记忆系统 (3层: short-term, episodic, long-term)
+│   │   ├── manager.py
+│   │   └── vector_store.py  # SQLite向量存储 (sqlite-vec)
+│   └── models.py          # 共享模型 (TodoItem, PlanResult等)
+├── tools/                  # 工具和插件
+│   ├── pentest/          # 渗透测试工具
+│   │   ├── security/    # 安全扫描 (端口扫描、漏洞扫描等)
+│   │   └── network/     # 网络枚举 (DNS、HTTP、SSL等)
+│   ├── offense/          # 攻击类工具
+│   │   ├── exploit/     # 漏洞利用模块
+│   │   ├── payload/     # Payload生成器
+│   │   ├── control/     # 远程控制 (命令执行)
+│   │   └── crawler/     # 网络爬虫
+│   ├── defense/          # 防御工具
+│   ├── osint/           # OSINT工具
+│   ├── protocol/        # 协议分析
+│   ├── reporting/       # 报告生成
+│   ├── web/             # Web安全工具
+│   └── web_research/    # 网络研究工具
+├── skills/              # Markdown格式技能 (OpenAI Agent Skills格式)
+│   ├── loader.py        # 技能加载器
+│   ├── injector.py       # 技能注入器
+│   └── base/            # 基础技能 (nmap-usage等)
+├── prompts/             # 提示词管理
+├── database/            # SQLite数据库管理
+├── controller/          # 远程控制 (授权、网络发现)
+├── system/              # 操作系统控制
+└── utils/               # 工具函数
 ```
 
 ## 🔧 开发
@@ -332,23 +318,26 @@ pytest tests/
 ### 构建包
 
 ```bash
-# Windows
-build.bat
+# 使用 uv (推荐)
+uv run python -m build
 
-# Linux/Mac
+# 或使用构建脚本
 ./build.sh
 ```
 
 ## 📚 文档
 
 - [快速开始指南](docs/QUICKSTART.md)
+- [API 文档](docs/API.md)
+- [移动应用指南](docs/APP.md)
+- [技能与记忆系统](docs/SKILLS_AND_MEMORY.md)
 - [数据库指南](docs/DATABASE_GUIDE.md)
-- [Docker设置](docs/DOCKER_SETUP.md)
-- [Ollama设置](docs/OLLAMA_SETUP.md)
+- [Docker 设置](docs/DOCKER_SETUP.md)
+- [Ollama 设置](docs/OLLAMA_SETUP.md)
 - [安全警告](docs/SECURITY_WARNING.md)
 - [提示词指南](docs/PROMPT_GUIDE.md)
 - [语音指南](docs/SPEECH_GUIDE.md)
-- [SQLite设置](docs/SQLITE_SETUP.md)
+- [SQLite 设置](docs/SQLITE_SETUP.md)
 - [部署指南](docs/DEPLOYMENT.md)
 
 ## 🤝 贡献

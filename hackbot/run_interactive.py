@@ -2,6 +2,7 @@
 共享的交互式界面逻辑（OpenCode 风格）。
 供 python main.py interactive 与 hackbot interactive 统一使用，保证两者界面一致。
 """
+
 import asyncio
 import sys
 from pathlib import Path
@@ -37,12 +38,16 @@ def run_interactive_ui(
     from tui.components.content import ContentComponent
     from tui.components.report import ReportComponent
     from tui.components.task_status import TaskStatusComponent
-    from tui.session_manager import SessionManager
-    from tui.models import RequestType
+    from core.session import SessionManager
+    from core.models import RequestType
     from utils.hackbot_banner import print_hackbot_banner
     from utils.enhanced_input import EnhancedInput
     from utils.slash_commands import normalize_slash_input
-    from utils.model_selector import run_model_selector, check_ollama_running, has_deepseek_api_key
+    from utils.model_selector import (
+        run_model_selector,
+        check_ollama_running,
+        has_deepseek_api_key,
+    )
     from tui.utils import smart_render_text
 
     if verbose:
@@ -112,18 +117,23 @@ def run_interactive_ui(
         agent_badge = "default" if agent == "hackbot" else "super"
         tool_count = len(getattr(agent_instance, "security_tools", []))
 
-        console.print(Text.assemble(
-            (" ", ""),
-            (" hackbot ", "bold white on bright_blue"),
-            (" ", ""),
-            (f" {agent_badge} ", f"bold white on {'green' if agent == 'hackbot' else 'magenta'}"),
-            (" ", ""),
-            (f" {mode_desc} ", "bold white on bright_black"),
-            (" ", ""),
-            (f" {tool_count} tools ", "dim on default"),
-            (" ", ""),
-            (f" {model_name} ", "dim"),
-        ))
+        console.print(
+            Text.assemble(
+                (" ", ""),
+                (" hackbot ", "bold white on bright_blue"),
+                (" ", ""),
+                (
+                    f" {agent_badge} ",
+                    f"bold white on {'green' if agent == 'hackbot' else 'magenta'}",
+                ),
+                (" ", ""),
+                (f" {mode_desc} ", "bold white on bright_black"),
+                (" ", ""),
+                (f" {tool_count} tools ", "dim on default"),
+                (" ", ""),
+                (f" {model_name} ", "dim"),
+            )
+        )
         console.print()
 
         w = console.width or 80
@@ -136,7 +146,11 @@ def run_interactive_ui(
                 "  [yellow]•[/yellow] [cyan]/plan[/cyan] 编写测试计划，[cyan]/start[/cyan] 执行计划 · [cyan]/ask[/cyan] 仅提问不执行\n"
                 "\n"
                 "  [bold]模式[/bold] default（自动）| super（专家）；当前: "
-                + ("[green]default[/green]" if agent == "hackbot" else "[magenta]super[/magenta]")
+                + (
+                    "[green]default[/green]"
+                    if agent == "hackbot"
+                    else "[magenta]super[/magenta]"
+                )
                 + " 。输入 [cyan]/agent[/cyan] 切换；启动时 [cyan]-a hackbot[/cyan] | [cyan]-a superhackbot[/cyan]。\n"
                 "\n[dim]  输入 / 查看所有命令 · exit 退出[/dim]"
             )
@@ -183,10 +197,11 @@ def run_interactive_ui(
         history_file = Path.home() / ".hackbot" / "input_history.txt"
         enhanced_input = EnhancedInput(
             history_file=history_file,
-            placeholder='输入 / 快捷操作，或直接给我下达任务…',
+            placeholder="输入 / 快捷操作，或直接给我下达任务…",
             console=console,
             current_agent=agent,
             current_mode="默认",
+            force_prompt_toolkit=True,
         )
 
         from utils.logger import logger
@@ -207,11 +222,15 @@ def run_interactive_ui(
                 console.print()
                 if voice:
                     console.print("[yellow]请说话（按Enter结束录音）...[/yellow]")
-                    user_input = await enhanced_input.prompt_input_async("或直接输入文字: ")
+                    user_input = await enhanced_input.prompt_input_async(
+                        "或直接输入文字: "
+                    )
                 else:
                     user_input = await enhanced_input.prompt_input_async()
 
-                if user_input is None or (not user_input.strip() and not sys.stdin.isatty()):
+                if user_input is None or (
+                    not user_input.strip() and not sys.stdin.isatty()
+                ):
                     console.print("[yellow]再见！[/yellow]")
                     break
                 if not user_input.strip():
@@ -267,15 +286,30 @@ def run_interactive_ui(
                     if not sessions:
                         console.print("[yellow]暂无会话[/yellow]")
                     else:
-                        table = Table(title="会话列表", show_header=True, header_style="bold magenta")
+                        table = Table(
+                            title="会话列表",
+                            show_header=True,
+                            header_style="bold magenta",
+                        )
                         table.add_column("ID", style="cyan", width=10)
                         table.add_column("名称", style="green")
                         table.add_column("Agent", style="yellow")
                         table.add_column("消息数", style="blue")
                         table.add_column("状态", style="white")
                         for s in sessions:
-                            is_current = "← 当前" if session_mgr.current_session and s.id == session_mgr.current_session.id else ""
-                            table.add_row(s.id, s.name, s.agent_type, str(len(s.messages)), is_current)
+                            is_current = (
+                                "← 当前"
+                                if session_mgr.current_session
+                                and s.id == session_mgr.current_session.id
+                                else ""
+                            )
+                            table.add_row(
+                                s.id,
+                                s.name,
+                                s.agent_type,
+                                str(len(s.messages)),
+                                is_current,
+                            )
                         console.print(table)
                     continue
 
@@ -287,12 +321,17 @@ def run_interactive_ui(
                     ask_mode = False
                     plan_mode = False
                     pending_plan_result = None
-                    console.print(f"[green]✓ 已创建新会话: {new_sess.name} ({new_sess.id})[/green]")
+                    console.print(
+                        f"[green]✓ 已创建新会话: {new_sess.name} ({new_sess.id})[/green]"
+                    )
                     continue
 
                 if lower_input.startswith("/export"):
                     from datetime import datetime as dt
-                    export_path = Path(f"exports/session_{dt.now().strftime('%Y%m%d_%H%M%S')}.md")
+
+                    export_path = Path(
+                        f"exports/session_{dt.now().strftime('%Y%m%d_%H%M%S')}.md"
+                    )
                     success = await session_mgr.export_session(export_path)
                     if success:
                         console.print(f"[green]✓ 对话已导出到: {export_path}[/green]")
@@ -302,34 +341,52 @@ def run_interactive_ui(
 
                 if lower_input.startswith("/model"):
                     parts = user_input.strip().split()
-                    if hasattr(agent_instance, "switch_model") and hasattr(agent_instance, "get_current_model"):
+                    if hasattr(agent_instance, "switch_model") and hasattr(
+                        agent_instance, "get_current_model"
+                    ):
                         if len(parts) == 1:
                             cur = agent_instance.get_current_model()
                             cur_parts = cur.split(" / ", 1)
-                            current_provider = cur_parts[0].strip() if len(cur_parts) > 0 else "ollama"
-                            current_model = cur_parts[1].strip() if len(cur_parts) > 1 else None
+                            current_provider = (
+                                cur_parts[0].strip() if len(cur_parts) > 0 else "ollama"
+                            )
+                            current_model = (
+                                cur_parts[1].strip() if len(cur_parts) > 1 else None
+                            )
                             provider, model = run_model_selector(
-                                console, current_provider=current_provider, current_model=current_model
+                                console,
+                                current_provider=current_provider,
+                                current_model=current_model,
                             )
                             if provider is not None:
                                 try:
                                     if model:
-                                        agent_instance.switch_model(provider=provider, model=model)
+                                        agent_instance.switch_model(
+                                            provider=provider, model=model
+                                        )
                                     else:
                                         agent_instance.switch_model(provider=provider)
-                                    console.print(f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]")
+                                    console.print(
+                                        f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
+                                    )
                                 except Exception as e:
                                     console.print(f"[red]切换失败: {e}[/red]")
                         elif len(parts) == 2:
                             try:
                                 agent_instance.switch_model(provider=parts[1])
-                                console.print(f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]")
+                                console.print(
+                                    f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
+                                )
                             except Exception as e:
                                 console.print(f"[red]切换失败: {e}[/red]")
                         else:
                             try:
-                                agent_instance.switch_model(provider=parts[1], model=parts[2])
-                                console.print(f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]")
+                                agent_instance.switch_model(
+                                    provider=parts[1], model=parts[2]
+                                )
+                                console.print(
+                                    f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]"
+                                )
                             except Exception as e:
                                 console.print(f"[red]切换失败: {e}[/red]")
                     else:
@@ -343,7 +400,9 @@ def run_interactive_ui(
                         response = await agent_instance.handle_accept(choice)
                         content_comp.display_assistant_message(response, agent)
                     else:
-                        console.print("[yellow]当前智能体不支持 /accept（hackbot 自动模式无需确认）[/yellow]")
+                        console.print(
+                            "[yellow]当前智能体不支持 /accept（hackbot 自动模式无需确认）[/yellow]"
+                        )
                     continue
 
                 if lower_input == "/reject":
@@ -379,8 +438,16 @@ def run_interactive_ui(
                             table.add_column("类型", style="green", width=12)
                             table.add_column("内容", style="white")
                             for i, rec in enumerate(records, 1):
-                                ts = rec.timestamp.strftime("%H:%M:%S") if rec.timestamp else "?"
-                                content = rec.content[:80] + "..." if len(rec.content) > 80 else rec.content
+                                ts = (
+                                    rec.timestamp.strftime("%H:%M:%S")
+                                    if rec.timestamp
+                                    else "?"
+                                )
+                                content = (
+                                    rec.content[:80] + "..."
+                                    if len(rec.content) > 80
+                                    else rec.content
+                                )
                                 table.add_row(str(i), ts, rec.step_type, content)
                             console.print(table)
                     continue
@@ -399,12 +466,16 @@ def run_interactive_ui(
                     elif choice in ("superhackbot", "super"):
                         agent = "superhackbot"
                     else:
-                        console.print(f"[yellow]未知模式: {choice}[/yellow]，可用: hackbot / default / superhackbot / super")
+                        console.print(
+                            f"[yellow]未知模式: {choice}[/yellow]，可用: hackbot / default / superhackbot / super"
+                        )
                         continue
                     agent_instance = get_agent(agent)
                     if session_mgr.current_session:
                         session_mgr.current_session.agent_type = agent
-                    mode_name = "default（自动）" if agent == "hackbot" else "super（专家）"
+                    mode_name = (
+                        "default（自动）" if agent == "hackbot" else "super（专家）"
+                    )
                     console.print(f"[green]✓ 已切换为 {mode_name} 模式[/green]")
                     continue
 
@@ -439,10 +510,14 @@ def run_interactive_ui(
 
                 if lower_input == "/start":
                     if not plan_mode:
-                        console.print("[yellow]当前不在计划模式。输入 /plan 可先编写测试计划。[/yellow]")
+                        console.print(
+                            "[yellow]当前不在计划模式。输入 /plan 可先编写测试计划。[/yellow]"
+                        )
                         continue
                     if pending_plan_result is None or not pending_plan_result.todos:
-                        console.print("[yellow]尚未生成计划。请先描述你的安全测试需求（或在 /plan 后输入描述）。[/yellow]")
+                        console.print(
+                            "[yellow]尚未生成计划。请先描述你的安全测试需求（或在 /plan 后输入描述）。[/yellow]"
+                        )
                         continue
                     plan_mode = False
                     exec_plan = pending_plan_result
@@ -451,7 +526,13 @@ def run_interactive_ui(
                     enhanced_input.add_to_history(user_input)
                     reasoning_comp.clear()
                     execution_comp.clear()
-                    console.print(Text.assemble(("  ", ""), ("You: ", "bold bright_blue"), ("执行既定安全测试计划", "")))
+                    console.print(
+                        Text.assemble(
+                            ("  ", ""),
+                            ("You: ", "bold bright_blue"),
+                            ("执行既定安全测试计划", ""),
+                        )
+                    )
                     console.print()
                     response = await session_mgr.handle_message(
                         "执行既定安全测试计划",
@@ -465,10 +546,13 @@ def run_interactive_ui(
                 # Root 权限策略配置：/root-config [ask|always]
                 if lower_input.startswith("/root-config"):
                     from utils.root_policy import load_root_policy, save_root_policy
+
                     rest = lower_input[len("/root-config") :].strip().lower()
                     if rest in ("ask", "每次询问", "询问"):
                         save_root_policy(root_policy="ask")
-                        console.print("[green]✓ 已设置为「每次询问」：执行需 root 的命令时会提示输入密码[/green]")
+                        console.print(
+                            "[green]✓ 已设置为「每次询问」：执行需 root 的命令时会提示输入密码[/green]"
+                        )
                     elif rest in ("always", "always_allow", "总是允许", "不询问"):
                         save_root_policy(root_policy="always_allow")
                         console.print(
@@ -510,11 +594,18 @@ def run_interactive_ui(
 
                 if plan_mode:
                     enhanced_input.add_to_history(user_input)
-                    console.print(Text.assemble(("  ", ""), ("You: ", "bold bright_blue"), (user_input, "")))
+                    console.print(
+                        Text.assemble(
+                            ("  ", ""), ("You: ", "bold bright_blue"), (user_input, "")
+                        )
+                    )
                     console.print()
                     with console.status("[bold green]正在生成计划..."):
                         plan_result = await planner_agent.plan(user_input)
-                    if plan_result.request_type == RequestType.TECHNICAL and plan_result.todos:
+                    if (
+                        plan_result.request_type == RequestType.TECHNICAL
+                        and plan_result.todos
+                    ):
                         pending_plan_result = plan_result
                         await event_bus.emit_simple_async(
                             EventType.PLAN_START,
@@ -530,9 +621,14 @@ def run_interactive_ui(
                                 for t in plan_result.todos
                             ],
                         )
-                        console.print("[green]计划已生成。输入 /start 开始执行。[/green]")
+                        console.print(
+                            "[green]计划已生成。输入 /start 开始执行。[/green]"
+                        )
                     else:
-                        reply = plan_result.direct_response or "请更具体地描述要执行的安全测试步骤（如：扫描某 IP 的端口、漏洞检测等）。"
+                        reply = (
+                            plan_result.direct_response
+                            or "请更具体地描述要执行的安全测试步骤（如：扫描某 IP 的端口、漏洞检测等）。"
+                        )
                         content_comp.display_assistant_message(reply, agent)
                     continue
 
@@ -556,10 +652,16 @@ def run_interactive_ui(
                 reasoning_comp.clear()
                 execution_comp.clear()
 
-                console.print(Text.assemble(("  ", ""), ("You: ", "bold bright_blue"), (user_input, "")))
+                console.print(
+                    Text.assemble(
+                        ("  ", ""), ("You: ", "bold bright_blue"), (user_input, "")
+                    )
+                )
                 console.print()
 
-                response = await session_mgr.handle_message(user_input, agent_type=agent)
+                response = await session_mgr.handle_message(
+                    user_input, agent_type=agent
+                )
 
                 if response and not planning_comp.todos:
                     content_comp.display_assistant_message(response, agent)
@@ -567,6 +669,7 @@ def run_interactive_ui(
                 if voice:
                     try:
                         from utils.speech import TextToSpeech
+
                         tts = TextToSpeech()
                         with console.status("[bold green]生成语音中..."):
                             audio_data = await tts.synthesize(response)

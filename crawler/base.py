@@ -1,16 +1,17 @@
 """
 基础爬虫类
 """
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any
-from datetime import datetime
 import asyncio
-from bs4 import BeautifulSoup
+from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import Dict, List, Optional, Any
+
 import httpx
+from bs4 import BeautifulSoup
+from playwright.async_api import async_playwright, Browser, Page
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from playwright.async_api import async_playwright, Browser, Page
+
 from utils.logger import logger
 
 

@@ -19,7 +19,7 @@ from router.dependencies import (
     get_summary_agent,
 )
 from router.schemas import ChatRequest, ChatResponse
-from tui.session_manager import SessionManager
+from core.session import SessionManager
 from utils.event_bus import EventBus, EventType, Event
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
@@ -79,7 +79,9 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
     return None
 
 
-async def _interaction_event_generator(request: ChatRequest) -> AsyncGenerator[dict, None]:
+async def _interaction_event_generator(
+    request: ChatRequest,
+) -> AsyncGenerator[dict, None]:
     """
     使用 SessionManager.handle_message（Interaction 编排）驱动流式输出。
     先立即发送 connected，再做初始化与编排，避免客户端一直卡在「连接中」。
@@ -143,19 +145,30 @@ async def _interaction_event_generator(request: ChatRequest) -> AsyncGenerator[d
             )
             final_response.append(response)
         except Exception as e:
-            queue.put_nowait({
-                "event": "error",
-                "data": {"error": str(e), "traceback": traceback.format_exc()},
-            })
+            queue.put_nowait(
+                {
+                    "event": "error",
+                    "data": {"error": str(e), "traceback": traceback.format_exc()},
+                }
+            )
         finally:
             if final_response:
-                queue.put_nowait({
-                    "event": "response",
-                    "data": {
-                        "content": final_response[0],
-                        "agent": agent_type or ("qa" if force_qa else "planner" if plan_only else "agent"),
-                    },
-                })
+                queue.put_nowait(
+                    {
+                        "event": "response",
+                        "data": {
+                            "content": final_response[0],
+                            "agent": agent_type
+                            or (
+                                "qa"
+                                if force_qa
+                                else "planner"
+                                if plan_only
+                                else "agent"
+                            ),
+                        },
+                    }
+                )
             queue.put_nowait({"event": "done", "data": {}})
 
     task = asyncio.create_task(_run_interaction())
@@ -190,6 +203,7 @@ async def chat_stream(request: ChatRequest):
 # ---------------------------------------------------------------------------
 # 同步聊天（仍按 mode 调用，保持兼容）
 # ---------------------------------------------------------------------------
+
 
 @router.post("/sync", response_model=ChatResponse, summary="同步聊天")
 async def chat_sync(request: ChatRequest):
