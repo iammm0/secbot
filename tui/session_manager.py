@@ -131,31 +131,32 @@ class SessionManager:
         user_input: str,
         agent_type: Optional[str] = None,
         plan_override: Optional[PlanResult] = None,
+        force_qa: bool = False,
+        plan_only: bool = False,
     ) -> str:
         """
-        处理单条消息的完整编排流程：
-        1. 路由：简单问候/项目了解 -> QAAgent 简要回复；否则进入规划
-        2. 规划（或使用 plan_override）：PlannerAgent 生成 todos
-        3. 核心 Agent 执行 ReAct 循环，实时更新 todo 状态
-        4. SummaryAgent 总结交互结果
+        处理单条消息的完整编排流程（Interaction）：
+        1. force_qa 或 路由为简单问候 -> QAAgent 简要回复
+        2. plan_only -> 仅规划，返回计划文本
+        3. 否则：规划 -> 核心 Agent 执行 -> SummaryAgent 总结
 
         Args:
             user_input: 用户输入
             agent_type: 指定 agent 类型（覆盖会话默认值）
             plan_override: 若提供则跳过规划阶段，直接使用该计划执行（用于 /plan 后 /start）
+            force_qa: 强制走 Q&A，不规划不执行
+            plan_only: 仅规划并返回计划，不执行、不摘要
 
         Returns:
             最终响应文本
         """
-        # 记录用户消息
         if self.current_session:
             self.current_session.add_message(MessageRole.USER, user_input)
 
-        # 每轮新消息清空工具执行记录，供本轮摘要使用
         self._current_tool_results = []
 
-        # ---- 路由：简单问候/项目了解 -> Q&A Agent ----
-        if plan_override is None and message_route(user_input) == "qa":
+        # ---- 强制 Q&A 或 路由 -> Q&A ----
+        if force_qa or (plan_override is None and message_route(user_input) == "qa"):
             await self.event_bus.emit_simple_async(
                 EventType.TASK_PHASE, phase="done", detail=""
             )
@@ -192,12 +193,26 @@ class SessionManager:
         else:
             plan_result = await self._run_planning(user_input)
 
-            # 若规划器仍判定为简单请求（与路由不一致时的兜底），直接返回
             if plan_result.request_type in (RequestType.GREETING, RequestType.SIMPLE):
                 await self.event_bus.emit_simple_async(
                     EventType.TASK_PHASE, phase="done", detail=""
                 )
                 response = plan_result.direct_response or ""
+                if self.current_session:
+                    self.current_session.add_message(MessageRole.ASSISTANT, response)
+                return response
+
+            # 仅规划模式：返回计划文本，不执行
+            if plan_only:
+                await self.event_bus.emit_simple_async(
+                    EventType.TASK_PHASE, phase="done", detail=""
+                )
+                response = plan_result.plan_summary or ""
+                if plan_result.direct_response:
+                    response = plan_result.direct_response + "\n\n" + response
+                if plan_result.todos:
+                    lines = [f"- {t.content} ({t.status.value})" for t in plan_result.todos]
+                    response = response + "\n\n**待办:**\n" + "\n".join(lines)
                 if self.current_session:
                     self.current_session.add_message(MessageRole.ASSISTANT, response)
                 return response
