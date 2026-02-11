@@ -49,6 +49,61 @@ app = typer.Typer(
 console = Console()
 
 
+def check_llm_configured() -> tuple[bool, str]:
+    """检查 LLM 是否已正确配置"""
+    provider = (settings.llm_provider or "deepseek").strip().lower()
+
+    if provider == "ollama":
+        return True, ""
+
+    # 检查 deepseek
+    if not settings.deepseek_api_key:
+        return False, "DEEPSEEK_API_KEY"
+    return True, ""
+
+
+def show_config_prompt_and_exit():
+    """显示配置提示并退出"""
+    provider = (settings.llm_provider or "deepseek").strip().lower()
+
+    if provider == "ollama":
+        config_msg = """[bold yellow]⚠️  检测到 Ollama 服务未运行或未配置[/bold yellow]
+
+请确保 Ollama 已启动并运行：
+1. 安装 Ollama: https://ollama.com
+2. 启动服务: ollama serve
+3. 下载模型: ollama pull deepseek-r1:14b
+4. 运行配置命令：
+   secbot-config config
+"""
+    else:
+        config_msg = """[bold yellow]⚠️  检测到 DeepSeek API Key 未配置[/bold yellow]
+
+请先配置 API Key：
+运行以下命令：
+   secbot-config config
+
+获取 API Key: https://platform.deepseek.com
+"""
+
+    console.print(
+        Panel(
+            config_msg
+            + "\n详细文档：https://github.com/iammm0/hackbot/blob/main/docs/OLLAMA_SETUP.md",
+            title="🔑 配置 LLM 服务",
+            expand=False,
+        )
+    )
+    raise typer.Exit(1)
+
+
+def require_llm_configured():
+    """检查 LLM 配置，未配置则显示提示并退出"""
+    configured, missing_key = check_llm_configured()
+    if not configured:
+        show_config_prompt_and_exit()
+
+
 # 全局数据库管理器
 db_manager = DatabaseManager()
 
@@ -66,6 +121,40 @@ agents = {
     "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit_trail),
     "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit_trail),
 }
+
+# 初始化所有 Agent（确保模块加载时全部初始化）
+from core.agents.qa_agent import QAAgent
+from core.agents.planner_agent import PlannerAgent
+from core.agents.summary_agent import SummaryAgent
+
+_qa_agent = QAAgent()
+_planner_agent = PlannerAgent()
+_summary_agent = SummaryAgent()
+
+# 为智能体添加记忆
+for agent_name, agent_instance in agents.items():
+    memory_manager = MemoryManager()
+    agent_instance.memory = memory_manager
+
+# 全局语音处理实例
+stt = SpeechToText()
+tts = TextToSpeech()
+
+# 全局防御管理器
+defense_manager = DefenseManager(auto_response=True)
+
+# 全局主控制器
+main_controller = MainController()
+
+
+def get_agent(agent_type: str):
+    """获取智能体实例"""
+    if agent_type not in agents:
+        console.print(f"[red]错误: 未知的智能体类型 '{agent_type}'[/red]")
+        console.print(f"[yellow]可用类型: {', '.join(agents.keys())}[/yellow]")
+        raise typer.Exit(1)
+    return agents[agent_type]
+
 
 # 初始化所有 Agent（确保模块加载时全部初始化）
 from core.agents.qa_agent import QAAgent
@@ -124,6 +213,7 @@ def chat(
     ),
 ):
     """文本聊天"""
+    require_llm_configured()
 
     async def _chat():
         try:
@@ -372,6 +462,7 @@ def interactive(
     verbose: bool = typer.Option(False, "--verbose", "-V", help="显示详细日志"),
 ):
     """交互式聊天模式（OpenCode 风格 ReAct 安全测试，与 python main.py interactive 界面一致）"""
+    require_llm_configured()
     from hackbot.run_interactive import run_interactive_ui
 
     run_interactive_ui(
@@ -1562,37 +1653,3 @@ def generate_payload(
         console.print(f"[red]错误: {e}[/red]")
         raise typer.Exit(1)
 
-
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
-    """快速上手
-
-    直接运行（不加任何参数）即可进入交互模式：
-
-      hackbot
-
-    交互界面内输入 / 可查看斜杠命令（如 /list-tools、/plan、/agent）。
-    单次执行示例：hackbot chat "扫描本机开放端口"
-    更多命令见下方「Commands」。
-    """
-    import sys
-    from hackbot.run_interactive import run_interactive_ui
-
-    if ctx.invoked_subcommand is None:
-        run_interactive_ui(
-            agent="hackbot",
-            voice=False,
-            verbose=False,
-            console=console,
-            get_agent=get_agent,
-            agents=agents,
-            planner_agent=_planner_agent,
-            qa_agent=_qa_agent,
-            audit_trail=audit_trail,
-        )
-
-
-__all__ = ["app"]
-
-if __name__ == "__main__":
-    app()

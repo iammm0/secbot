@@ -57,21 +57,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     "websockets>=12.0",
     "tiktoken>=0.5.2",
-
-    "faster-whisper>=1.0.0",
-    "gtts>=2.5.0",
-    "pyttsx3>=2.90",
-    "pydub>=0.25.1",
-    "paramiko>=3.4.0",
-    "pywinrm>=0.4.3",
-
-    # FastAPI 路由层
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.34.0",
-    "sse-starlette>=2.0.0",
-
-    # Interactive UI
-    "prompt_toolkit>=3.0.43",
+    "keyring>=25.0.0",
 ]
 
 [project.optional-dependencies]
@@ -82,10 +68,14 @@ dev = [
     "flake8>=6.0.0",
     "mypy>=1.0.0",
 ]
+cli = ["keyring>=25.0.0"]
 
 [project.scripts]
 hackbot = "hackbot.cli:app"
 hackbot-server = "router.main:run_server"
+secbot = "hackbot.cli:app"
+secbot-server = "router.main:run_server"
+secbot-config = "secbot_config:app"
 
 [project.urls]
 Homepage = "https://github.com/iammm0/hackbot"

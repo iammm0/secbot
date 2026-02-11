@@ -51,6 +51,65 @@ app = typer.Typer(
 )
 console = Console()
 
+
+def check_llm_configured() -> tuple[bool, str]:
+    """检查 LLM 是否已正确配置"""
+    from config import settings
+
+    provider = (settings.llm_provider or "deepseek").strip().lower()
+
+    if provider == "ollama":
+        return True, ""
+
+    if not settings.deepseek_api_key:
+        return False, "DEEPSEEK_API_KEY"
+    return True, ""
+
+
+def show_config_prompt_and_exit():
+    """显示配置提示并退出"""
+    from config import settings
+
+    provider = (settings.llm_provider or "deepseek").strip().lower()
+
+    if provider == "ollama":
+        config_msg = """[bold yellow]⚠️  检测到 Ollama 服务未运行或未配置[/bold yellow]
+
+请确保 Ollama 已启动并运行：
+1. 安装 Ollama: https://ollama.com
+2. 启动服务: ollama serve
+3. 下载模型: ollama pull deepseek-r1:14b
+4. 运行配置命令：
+   hackbot config set ollama
+"""
+    else:
+        config_msg = """[bold yellow]⚠️  检测到 DeepSeek API Key 未配置[/bold yellow]
+
+请先配置 API Key：
+运行以下命令：
+   hackbot config set deepseek
+
+获取 API Key: https://platform.deepseek.com
+"""
+
+    console.print(
+        Panel(
+            config_msg
+            + "\n详细文档：https://github.com/iammm0/hackbot/blob/main/docs/OLLAMA_SETUP.md",
+            title="🔑 配置 LLM 服务",
+            expand=False,
+        )
+    )
+    raise typer.Exit(1)
+
+
+def require_llm_configured():
+    """检查 LLM 配置，未配置则显示提示并退出"""
+    configured, missing_key = check_llm_configured()
+    if not configured:
+        show_config_prompt_and_exit()
+
+
 # 全局数据库管理器
 db_manager = DatabaseManager()
 
@@ -197,6 +256,7 @@ def chat(
     stream: bool = typer.Option(False, "--stream", "-s", help="启用流式输出"),
 ):
     """文本聊天"""
+    require_llm_configured()
 
     async def _chat():
         try:
@@ -672,6 +732,7 @@ def interactive(
     verbose: bool = typer.Option(False, "--verbose", "-V", help="显示详细日志"),
 ):
     """交互式聊天模式（OpenCode 风格 ReAct 安全测试）"""
+    require_llm_configured()
     from hackbot.run_interactive import run_interactive_ui
 
     run_interactive_ui(
@@ -1719,6 +1780,86 @@ def _require_deepseek_api_key() -> None:
         )
     )
     sys.exit(1)
+
+
+@app.command()
+def config():
+    """配置 API Key（交互式）"""
+    import keyring
+    import getpass
+
+    console.print(
+        Panel(
+            "[bold]🔑 SecBot API Key 配置[/bold]\n\n"
+            "安全存储 API Key 到系统密钥环（keyring）",
+            title="配置",
+            expand=False,
+        )
+    )
+
+    providers = ["deepseek", "ollama", "shodan", "virustotal"]
+    console.print("\n可用 provider: " + ", ".join(providers))
+
+    provider = typer.prompt("请选择 provider").strip().lower()
+
+    if provider not in providers:
+        console.print(f"❌ 无效的 provider: {provider}")
+        raise typer.Exit(1)
+
+    current_key = keyring.get_password("secbot", provider)
+    if current_key:
+        masked = current_key[:8] + "*" * (len(current_key) - 8)
+        console.print(f"\n当前 {provider} API Key: {masked}")
+        console.print("直接回车保持不变，输入新值覆盖")
+    else:
+        console.print(f"\n当前 {provider} 未配置")
+
+    new_key = getpass.getpass(f"\n输入新的 {provider} API Key: ")
+
+    if new_key:
+        keyring.set_password("secbot", provider, new_key)
+        console.print(f"✅ {provider} API Key 已保存到密钥环")
+    else:
+        console.print("未更改")
+
+
+@app.command()
+def config_show():
+    """显示当前 API Key 配置状态"""
+    import keyring
+
+    providers = ["deepseek", "ollama", "shodan", "virustotal"]
+    console.print(
+        Panel("[bold]🔑 当前 API Key 配置状态[/bold]", title="配置状态", expand=False)
+    )
+
+    table = Table()
+    table.add_column("Provider")
+    table.add_column("状态")
+    table.add_column("来源")
+
+    for provider in providers:
+        key = keyring.get_password("secbot", provider)
+        if key:
+            masked = key[:8] + "*" * (len(key) - 8)
+            table.add_row(provider, f"✅ 已配置", masked)
+        else:
+            table.add_row(provider, "❌ 未配置", "-")
+
+    console.print(table)
+    console.print("\n提示: 使用 [bold]hackbot config[/bold] 命令配置 API Key")
+
+
+@app.command()
+def config_delete(provider: str):
+    """删除已配置的 API Key"""
+    import keyring
+
+    try:
+        keyring.delete_password("secbot", provider)
+        console.print(f"✅ {provider} API Key 已删除")
+    except keyring.errors.PasswordDeleteError:
+        console.print(f"❌ {provider} 未配置或删除失败")
 
 
 @app.callback(invoke_without_command=True)
