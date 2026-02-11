@@ -3,8 +3,8 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hackbot"
-version = "1.2.8"
+name = "m-bots"
+version = "1.2.9"
 description = "Hackbot: AI-powered automated penetration testing robot"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -135,8 +135,7 @@ packages = [
 
 [tool.setuptools.package-data]
 "*" = ["*.yaml", "*.yml", "*.txt", "*.md", "env.example"]
-# 排除敏感配置文件
-"*" = ["!*.env", "!*.env.*", "!data/*", "!logs/*"]
+exclude = ["*.env", "*.env.*", "data/*", "logs/*"]
 
 [tool.black]
 line-length = 120
