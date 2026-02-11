@@ -134,7 +134,9 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-"*" = ["*.yaml", "*.yml", "*.txt", "*.md"]
+"*" = ["*.yaml", "*.yml", "*.txt", "*.md", "env.example"]
+# 排除敏感配置文件
+"*" = ["!*.env", "!*.env.*", "!data/*", "!logs/*"]
 
 [tool.black]
 line-length = 120
