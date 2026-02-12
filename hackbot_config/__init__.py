@@ -1,5 +1,8 @@
 """
 配置管理模块（包名 hackbot_config 避免与用户目录下的 config 冲突）
+
+支持多厂商 LLM 后端：Ollama、DeepSeek、OpenAI、Anthropic、Google、
+智谱、通义千问、月之暗面、百川、零一万物，以及任意 OpenAI API 兼容中转服务。
 """
 
 import os
@@ -40,8 +43,8 @@ def _get_db_path() -> Path:
     return _config_dir / "data" / "hackbot.db"
 
 
-def _get_api_key_from_sqlite(key: str) -> Optional[str]:
-    """从 SQLite user_configs 表读取 API Key（不依赖 DatabaseManager，避免循环导入）"""
+def _get_config_from_sqlite(key: str) -> Optional[str]:
+    """从 SQLite user_configs 表读取配置值（不依赖 DatabaseManager，避免循环导入）"""
     try:
         db_path = _get_db_path()
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -59,10 +62,79 @@ def _get_api_key_from_sqlite(key: str) -> Optional[str]:
         return None
 
 
+def save_config_to_sqlite(key: str, value: str, category: str = "api_keys", description: str = "") -> bool:
+    """将配置值写入 SQLite user_configs 表（upsert）"""
+    try:
+        db_path = _get_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS user_configs (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    category TEXT DEFAULT '',
+                    description TEXT DEFAULT '',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )"""
+            )
+            conn.execute(
+                """INSERT INTO user_configs (key, value, category, description)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP""",
+                (key, value, category, description),
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+    except Exception:
+        return False
+
+
+# 向下兼容别名
+_get_api_key_from_sqlite = _get_config_from_sqlite
+
+
+def get_provider_api_key(provider: str) -> Optional[str]:
+    """获取任意厂商的 API Key（优先 SQLite，其次环境变量）"""
+    # SQLite
+    key = _get_config_from_sqlite(f"{provider}_api_key")
+    if key and key.strip():
+        return key.strip()
+    # 环境变量 (如 OPENAI_API_KEY / DEEPSEEK_API_KEY / ...)
+    env_val = os.getenv(f"{provider.upper()}_API_KEY")
+    if env_val and env_val.strip():
+        return env_val.strip()
+    return None
+
+
+def get_provider_base_url(provider: str) -> Optional[str]:
+    """获取厂商自定义 base_url（优先 SQLite，其次环境变量）"""
+    val = _get_config_from_sqlite(f"{provider}_base_url")
+    if val and val.strip():
+        return val.strip()
+    env_val = os.getenv(f"{provider.upper()}_BASE_URL")
+    if env_val and env_val.strip():
+        return env_val.strip()
+    return None
+
+
+def get_provider_model(provider: str) -> Optional[str]:
+    """获取厂商上次选择的模型（优先 SQLite，其次环境变量）"""
+    val = _get_config_from_sqlite(f"{provider}_model")
+    if val and val.strip():
+        return val.strip()
+    env_val = os.getenv(f"{provider.upper()}_MODEL")
+    if env_val and env_val.strip():
+        return env_val.strip()
+    return None
+
+
 class Settings(BaseSettings):
     """应用配置"""
 
-    # 推理模型后端：ollama（本地 Ollama）| deepseek（DeepSeek 云端 API）
+    # 推理模型后端：ollama / deepseek / openai / anthropic / google / zhipu / qwen / moonshot / baichuan / yi / custom
     llm_provider: str = os.getenv("LLM_PROVIDER", "deepseek")
 
     # Ollama 配置（当 LLM_PROVIDER=ollama 时使用）
@@ -79,11 +151,10 @@ class Settings(BaseSettings):
         "yes",
     )
 
-    # DeepSeek 配置（当 LLM_PROVIDER=deepseek 时使用，OpenAI 兼容 API）
-    # 仅从 SQLite user_configs 读取，需通过 secbot-config config 配置
+    # DeepSeek 配置（向下兼容）
     @property
     def deepseek_api_key(self) -> Optional[str]:
-        return _get_api_key_from_sqlite("deepseek_api_key")
+        return get_provider_api_key("deepseek")
 
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
@@ -93,15 +164,10 @@ class Settings(BaseSettings):
     deepseek_temperature: float = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.7"))
 
     # 语音输入（STT）配置
-    # 引擎：whisper（openai-whisper）| fast_whisper（faster-whisper，推荐，更快更省显存）
     stt_engine: str = os.getenv("STT_ENGINE", "fast_whisper")
-    # 模型名称。whisper: tiny/base/small/medium/large；fast_whisper: tiny/base/small/medium/large-v2/large-v3/turbo/distil-large-v3
     stt_model: str = os.getenv("STT_MODEL", "base")
-    # 仅 fast_whisper：设备 cpu/cuda
     stt_device: str = os.getenv("STT_DEVICE", "cpu")
-    # 仅 fast_whisper：计算类型。CPU 常用 int8/float32；GPU 常用 float16/int8_float16
     stt_compute_type: str = os.getenv("STT_COMPUTE_TYPE", "int8")
-    # 仅 fast_whisper：是否启用 VAD 过滤静音（减少误识别）
     stt_vad_filter: bool = os.getenv("STT_VAD_FILTER", "true").lower() in (
         "1",
         "true",
@@ -109,7 +175,7 @@ class Settings(BaseSettings):
     )
 
     # 语音输出（TTS）配置
-    tts_engine: str = os.getenv("TTS_ENGINE", "gtts")  # 文字转语音引擎（gtts/pyttsx3）
+    tts_engine: str = os.getenv("TTS_ENGINE", "gtts")
 
     # OSINT / 外部 API 配置
     @property
@@ -133,7 +199,6 @@ class Settings(BaseSettings):
     # 日志配置
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     log_file: str = os.getenv("LOG_FILE", "logs/agent.log")
-    # 初始化时是否在控制台显示详细日志（默认 false 折叠初始化日志，文件日志不受影响）
     verbose_init: bool = os.getenv("VERBOSE_INIT", "false").lower() in (
         "1",
         "true",
@@ -146,7 +211,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
-        extra = "ignore"  # 忽略未定义的额外字段
+        extra = "ignore"
 
 
 # 全局配置实例
