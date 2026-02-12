@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
+import MarkdownText from './MarkdownText';
 
 interface Props {
   content: string;
@@ -24,9 +25,7 @@ export default function PlanningBlock({ content }: Props) {
 
       {/* 内容面板 */}
       <View style={styles.panel}>
-        <Text style={styles.content} selectable>
-          {content}
-        </Text>
+        <MarkdownText content={content} />
       </View>
     </View>
   );
