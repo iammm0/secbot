@@ -419,12 +419,6 @@ class PlannerAgent(BaseAgent):
     ) -> PlanResult:
         """使用 LLM 生成结构化 TodoList"""
         from hackbot_config import settings
-
-        try:
-            from langchain_ollama import ChatOllama
-        except ImportError:
-            from langchain_community.chat_models import ChatOllama
-
         from langchain_core.messages import SystemMessage, HumanMessage
 
         # 构建上下文
@@ -452,30 +446,9 @@ class PlannerAgent(BaseAgent):
 - 不要添加任何 JSON 之外的文字"""
 
         try:
-            provider = (settings.llm_provider or "ollama").strip().lower()
-            if provider == "deepseek" and settings.deepseek_api_key:
-                try:
-                    from langchain_openai import ChatOpenAI
-                except ImportError:
-                    raise ImportError("需安装 langchain-openai")
-                from pydantic import SecretStr
-
-                model = settings.deepseek_model
-                is_reasoner = "reasoner" in model.lower()
-                llm_kwargs = dict(
-                    api_key=SecretStr(settings.deepseek_api_key),
-                    base_url=settings.deepseek_base_url.rstrip("/"),
-                    model=model,
-                )
-                if not is_reasoner:
-                    llm_kwargs["temperature"] = 0.3
-                llm = ChatOpenAI(**llm_kwargs)
-            else:
-                llm = ChatOllama(
-                    base_url=settings.ollama_base_url,
-                    model=settings.ollama_model,
-                    temperature=0.3,
-                )
+            from core.patterns.security_react import _create_llm
+            provider = (settings.llm_provider or "deepseek").strip().lower()
+            llm = _create_llm(provider=provider, temperature=0.3)
             messages = [
                 SystemMessage(content=self.system_prompt),
                 HumanMessage(content=planning_prompt),
@@ -488,9 +461,8 @@ class PlannerAgent(BaseAgent):
         except Exception as e:
             from utils.model_selector import get_llm_connection_hint
 
-            hint = get_llm_connection_hint(
-                e, provider=provider if "provider" in dir() else "ollama"
-            )
+            provider = (settings.llm_provider or "deepseek").strip().lower()
+            hint = get_llm_connection_hint(e, provider=provider)
             logger.error(f"规划 LLM 调用失败: {e}")
             plan = self._fallback_plan(user_input)
             plan.plan_summary += f"\n[!] {hint}"
