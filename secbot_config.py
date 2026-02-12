@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-app = typer.Typer(name="secbot", help="SecBot 安全渗透测试工具")
+app = typer.Typer(name="secbot-config", help="SecBot 配置命令 - 配置 API Key")
 
 console = Console()
 
@@ -99,7 +99,6 @@ def config():
             _save_deepseek_key_to_db(new_key)
             console.print(f"✅ {provider} API Key 已保存到 SQLite")
         else:
-
             keyring.set_password("secbot", provider, new_key)
             console.print(f"✅ {provider} API Key 已保存到密钥环")
     else:
