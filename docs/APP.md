@@ -40,6 +40,30 @@ app/
     └── types/               # TypeScript 类型定义
 ```
 
+## 快速开发与调试
+
+| 操作           | 命令 |
+|----------------|------|
+| 安装依赖       | `cd app && npm install` |
+| 启动开发服务器 | `npx expo start`（默认 http://localhost:8081） |
+| iOS 模拟器     | `npx expo start --ios` |
+| Android 模拟器 | `npx expo start --android` |
+| Web 版本       | `npx expo start --web` |
+
+**一键启动**（需先启动后端 API）：
+
+```bash
+# 终端 1：启动 API
+uvicorn router.main:app --reload --host 0.0.0.0 --port 8000
+
+# 终端 2：启动 App
+cd app && npm install && npx expo start
+```
+
+按 `i` 打开 iOS 模拟器，`a` 打开 Android 模拟器，`w` 在浏览器中打开。真机调试时请将 `src/api/config.ts` 中的 `BASE_URL` 改为本机局域网 IP。
+
+---
+
 ## 安装与运行
 
 ### 前置要求
