@@ -7,6 +7,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
+import MarkdownText from './MarkdownText';
 
 interface Props {
   content: string;
@@ -56,14 +57,16 @@ export default function ReportBlock({ content, streaming }: Props) {
 
       {/* 内容面板 — 完成后用双线边框(DOUBLE) */}
       <View style={[styles.panel, streaming ? styles.panelStreaming : styles.panelComplete]}>
-        <Text style={styles.content} selectable={!streaming}>
-          {content}
-          {streaming && (
+        {streaming ? (
+          <Text style={styles.content} selectable={false}>
+            {content}
             <Animated.Text style={[styles.cursor, { opacity: cursorOpacity }]}>
               ▌
             </Animated.Text>
-          )}
-        </Text>
+          </Text>
+        ) : (
+          <MarkdownText content={content} />
+        )}
       </View>
     </View>
   );
