@@ -9,65 +9,13 @@ import re
 from typing import Optional, List, Dict, Any
 
 from core.agents.base import BaseAgent
+from core.patterns.security_react import _create_llm
 from tools.base import BaseTool, ToolResult
 from utils.context_info import get_agent_context_block
 from utils.logger import logger
 
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    from langchain_community.chat_models import ChatOllama
-try:
-    from langchain_openai import ChatOpenAI
-except ImportError:
-    ChatOpenAI = None
-
 from langchain_core.messages import SystemMessage, HumanMessage
-from pydantic import SecretStr
 from hackbot_config import settings
-
-
-# -----------------------------------------------------------------
-# LLM 创建（与 security_react.py 一致）
-# -----------------------------------------------------------------
-
-
-def _create_llm(
-    provider: Optional[str] = None,
-    model: Optional[str] = None,
-    temperature: Optional[float] = None,
-):
-    p = (provider or settings.llm_provider or "ollama").strip().lower()
-    if p == "ollama":
-        return ChatOllama(
-            base_url=settings.ollama_base_url,
-            model=model or settings.ollama_model,
-            temperature=temperature
-            if temperature is not None
-            else settings.ollama_temperature,
-        )
-    if p == "deepseek":
-        if ChatOpenAI is None:
-            raise ImportError("需安装 langchain-openai: pip install langchain-openai")
-        if not settings.deepseek_api_key:
-            raise ValueError("请设置 DEEPSEEK_API_KEY")
-        resolved = (model or settings.deepseek_model).strip()
-        if resolved.lower() == "reasoner":
-            resolved = settings.deepseek_reasoner_model
-        is_reasoner = "reasoner" in resolved.lower()
-        kwargs: Dict[str, Any] = dict(
-            api_key=SecretStr(settings.deepseek_api_key),
-            base_url=settings.deepseek_base_url.rstrip("/"),
-            model=resolved,
-        )
-        if not is_reasoner:
-            kwargs["temperature"] = (
-                temperature
-                if temperature is not None
-                else settings.deepseek_temperature
-            )
-        return ChatOpenAI(**kwargs)
-    raise ValueError(f"不支持的推理后端: {p}")
 
 
 # -----------------------------------------------------------------

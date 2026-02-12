@@ -65,7 +65,7 @@ class QAAgent(BaseAgent):
         """延迟创建 LLM 实例（仅 ask 模式需要）"""
         if self._llm is None:
             try:
-                from patterns.security_react import _create_llm
+                from core.patterns.security_react import _create_llm
 
                 self._llm = _create_llm()
                 logger.info("QAAgent: LLM 实例已创建（用于 Ask 模式）")

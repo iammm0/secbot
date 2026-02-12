@@ -1,66 +1,20 @@
 """
 工具调用智能体：基于 LangChain 的任务编排与工具调用
-支持 Ollama（本地）与 DeepSeek（云端 API）两种推理后端
+支持多厂商推理后端（Ollama / DeepSeek / OpenAI / Anthropic / Google / 智谱 / 通义千问 / 月之暗面 / 百川 / 零一万物 / 自定义中转）
 """
 
 from typing import Optional, List, Dict, Any
-
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    from langchain_community.chat_models import ChatOllama
-try:
-    from langchain_openai import ChatOpenAI
-except ImportError:
-    ChatOpenAI = None  # 使用 DeepSeek 时需安装 langchain-openai
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import BaseTool as LangChainBaseTool
 
 from core.agents.base import BaseAgent
+from core.patterns.security_react import _create_llm
 from hackbot_config import settings
 from tools.base import BaseTool
 from utils.logger import logger
 from utils.tool_caller import ToolDescriptionGenerator
-
-
-def _create_llm(
-    provider: Optional[str] = None,
-    model: Optional[str] = None,
-    base_url: Optional[str] = None,
-    temperature: Optional[float] = None,
-) -> BaseChatModel:
-    """根据配置或运行时参数创建推理模型（Ollama 或 DeepSeek）。"""
-    p = (provider or settings.llm_provider or "ollama").strip().lower()
-    if p == "ollama":
-        return ChatOllama(
-            base_url=base_url or settings.ollama_base_url,
-            model=model or settings.ollama_model,
-            temperature=temperature
-            if temperature is not None
-            else settings.ollama_temperature,
-        )
-    if p == "deepseek":
-        if ChatOpenAI is None:
-            raise ImportError(
-                "使用 DeepSeek 推理需安装 langchain-openai，请执行: pip install langchain-openai"
-            )
-        if not settings.deepseek_api_key:
-            raise ValueError("使用 DeepSeek 时请设置环境变量 DEEPSEEK_API_KEY")
-        # 支持 reasoner 别名：推理模式（思考链）
-        resolved = (model or settings.deepseek_model).strip()
-        if resolved.lower() == "reasoner":
-            resolved = settings.deepseek_reasoner_model
-        return ChatOpenAI(
-            api_key=settings.deepseek_api_key,
-            base_url=(base_url or settings.deepseek_base_url).rstrip("/"),
-            model=resolved,
-            temperature=temperature
-            if temperature is not None
-            else settings.deepseek_temperature,
-        )
-    raise ValueError(f"不支持的推理后端: {p}，可选值: ollama, deepseek")
 
 
 class LangChainToolWrapper(LangChainBaseTool):
@@ -187,36 +141,28 @@ class ToolCallingAgent(BaseAgent):
 
     def _sync_base_url_and_model(self) -> None:
         """根据当前 provider/model 覆盖更新 base_url 和 model（用于显示）。"""
+        from utils.model_selector import get_base_url_for_provider, get_default_model_for_provider
         p = (
-            (self._provider_override or settings.llm_provider or "ollama")
+            (self._provider_override or settings.llm_provider or "deepseek")
             .strip()
             .lower()
         )
-        if p == "ollama":
-            self.base_url = settings.ollama_base_url
-            self.model = (
-                self._model_override
-                if self._model_override is not None
-                else settings.ollama_model
-            )
-        else:
-            self.base_url = settings.deepseek_base_url
-            self.model = (
-                self._model_override
-                if self._model_override is not None
-                else settings.deepseek_model
-            )
+        self.base_url = get_base_url_for_provider(p)
+        self.model = (
+            self._model_override
+            if self._model_override is not None
+            else get_default_model_for_provider(p)
+        )
 
     def _recreate_llm(self) -> None:
         """按当前 provider/model 覆盖重新创建 llm 与 llm_with_tools。"""
+        from utils.model_selector import get_default_model_for_provider
         p = (
-            (self._provider_override or settings.llm_provider or "ollama")
+            (self._provider_override or settings.llm_provider or "deepseek")
             .strip()
             .lower()
         )
-        m = self._model_override or (
-            settings.ollama_model if p == "ollama" else settings.deepseek_model
-        )
+        m = self._model_override or get_default_model_for_provider(p)
         self.llm = _create_llm(provider=p, model=m)
         self._sync_base_url_and_model()
         if self.tools_dict:
@@ -258,7 +204,7 @@ class ToolCallingAgent(BaseAgent):
         """返回当前推理后端与模型描述（用于展示）。"""
         self._sync_base_url_and_model()
         p = (
-            (self._provider_override or settings.llm_provider or "ollama")
+            (self._provider_override or settings.llm_provider or "deepseek")
             .strip()
             .lower()
         )
