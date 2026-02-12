@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from config import settings
+from hackbot_config import settings
 
 # 可选模型后端
 PROVIDER_OLLAMA = "ollama"

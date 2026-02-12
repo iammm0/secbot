@@ -210,7 +210,7 @@ class SmartSearchTool(BaseTool):
 
         try:
             import httpx
-            from config import settings
+            from hackbot_config import settings
 
             base_url = settings.ollama_base_url
             model = settings.ollama_model

@@ -4,7 +4,7 @@
 
 import httpx
 from typing import List
-from config import settings
+from hackbot_config import settings
 from .logger import logger
 
 

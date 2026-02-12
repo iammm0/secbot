@@ -360,7 +360,7 @@ def run_interactive_ui(
                 if lower_input.startswith("/model"):
                     parts = user_input.strip().split()
                     if len(parts) == 1:
-                        from config import settings as _settings
+                        from hackbot_config import settings as _settings
                         cur = agent_instance.get_current_model() if (agent_instance and hasattr(agent_instance, "get_current_model")) else None
                         if cur:
                             cur_parts = cur.split(" / ", 1)

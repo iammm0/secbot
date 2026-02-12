@@ -265,7 +265,7 @@ class PageExtractTool(BaseTool):
     async def _call_ai(self, prompt: str) -> str:
         """调用 AI 模型"""
         import httpx
-        from config import settings
+        from hackbot_config import settings
 
         provider = (settings.llm_provider or "ollama").strip().lower()
 

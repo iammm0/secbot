@@ -19,7 +19,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import BaseTool as LangChainBaseTool
 
 from core.agents.base import BaseAgent
-from config import settings
+from hackbot_config import settings
 from tools.base import BaseTool
 from utils.logger import logger
 from utils.tool_caller import ToolDescriptionGenerator

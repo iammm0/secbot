@@ -19,7 +19,7 @@ from database.models import (
     ScanResult,
     AuditRecord,
 )
-from config import settings
+from hackbot_config import settings
 from utils.logger import logger
 
 

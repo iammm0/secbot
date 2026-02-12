@@ -5,7 +5,7 @@
 import sys
 from pathlib import Path
 from loguru import logger
-from config import settings
+from hackbot_config import settings
 
 # 移除默认处理器
 logger.remove()

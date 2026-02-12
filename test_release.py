@@ -46,7 +46,7 @@ def main():
     tests.append(
         (
             "模块导入",
-            "python -c 'from config import settings; print(\"Settings loaded OK\")'",
+            "python -c 'from hackbot_config import settings; print(\"Settings loaded OK\")'",
         )
     )
 

@@ -24,7 +24,7 @@ except ImportError:
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import SecretStr
-from config import settings
+from hackbot_config import settings
 
 
 # -----------------------------------------------------------------
