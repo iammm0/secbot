@@ -418,7 +418,7 @@ class PlannerAgent(BaseAgent):
         context: Optional[dict] = None,
     ) -> PlanResult:
         """使用 LLM 生成结构化 TodoList"""
-        from config import settings
+        from hackbot_config import settings
 
         try:
             from langchain_ollama import ChatOllama

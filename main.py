@@ -54,7 +54,7 @@ console = Console()
 
 def check_llm_configured() -> tuple[bool, str]:
     """检查 LLM 是否已正确配置"""
-    from config import settings
+    from hackbot_config import settings
 
     provider = (settings.llm_provider or "deepseek").strip().lower()
 
@@ -68,7 +68,7 @@ def check_llm_configured() -> tuple[bool, str]:
 
 def show_config_prompt_and_exit():
     """显示配置提示并退出"""
-    from config import settings
+    from hackbot_config import settings
 
     provider = (settings.llm_provider or "deepseek").strip().lower()
 
@@ -1763,7 +1763,7 @@ def revoke(
 
 def _require_deepseek_api_key() -> None:
     """发布版启动条件：使用 DeepSeek 时必须已配置 API Key，否则退出并提示。"""
-    from config import settings
+    from hackbot_config import settings
 
     provider = (settings.llm_provider or "deepseek").strip().lower()
     if provider != "deepseek":

@@ -242,7 +242,7 @@ class DeepCrawlTool(BaseTool):
 
         try:
             import httpx
-            from config import settings
+            from hackbot_config import settings
 
             provider = (settings.llm_provider or "ollama").strip().lower()
 

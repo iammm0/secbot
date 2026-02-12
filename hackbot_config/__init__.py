@@ -1,5 +1,5 @@
 """
-配置管理模块
+配置管理模块（包名 hackbot_config 避免与用户目录下的 config 冲突）
 """
 
 import os
@@ -16,8 +16,17 @@ if getattr(sys, "frozen", False):
     _exe_dir = Path(sys.executable).resolve().parent
     load_dotenv(_exe_dir / ".env")
 
-# 与 DatabaseManager 一致：相对路径以 config 包所在目录为基准（settings.project_root）
+# 与 DatabaseManager 一致：相对路径以本包所在目录为基准（settings.project_root）
 _config_dir = Path(__file__).resolve().parent
+
+
+def _get_api_key_from_keyring(provider: str) -> Optional[str]:
+    """从 keyring 获取 API Key（shodan/virustotal 等）"""
+    try:
+        import keyring
+        return keyring.get_password("secbot", provider)
+    except Exception:
+        return None
 
 
 def _get_db_path() -> Path:

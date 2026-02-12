@@ -40,7 +40,7 @@ class VirusTotalTool(BaseTool):
                 error=f"参数 type 无效，可选值: {list(self._TYPE_PATH.keys())}",
             )
 
-        from config import settings
+        from hackbot_config import settings
         api_key = getattr(settings, "virustotal_api_key", "") or ""
         if not api_key:
             return ToolResult(success=False, result=None, error="未配置 VIRUSTOTAL_API_KEY，请在 .env 中设置")
