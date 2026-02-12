@@ -12,7 +12,7 @@ from core.agents.qa_agent import QAAgent
 from core.agents.planner_agent import PlannerAgent
 from core.agents.summary_agent import SummaryAgent
 from database.manager import DatabaseManager
-from memory.database_memory import DatabaseMemory
+from core.memory.database_memory import DatabaseMemory
 from defense.defense_manager import DefenseManager
 from controller.controller import MainController
 from system.controller import OSController
