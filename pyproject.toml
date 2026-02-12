@@ -58,6 +58,7 @@ dependencies = [
     "websockets>=12.0",
     "tiktoken>=0.5.2",
     "keyring>=25.0.0",
+    "prompt_toolkit>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -69,14 +70,18 @@ dev = [
     "mypy>=1.0.0",
 ]
 cli = ["keyring>=25.0.0"]
+anthropic = ["langchain-anthropic>=0.3.0"]
+google = ["langchain-google-genai>=2.0.0"]
+all-providers = [
+    "langchain-anthropic>=0.3.0",
+    "langchain-google-genai>=2.0.0",
+]
 
 [project.scripts]
 hackbot = "hackbot.cli:app"
 hackbot-server = "router.main:run_server"
 secbot = "hackbot.cli:app"
 secbot-server = "router.main:run_server"
-secbot-config = "secbot_config:app"
-config = "secbot_config:app"
 
 [project.urls]
 Homepage = "https://github.com/iammm0/hackbot"
