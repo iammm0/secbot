@@ -34,7 +34,7 @@ class ShodanQueryTool(BaseTool):
                 error="缺少依赖: pip install shodan",
             )
 
-        from config import settings
+        from hackbot_config import settings
         api_key = getattr(settings, "shodan_api_key", "") or ""
         if not api_key:
             return ToolResult(success=False, result=None, error="未配置 SHODAN_API_KEY，请在 .env 中设置")

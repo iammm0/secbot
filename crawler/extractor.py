@@ -5,7 +5,7 @@ AI信息提取器
 from typing import Dict, List, Optional, Any
 import json
 import httpx
-from config import settings
+from hackbot_config import settings
 from utils.logger import logger
 
 

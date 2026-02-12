@@ -17,7 +17,7 @@ from utils.logger import logger
 
 def _create_summary_llm():
     """创建 LLM 实例（复用 security_react 的逻辑）"""
-    from config import settings
+    from hackbot_config import settings
 
     try:
         from langchain_ollama import ChatOllama

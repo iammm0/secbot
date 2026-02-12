@@ -6,7 +6,7 @@ import os
 import tempfile
 from typing import Optional
 
-from config import settings
+from hackbot_config import settings
 from utils.logger import logger
 
 

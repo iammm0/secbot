@@ -13,7 +13,7 @@ from rich.table import Table
 
 from core.agents.hackbot_agent import HackbotAgent
 from core.agents.superhackbot_agent import SuperHackbotAgent
-from config import settings
+from hackbot_config import settings
 from utils.logger import logger, restore_console_log_level
 from utils.audit import AuditTrail
 from utils.slash_commands import normalize_slash_input

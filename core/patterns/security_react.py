@@ -27,7 +27,7 @@ except ImportError:
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import SecretStr
-from config import settings
+from hackbot_config import settings
 
 
 def _create_llm(
