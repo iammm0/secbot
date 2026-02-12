@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secbot"
-version = "1.2.3"
+version = "1.2.4"
 description = "Hackbot: AI-powered automated penetration testing robot"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -59,6 +59,7 @@ dependencies = [
     "tiktoken>=0.5.2",
     "keyring>=25.0.0",
     "prompt_toolkit>=3.0.0",
+    "paramiko>=3.0.0",
 ]
 
 [project.optional-dependencies]

@@ -7,7 +7,7 @@ SessionManager：会话编排管理器
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Awaitable, Callable, Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional, Any
 
 from rich.console import Console
 
@@ -48,6 +48,7 @@ class SessionManager:
         qa_agent: Optional[QAAgent] = None,
         summary_agent: Optional[SummaryAgent] = None,
         get_root_password: Optional[Callable[[str], Awaitable[Optional[str]]]] = None,
+        resolve_agent: Optional[Callable[[str], Any]] = None,
     ):
         self.event_bus = event_bus
         self.console = console
@@ -56,6 +57,7 @@ class SessionManager:
         self.summary_agent = summary_agent or SummaryAgent()
         self.agents = agents or {}
         self.get_root_password = get_root_password
+        self.resolve_agent = resolve_agent
 
         # 会话管理
         self.sessions: Dict[str, Session] = {}
@@ -118,9 +120,16 @@ class SessionManager:
         return "hackbot"
 
     def get_agent(self, agent_type: Optional[str] = None):
-        """获取 agent 实例"""
+        """获取 agent 实例；若未在 agents 中且提供了 resolve_agent，则延迟解析并缓存。"""
         at = agent_type or self.get_current_agent_type()
-        return self.agents.get(at)
+        if at in self.agents:
+            return self.agents[at]
+        if self.resolve_agent:
+            instance = self.resolve_agent(at)
+            if instance is not None:
+                self.agents[at] = instance
+                return instance
+        return None
 
     # ------------------------------------------------------------------
     # 核心编排流程
@@ -223,7 +232,10 @@ class SessionManager:
         at = agent_type or self.get_current_agent_type()
         agent_instance = self.get_agent(at)
         if not agent_instance:
-            error_msg = f"未找到 agent: {at}"
+            # 详细诊断信息
+            available_agents = list(self.agents.keys()) if self.agents else []
+            error_msg = f"未找到 agent: {at}\n可用 agents: {available_agents}\n检查是否正确初始化或传递了 agents 参数。"
+            logger.error(f"Agent 获取失败: at={at}, agents_keys={available_agents}")
             await self.event_bus.emit_simple_async(EventType.ERROR, error=error_msg)
             return error_msg
 

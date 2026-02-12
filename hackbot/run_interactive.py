@@ -125,6 +125,7 @@ def run_interactive_ui(
             planner=planner_agent,
             qa_agent=qa_agent,
             get_root_password=_get_root_password,
+            resolve_agent=get_agent,
         )
 
         plan_mode = False
