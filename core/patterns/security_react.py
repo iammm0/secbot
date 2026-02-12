@@ -24,10 +24,23 @@ try:
 except ImportError:
     ChatOpenAI = None
 
+# Anthropic（可选依赖）
+try:
+    from langchain_anthropic import ChatAnthropic
+except ImportError:
+    ChatAnthropic = None
+
+# Google Gemini（可选依赖）
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+except ImportError:
+    ChatGoogleGenerativeAI = None
+
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import SecretStr
-from hackbot_config import settings
+from hackbot_config import settings, get_provider_api_key
+from utils.model_selector import get_provider_config, get_default_model_for_provider, get_base_url_for_provider
 
 
 def _create_llm(
@@ -35,40 +48,91 @@ def _create_llm(
     model: Optional[str] = None,
     temperature: Optional[float] = None,
 ) -> BaseChatModel:
-    """创建 LLM 实例（与 tool_calling_agent 的 _create_llm 逻辑一致）。"""
-    p = (provider or settings.llm_provider or "ollama").strip().lower()
+    """
+    创建 LLM 实例，支持多厂商：
+    - ollama: 本地 Ollama
+    - deepseek / openai / zhipu / qwen / moonshot / baichuan / yi / custom: OpenAI API 兼容
+    - anthropic: Anthropic Claude
+    - google: Google Gemini
+    """
+    p = (provider or settings.llm_provider or "deepseek").strip().lower()
+
+    # --- Ollama ---
     if p == "ollama":
         return ChatOllama(
             base_url=settings.ollama_base_url,
             model=model or settings.ollama_model,
-            temperature=temperature
-            if temperature is not None
-            else settings.ollama_temperature,
+            temperature=temperature if temperature is not None else settings.ollama_temperature,
         )
-    if p == "deepseek":
-        if ChatOpenAI is None:
-            raise ImportError("需安装 langchain-openai: pip install langchain-openai")
-        if not settings.deepseek_api_key:
-            raise ValueError("请设置 DEEPSEEK_API_KEY")
-        resolved = (model or settings.deepseek_model).strip()
-        if resolved.lower() == "reasoner":
-            resolved = settings.deepseek_reasoner_model
 
-        # deepseek-reasoner 不支持 temperature 参数
-        is_reasoner = "reasoner" in resolved.lower()
+    # --- 查找厂商配置 ---
+    config = get_provider_config(p)
+    if config is None:
+        raise ValueError(f"不支持的推理后端: {p}，可用: ollama / deepseek / openai / anthropic / google / zhipu / qwen / moonshot / baichuan / yi / custom")
+
+    provider_type = config.get("type", "openai_compatible")
+
+    # --- Anthropic (Claude) ---
+    if provider_type == "anthropic":
+        if ChatAnthropic is None:
+            raise ImportError("需安装 langchain-anthropic: pip install langchain-anthropic")
+        api_key = get_provider_api_key(p)
+        if not api_key:
+            raise ValueError(f"请先配置 {config['name']} API Key（使用 /model 命令）")
+        resolved_model = (model or get_default_model_for_provider(p)).strip()
         kwargs = dict(
-            api_key=SecretStr(settings.deepseek_api_key),
-            base_url=(settings.deepseek_base_url).rstrip("/"),
-            model=resolved,
+            api_key=SecretStr(api_key),
+            model=resolved_model,
         )
-        if not is_reasoner:
-            kwargs["temperature"] = (
-                temperature
-                if temperature is not None
-                else settings.deepseek_temperature
-            )
-        return ChatOpenAI(**kwargs)
-    raise ValueError(f"不支持的推理后端: {p}")
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        return ChatAnthropic(**kwargs)
+
+    # --- Google (Gemini) ---
+    if provider_type == "google":
+        if ChatGoogleGenerativeAI is None:
+            raise ImportError("需安装 langchain-google-genai: pip install langchain-google-genai")
+        api_key = get_provider_api_key(p)
+        if not api_key:
+            raise ValueError(f"请先配置 {config['name']} API Key（使用 /model 命令）")
+        resolved_model = (model or get_default_model_for_provider(p)).strip()
+        kwargs = dict(
+            google_api_key=api_key,
+            model=resolved_model,
+        )
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        return ChatGoogleGenerativeAI(**kwargs)
+
+    # --- OpenAI API 兼容（deepseek / openai / zhipu / qwen / moonshot / baichuan / yi / custom）---
+    if ChatOpenAI is None:
+        raise ImportError("需安装 langchain-openai: pip install langchain-openai")
+
+    api_key = get_provider_api_key(p)
+    if not api_key:
+        raise ValueError(f"请先配置 {config['name']} API Key（使用 /model 命令）")
+
+    base_url = get_base_url_for_provider(p)
+    if not base_url:
+        raise ValueError(f"请先配置 {config['name']} Base URL（使用 /model 命令）")
+
+    resolved_model = (model or get_default_model_for_provider(p)).strip()
+
+    # DeepSeek reasoner 特殊处理
+    if p == "deepseek" and resolved_model.lower() == "reasoner":
+        resolved_model = settings.deepseek_reasoner_model
+
+    # deepseek-reasoner / o1 / o3 等推理模型不支持 temperature
+    is_reasoning_model = any(kw in resolved_model.lower() for kw in ("reasoner", "o1", "o3"))
+
+    kwargs = dict(
+        api_key=SecretStr(api_key),
+        base_url=base_url,
+        model=resolved_model,
+    )
+    if not is_reasoning_model:
+        kwargs["temperature"] = temperature if temperature is not None else 0.7
+    return ChatOpenAI(**kwargs)
 
 
 class SecurityReActAgent(BaseAgent):
@@ -165,24 +229,20 @@ class SecurityReActAgent(BaseAgent):
                 self._model_override = None
         if model is not None:
             self._model_override = model.strip()
-        p = self._provider_override or settings.llm_provider or "ollama"
+        p = self._provider_override or settings.llm_provider or "deepseek"
         m = self._model_override
         self.llm = _create_llm(provider=p, model=m)
-        self.model = m or (
-            settings.ollama_model if p == "ollama" else settings.deepseek_model
-        )
+        self.model = m or get_default_model_for_provider(p)
         logger.info(f"已切换推理模型: {self.get_current_model()}")
         return self.get_current_model()
 
     def get_current_model(self) -> str:
         p = (
-            (self._provider_override or settings.llm_provider or "ollama")
+            (self._provider_override or settings.llm_provider or "deepseek")
             .strip()
             .lower()
         )
-        m = self._model_override or (
-            settings.ollama_model if p == "ollama" else settings.deepseek_model
-        )
+        m = self._model_override or get_default_model_for_provider(p)
         return f"{p} / {m}"
 
     # ---- 工具描述 ----
