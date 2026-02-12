@@ -4,11 +4,12 @@ OpenCode 风格输入框
 视觉效果:
   ╭── > hackbot ───────────────────────────────────────────╮
   │                                                        │
-  ╰──────────── / commands · ↑↓ history · enter send ──────╯
+  ╰──────────── / 命令 · Tab 补全 · ↑↓ 历史 · Enter 发送 ──────╯
 
 功能：
+  - 输入 / 后自动弹出下拉选项框，↑↓ 选择命令（需安装 prompt_toolkit）
+  - 或输入 / 后按 Tab 补全
   - ↑↓ 历史记录切换
-  - / 命令自动补全
   - Enter 发送
   - placeholder 占位提示
   - 自适应终端宽度，窄窗口不溢出
@@ -19,7 +20,7 @@ import sys
 from pathlib import Path
 from rich.console import Console
 
-# prompt_toolkit 可选
+# prompt_toolkit 可选（用于输入 / 后的下拉选项框与 Tab 补全）
 try:
     from prompt_toolkit import PromptSession
     from prompt_toolkit.history import FileHistory, InMemoryHistory
@@ -28,8 +29,15 @@ try:
     from prompt_toolkit.patch_stdout import patch_stdout
 
     PROMPT_TOOLKIT_AVAILABLE = True
+    # 下拉列表样式（COLUMN=单列列表，↑↓ 选择）
+    try:
+        from prompt_toolkit.completion import CompleteStyle
+        _COMPLETE_STYLE = getattr(CompleteStyle, "COLUMN", None)
+    except (ImportError, AttributeError):
+        _COMPLETE_STYLE = None
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
+    _COMPLETE_STYLE = None
 
 
 # 最小可用宽度（低于此值使用极简边框）
@@ -106,15 +114,24 @@ class EnhancedInput:
                 }
             )
 
-            # 不自定义 key_bindings，使用 prompt_toolkit 默认行为
-            # 默认 multiline=False：Enter 提交，↑↓ 切换历史
-            self._session = PromptSession(
-                history=history,
-                style=style,
-                completer=_SlashCompleter(),
-                enable_open_in_editor=False,
-                mouse_support=False,
-            )
+            # 输入 / 后自动弹出下拉选项框，↑↓ 选择命令（complete_while_typing + complete_style）
+            session_kw: dict = {
+                "history": history,
+                "style": style,
+                "completer": _SlashCompleter(),
+                "complete_while_typing": True,
+                "enable_open_in_editor": False,
+                "mouse_support": False,
+            }
+            if _COMPLETE_STYLE is not None:
+                session_kw["complete_style"] = _COMPLETE_STYLE
+            try:
+                self._session = PromptSession(
+                    **session_kw,
+                    enable_history_search=False,
+                )
+            except TypeError:
+                self._session = PromptSession(**session_kw)
         except Exception:
             self.use_prompt_toolkit = False
 
@@ -195,11 +212,11 @@ class EnhancedInput:
             return
 
         inner = w - 2  # 减去 ╰ 和 ╯
-        hint = " / commands · ↑↓ history · enter send "
+        hint = " 输入 / 显示命令 · Tab 补全 · ↑↓ 历史 · Enter 发送 "
 
         # 如果宽度不够放完整 hint，截断
         if inner < len(hint) + 2:
-            hint = " /cmd · ↑↓ · enter "
+            hint = " / 回车 列出命令 · ↑↓ · Enter "
         if inner < len(hint) + 2:
             hint = ""
 
