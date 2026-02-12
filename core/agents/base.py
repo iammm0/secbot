@@ -21,7 +21,9 @@ class BaseAgent(ABC):
         self.name = name
         self.system_prompt = system_prompt or self._default_system_prompt()
         self.messages: List[AgentMessage] = []
-        self.memory: List[AgentMessage] = []
+        # 对话历史（列表）；外部可能将 self.memory 设为 MemoryManager，故用独立列表
+        self._conversation: List[AgentMessage] = []
+        self.memory: List[AgentMessage] = []  # 默认列表；main/cli 可能替换为 MemoryManager
         
         if self.system_prompt:
             self.messages.append(
@@ -91,17 +93,20 @@ class BaseAgent(ABC):
         """添加消息到历史"""
         message = AgentMessage(role=role, content=content, metadata=metadata)
         self.messages.append(message)
-        self.memory.append(message)
+        self._conversation.append(message)
     
     def get_conversation_history(self, limit: Optional[int] = None) -> List[AgentMessage]:
         """获取对话历史"""
         if limit:
-            return self.memory[-limit:]
-        return self.memory
+            return self._conversation[-limit:]
+        return self._conversation
     
     def clear_memory(self):
         """清空记忆"""
-        self.memory.clear()
+        self._conversation.clear()
+        if hasattr(self.memory, "clear_all") and callable(self.memory.clear_all):
+            # MemoryManager.clear_all 为 async，此处仅清空对话列表；持久记忆由调用方按需清空
+            pass
         logger.info(f"智能体 {self.name} 的记忆已清空")
     
     def update_system_prompt(self, new_prompt: str):
