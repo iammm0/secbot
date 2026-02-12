@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secbot"
-version = "1.2.2"
+version = "1.2.3"
 description = "Hackbot: AI-powered automated penetration testing robot"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -76,6 +76,7 @@ hackbot-server = "router.main:run_server"
 secbot = "hackbot.cli:app"
 secbot-server = "router.main:run_server"
 secbot-config = "secbot_config:app"
+config = "secbot_config:app"
 
 [project.urls]
 Homepage = "https://github.com/iammm0/hackbot"
