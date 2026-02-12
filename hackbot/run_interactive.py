@@ -47,7 +47,11 @@ def run_interactive_ui(
         run_model_selector,
         check_ollama_running,
         has_deepseek_api_key,
+        has_provider_api_key,
         prompt_and_save_deepseek_api_key,
+        prompt_and_save_api_key,
+        get_provider_config,
+        SUPPORTED_PROVIDERS,
     )
     from tui.utils import smart_render_text
 
@@ -61,7 +65,7 @@ def run_interactive_ui(
         agent_instance = None  # 延迟创建：先进入界面，切换模型或发消息时再创建（届时可提示输入 API Key）
 
         def ensure_agent(agent_type: Optional[str] = None) -> bool:
-            """需要用到 agent 时再创建；若为 deepseek 且未配置 key 则提示输入。返回是否已有可用 agent。"""
+            """需要用到 agent 时再创建；若缺少 API Key 则提示输入。返回是否已有可用 agent。"""
             nonlocal agent_instance
             at = (agent_type or agent).strip().lower()
             for attempt in range(2):
@@ -70,9 +74,12 @@ def run_interactive_ui(
                     return True
                 except ValueError as e:
                     err_msg = str(e)
-                    if ("DEEPSEEK_API_KEY" in err_msg or "请设置" in err_msg) and attempt == 0:
-                        if not prompt_and_save_deepseek_api_key(console):
-                            console.print("[yellow]未输入 API Key，已取消。使用 /model 选择 deepseek 时可再次配置。[/yellow]")
+                    if ("API Key" in err_msg or "api_key" in err_msg.lower() or "请先配置" in err_msg) and attempt == 0:
+                        # 尝试从错误消息中提取 provider 名称
+                        from hackbot_config import settings as _s
+                        current_p = (_s.llm_provider or "deepseek").strip().lower()
+                        if not prompt_and_save_api_key(current_p, console):
+                            console.print("[yellow]未输入 API Key，已取消。使用 /model 选择后端时可再次配置。[/yellow]")
                             return False
                     else:
                         raise
@@ -133,7 +140,12 @@ def run_interactive_ui(
             model_name = "未选择（/model 选择）"
         mode_desc = "auto" if agent == "hackbot" else "expert"
         agent_badge = "default" if agent == "hackbot" else "super"
-        tool_count = len(getattr(agent_instance, "security_tools", [])) if agent_instance else 0
+        # 工具数：有 instance 用其实例数量，否则按当前 agent 类型取工具列表长度（避免启动时延迟创建导致显示 0）
+        if agent_instance:
+            tool_count = len(getattr(agent_instance, "security_tools", []))
+        else:
+            from tools.pentest.security import BASIC_SECURITY_TOOLS, ALL_SECURITY_TOOLS
+            tool_count = len(BASIC_SECURITY_TOOLS) if agent == "hackbot" else len(ALL_SECURITY_TOOLS)
 
         console.print(
             Text.assemble(
@@ -170,7 +182,7 @@ def run_interactive_ui(
                     else "[magenta]super[/magenta]"
                 )
                 + " 。输入 [cyan]/agent[/cyan] 切换；启动时 [cyan]-a hackbot[/cyan] | [cyan]-a superhackbot[/cyan]。\n"
-                "\n[dim]  输入 / 查看所有命令 · exit 退出[/dim]"
+                "\n[dim]  输入 [cyan]/[/cyan] 后回车可列出所有命令（或输入 / 后自动弹出）· exit 退出[/dim]"
             )
         else:
             qs_content = (
@@ -192,21 +204,23 @@ def run_interactive_ui(
 
         if agent_instance and hasattr(agent_instance, "get_current_model"):
             cur = agent_instance.get_current_model()
-            p = cur.split(" / ", 1)[0].strip().lower() if cur else "ollama"
+            p = cur.split(" / ", 1)[0].strip().lower() if cur else "deepseek"
             if p == "ollama" and not check_ollama_running():
                 console.print(
                     Panel(
                         "[yellow]当前使用 Ollama，但未检测到本机 Ollama 服务。[/yellow]\n"
-                        "请先启动 Ollama 或输入 [cyan]/model[/cyan] 切换到 DeepSeek。",
+                        "请先启动 Ollama 或输入 [cyan]/model[/cyan] 切换到其他后端。",
                         title="[bold]LLM 不可用[/bold]",
                         border_style="yellow",
                     )
                 )
-            elif p == "deepseek" and not has_deepseek_api_key():
+            elif p != "ollama" and not has_provider_api_key(p):
+                provider_cfg = get_provider_config(p)
+                display_name = provider_cfg["name"] if provider_cfg else p
                 console.print(
                     Panel(
-                        "[yellow]当前使用 DeepSeek，但未配置 API Key。[/yellow]\n"
-                        "输入 [cyan]/model deepseek[/cyan] 可弹出输入框配置，或运行 [cyan]secbot-config config[/cyan]。",
+                        f"[yellow]当前使用 {display_name}，但未配置 API Key。[/yellow]\n"
+                        f"输入 [cyan]/model[/cyan] 选择后端并配置 API Key。",
                         title="[bold]LLM 未配置[/bold]",
                         border_style="yellow",
                     )
@@ -257,7 +271,18 @@ def run_interactive_ui(
                 if user_input.strip().startswith("/"):
                     normalized, hint = normalize_slash_input(user_input)
                     if hint is not None:
-                        console.print(hint)
+                        # 输入 "/" 后展示的可选命令列表用 Panel 突出显示
+                        if "可用命令" in hint:
+                            console.print(
+                                Panel(
+                                    hint,
+                                    title="[bold cyan] 输入 / 后的可选命令 [/bold cyan]",
+                                    border_style="cyan",
+                                    padding=(0, 1),
+                                )
+                            )
+                        else:
+                            console.print(hint)
                         continue
                     user_input = normalized
 
@@ -360,14 +385,15 @@ def run_interactive_ui(
                 if lower_input.startswith("/model"):
                     parts = user_input.strip().split()
                     if len(parts) == 1:
+                        # /model — 交互式选择
                         from hackbot_config import settings as _settings
                         cur = agent_instance.get_current_model() if (agent_instance and hasattr(agent_instance, "get_current_model")) else None
                         if cur:
                             cur_parts = cur.split(" / ", 1)
-                            current_provider = cur_parts[0].strip() if len(cur_parts) > 0 else "ollama"
+                            current_provider = cur_parts[0].strip() if len(cur_parts) > 0 else "deepseek"
                             current_model = cur_parts[1].strip() if len(cur_parts) > 1 else None
                         else:
-                            current_provider = (_settings.llm_provider or "ollama").strip().lower()
+                            current_provider = (_settings.llm_provider or "deepseek").strip().lower()
                             current_model = None
                         provider, model = run_model_selector(
                             console,
@@ -388,33 +414,28 @@ def run_interactive_ui(
                             except Exception as e:
                                 console.print(f"[red]切换失败: {e}[/red]")
                         continue
-                    if len(parts) == 2:
-                        target = parts[1].strip().lower()
-                        if target == "deepseek" and not has_deepseek_api_key():
-                            if not prompt_and_save_deepseek_api_key(console):
-                                console.print("[yellow]未配置 API Key，已取消切换[/yellow]")
-                                continue
-                        if not ensure_agent():
+
+                    # /model <provider> [model] — 快速切换
+                    target_provider = parts[1].strip().lower()
+                    target_model = parts[2].strip() if len(parts) >= 3 else None
+
+                    # 检查厂商是否已配置 API Key
+                    provider_config = get_provider_config(target_provider)
+                    if provider_config and provider_config.get("needs_api_key") and not has_provider_api_key(target_provider):
+                        if not prompt_and_save_api_key(target_provider, console):
+                            console.print("[yellow]未配置 API Key，已取消切换[/yellow]")
                             continue
-                        try:
-                            agent_instance.switch_model(provider=parts[1])
-                            console.print(f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]")
-                        except Exception as e:
-                            console.print(f"[red]切换失败: {e}[/red]")
-                    elif len(parts) >= 3:
-                        if parts[1].strip().lower() == "deepseek" and not has_deepseek_api_key():
-                            if not prompt_and_save_deepseek_api_key(console):
-                                console.print("[yellow]未配置 API Key，已取消切换[/yellow]")
-                                continue
-                        if not ensure_agent():
-                            continue
-                        try:
-                            agent_instance.switch_model(provider=parts[1], model=parts[2])
-                            console.print(f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]")
-                        except Exception as e:
-                            console.print(f"[red]切换失败: {e}[/red]")
-                    else:
-                        console.print("[yellow]用法: /model 或 /model deepseek 或 /model deepseek <模型名>[/yellow]")
+
+                    if not ensure_agent():
+                        continue
+                    try:
+                        if target_model:
+                            agent_instance.switch_model(provider=target_provider, model=target_model)
+                        else:
+                            agent_instance.switch_model(provider=target_provider)
+                        console.print(f"[green]✓ 已切换: {agent_instance.get_current_model()}[/green]")
+                    except Exception as e:
+                        console.print(f"[red]切换失败: {e}[/red]")
                     continue
 
                 if lower_input.startswith("/accept"):
