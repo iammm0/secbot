@@ -47,8 +47,8 @@ dependencies = [
     "selenium>=4.17.0",
     "playwright>=1.41.0",
     "sqlalchemy>=2.0.25",
-    "sqlite-vec>=0.1.0",
-    "sqlite-vss>=0.1.0",
+    "sqlite-vec>=0.1.0; sys_platform != 'win32'",
+    "sqlite-vss>=0.1.0; sys_platform != 'win32'",
     "psutil>=5.9.0",
     "distro>=1.8.0",
     "loguru>=0.7.2",
@@ -140,7 +140,10 @@ line-length = 120
 target-version = ['py310', 'py311', 'py312']
 
 [tool.uv]
-required-environments = ["sys_platform == 'darwin' and platform_machine == 'x86_64'"]
+required-environments = [
+    "sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
