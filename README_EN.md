@@ -252,45 +252,6 @@ hackbot prompt-create my_chain --role "Security Expert" --instruction "Perform p
 hackbot prompt-load my_prompt.yaml
 ```
 
-## 📁 Project Structure
-
-```
-hackbot/
-├── main.py                 # CLI application entry
-├── config.py               # Configuration management
-├── hackbot/                  # Package CLI module
-├── agents/                 # Agent implementations
-│   ├── base.py            # Base agent class
-│   └── tool_calling_agent.py # 工具调用智能体（LLM + 工具）
-├── patterns/               # Design patterns
-│   └── react.py           # ReAct pattern
-├── exploit/                # Exploitation module
-│   ├── exploit_engine.py  # Exploit engine
-│   ├── web_exploits.py    # Web exploits
-│   ├── network_exploits.py # Network exploits
-│   └── post_exploitation.py # Post-exploitation
-├── attack_chain/           # Automated attack chain
-│   ├── attack_chain.py     # Main attack chain
-│   ├── reconnaissance.py   # Information gathering
-│   └── exploitation.py    # Exploitation coordination
-├── payloads/               # Payload generators
-│   ├── web_payloads.py     # Web payloads
-│   └── network_payloads.py # Network payloads
-├── scanner/                # Scanning tools
-│   ├── port_scanner.py     # Port scanning
-│   ├── service_detector.py # Service detection
-│   └── vulnerability_scanner.py # Vulnerability scanning
-├── defense/                # Defense system
-├── controller/             # Remote control
-├── crawler/                # Web crawler
-├── database/               # Database management
-├── memory/                 # Memory management
-├── prompts/                # Prompt management
-├── system/                 # OS control
-├── tools/                  # Tools and plugins
-└── utils/                  # Utility functions
-```
-
 ## 🔧 Development
 
 ### Running Tests
