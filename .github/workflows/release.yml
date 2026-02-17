@@ -1,4 +1,5 @@
 # 多平台构建 Hackbot 可执行程序并发布到 GitHub Release
+# 依赖: pyproject.toml + uv（不再使用 requirements.txt）
 # 触发: 推送 tag 如 v1.0.0，或手动 workflow_dispatch
 
 name: Release
@@ -26,6 +27,7 @@ jobs:
             name: darwin-amd64
 
     runs-on: ${{ matrix.runner }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -43,28 +45,30 @@ jobs:
           echo "/Library/Frameworks/Python.framework/Versions/3.11/bin" >> $GITHUB_PATH
           echo "PATH=/Library/Frameworks/Python.framework/Versions/3.11/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Install dependencies
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies (uv)
         shell: bash
         run: |
           if [ "${{ matrix.name }}" = "darwin-amd64" ]; then
-            PY=/Library/Frameworks/Python.framework/Versions/3.11/bin/python3
-            arch -x86_64 $PY -m pip install --upgrade pip
-            arch -x86_64 $PY -m pip install "setuptools>=68,<70"
-            arch -x86_64 $PY -m pip install -r requirements.txt pyinstaller
+            export UV_PYTHON="/Library/Frameworks/Python.framework/Versions/3.11/bin/python3"
+            arch -x86_64 uv sync --no-install-project
+            arch -x86_64 uv pip install pyinstaller
           else
-            python -m pip install --upgrade pip
-            pip install "setuptools>=68,<70"
-            pip install -r requirements.txt
-            pip install pyinstaller
+            uv sync --no-install-project
+            uv pip install pyinstaller
           fi
 
       - name: Build executable (PyInstaller onedir)
         shell: bash
         run: |
           if [ "${{ matrix.name }}" = "darwin-amd64" ]; then
-            arch -x86_64 /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -m PyInstaller hackbot.spec
+            arch -x86_64 .venv/bin/pyinstaller hackbot.spec
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            .venv/Scripts/pyinstaller.exe hackbot.spec
           else
-            pyinstaller hackbot.spec
+            .venv/bin/pyinstaller hackbot.spec
           fi
 
       - name: Package artifact (zip)
