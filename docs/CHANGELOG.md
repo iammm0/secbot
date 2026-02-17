@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-02-17
+
+### Added
+
+- 文档：[虚拟测试环境使用指南](docs/VIRTUAL_TEST_ENVIRONMENT.md)，VMware + Ubuntu 目标机环境与各功能 prompt 示例
+- README / QUICKSTART 中增加 `assets/show_picture.png` 初始化界面展示图
+
+### Changed
+
+- 文档声明项目仅使用 SQLite，移除 ChromaDB、Redis 相关说明（README、DEPLOYMENT、DOCKER_SETUP、SQLITE_SETUP）
+- DOCKER_SETUP 重写为「仅 SQLite、无需额外数据库」的说明
+
+---
+
 ## [1.2.4] - 2025-02-10
 
 ### Fixed
