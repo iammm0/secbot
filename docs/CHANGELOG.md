@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.10] - 2026-02-17
+
+### Fixed
+
+- Release 工作流：使用 `python -m PyInstaller` 替代直接调用 pyinstaller 脚本，避免 darwin-amd64 下 “isn't executable” 错误
+
+---
+
+## [1.2.9] - 2026-02-17
+
+### Fixed
+
+- Release 工作流 darwin-amd64：修复在 Apple Silicon 上 `arch -x86_64 uv` 报 Bad CPU type，改为仅用 UV_PYTHON 指定 x86_64 Python
+
+---
+
+## [1.2.8] - 2026-02-17
+
+### Changed
+
+- 发布流程使用基于 uv 的 Release 工作流构建多平台可执行程序
+
+---
+
+## [1.2.7] - 2026-02-17
+
+### Changed
+
+- Release 工作流：不再使用 `requirements.txt`，改为基于 `pyproject.toml` + `uv sync` 安装依赖并构建可执行程序
+
+---
+
+## [1.2.6] - 2026-02-17
+
+### Added
+
+- 文档：[虚拟测试环境使用指南](docs/VIRTUAL_TEST_ENVIRONMENT.md)，VMware + Ubuntu 目标机环境与各功能 prompt 示例
+- README / QUICKSTART 中增加 `assets/show_picture.png` 初始化界面展示图
+
+### Changed
+
+- 文档声明项目仅使用 SQLite，移除 ChromaDB、Redis 相关说明（README、DEPLOYMENT、DOCKER_SETUP、SQLITE_SETUP）
+- DOCKER_SETUP 重写为「仅 SQLite、无需额外数据库」的说明
+
+---
+
 ## [1.2.4] - 2025-02-10
 
 ### Fixed

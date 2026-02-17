@@ -1,5 +1,31 @@
 # Hackbot API 接口文档
 
+## 快速开发与调试
+
+| 操作           | 命令 |
+|----------------|------|
+| 安装依赖       | `uv sync` 或 `make install` |
+| 启动 API（热重载） | `uvicorn router.main:app --reload --host 0.0.0.0 --port 8000` |
+| 运行测试       | `uv run pytest tests/ -v` 或 `make test` |
+
+**常用调试**：
+
+```bash
+# 项目根目录下
+uv sync
+uvicorn router.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+- 服务默认: `http://localhost:8000`
+- 交互文档: [Swagger UI](http://localhost:8000/docs) · [ReDoc](http://localhost:8000/redoc)
+- 健康检查: `curl http://localhost:8000/health`
+- **流式输出监控**（终端实时看 SSE 事件）:
+  ```bash
+  curl -N -X POST http://localhost:8000/api/chat -H "Content-Type: application/json" -d '{"message":"你好","mode":"agent"}'
+  ```
+
+---
+
 ## 概述
 
 Hackbot 提供基于 FastAPI 的 RESTful API 接口，支持同步请求和 Server-Sent Events (SSE) 流式响应。所有接口均以 `/api/` 为前缀，采用 JSON 格式进行数据交换。
