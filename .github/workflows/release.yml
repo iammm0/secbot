@@ -65,11 +65,11 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.name }}" = "darwin-amd64" ]; then
-            arch -x86_64 .venv/bin/pyinstaller hackbot.spec
+            arch -x86_64 .venv/bin/python -m PyInstaller hackbot.spec
           elif [ "${{ runner.os }}" = "Windows" ]; then
-            .venv/Scripts/pyinstaller.exe hackbot.spec
+            .venv/Scripts/python.exe -m PyInstaller hackbot.spec
           else
-            .venv/bin/pyinstaller hackbot.spec
+            .venv/bin/python -m PyInstaller hackbot.spec
           fi
 
       - name: Package artifact (zip)
