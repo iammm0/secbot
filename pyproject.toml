@@ -60,6 +60,7 @@ dependencies = [
     "keyring>=25.0.0",
     "prompt_toolkit>=3.0.0",
     "paramiko>=3.0.0",
+    "setuptools>=68.0",
 ]
 
 [project.optional-dependencies]
