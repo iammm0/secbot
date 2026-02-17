@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-02-17
+
+### Changed
+
+- Release 工作流：不再使用 `requirements.txt`，改为基于 `pyproject.toml` + `uv sync` 安装依赖并构建可执行程序
+
+---
+
 ## [1.2.6] - 2026-02-17
 
 ### Added
