@@ -22,6 +22,12 @@
 - ✅ Ensure you comply with all applicable laws and regulations
 - ✅ Use responsibly and ethically
 
+## Initialization / Screenshot
+
+Interface after starting interactive mode (`uv run secbot` or `python main.py`):
+
+![Secbot initialization](assets/show_picture.png)
+
 ## 🚀 Features
 
 ### Core Capabilities
@@ -55,7 +61,6 @@
 
 - 📝 **Prompt Chain Management**: Flexible agent prompt configuration
 - 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
-- 🐳 **Docker Compose**: Quick start for ChromaDB and Redis development environment
 - ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
 - 🎨 **Beautiful Terminal Output**: Rich formatting with Rich library
 

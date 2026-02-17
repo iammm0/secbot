@@ -22,6 +22,12 @@
 - ✅ Ensure you comply with all applicable laws and regulations
 - ✅ Use responsibly and ethically
 
+## 初始化界面展示
+
+启动交互模式后的界面示意（`uv run secbot` 或 `python main.py`）：
+
+![Secbot 初始化界面](assets/show_picture.png)
+
 ## 🚀 Features
 
 ### Core Capabilities
@@ -64,7 +70,6 @@
 
 - 📝 **Prompt Chain Management**: Flexible agent prompt configuration
 - 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
-- 🐳 **Docker Compose**: Quick start for ChromaDB and Redis development environment
 - ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
 - 🎨 **Beautiful Terminal Output**: Rich formatting with Rich library
 
@@ -307,6 +312,7 @@ uv run python -m build
 - [Docker Setup](docs/DOCKER_SETUP.md)
 - [Ollama Setup](docs/OLLAMA_SETUP.md)
 - [Security Warning](docs/SECURITY_WARNING.md)
+- [Virtual Test Environment (VMware + Ubuntu)](docs/VIRTUAL_TEST_ENVIRONMENT.md) — prompts and setup for testing secbot in a VM
 - [Prompt Guide](docs/PROMPT_GUIDE.md)
 - [Speech Guide](docs/SPEECH_GUIDE.md)
 - [SQLite Setup](docs/SQLITE_SETUP.md)
