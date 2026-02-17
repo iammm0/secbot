@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.10] - 2026-02-17
+
+### Fixed
+
+- Release 工作流：使用 `python -m PyInstaller` 替代直接调用 pyinstaller 脚本，避免 darwin-amd64 下 “isn't executable” 错误
+
+---
+
 ## [1.2.9] - 2026-02-17
 
 ### Fixed
