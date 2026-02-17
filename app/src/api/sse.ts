@@ -34,6 +34,11 @@ function parseSSESegment(segment: string): { event: string; data: string } | nul
   return { event, data };
 }
 
+function normalizeSSEText(text: string): string {
+  // sse-starlette 默认使用 CRLF，统一为 LF 便于分段解析
+  return text.replace(/\r\n/g, '\n');
+}
+
 /** 若在此时间内未收到任何 SSE 事件则视为连接超时（毫秒） */
 const CONNECTION_TIMEOUT_MS = 15000;
 
@@ -73,71 +78,79 @@ export function connectSSE(
       }
 
       const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('ReadableStream 不可用');
-      }
 
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let hasReceivedEvent = false;
+      let hasDoneEvent = false;
+      const emitParsedEvent = (eventName: string, rawData: string) => {
+        try {
+          const parsedData = JSON.parse(rawData);
+          callbacks.onEvent({ event: eventName, data: parsedData });
+        } catch {
+          callbacks.onEvent({ event: eventName, data: { raw: rawData } });
+        }
+        if (eventName === 'done' && !hasDoneEvent) {
+          hasDoneEvent = true;
+          callbacks.onDone?.();
+        }
+      };
 
-      // 若迟迟收不到第一个事件则视为连接超时（后端未发首包或网络问题）
-      connectionTimeoutId = setTimeout(() => {
-        if (hasReceivedEvent) return;
-        controller.abort();
-        callbacks.onError?.(new Error('连接超时，请确认后端已启动且 BASE_URL 配置正确（如真机需填本机局域网 IP）'));
-      }, CONNECTION_TIMEOUT_MS);
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        // 按双换行切分，保留最后一个可能不完整的段落
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() ?? '';
-
+      const flushBuffer = (buffer: string) => {
+        let hasReceivedEvent = false;
+        const normalized = normalizeSSEText(buffer);
+        const parts = normalized.split('\n\n');
         for (const segment of parts) {
           const parsed = parseSSESegment(segment);
           if (!parsed) continue;
-
           hasReceivedEvent = true;
-          clearConnectionTimeout();
+          emitParsedEvent(parsed.event, parsed.data);
+        }
+        return hasReceivedEvent;
+      };
 
-          try {
-            const parsedData = JSON.parse(parsed.data);
-            callbacks.onEvent({
-              event: parsed.event,
-              data: parsedData,
-            });
-            if (parsed.event === 'done') {
-              callbacks.onDone?.();
-            }
-          } catch {
-            callbacks.onEvent({
-              event: parsed.event,
-              data: { raw: parsed.data },
-            });
+      if (reader) {
+        // 支持 ReadableStream 的环境（Web / 部分 RN）：流式读取
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let hasReceivedEvent = false;
+
+        connectionTimeoutId = setTimeout(() => {
+          if (hasReceivedEvent) return;
+          controller.abort();
+          callbacks.onError?.(new Error('连接超时，请确认后端已启动且 BASE_URL 配置正确（如真机需填本机局域网 IP）'));
+        }, CONNECTION_TIMEOUT_MS);
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const normalized = normalizeSSEText(buffer);
+          const parts = normalized.split('\n\n');
+          buffer = parts.pop() ?? '';
+
+          for (const segment of parts) {
+            const parsed = parseSSESegment(segment);
+            if (!parsed) continue;
+            hasReceivedEvent = true;
+            clearConnectionTimeout();
+            emitParsedEvent(parsed.event, parsed.data);
           }
         }
-      }
 
-      // 剩余 buffer 可能还有最后一个事件（无末尾 \n\n）
-      if (buffer.trim()) {
-        const parsed = parseSSESegment(buffer);
-        if (parsed) {
-          try {
-            const parsedData = JSON.parse(parsed.data);
-            callbacks.onEvent({ event: parsed.event, data: parsedData });
-          } catch {
-            callbacks.onEvent({ event: parsed.event, data: { raw: parsed.data } });
+        if (buffer.trim()) {
+          const parsed = parseSSESegment(buffer);
+          if (parsed) {
+            emitParsedEvent(parsed.event, parsed.data);
           }
         }
-      }
 
-      clearConnectionTimeout();
-      callbacks.onDone?.();
+        clearConnectionTimeout();
+        if (!hasDoneEvent) callbacks.onDone?.();
+      } else {
+        // React Native 等环境无 response.body：一次性读取再解析 SSE
+        const fullText = await response.text();
+        flushBuffer(fullText);
+        if (!hasDoneEvent) callbacks.onDone?.();
+      }
     } catch (error: any) {
       clearConnectionTimeout();
       if (error.name !== 'AbortError') {

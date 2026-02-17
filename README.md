@@ -22,6 +22,12 @@
 - ✅ Ensure you comply with all applicable laws and regulations
 - ✅ Use responsibly and ethically
 
+## 初始化界面展示
+
+启动交互模式后的界面示意（`uv run secbot` 或 `python main.py`）：
+
+![Secbot 初始化界面](assets/show_picture.png)
+
 ## 🚀 Features
 
 ### Core Capabilities
@@ -64,7 +70,6 @@
 
 - 📝 **Prompt Chain Management**: Flexible agent prompt configuration
 - 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
-- 🐳 **Docker Compose**: Quick start for ChromaDB and Redis development environment
 - ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
 - 🎨 **Beautiful Terminal Output**: Rich formatting with Rich library
 
@@ -277,88 +282,7 @@ hackbot prompt-create my_chain --role "Security Expert" --instruction "Perform p
 hackbot prompt-load my_prompt.yaml
 ```
 
-## 📁 Project Structure
 
-```
-hackbot/
-├── main.py                 # CLI application entry
-├── config/                 # Configuration management
-├── core/                   # Core runtime logic
-│   ├── agents/            # Agent implementations
-│   │   ├── base.py       # Base agent class
-│   │   ├── hackbot_agent.py
-│   │   └── ...
-│   ├── patterns/          # Design patterns (ReAct, Plan-Execute)
-│   ├── attack_chain/      # Automated attack chain
-│   ├── memory/           # Memory system (3-layer: short-term, episodic, long-term)
-│   │   ├── manager.py
-│   │   └── vector_store.py  # SQLite vector storage (sqlite-vec)
-│   └── models.py          # Shared models (TodoItem, PlanResult, etc.)
-├── tools/                  # Tools and plugins
-│   ├── pentest/          # Penetration testing tools
-│   │   ├── security/    # Security scanning (port scan, vuln scan, etc.)
-│   │   └── network/     # Network enumeration (DNS, HTTP, SSL, etc.)
-│   ├── offense/          # Offensive tools
-│   │   ├── exploit/     # Exploitation modules
-│   │   ├── payload/     # Payload generators
-│   │   ├── control/     # Remote control (command execution)
-│   │   └── crawler/     # Web crawler
-│   ├── defense/          # Defense tools
-│   ├── osint/           # OSINT tools
-│   ├── protocol/        # Protocol analysis
-│   ├── reporting/       # Report generation
-│   ├── web/             # Web security tools
-│   └── web_research/    # Web research tools
-├── skills/              # Markdown-based skills (OpenAI Agent Skills format)
-│   ├── loader.py        # Skill loader
-│   ├── injector.py      # Skill injector for agents
-│   └── base/            # Base skills (nmap-usage, etc.)
-├── prompts/             # Prompt management
-├── database/            # SQLite database management
-├── controller/          # Remote control (authorization, network discovery)
-├── system/              # OS control
-└── utils/               # Utility functions
-```
-hackbot/
-├── main.py                 # CLI application entry
-├── config/                 # Configuration management
-├── hackbot/                # Package CLI module
-├── agents/                 # Agent implementations
-│   ├── base.py            # Base agent class
-│   ├── tool_calling_agent.py # Tool-calling agent (LLM + tools)
-│   └── web_research_agent.py # Web research sub-agent (ReAct + smart_search/page_extract/deep_crawl/api_client)
-├── patterns/               # Design patterns
-│   └── security_react.py  # ReAct pattern for security agents
-├── exploit/                # Exploitation module
-│   ├── exploit_engine.py  # Exploit engine
-│   ├── web_exploits.py    # Web exploits
-│   ├── network_exploits.py # Network exploits
-│   └── post_exploitation.py # Post-exploitation
-├── attack_chain/           # Automated attack chain
-│   ├── attack_chain.py     # Main attack chain
-│   ├── reconnaissance.py   # Information gathering
-│   └── exploitation.py    # Exploitation coordination
-├── payloads/               # Payload generators
-│   ├── web_payloads.py     # Web payloads
-│   └── network_payloads.py # Network payloads
-├── scanner/                # Scanning tools
-│   ├── port_scanner.py     # Port scanning
-│   ├── service_detector.py # Service detection
-│   └── vulnerability_scanner.py # Vulnerability scanning
-├── defense/                # Defense system
-├── controller/             # Remote control
-├── crawler/                # Web crawler
-├── database/               # Database management
-├── memory/                 # Memory management
-├── prompts/                # Prompt management
-├── system/                 # OS control
-├── tools/                  # Tools and plugins
-│   ├── security/          # Core security tools (port scan, vuln scan, etc.)
-│   ├── network/           # Network tools (HTTP, DNS, SSL, etc.)
-│   ├── web_research/      # Web research tools (smart_search, page_extract, deep_crawl, api_client, web_research)
-│   └── ...                # Other tool categories
-└── utils/                  # Utility functions
-```
 
 ## 🔧 Development
 
@@ -388,6 +312,7 @@ uv run python -m build
 - [Docker Setup](docs/DOCKER_SETUP.md)
 - [Ollama Setup](docs/OLLAMA_SETUP.md)
 - [Security Warning](docs/SECURITY_WARNING.md)
+- [Virtual Test Environment (VMware + Ubuntu)](docs/VIRTUAL_TEST_ENVIRONMENT.md) — prompts and setup for testing secbot in a VM
 - [Prompt Guide](docs/PROMPT_GUIDE.md)
 - [Speech Guide](docs/SPEECH_GUIDE.md)
 - [SQLite Setup](docs/SQLITE_SETUP.md)

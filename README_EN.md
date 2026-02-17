@@ -22,6 +22,12 @@
 - ✅ Ensure you comply with all applicable laws and regulations
 - ✅ Use responsibly and ethically
 
+## Initialization / Screenshot
+
+Interface after starting interactive mode (`uv run secbot` or `python main.py`):
+
+![Secbot initialization](assets/show_picture.png)
+
 ## 🚀 Features
 
 ### Core Capabilities
@@ -55,7 +61,6 @@
 
 - 📝 **Prompt Chain Management**: Flexible agent prompt configuration
 - 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
-- 🐳 **Docker Compose**: Quick start for ChromaDB and Redis development environment
 - ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
 - 🎨 **Beautiful Terminal Output**: Rich formatting with Rich library
 
@@ -250,45 +255,6 @@ hackbot prompt-create my_chain --role "Security Expert" --instruction "Perform p
 
 # Load prompt chain from file
 hackbot prompt-load my_prompt.yaml
-```
-
-## 📁 Project Structure
-
-```
-hackbot/
-├── main.py                 # CLI application entry
-├── config.py               # Configuration management
-├── hackbot/                  # Package CLI module
-├── agents/                 # Agent implementations
-│   ├── base.py            # Base agent class
-│   └── tool_calling_agent.py # 工具调用智能体（LLM + 工具）
-├── patterns/               # Design patterns
-│   └── react.py           # ReAct pattern
-├── exploit/                # Exploitation module
-│   ├── exploit_engine.py  # Exploit engine
-│   ├── web_exploits.py    # Web exploits
-│   ├── network_exploits.py # Network exploits
-│   └── post_exploitation.py # Post-exploitation
-├── attack_chain/           # Automated attack chain
-│   ├── attack_chain.py     # Main attack chain
-│   ├── reconnaissance.py   # Information gathering
-│   └── exploitation.py    # Exploitation coordination
-├── payloads/               # Payload generators
-│   ├── web_payloads.py     # Web payloads
-│   └── network_payloads.py # Network payloads
-├── scanner/                # Scanning tools
-│   ├── port_scanner.py     # Port scanning
-│   ├── service_detector.py # Service detection
-│   └── vulnerability_scanner.py # Vulnerability scanning
-├── defense/                # Defense system
-├── controller/             # Remote control
-├── crawler/                # Web crawler
-├── database/               # Database management
-├── memory/                 # Memory management
-├── prompts/                # Prompt management
-├── system/                 # OS control
-├── tools/                  # Tools and plugins
-└── utils/                  # Utility functions
 ```
 
 ## 🔧 Development

@@ -166,10 +166,4 @@ cp backup/m_bot_backup.db data/m_bot.db
 - 使用备份文件恢复
 - 或删除数据库文件，系统会在下次运行时自动重建
 
-## 迁移到其他数据库
-
-如果需要迁移到 PostgreSQL 或 MySQL：
-1. 修改 `database/manager.py` 使用 SQLAlchemy
-2. 更新 `DATABASE_URL` 为对应的连接字符串
-3. 调整 SQL 语法差异
-
+**说明**：本项目仅使用 SQLite 作为数据库，不支持迁移到其他数据库类型。

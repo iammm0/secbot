@@ -341,6 +341,7 @@ export default function ChatScreen() {
 
         // ---- 流结束 ----
         case 'done': {
+          setPhase('done');
           // 清理 streaming 状态的块
           if (thinkingIdRef.current) {
             updateBlock(thinkingIdRef.current, { streaming: false });

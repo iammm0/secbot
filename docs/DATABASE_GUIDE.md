@@ -147,7 +147,7 @@ stats = db.get_stats()
 
 ```python
 from database.manager import DatabaseManager
-from memory.database_memory import DatabaseMemory
+from core.memory.database_memory import DatabaseMemory
 
 # 创建数据库记忆
 db = DatabaseManager()

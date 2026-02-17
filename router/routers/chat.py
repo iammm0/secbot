@@ -127,6 +127,7 @@ async def _interaction_event_generator(
 
     force_qa = request.mode == "ask"
     plan_only = request.mode == "plan"
+    force_agent_flow = request.mode == "agent"
     agent_type = request.agent if request.mode == "agent" else None
     if agent_type and request.prompt:
         agent_instance = get_agent(agent_type)
@@ -142,6 +143,7 @@ async def _interaction_event_generator(
                 plan_override=None,
                 force_qa=force_qa,
                 plan_only=plan_only,
+                force_agent_flow=force_agent_flow,
             )
             final_response.append(response)
         except Exception as e:
