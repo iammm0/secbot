@@ -1,8 +1,10 @@
+# 推送 tag (v*) 时构建并发布到 PyPI，不依赖多平台 Release 工作流
 name: Publish to PyPI
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-and-publish:
@@ -31,9 +33,11 @@ jobs:
           password: ${{ secrets.PYPI_PASSWORD }}
           repository-url: https://upload.pypi.org/legacy/
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (attach dist)
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
