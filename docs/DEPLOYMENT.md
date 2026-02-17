@@ -107,9 +107,9 @@ docker-compose -f docker-compose.prod.yml down
    # 编辑 .env 文件，配置必要的参数
    ```
 
-3. **数据目录**：确保数据目录有写权限
+3. **数据目录**：确保数据目录有写权限（SQLite 数据库与日志存放于此）
    ```bash
-   mkdir -p data/chromadb data/redis logs
+   mkdir -p data logs
    chmod -R 755 data logs
    ```
 
@@ -146,10 +146,7 @@ uv sync
 cp env.example .env
 nano .env
 
-# 3. 启动 ChromaDB 和 Redis（如果使用）
-docker-compose up -d chromadb redis
-
-# 4. 运行应用
+# 3. 运行应用（项目仅使用 SQLite，无需额外数据库服务）
 uv run python main.py chat "你好"
 ```
 
@@ -190,29 +187,23 @@ sudo systemctl status hackbot
 
 - `OLLAMA_BASE_URL`: Ollama 服务地址（默认: http://localhost:11434）
 - `OLLAMA_MODEL`: 使用的模型名称（默认: gpt-oss:20b）
-- `DATABASE_URL`: 数据库连接字符串（默认: sqlite:///./agents.db）
-- `REDIS_URL`: Redis 连接字符串（默认: redis://localhost:6379/0）
-- `CHROMA_HOST`: ChromaDB 主机地址（默认: localhost）
-- `CHROMA_PORT`: ChromaDB 端口（默认: 8000）
+- `DATABASE_URL`: SQLite 数据库连接字符串（默认: sqlite:///./data/agents.db 或项目内约定路径）
 - `STT_MODEL`: 语音识别模型（默认: base）
 - `TTS_ENGINE`: 语音合成引擎（默认: gtts）
 
 ### 数据持久化
 
-确保以下目录有写权限并定期备份：
+本项目仅使用 SQLite。确保以下目录有写权限并定期备份：
 
-- `data/chromadb/`: ChromaDB 向量数据库数据
-- `data/redis/`: Redis 持久化数据
-- `agents.db`: SQLite 数据库文件
+- `data/`: SQLite 数据库文件（如 `agents.db`、`m_bot.db` 等，以项目实际为准）
 - `logs/`: 日志文件
 
 ### 网络配置
 
-如果使用 Docker，确保：
+如果使用 Docker 部署应用，确保：
 
-1. **Ollama 访问**：如果 Ollama 在宿主机运行，使用 `host.docker.internal`（Mac/Windows）或 `172.17.0.1`（Linux）
-2. **端口映射**：确保 ChromaDB (8000) 和 Redis (6379) 端口可访问
-3. **防火墙**：根据需要开放端口
+1. **Ollama 访问**：若 Ollama 在宿主机运行，使用 `host.docker.internal`（Mac/Windows）或 `172.17.0.1`（Linux）
+2. **防火墙**：根据需要开放应用所需端口
 
 ## 验证部署
 
@@ -251,10 +242,9 @@ uv run python tests/test_agents.py
    - 验证 `OLLAMA_BASE_URL` 配置
    - 检查网络连接和防火墙
 
-2. **数据库连接失败**
-   - 检查数据库服务是否运行
-   - 验证连接字符串格式
-   - 检查文件权限
+2. **数据库（SQLite）异常**
+   - 检查 `data/` 目录是否存在且可写
+   - 验证 `DATABASE_URL` 指向的路径与文件权限
 
 3. **依赖安装失败**
    - 使用 Python 3.10+

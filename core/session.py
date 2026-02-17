@@ -142,6 +142,7 @@ class SessionManager:
         plan_override: Optional[PlanResult] = None,
         force_qa: bool = False,
         plan_only: bool = False,
+        force_agent_flow: bool = False,
     ) -> str:
         """
         处理单条消息的完整编排流程（Interaction）：
@@ -155,6 +156,7 @@ class SessionManager:
             plan_override: 若提供则跳过规划阶段，直接使用该计划执行（用于 /plan 后 /start）
             force_qa: 强制走 Q&A，不规划不执行
             plan_only: 仅规划并返回计划，不执行、不摘要
+            force_agent_flow: 强制走 Agent 编排链路（不走 QA 快捷路由）
 
         Returns:
             最终响应文本
@@ -165,7 +167,11 @@ class SessionManager:
         self._current_tool_results = []
 
         # ---- 强制 Q&A 或 路由 -> Q&A ----
-        if force_qa or (plan_override is None and message_route(user_input) == "qa"):
+        if force_qa or (
+            not force_agent_flow
+            and plan_override is None
+            and message_route(user_input) == "qa"
+        ):
             await self.event_bus.emit_simple_async(
                 EventType.TASK_PHASE, phase="done", detail=""
             )
@@ -202,7 +208,10 @@ class SessionManager:
         else:
             plan_result = await self._run_planning(user_input)
 
-            if plan_result.request_type in (RequestType.GREETING, RequestType.SIMPLE):
+            if (
+                not force_agent_flow
+                and plan_result.request_type in (RequestType.GREETING, RequestType.SIMPLE)
+            ):
                 await self.event_bus.emit_simple_async(
                     EventType.TASK_PHASE, phase="done", detail=""
                 )

@@ -4,9 +4,10 @@
 // 流式时显示闪烁光标 ▌，完成后显示完整推理
 // ===================================================================
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
+import MarkdownText from './MarkdownText';
 
 interface Props {
   content: string;
@@ -66,14 +67,16 @@ export default function ThinkingBlock({ content, iteration, streaming }: Props) 
           streaming ? styles.panelStreaming : styles.panelComplete,
         ]}
       >
-        <Text style={styles.content} selectable={!streaming}>
-          {content}
-          {streaming && (
+        {streaming ? (
+          <Text style={styles.content} selectable={false}>
+            {content}
             <Animated.Text style={[styles.cursor, { opacity: cursorOpacity }]}>
               ▌
             </Animated.Text>
-          )}
-        </Text>
+          </Text>
+        ) : (
+          <MarkdownText content={content} />
+        )}
       </View>
     </View>
   );

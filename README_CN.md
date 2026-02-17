@@ -22,6 +22,12 @@
 - ✅ 确保遵守所有适用的法律法规
 - ✅ 负责任和道德地使用
 
+## 初始化界面展示
+
+启动交互模式后的界面示意（`uv run secbot` 或 `python main.py`）：
+
+![Secbot 初始化界面](assets/show_picture.png)
+
 ## 🚀 功能特性
 
 ### 核心能力
@@ -55,7 +61,6 @@
 
 - 📝 **提示词链管理**: 灵活的智能体提示词配置
 - 💾 **SQLite数据库**: 持久化存储对话历史、提示词链、配置
-- 🐳 **Docker Compose**: 快速启动ChromaDB和Redis开发环境
 - ⏰ **任务调度**: 支持定时执行渗透测试任务
 - 🎨 **美观的终端输出**: 使用Rich库的丰富格式化
 
@@ -262,49 +267,6 @@ hackbot prompt-create my_chain --role "安全专家" --instruction "执行渗透
 
 # 从文件加载提示词链
 hackbot prompt-load my_prompt.yaml
-```
-
-## 📁 项目结构
-
-```
-hackbot/
-├── main.py                 # CLI应用入口
-├── config/                 # 配置管理
-├── core/                   # 核心运行逻辑
-│   ├── agents/            # 智能体实现
-│   │   ├── base.py       # 基础智能体类
-│   │   ├── hackbot_agent.py
-│   │   └── ...
-│   ├── patterns/          # 设计模式 (ReAct, Plan-Execute)
-│   ├── attack_chain/      # 自动化攻击链
-│   ├── memory/          # 记忆系统 (3层: short-term, episodic, long-term)
-│   │   ├── manager.py
-│   │   └── vector_store.py  # SQLite向量存储 (sqlite-vec)
-│   └── models.py          # 共享模型 (TodoItem, PlanResult等)
-├── tools/                  # 工具和插件
-│   ├── pentest/          # 渗透测试工具
-│   │   ├── security/    # 安全扫描 (端口扫描、漏洞扫描等)
-│   │   └── network/     # 网络枚举 (DNS、HTTP、SSL等)
-│   ├── offense/          # 攻击类工具
-│   │   ├── exploit/     # 漏洞利用模块
-│   │   ├── payload/     # Payload生成器
-│   │   ├── control/     # 远程控制 (命令执行)
-│   │   └── crawler/     # 网络爬虫
-│   ├── defense/          # 防御工具
-│   ├── osint/           # OSINT工具
-│   ├── protocol/        # 协议分析
-│   ├── reporting/       # 报告生成
-│   ├── web/             # Web安全工具
-│   └── web_research/    # 网络研究工具
-├── skills/              # Markdown格式技能 (OpenAI Agent Skills格式)
-│   ├── loader.py        # 技能加载器
-│   ├── injector.py       # 技能注入器
-│   └── base/            # 基础技能 (nmap-usage等)
-├── prompts/             # 提示词管理
-├── database/            # SQLite数据库管理
-├── controller/          # 远程控制 (授权、网络发现)
-├── system/              # 操作系统控制
-└── utils/               # 工具函数
 ```
 
 ## 🔧 开发

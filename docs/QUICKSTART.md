@@ -81,6 +81,15 @@ python main.py chat "写一首诗" --output response.txt
 # 启动交互模式
 python main.py interactive
 
+# 或使用 secbot 命令
+uv run secbot
+```
+
+启动后的初始化界面示意：
+
+![Secbot 初始化界面](../assets/show_picture.png)
+
+```bash
 # 使用指定智能体
 python main.py interactive --agent react
 
@@ -201,3 +210,7 @@ agents["myagent"] = MyAgent(name="MyAgent")
 - 首次使用Whisper会自动下载模型（约500MB-3GB）
 - 建议使用虚拟环境：`python -m venv venv`
 - 语音功能需要安装额外的依赖（见SPEECH_GUIDE.md）
+
+## 虚拟环境测试
+
+在 VMware 中使用 Ubuntu 作为目标机进行功能测试时，可参考 [虚拟测试环境使用指南](VIRTUAL_TEST_ENVIRONMENT.md)，其中包含环境搭建步骤及各功能对应的 prompt 示例。
