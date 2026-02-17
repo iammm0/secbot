@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.8] - 2026-02-17
+
+### Changed
+
+- 发布流程使用基于 uv 的 Release 工作流构建多平台可执行程序
+
+---
+
 ## [1.2.7] - 2026-02-17
 
 ### Changed
