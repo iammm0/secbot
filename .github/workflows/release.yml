@@ -52,9 +52,10 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.name }}" = "darwin-amd64" ]; then
+            # UV_PYTHON 指向 x86_64 Python，uv 在 arm64 下运行即可为该解释器创建 x86_64 venv（不可用 arch -x86_64 运行 uv，会 Bad CPU type）
             export UV_PYTHON="/Library/Frameworks/Python.framework/Versions/3.11/bin/python3"
-            arch -x86_64 uv sync --no-install-project
-            arch -x86_64 uv pip install pyinstaller
+            uv sync --no-install-project
+            uv pip install pyinstaller
           else
             uv sync --no-install-project
             uv pip install pyinstaller
