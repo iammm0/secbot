@@ -24,7 +24,7 @@
 
 ## 初始化界面展示
 
-启动交互模式后的界面示意（`uv run secbot` 或 `python main.py`）：
+无参数启动即进入交互模式，**占据整个终端**（alternate screen）；退出后恢复原终端内容。界面示意（`uv run secbot` 或 `python main.py`）：
 
 ![Secbot 初始化界面](assets/show_picture.png)
 
@@ -113,12 +113,6 @@ ollama pull nomic-embed-text
 # Ollama service runs on http://localhost:11434 by default
 ```
 
-### 4. Configure Environment
-
-```bash
-cp .env.example .env
-```
-
 Edit `.env` file:
 - `OLLAMA_MODEL`: Inference model (default: `gpt-oss:20b`)
 - `OLLAMA_EMBEDDING_MODEL`: Embedding model (default: `nomic-embed-text`)
@@ -132,157 +126,42 @@ uv run python -m build
 # Install package
 uv pip install dist/hackbot-1.0.0-py3-none-any.whl
 
-# Now you can use 'hackbot' command directly
-hackbot --help
+# Now you can use 'hackbot' or 'secbot' (no args = interactive mode)
+hackbot
 ```
 
 ## 🎯 Quick Start
 
-### Basic Usage
+### Basic Usage (no arguments = interactive mode)
 
 ```bash
-# View help
-hackbot --help
-
-# Interactive chat
-hackbot interactive
-
-# Text chat
-hackbot chat "Hello, introduce yourself"
-
-# List available agents
-hackbot list-agents
+# Run with no arguments to enter interactive mode (takes over the terminal; exit restores it)
+python main.py
+# or
+uv run secbot
+# or (if installed) hackbot / secbot
 ```
 
-### Web Research (via Chat)
+All interaction (chat, agent switch, tools, slash commands) happens inside the interactive session. Type `/` then Enter to list commands; `exit` or `quit` to leave.
 
-```bash
-# Delegate to Web Research sub-agent (auto search → crawl → summarize)
-hackbot chat "Research the latest CVE-2024 vulnerabilities and summarize"
+### In interactive mode (examples)
 
-# Direct smart search
-hackbot chat "Use smart_search to find Python asyncio best practices"
+After starting with `python main.py` or `uv run secbot`, you can:
 
-# Extract content from a URL
-hackbot chat "Use page_extract to get the main content from https://example.com"
+- **Web research**: e.g. "Research the latest CVE-2024 vulnerabilities and summarize", or "Use smart_search to find Python asyncio best practices", or "Use api_client with preset weather and query Beijing"
+- **Recon / scanning**: e.g. "Scan ports on 192.168.1.1" or use slash commands like `/list-targets`, `/list-authorizations`, `/defense-scan`, `/defense-blocked`
+- **Remote control / defense**: use slash commands such as `/list-targets`, `/list-authorizations`; other operations are available via natural language or `/` commands (type `/` then Enter to list all).
 
-# Call a public API (e.g. weather)
-hackbot chat "Use api_client with preset weather and query Beijing"
-```
+System info, database stats/history, voice, and prompt management are available inside the interactive session via slash commands (e.g. `/system-info`, `/db-stats`, `/db-history`, `/prompt-list`) or natural language. See in-app help (type `/` then Enter) for the full list.
 
-### Penetration Testing Commands
+### Terminal UI (TypeScript)
 
-```bash
-# Network discovery
-hackbot discover
+除 Python 自带的交互模式外，可用 **TypeScript 终端 TUI**（Ink）连接同一后端：
 
-# Port scanning (via chat)
-hackbot chat "Scan ports on 192.168.1.1"
+1. 先启动后端：`python -m router.main` 或 `uv run hackbot-server`
+2. 在另一终端进入 `terminal-ui` 并运行：`npm install && npm run tui`
 
-# List authorized targets
-hackbot list-targets
-
-# Revoke authorization
-hackbot revoke 192.168.1.100
-
-# Note: Advanced exploitation commands (exploit, attack-chain, generate-payload) 
-# are available in experimental versions. Run 'hackbot --help' for full command list.
-```
-
-### Remote Control Commands
-
-```bash
-# Execute remote command on authorized host
-hackbot remote-execute 192.168.1.100 "ls -la"
-
-# Upload file to remote host
-hackbot upload-file 192.168.1.100 local.txt /remote/path/
-
-# Download file from remote host
-hackbot download-file 192.168.1.100 /remote/file.txt local_copy.txt
-
-# List all authorizations
-hackbot list-authorizations
-```
-
-### Defense System Commands
-
-```bash
-# Perform comprehensive security scan
-hackbot defense-scan
-
-# Start defense monitoring
-hackbot defense-monitor --start --interval 60
-
-# View defense status
-hackbot defense-monitor --status
-
-# List blocked IPs
-hackbot defense-blocked --list
-
-# Generate defense report
-hackbot defense-report --type vulnerability
-```
-
-### System Operations
-
-```bash
-# System information
-hackbot system-info
-
-# System status
-hackbot system-status
-
-# List processes
-hackbot list-processes --filter python
-
-# Execute command
-hackbot execute "ls -la"
-
-# List files in directory
-hackbot file-list /path/to/dir --recursive
-```
-
-### Database Management
-
-```bash
-# View statistics
-hackbot db-stats
-
-# View conversation history
-hackbot db-history --limit 20
-
-# Clear history (requires confirmation)
-hackbot db-clear --yes
-```
-
-### Voice Interaction Commands
-
-```bash
-# Speech-to-text transcription
-hackbot transcribe audio.wav --output transcript.txt
-
-# Text-to-speech synthesis
-hackbot synthesize "Hello world" --output speech.wav --language en
-
-# Voice chat with agent
-hackbot voice audio.wav --agent hackbot
-```
-
-### Prompt Management Commands
-
-```bash
-# List available prompt templates and chains
-hackbot prompt-list
-
-# Create a new prompt chain
-hackbot prompt-create my_chain --role "Security Expert" --instruction "Perform penetration testing"
-
-# Load prompt chain from file
-hackbot prompt-load my_prompt.yaml
-```
-
-
+配置后端地址：环境变量 `SECBOT_API_URL` 或 `BASE_URL`（默认 `http://localhost:8000`）。可选一键启动：Windows 运行 `.\scripts\start-ts-tui.ps1`，Linux/macOS 运行 `./scripts/start-ts-tui.sh`。详见 [terminal-ui/README.md](terminal-ui/README.md)。
 
 ## 🔧 Development
 

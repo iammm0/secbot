@@ -54,102 +54,29 @@ cp env.example .env
 - `OLLAMA_MODEL`: 使用的模型名称（默认: gpt-oss:20b）
 - `OLLAMA_EMBEDDING_MODEL`: 向量嵌入模型（默认: nomic-embed-text）
 
-## 4. 使用CLI应用
+## 4. 使用 CLI 应用（无参数即交互模式）
 
-### 查看帮助
+本程序**无子命令**：直接运行即进入交互模式，并**占据整个终端**（使用 alternate screen）；退出后自动恢复终端原内容。
 
-```bash
-python main.py --help
-```
-
-### 文本聊天
+### 启动交互模式
 
 ```bash
-# 基本用法
-python main.py chat "你好，介绍一下你自己"
+# 方式一：从项目根目录运行
+python main.py
 
-# 指定智能体类型
-python main.py chat "解释一下ReAct模式" --agent react
-
-# 保存响应到文件
-python main.py chat "写一首诗" --output response.txt
-```
-
-### 交互式聊天
-
-```bash
-# 启动交互模式
-python main.py interactive
-
-# 或使用 secbot 命令
+# 方式二：使用 secbot / hackbot 命令（需先 uv sync 或安装包）
 uv run secbot
+# 或
+uv run hackbot
 ```
 
-启动后的初始化界面示意：
+启动后界面示意：
 
 ![Secbot 初始化界面](../assets/show_picture.png)
 
-```bash
-# 使用指定智能体
-python main.py interactive --agent react
-
-# 启用语音模式（需要额外配置）
-python main.py interactive --voice
-```
-
-### 语音功能
-
-#### 语音转文字
-
-```bash
-python main.py transcribe recording.wav
-
-# 保存转录结果
-python main.py transcribe recording.wav --output transcript.txt
-```
-
-#### 文字转语音
-
-```bash
-python main.py synthesize "你好，这是测试"
-
-# 指定输出文件
-python main.py synthesize "你好，这是测试" --output speech.wav
-
-# 指定语言
-python main.py synthesize "Hello, this is a test" --language en
-```
-
-#### 语音聊天
-
-```bash
-# 完整语音对话流程
-python main.py voice recording.wav
-
-# 只返回文字，不生成语音
-python main.py voice recording.wav --text-only
-
-# 保存语音响应
-python main.py voice recording.wav --output response.wav
-```
-
-### 其他命令
-
-#### 列出可用智能体
-
-```bash
-python main.py list-agents
-```
-
-#### 清空对话历史
-
-```bash
-# 清空所有智能体的记忆
-python main.py clear
-
-# 清空指定智能体的记忆
-python main.py clear --agent simple
-```
+- 交互模式会占用整屏终端，输入 `exit` 或 `quit` 退出后，终端恢复为进入前的状态。
+- 在交互界面内可使用斜杠命令（如 `/list-agents`、`/list-tools`、`/model`、`/agent` 等），输入 `/` 后回车可查看全部命令。
+- 语音等能力在交互模式内通过对应命令或对话使用；详见项目内文档。
 
 ## 5. 项目结构说明
 
