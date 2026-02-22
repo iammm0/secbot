@@ -92,6 +92,28 @@ def save_config_to_sqlite(key: str, value: str, category: str = "api_keys", desc
         return False
 
 
+def delete_config_from_sqlite(key: str) -> bool:
+    """从 SQLite user_configs 表删除指定 key 的配置"""
+    try:
+        db_path = _get_db_path()
+        if not db_path.exists():
+            return True
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.execute("DELETE FROM user_configs WHERE key = ?", (key,))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+    except Exception:
+        return False
+
+
+def delete_provider_api_key(provider: str) -> bool:
+    """删除指定厂商在本地数据库中的 API Key（认证失败时清除无效 key）"""
+    return delete_config_from_sqlite(f"{provider}_api_key")
+
+
 # 向下兼容别名
 _get_api_key_from_sqlite = _get_config_from_sqlite
 
