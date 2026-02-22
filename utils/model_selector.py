@@ -3,6 +3,8 @@
 智谱、通义千问、月之暗面、百川、零一万物，以及任意 OpenAI API 兼容中转服务。
 
 /model 无参时展示所有后端并显示配置状态，选择后检查可用性。
+
+对话框语义：Esc/Ctrl+C 或直接回车视为取消，返回 (None, None)，回到主输入。
 """
 from __future__ import annotations
 
