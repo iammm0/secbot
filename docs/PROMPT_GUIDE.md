@@ -10,55 +10,18 @@
 
 ## 基本使用
 
-### 1. 使用自定义提示词
+本程序无参数启动即进入交互模式（`python main.py` 或 `secbot`），交互模式会占据整个终端。在交互界面内可：
 
-```bash
-python main.py chat "解释Python" --prompt "你是一个Python专家，请用简洁的语言解释"
-```
-
-### 2. 使用预定义模板
-
-```bash
-# 查看可用模板
-python main.py prompt-list
-
-# 使用模板
-python main.py chat "写一首诗" --template creative
-python main.py chat "分析代码" --template technical
-```
-
-### 3. 使用提示词链
-
-提示词链允许组合多个提示词：
-
-```bash
-# 组合多个模板或链
-python main.py chat "回答问题" --prompt-chain expert,technical
-```
-
-### 4. 从文件加载
-
-```bash
-# 从文本文件加载
-python main.py chat "回答问题" --prompt-file prompts/my_prompt.txt
-
-# 从JSON文件加载（支持提示词链）
-python main.py chat "回答问题" --prompt-file prompts/my_chain.json
-```
+1. **使用自定义提示词 / 模板 / 链**：通过界面内的模型或提示配置、或斜杠命令（如 `/model`、`/prompt-list`）进行设置。
+2. **查看可用模板与链**：在交互模式中输入 `/prompt-list` 查看已注册的模板和提示词链。
+3. **使用提示词链**：在配置或对话上下文中指定组合（如 expert,technical）。
+4. **从文件加载**：若项目支持从文件加载提示词，可在配置或相应命令中指定路径（如 prompts/my_prompt.txt 或 prompts/my_chain.json）。具体以当前版本界面为准。
 
 ## 创建提示词链
 
-### 使用命令行创建
+可通过数据库、配置文件或交互模式内提供的功能创建提示词链（具体以当前版本为准）。以下为 JSON 文件格式说明，便于手工或脚本创建。
 
-```bash
-python main.py prompt-create expert_assistant \
-  --role "你是一个专业的技术顾问" \
-  --instruction "请提供详细、准确的技术建议" \
-  --constraint "回答要简洁明了，不超过200字" \
-  --example "示例：当用户问'什么是Python'时，回答'Python是一种高级编程语言...'"
-```
-
-### 使用JSON文件创建
+### 使用 JSON 文件创建
 
 创建 `prompts/my_chain.json`:
 
@@ -137,16 +100,7 @@ nodes:
 
 ## 在交互模式中使用
 
-```bash
-# 使用自定义提示词
-python main.py interactive --prompt "你是一个友好的助手"
-
-# 使用模板
-python main.py interactive --template expert
-
-# 使用提示词链
-python main.py interactive --prompt-chain expert,technical
-```
+无参数启动即进入交互模式（`python main.py` 或 `secbot`）。在交互界面内可通过斜杠命令或模型/提示配置使用提示词、模板或提示词链，例如使用 `/model` 选择后端后，在对话中或相应设置里指定自定义提示词、模板（如 expert）或链（如 expert,technical）。具体以当前界面提供的命令为准；输入 `/` 后回车可查看全部命令。
 
 ## 提示词链最佳实践
 
@@ -158,32 +112,11 @@ python main.py interactive --prompt-chain expert,technical
 
 ## 示例
 
-### 示例1：技术专家
+以下为提示词链内容示例，可写入 JSON 文件或通过交互模式/数据库配置使用：
 
-```bash
-python main.py prompt-create tech_expert \
-  --role "你是一个资深的软件工程师，有10年以上的开发经验" \
-  --instruction "请用专业但易懂的语言解释技术问题，提供代码示例" \
-  --constraint "代码示例要完整可运行，注释要清晰"
-```
-
-### 示例2：创意写作助手
-
-```bash
-python main.py prompt-create creative_writer \
-  --role "你是一个富有创造力的写作助手" \
-  --instruction "请创作富有想象力和感染力的文字" \
-  --example "当用户要求写诗时，创作押韵且有意境的诗歌"
-```
-
-### 示例3：数据分析师
-
-```bash
-python main.py prompt-create data_analyst \
-  --role "你是一个数据分析专家" \
-  --instruction "分析数据时要提供统计信息、趋势分析和建议" \
-  --constraint "所有数据要准确，结论要有依据"
-```
+- **技术专家**：角色「资深的软件工程师，10年以上开发经验」；指令「用专业但易懂的语言解释技术问题，提供代码示例」；约束「代码示例要完整可运行，注释要清晰」。
+- **创意写作助手**：角色「富有创造力的写作助手」；指令「创作富有想象力和感染力的文字」；示例「当用户要求写诗时，创作押韵且有意境的诗歌」。
+- **数据分析师**：角色「数据分析专家」；指令「分析数据时提供统计信息、趋势分析和建议」；约束「所有数据要准确，结论要有依据」。
 
 ## 提示词文件格式
 
