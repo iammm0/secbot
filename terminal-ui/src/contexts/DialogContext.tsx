@@ -8,6 +8,9 @@ interface DialogStackItem {
 interface DialogContextValue {
   stack: DialogStackItem[];
   replace: (element: React.ReactNode, onClose?: () => void) => void;
+  /** 弹栈：关闭顶层对话框并调用其 onClose（Escape/Ctrl+C 时调用） */
+  pop: () => void;
+  /** 关闭栈中所有对话框并清空 */
   clear: () => void;
 }
 
@@ -20,6 +23,15 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
     setStack([{ element, onClose }]);
   }, []);
 
+  const pop = useCallback(() => {
+    setStack((prev) => {
+      if (prev.length === 0) return prev;
+      const top = prev[prev.length - 1];
+      top?.onClose?.();
+      return prev.slice(0, -1);
+    });
+  }, []);
+
   const clear = useCallback(() => {
     setStack((prev) => {
       const top = prev[prev.length - 1];
@@ -29,7 +41,7 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <DialogContext.Provider value={{ stack, replace, clear }}>
+    <DialogContext.Provider value={{ stack, replace, pop, clear }}>
       {children}
     </DialogContext.Provider>
   );

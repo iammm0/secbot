@@ -5,6 +5,8 @@ export type RouteType = 'home' | 'session';
 export interface Route {
   type: RouteType;
   sessionID?: string;
+  /** 从首页带过去的初始输入，进入会话后可预填或直接发送 */
+  initialPrompt?: string;
 }
 
 interface RouteContextValue {
@@ -12,7 +14,7 @@ interface RouteContextValue {
   navigate: (route: Route) => void;
 }
 
-const defaultRoute: Route = { type: 'session' };
+const defaultRoute: Route = { type: 'home' };
 
 const RouteContext = createContext<RouteContextValue | null>(null);
 
