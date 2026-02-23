@@ -1,13 +1,15 @@
 /**
  * Provider 树：按 UI-DESIGN-AND-INTERACTION 第三节顺序嵌套
- * Exit → Toast → Route → SDK → Theme → Keybind → Dialog → Command → App
+ * Exit → Toast → Route → SDK → Sync → Theme → Local → Keybind → Dialog → Command → App
  */
 import React from 'react';
 import { ExitProvider } from './ExitContext.js';
 import { ToastProvider } from './ToastContext.js';
 import { RouteProvider } from './RouteContext.js';
 import { SDKProvider } from './SDKContext.js';
+import { SyncProvider } from './SyncContext.js';
 import { ThemeProvider } from './ThemeContext.js';
+import { LocalProvider } from './LocalContext.js';
 import { KeybindProvider } from './KeybindContext.js';
 import { DialogProvider } from './DialogContext.js';
 import { CommandProvider } from './CommandContext.js';
@@ -24,15 +26,19 @@ export function AllProviders({
       <ToastProvider>
         <RouteProvider>
           <SDKProvider>
-            <ThemeProvider>
-              <KeybindProvider>
-                <DialogProvider>
-                  <CommandProvider>
-                    {children}
-                  </CommandProvider>
-                </DialogProvider>
-              </KeybindProvider>
-            </ThemeProvider>
+            <SyncProvider>
+              <ThemeProvider>
+                <LocalProvider>
+                  <KeybindProvider>
+                    <DialogProvider>
+                      <CommandProvider>
+                        {children}
+                      </CommandProvider>
+                    </DialogProvider>
+                  </KeybindProvider>
+                </LocalProvider>
+              </ThemeProvider>
+            </SyncProvider>
           </SDKProvider>
         </RouteProvider>
       </ToastProvider>
@@ -44,7 +50,9 @@ export { useExit } from './ExitContext.js';
 export { useToast } from './ToastContext.js';
 export { useRoute } from './RouteContext.js';
 export { useSDK } from './SDKContext.js';
+export { useSync } from './SyncContext.js';
 export { useTheme } from './ThemeContext.js';
+export { useLocal } from './LocalContext.js';
 export { useKeybind } from './KeybindContext.js';
 export { useDialog } from './DialogContext.js';
 export { useCommand } from './CommandContext.js';

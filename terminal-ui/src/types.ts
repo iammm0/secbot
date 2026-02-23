@@ -29,3 +29,16 @@ export interface StreamState {
   error: string | null;
   response: string | null;
 }
+
+/** 内容块：用于分块 + Markdown 渲染 */
+export interface ContentBlock {
+  id: string;
+  type: 'api' | 'phase' | 'error' | 'planning' | 'thought' | 'actions' | 'content' | 'report' | 'response';
+  title?: string;
+  /** Markdown 正文，由 MD 渲染组件渲染 */
+  body: string;
+  /** 块起始行（用于滚动计算） */
+  lineStart: number;
+  /** 块结束行（不含） */
+  lineEnd: number;
+}
