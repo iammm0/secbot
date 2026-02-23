@@ -2,10 +2,6 @@
 
 <div align="center">
 
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Status](https://img.shields.io/badge/status-beta-orange.svg)
-
 **An intelligent automated penetration testing robot with AI-powered security testing capabilities**
 
 [English](#hackbot-automated-penetration-testing-robot) | [中文](README.md)
@@ -21,12 +17,6 @@
 - ✅ Only use on systems you own or have explicit written authorization to test
 - ✅ Ensure you comply with all applicable laws and regulations
 - ✅ Use responsibly and ethically
-
-## Initialization / Screenshot
-
-Run with no arguments to enter interactive mode; it **takes over the terminal** (alternate screen) and restores it on exit. Interface after starting (`uv run secbot` or `python main.py`):
-
-![Secbot initialization](assets/show_picture.png)
 
 ## 🚀 Features
 
@@ -145,6 +135,17 @@ All interaction (chat, agent switch, tools, slash commands) happens inside the i
 
 After starting, you can: use natural language (e.g. "Scan ports on 192.168.1.1") or slash commands like `/list-targets`, `/list-authorizations`, `/defense-scan`, `/system-info`, `/db-stats`, `/prompt-list`. Type `/` then Enter to see the full list.
 
+### Terminal UI (TypeScript stack, recommended)
+
+The terminal interface uses the **TypeScript stack** ([Ink](https://github.com/vadimdemedes/ink) + React), connecting to the Python backend via HTTP/SSE:
+
+1. Start the backend first: `python -m router.main` or `uv run hackbot-server`
+2. In another terminal, go to `terminal-ui` and run: `npm install && npm run tui`
+
+Backend URL: set `SECBOT_API_URL` or `BASE_URL` (default `http://localhost:8000`). One-shot: Windows `.\scripts\start-ts-tui.ps1`, Linux/macOS `./scripts/start-ts-tui.sh`. See [terminal-ui/README.md](terminal-ui/README.md).
+
+You can also use the Python interactive mode (run `python main.py` or `uv run secbot` with no args) as a Node-free alternative.
+
 ## 🔧 Development
 
 ### Running Tests
@@ -166,6 +167,7 @@ uv run python -m build
 ## 📚 Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md)
+- [UI Design & Interaction](docs/UI-DESIGN-AND-INTERACTION.md) — terminal UI (TypeScript/Ink) architecture
 - [API Documentation](docs/API.md)
 - [Mobile App Guide](docs/APP.md)
 - [Database Guide](docs/DATABASE_GUIDE.md)
