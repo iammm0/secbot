@@ -215,8 +215,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Built with [LangChain](https://github.com/langchain-ai/langchain)
 - Powered by [Ollama](https://ollama.ai)
-- CLI built with [Typer](https://typer.tiangolo.com)
-- Beautiful output with [Rich](https://github.com/Textualize/rich)
 
 ## ⚠️ Disclaimer
 
@@ -229,5 +227,6 @@ This tool is provided for educational and authorized security testing purposes o
 **⭐ If you find this project useful, please consider giving it a star! ⭐**
 
 </div>
+
 
 
