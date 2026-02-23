@@ -1,6 +1,6 @@
-# OpenCode 项目 UI 设计与交互总结
+# hackbot / secbot UI 设计与交互总结
 
-本文档总结本项目的 UI 架构、交互模式与设计决策，便于在其他项目（尤其是终端 TUI 或桌面应用）中复用其设计与交互思路。
+本文档总结本项目的 UI 架构、交互模式与设计决策。**终端 UI 采用 TypeScript 生态**，见 [terminal-ui](../terminal-ui/)（Ink + React），通过 HTTP/SSE 与 Python 后端通信；设计思路可在其他终端 TUI 或桌面应用中复用。下文中部分细节（如布局原语、钩子 API）来自或适用于其他技术栈（如 @opentui/solid），可作为扩展或迁移参考；本仓库当前实现以 `terminal-ui` 为准。
 
 ---
 
@@ -8,18 +8,20 @@
 
 | 层级 | 技术 | 用途 |
 |------|------|------|
-| **TUI（终端 UI）** | `@opentui/solid` + Solid.js | 终端内 React-like 组件、布局、键盘/鼠标事件 |
-| **CLI 输出** | 自定义 `UI` 命名空间 | ANSI 样式、打印、Logo、简单 readline 输入 |
-| **状态** | Solid.js（signals、store、context） | 响应式状态与依赖追踪 |
-| **事件** | 内部 BusEvent + Zod | 类型安全的应用内事件（命令、Toast、路由等） |
+| **TUI（终端 UI）** | TypeScript：Ink + React（见 `terminal-ui/`） | 终端内组件、布局、键盘/鼠标事件，通过 HTTP/SSE 连接后端 |
+| **CLI 输出** | Python Rich / 或自定义 `UI` 命名空间 | ANSI 样式、打印、简单 readline 输入 |
+| **状态** | React state / 或 Solid.js（signals、store、context） | 响应式状态与依赖追踪 |
+| **事件** | 应用内事件 + 服务端 SSE | 类型安全的事件（命令、Toast、路由等）与实时推送 |
 
 ---
 
 ## 二、TUI 渲染与布局
 
+本仓库终端 UI 使用 **Ink**（React）渲染，见 `terminal-ui/`。以下 2.1–2.5 为通用或其它技术栈的参考；其中 2.3（区域内滚动 + 可见滚动条）、2.4（终端 resize 自适应）在 `terminal-ui` 中实现。
+
 ### 2.1 入口与配置
 
-- 使用 `@opentui/solid` 的 `render()` 挂载根组件，传入配置：
+- 使用渲染库的入口挂载根组件（如 Ink 的 `render()`，或 `@opentui/solid` 的 `render()`），传入配置：
   - `targetFps`、`exitOnCtrlC`、`useKittyKeyboard`、`autoFocus`
   - `consoleOptions.keyBindings`、`onCopySelection`：控制台选区复制行为
 - 根节点为全屏 `box`，宽高由 `useTerminalDimensions()` 提供，背景色来自主题。
@@ -28,10 +30,21 @@
 
 - **box**：主要容器，支持 `width`、`height`、`flexDirection`、`gap`、`padding*`、`alignItems`、`justifyContent`、`position`（如 `absolute`）等。
 - **text**：文本，支持 `fg`（前景色）、`attributes`（如 `TextAttributes.BOLD`）、`wrapMode`。
-- **scrollbox**：可滚动区域，需指定 `height`。
+- **scrollbox / 可滚动区域**：主内容区（对话、规划、推理、执行等）必须使用**固定高度的可滚动区域**，支持在**区域内**上下滑动查看历史；仅渲染当前可见窗口内的内容，避免将所有交互内容在同一区域反复全量渲染，以兼顾性能与可读性。
 - 颜色使用 `@opentui/core` 的 `RGBA`（如 `theme.background`、`RGBA.fromInts(0,0,0,150)` 半透明遮罩）。
 
-### 2.3 交互钩子
+### 2.3 交互内容区滚动
+
+- **交互板块**（主内容区）应在**固定高度**的容器内实现**区域内滚动**：用户可通过快捷键（如 PageUp/PageDown）在区域内上下滑动，查看历史消息与输出。
+- **可见滚动指示**：主内容区底部应保留一行**滚动条/行号指示**（如「1-18/45 行  Page Up/Down 滚动 ↑↓」），避免用户误以为无法滚动或不知道当前视口位置；不能仅靠“无滚动条”的连续渲染造成全量在同一区域反复刷新的错觉。
+- **渲染策略**：只对当前可见范围（viewport）内的行或块进行渲染，不应对全部历史在同一区域做全量反复渲染；内容用行数组 + 滚动偏移（scrollOffset）切片显示，新内容到达时若已在底部则自动跟到底部，否则保持当前滚动位置。
+
+### 2.4 自适应布局（终端 resize）
+
+- **随终端窗口变化**：布局应随终端窗口放大、缩小而自适应调整，与 Web 浏览器类似：监听 `process.stdout` 的 `resize` 事件，更新列数（columns）与行数（rows），根节点与主内容区高度、侧栏宽度等均基于当前尺寸计算（如内容区高度 = rows - 固定偏移，侧栏宽度 = min(22, max(12, columns/4))），避免固定宽高导致小窗口被裁切或大窗口留白。
+- 实现上可在根组件内维护 `dimensions: { columns, rows }` 状态，在 mount 时从 `stdout.columns/rows` 初始化，在 `stdout.on('resize')` 中更新，并驱动整树重算布局。
+
+### 2.5 交互钩子
 
 - `useKeyboard(callback)`：全局键盘事件，可 `evt.preventDefault()` / `evt.stopPropagation()` 拦截。
 - `useRenderer()`：访问底层渲染器，如 `getSelection()`、`clearSelection()`、`setTerminalTitle()`、`suspend()`/`resume()`、`toggleDebugOverlay()`、`console.toggle()` 等。
@@ -225,4 +238,4 @@ ArgsProvider → ExitProvider → KVProvider → ToastProvider → RouteProvider
 - **桌面/Web**：可复用「命令面板 + 快捷键 + slash」「对话框栈」「主题 token」「事件总线」等概念，将 `box`/`text` 换成 div/span，键盘用 keydown、鼠标用 click。
 - **CLI 工具**：可复用 CLI 层的 Style/print/println/error/input 与 Logo 绘制思路，保持输出简洁、错误醒目、必要时同步读入。
 
-如需具体代码片段或某模块的接口列表，可结合本仓库 `packages/opencode/cli/cmd/tui` 与 `packages/opencode/cli/ui.ts` 对照阅读。
+如需具体代码与实现细节，请参阅本仓库 **terminal-ui** 目录（TypeScript：Ink + React）。

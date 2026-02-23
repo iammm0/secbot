@@ -2,10 +2,6 @@
 
 <div align="center">
 
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Status](https://img.shields.io/badge/status-beta-orange.svg)
-
 **一个智能化的自动化渗透测试机器人，具备AI驱动的安全测试能力**
 
 [English](README_EN.md) | [中文](#hackbot-自动化渗透测试机器人)
@@ -21,12 +17,6 @@
 - ✅ 仅对您拥有或已获得明确书面授权的系统使用
 - ✅ 确保遵守所有适用的法律法规
 - ✅ 负责任和道德地使用
-
-## 初始化界面展示
-
-无参数启动即进入交互模式，**占据整个终端**（alternate screen）；退出后恢复原终端内容。界面示意（`uv run secbot` 或 `python main.py`）：
-
-![Secbot 初始化界面](assets/show_picture.png)
 
 ## 🚀 功能特性
 
@@ -162,6 +152,17 @@ uv run secbot
 
 远程控制、防御、系统状态、数据库、语音、提示词等均在交互模式内通过斜杠命令或自然语言使用（如 `/list-authorizations`、`/defense-scan`、`/system-info`、`/db-stats`、`/prompt-list` 等），输入 `/` 后回车可查看全部命令。
 
+### 终端 UI（TypeScript 生态，推荐）
+
+终端界面采用 **TypeScript 生态**（[Ink](https://github.com/vadimdemedes/ink) + React），通过 HTTP/SSE 连接 Python 后端：
+
+1. 先启动后端：`python -m router.main` 或 `uv run hackbot-server`
+2. 在另一终端进入 `terminal-ui` 并运行：`npm install && npm run tui`
+
+配置后端地址：环境变量 `SECBOT_API_URL` 或 `BASE_URL`（默认 `http://localhost:8000`）。一键启动：Windows 运行 `.\scripts\start-ts-tui.ps1`，Linux/macOS 运行 `./scripts/start-ts-tui.sh`。详见 [terminal-ui/README.md](terminal-ui/README.md)。
+
+也可使用上述 Python 交互模式（无参数运行 `python main.py` 或 `uv run secbot`），作为无需 Node 的备用方式。
+
 ## 🔧 开发
 
 ### 运行测试
@@ -183,6 +184,7 @@ uv run python -m build
 ## 📚 文档
 
 - [快速开始指南](docs/QUICKSTART.md)
+- [UI 设计与交互](docs/UI-DESIGN-AND-INTERACTION.md) — 终端 UI（TypeScript/Ink）架构说明
 - [API 文档](docs/API.md)
 - [移动应用指南](docs/APP.md)
 - [技能与记忆系统](docs/SKILLS_AND_MEMORY.md)
@@ -234,6 +236,3 @@ uv run python -m build
 **⭐ 如果您觉得这个项目有用，请考虑给它一个星标！⭐**
 
 </div>
-
-
-
