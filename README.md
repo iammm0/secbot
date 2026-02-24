@@ -113,30 +113,57 @@ Edit `.env` file:
 # Build package using uv
 uv run python -m build
 
-# Install package
-uv pip install dist/hackbot-1.0.0-py3-none-any.whl
+# Install package（包名为 secbot，版本见 pyproject.toml）
+uv pip install dist/secbot-*.whl
 
-# Now you can use 'hackbot' or 'secbot' (no args = interactive mode)
+# 安装后可使用以下命令（无参数均为交互模式）
 hackbot
+# 或
+secbot
 ```
 
 ## 🎯 Quick Start
 
-### Basic Usage (no arguments = interactive mode)
+### 推荐：一条命令启动（后端 + 终端 TUI）
 
 ```bash
-# Run with no arguments to enter interactive mode (takes over the terminal; exit restores it)
+# 无参数运行：先启动 Python 后端（若未运行），再启动 TypeScript 终端 TUI（全屏）
 python main.py
-# or
-uv run secbot
-# or (if installed) hackbot / secbot
+# 或安装后
+hackbot
+# 或
+secbot
 ```
 
-All interaction (chat, agent switch, tools, slash commands) happens inside the interactive session. Type `/` then Enter to list commands; `exit` or `quit` to leave.
+会接管当前终端；输入 `exit` 或 `quit` 退出。所有交互（对话、切换 agent、工具、斜杠命令）均在 TUI 内完成，输入 `/` 后回车可查看命令列表。
 
-### In interactive mode (examples)
+### 仅启动后端（供 TUI 或 API 调用）
 
-After starting with `python main.py` or `uv run secbot`, you can:
+```bash
+python main.py --backend
+# 或
+uv run secbot-server
+# 或
+uv run hackbot-server
+# 或
+python -m router.main
+```
+
+默认监听 `http://localhost:8000`。
+
+### 仅 Python 交互 CLI（无需 Node）
+
+若不想使用 TypeScript TUI，可直接用 Python 自带的交互模式（无需先起后端）：
+
+```bash
+uv run secbot
+# 或
+uv run hackbot
+```
+
+### 在交互模式中的示例
+
+启动后（无论 TUI 还是 `uv run secbot`），你可以：
 
 - **Web research**: e.g. "Research the latest CVE-2024 vulnerabilities and summarize", or "Use smart_search to find Python asyncio best practices", or "Use api_client with preset weather and query Beijing"
 - **Recon / scanning**: e.g. "Scan ports on 192.168.1.1" or use slash commands like `/list-targets`, `/list-authorizations`, `/defense-scan`, `/defense-blocked`
@@ -146,14 +173,14 @@ System info, database stats/history, voice, and prompt management are available 
 
 ### Terminal UI（TypeScript 生态，推荐）
 
-终端界面采用 **TypeScript 生态**（[Ink](https://github.com/vadimdemedes/ink) + React），通过 HTTP/SSE 连接 Python 后端：
+终端界面采用 **TypeScript 生态**（[Ink](https://github.com/vadimdemedes/ink) + React），通过 HTTP/SSE 连接 Python 后端。
 
-1. 先启动后端：`python -m router.main` 或 `uv run hackbot-server`
-2. 在另一终端进入 `terminal-ui` 并运行：`npm install && npm run tui`
+- **一条命令进入 TUI**：在项目根目录执行 `python main.py`（会自动启动后端并打开 TUI）。
+- **分步启动**：先启动后端（`uv run secbot-server` 或 `python -m router.main`），再在另一终端进入 `terminal-ui` 运行 `npm install && npm run tui`。
 
-配置后端地址：环境变量 `SECBOT_API_URL` 或 `BASE_URL`（默认 `http://localhost:8000`）。一键启动：Windows 运行 `.\scripts\start-ts-tui.ps1`，Linux/macOS 运行 `./scripts/start-ts-tui.sh`。详见 [terminal-ui/README.md](terminal-ui/README.md)。
+后端地址：环境变量 `SECBOT_API_URL` 或 `BASE_URL`（默认 `http://localhost:8000`）。一键脚本：Windows 运行 `.\scripts\start-ts-tui.ps1` 或 `.\scripts\start-cli.ps1`，Linux/macOS 运行 `./scripts/start-ts-tui.sh`。详见 [terminal-ui/README.md](terminal-ui/README.md)。
 
-也可使用 Python 自带的交互模式（无参数运行 `python main.py` 或 `uv run secbot`），作为无需 Node 的备用方式。
+无需 Node 时可使用 Python 交互 CLI：`uv run secbot` 或 `uv run hackbot`。
 
 ## 🔧 Development
 
@@ -176,7 +203,7 @@ uv run python -m build
 ## 📚 Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md)
-- [UI Design & Interaction](docs/UI-DESIGN-AND-INTERACTION.md) — terminal UI (TypeScript/Ink) architecture
+- [UI Design & Interaction](docs/UI-DESIGN-AND-INTERACTION.md) — terminal UI (TypeScript/Ink) 架构说明
 - [API Documentation](docs/API.md)
 - [Mobile App Guide](docs/APP.md)
 - [Skills & Memory System](docs/SKILLS_AND_MEMORY.md)
@@ -184,11 +211,12 @@ uv run python -m build
 - [Docker Setup](docs/DOCKER_SETUP.md)
 - [Ollama Setup](docs/OLLAMA_SETUP.md)
 - [Security Warning](docs/SECURITY_WARNING.md)
-- [Virtual Test Environment (VMware + Ubuntu)](docs/VIRTUAL_TEST_ENVIRONMENT.md) — prompts and setup for testing secbot in a VM
+- [Virtual Test Environment (VMware + Ubuntu)](docs/VIRTUAL_TEST_ENVIRONMENT.md) — 在虚拟机中测试 secbot 的说明
 - [Prompt Guide](docs/PROMPT_GUIDE.md)
 - [Speech Guide](docs/SPEECH_GUIDE.md)
 - [SQLite Setup](docs/SQLITE_SETUP.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
+- [Changelog](docs/CHANGELOG.md) · [Release](docs/RELEASE.md) · [PyPI Publish](docs/PYPI_PUBLISH.md)
 
 ## 🤝 Contributing
 
