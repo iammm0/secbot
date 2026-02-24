@@ -43,6 +43,7 @@ class EventType(str, Enum):
 
     # 交互控制
     CONFIRM_REQUIRED = "confirm_required"
+    ROOT_REQUIRED = "root_required"  # 需 root 权限时暂停，等待用户选择（执行一次/总是允许/拒绝）及密码
     SESSION_UPDATE = "session_update"
     ERROR = "error"
 
