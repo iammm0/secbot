@@ -1032,25 +1032,46 @@ Final Answer: <最终结论和报告>
                 if policy == "ask" and getattr(self, "_get_root_password", None):
                     get_pwd = self._get_root_password
                     try:
-                        password = await get_pwd(command) if callable(get_pwd) else None
+                        raw = await get_pwd(command) if callable(get_pwd) else None
                     except Exception as e:
                         logger.warning(f"获取 root 密码时出错: {e}")
-                        password = None
-                    if not password:
+                        raw = None
+                    # 支持返回 str（密码）或 dict（action: run_once/always_allow/deny, password?）
+                    password: Optional[str] = None
+                    if isinstance(raw, str):
+                        password = raw
+                    elif isinstance(raw, dict):
+                        action = raw.get("action")
+                        if action == "deny":
+                            return ToolResult(
+                                success=False,
+                                result=None,
+                                error="用户拒绝授权 root 权限。",
+                            )
+                        if action == "always_allow":
+                            pass  # 不注入密码，直接执行原命令
+                        elif action == "run_once":
+                            password = raw.get("password") or ""
+                    if raw is None or (
+                        isinstance(raw, dict)
+                        and raw.get("action") == "run_once"
+                        and not raw.get("password")
+                    ):
                         return ToolResult(
                             success=False,
                             result=None,
-                            error="需要 root 权限但未提供密码（已取消或未输入）。可使用 /root-config always 配置为不询问。",
+                            error="需要 root 权限但未提供密码（已取消或未输入）。可使用「总是允许」或 /root-config always 配置为不询问。",
                         )
-                    # 使用 sudo -S 从 stdin 读密码，避免密码出现在命令行
-                    rest = command[len(root_cmd) :].strip()
-                    params = dict(params)
-                    params["command"] = (
-                        f"{root_cmd} -S -p '' -- {rest}"
-                        if rest
-                        else f"{root_cmd} -S -p '' -- true"
-                    )
-                    params["stdin_data"] = password + "\n"
+                    if password:
+                        # 使用 sudo -S 从 stdin 读密码，避免密码出现在命令行
+                        rest = command[len(root_cmd) :].strip()
+                        params = dict(params)
+                        params["command"] = (
+                            f"{root_cmd} -S -p '' -- {rest}"
+                            if rest
+                            else f"{root_cmd} -S -p '' -- true"
+                        )
+                        params["stdin_data"] = password + "\n"
                 # policy == "always_allow" 时直接执行原命令，不注入密码
 
         log_params = {k: v for k, v in params.items() if k != "stdin_data"}
