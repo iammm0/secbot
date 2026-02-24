@@ -2,10 +2,6 @@
 
 <div align="center">
 
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Status](https://img.shields.io/badge/status-beta-orange.svg)
-
 **An intelligent automated penetration testing robot with AI-powered security testing capabilities**
 
 [English](#hackbot-automated-penetration-testing-robot) | [中文](README.md)
@@ -21,12 +17,6 @@
 - ✅ Only use on systems you own or have explicit written authorization to test
 - ✅ Ensure you comply with all applicable laws and regulations
 - ✅ Use responsibly and ethically
-
-## Initialization / Screenshot
-
-Interface after starting interactive mode (`uv run secbot` or `python main.py`):
-
-![Secbot initialization](assets/show_picture.png)
 
 ## 🚀 Features
 
@@ -123,139 +113,38 @@ uv run python -m build
 # Install package
 uv pip install dist/hackbot-1.0.0-py3-none-any.whl
 
-# Now you can use 'hackbot' command directly
-hackbot --help
+# Now you can use 'hackbot' or 'secbot' (no args = interactive mode)
+hackbot
 ```
 
 ## 🎯 Quick Start
 
-### Basic Usage
+### Basic Usage (no arguments = interactive mode)
 
 ```bash
-# View help
-hackbot --help
-
-# Interactive chat
-hackbot interactive
-
-# Text chat
-hackbot chat "Hello, introduce yourself"
-
-# List available agents
-hackbot list-agents
+# Run with no arguments to enter interactive mode (takes over the terminal; exit restores it)
+python main.py
+# or
+uv run secbot
+# or (if installed) hackbot / secbot
 ```
 
-### Penetration Testing Commands
+All interaction (chat, agent switch, tools, slash commands) happens inside the interactive session. Type `/` then Enter to list commands; `exit` or `quit` to leave.
 
-```bash
-# Network discovery
-hackbot discover
+### In interactive mode (examples)
 
-# Port scanning (via chat)
-hackbot chat "Scan ports on 192.168.1.1"
+After starting, you can: use natural language (e.g. "Scan ports on 192.168.1.1") or slash commands like `/list-targets`, `/list-authorizations`, `/defense-scan`, `/system-info`, `/db-stats`, `/prompt-list`. Type `/` then Enter to see the full list.
 
-# List authorized targets
-hackbot list-targets
+### Terminal UI (TypeScript stack, recommended)
 
-# Revoke authorization
-hackbot revoke 192.168.1.100
+The terminal interface uses the **TypeScript stack** ([Ink](https://github.com/vadimdemedes/ink) + React), connecting to the Python backend via HTTP/SSE:
 
-# Note: Advanced exploitation commands (exploit, attack-chain, generate-payload) 
-# are available in experimental versions. Run 'hackbot --help' for full command list.
-```
+1. Start the backend first: `python -m router.main` or `uv run hackbot-server`
+2. In another terminal, go to `terminal-ui` and run: `npm install && npm run tui`
 
-### Remote Control Commands
+Backend URL: set `SECBOT_API_URL` or `BASE_URL` (default `http://localhost:8000`). One-shot: Windows `.\scripts\start-ts-tui.ps1`, Linux/macOS `./scripts/start-ts-tui.sh`. See [terminal-ui/README.md](terminal-ui/README.md).
 
-```bash
-# Execute remote command on authorized host
-hackbot remote-execute 192.168.1.100 "ls -la"
-
-# Upload file to remote host
-hackbot upload-file 192.168.1.100 local.txt /remote/path/
-
-# Download file from remote host
-hackbot download-file 192.168.1.100 /remote/file.txt local_copy.txt
-
-# List all authorizations
-hackbot list-authorizations
-```
-
-### Defense System Commands
-
-```bash
-# Perform comprehensive security scan
-hackbot defense-scan
-
-# Start defense monitoring
-hackbot defense-monitor --start --interval 60
-
-# View defense status
-hackbot defense-monitor --status
-
-# List blocked IPs
-hackbot defense-blocked --list
-
-# Generate defense report
-hackbot defense-report --type vulnerability
-```
-
-### System Operations
-
-```bash
-# System information
-hackbot system-info
-
-# System status
-hackbot system-status
-
-# List processes
-hackbot list-processes --filter python
-
-# Execute command
-hackbot execute "ls -la"
-
-# List files in directory
-hackbot file-list /path/to/dir --recursive
-```
-
-### Database Management
-
-```bash
-# View statistics
-hackbot db-stats
-
-# View conversation history
-hackbot db-history --limit 20
-
-# Clear history (requires confirmation)
-hackbot db-clear --yes
-```
-
-### Voice Interaction Commands
-
-```bash
-# Speech-to-text transcription
-hackbot transcribe audio.wav --output transcript.txt
-
-# Text-to-speech synthesis
-hackbot synthesize "Hello world" --output speech.wav --language en
-
-# Voice chat with agent
-hackbot voice audio.wav --agent hackbot
-```
-
-### Prompt Management Commands
-
-```bash
-# List available prompt templates and chains
-hackbot prompt-list
-
-# Create a new prompt chain
-hackbot prompt-create my_chain --role "Security Expert" --instruction "Perform penetration testing"
-
-# Load prompt chain from file
-hackbot prompt-load my_prompt.yaml
-```
+You can also use the Python interactive mode (run `python main.py` or `uv run secbot` with no args) as a Node-free alternative.
 
 ## 🔧 Development
 
@@ -278,6 +167,7 @@ uv run python -m build
 ## 📚 Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md)
+- [UI Design & Interaction](docs/UI-DESIGN-AND-INTERACTION.md) — terminal UI (TypeScript/Ink) architecture
 - [API Documentation](docs/API.md)
 - [Mobile App Guide](docs/APP.md)
 - [Database Guide](docs/DATABASE_GUIDE.md)
