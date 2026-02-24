@@ -41,6 +41,8 @@ interface MainContentProps {
   onLinesChange: (totalLines: number) => void;
   /** 是否显示右侧滚动条 */
   showScrollbar?: boolean;
+  /** 已展开的块 id（工具/API 结果等默认折叠，展开后加入此集合） */
+  expandedBlockIds?: Set<string>;
 }
 
 export function MainContent({
@@ -52,6 +54,7 @@ export function MainContent({
   setScrollOffset,
   onLinesChange,
   showScrollbar = true,
+  expandedBlockIds = new Set(),
 }: MainContentProps) {
   const keybind = useKeybind();
   const [dismissedTransientTools, setDismissedTransientTools] = useState<Set<string>>(new Set());
@@ -72,8 +75,8 @@ export function MainContent({
   }, [streamState.actions, dismissedTransientTools]);
 
   const blocks = useMemo(
-    () => streamStateToBlocks(streamState, streaming, apiOutput, dismissedTransientTools),
-    [streamState, streaming, apiOutput, dismissedTransientTools]
+    () => streamStateToBlocks(streamState, streaming, apiOutput, dismissedTransientTools, expandedBlockIds),
+    [streamState, streaming, apiOutput, dismissedTransientTools, expandedBlockIds]
   );
 
   const totalLines = useMemo(() => (blocks.length === 0 ? 0 : blocks[blocks.length - 1].lineEnd), [blocks]);
@@ -108,10 +111,11 @@ export function MainContent({
   const rangeStart = totalLines === 0 ? 0 : scrollOffset + 1;
   const rangeEnd = totalLines === 0 ? 0 : Math.min(scrollOffset + scrollableHeight, totalLines);
 
+  // 使用单列 ASCII 字符，避免 CJK 等环境下双宽字符导致溢出乱码
   const scrollbarLines = useMemo(() => {
     const lines: string[] = [];
-    const trackChar = '│';
-    const thumbChar = '█';
+    const trackChar = '|';
+    const thumbChar = '#';
     if (totalLines <= scrollableHeight) {
       for (let i = 0; i < scrollableHeight; i++) lines.push(trackChar);
     } else {
@@ -159,9 +163,9 @@ export function MainContent({
           )}
         </Box>
         {showScrollbar && (
-          <Box flexDirection="column" width={1} height={scrollableHeight} justifyContent="flex-start">
+          <Box flexDirection="column" width={1} height={scrollableHeight} justifyContent="flex-start" overflow="hidden">
             {scrollbarLines.map((char, i) => (
-              <Text key={i} dimColor={char === '│'}>{char}</Text>
+              <Text key={i} dimColor={char === '|'}>{char}</Text>
             ))}
           </Box>
         )}
@@ -169,7 +173,7 @@ export function MainContent({
       <Box flexDirection="row">
         <Text color="dim">
           {totalLines > 0 ? ` ${rangeStart}-${rangeEnd}/${totalLines} 行 ` : ' '}
-          ↑/↓ {keybind.print('page_up')}/{keybind.print('page_down')} Home/End 首/尾 点击滚动条
+          ↑/↓ {keybind.print('page_up')}/{keybind.print('page_down')} Home/End 首/尾 {keybind.print('expand_block')} 展开 点击滚动条
           {atTop ? '' : ' ↑'}
           {atBottom ? '' : ' ↓'}
         </Text>

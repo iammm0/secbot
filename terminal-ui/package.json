@@ -10,9 +10,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "tui": "node --import tsx src/cli.tsx",
-    "start": "node --import tsx src/cli.tsx",
-    "dev": "node --import tsx src/cli.tsx"
+    "tui": "npx tsx src/cli.tsx",
+    "start": "npx tsx src/cli.tsx",
+    "dev": "npx tsx src/cli.tsx"
   },
   "dependencies": {
     "fuzzysort": "^3.0.0",
