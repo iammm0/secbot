@@ -27,18 +27,33 @@ export function streamStateToBlocks(
   streaming: boolean,
   apiOutput: string | null,
   /** 已“消失”的瞬时工具，不再展示在执行列表中 */
-  dismissedTransientTools?: Set<string>
+  dismissedTransientTools?: Set<string>,
+  /** 已展开的块 id，未在此集合中的可折叠块将显示为折叠 */
+  expandedBlockIds?: Set<string>
 ): ContentBlock[] {
   const blocks: ContentBlock[] = [];
   let lineStart = 0;
   const { phase, detail, planning, thought, thoughtChunks, actions, content, report, error, response } = streamState;
   const dismissed = dismissedTransientTools ?? new Set<string>();
+  const expanded = expandedBlockIds ?? new Set<string>();
+
+  function addCollapsibleBlock(id: string, type: ContentBlock['type'], title: string, fullBody: string): void {
+    const lineCount = blockLines(title, fullBody);
+    const isExpanded = expanded.has(id);
+    if (isExpanded || lineCount <= 2) {
+      blocks.push({ id, type, title, body: fullBody, lineStart, lineEnd: lineStart + lineCount });
+      lineStart += lineCount;
+    } else {
+      const numLines = fullBody.split('\n').length;
+      const placeholder = `*(共 ${numLines} 行，${title}，按 Ctrl+E 展开)*`;
+      blocks.push({ id, type, title, body: placeholder, fullBody, lineStart, lineEnd: lineStart + 2 });
+      lineStart += 2;
+    }
+  }
 
   if (apiOutput !== null) {
     const body = truncateBody(apiOutput, MAX_RESULT_LINES);
-    const lineEnd = lineStart + blockLines('API', body);
-    blocks.push({ id: 'api', type: 'api', title: 'API', body, lineStart, lineEnd });
-    lineStart = lineEnd;
+    addCollapsibleBlock('api', 'api', 'API', body);
   }
 
   if (streaming && phase) {
@@ -57,12 +72,13 @@ export function streamStateToBlocks(
 
   if (planning) {
     let body = planning.content ? planning.content + '\n\n' : '';
-    if (planning.todos?.length) {
-      body += planning.todos.map((t) => `- ${t.content}${t.status ? ` *(${t.status})*` : ''}`).join('\n');
+    const todos = planning.todos?.map((t) => ({ content: t.content, status: t.status })) ?? [];
+    if (todos.length) {
+      body += todos.map((t) => `- ${t.content}${t.status ? ` *(${t.status})*` : ''}`).join('\n');
     }
     body = body || '规划中…';
     const lineEnd = lineStart + blockLines('规划', body);
-    blocks.push({ id: 'planning', type: 'planning', title: '规划', body, lineStart, lineEnd });
+    blocks.push({ id: 'planning', type: 'planning', title: '规划', body, lineStart, lineEnd, todos });
     lineStart = lineEnd;
   }
 
@@ -76,6 +92,12 @@ export function streamStateToBlocks(
 
   if (actions.length > 0) {
     const filtered = actions.filter((a) => !TRANSIENT_TOOLS.has(a.tool) || !dismissed.has(a.tool));
+    const actionItems = filtered.map((a) => ({
+      tool: a.tool,
+      success: a.success,
+      result: a.result,
+      error: a.error,
+    }));
     const body =
       filtered.length > 0
         ? filtered
@@ -91,7 +113,7 @@ export function streamStateToBlocks(
         : '';
     if (body) {
       const lineEnd = lineStart + blockLines('执行', body);
-      blocks.push({ id: 'actions', type: 'actions', title: '执行', body, lineStart, lineEnd });
+      blocks.push({ id: 'actions', type: 'actions', title: '执行', body, lineStart, lineEnd, actions: actionItems });
       lineStart = lineEnd;
     }
   }
@@ -100,24 +122,18 @@ export function streamStateToBlocks(
     const lastAction = actions.length > 0 ? actions[actions.length - 1] : null;
     if (!lastAction || !TRANSIENT_TOOLS.has(lastAction.tool)) {
       const body = truncateBody(content, MAX_RESULT_LINES);
-      const lineEnd = lineStart + blockLines('内容', body);
-      blocks.push({ id: 'content', type: 'content', title: '内容', body, lineStart, lineEnd });
-      lineStart = lineEnd;
+      addCollapsibleBlock('content', 'content', '内容', body);
     }
   }
 
   if (report) {
     const body = truncateBody(report, MAX_RESULT_LINES);
-    const lineEnd = lineStart + blockLines('报告', body);
-    blocks.push({ id: 'report', type: 'report', title: '报告', body, lineStart, lineEnd });
-    lineStart = lineEnd;
+    addCollapsibleBlock('report', 'report', '报告', body);
   }
 
   if (response) {
     const body = truncateBody(response, MAX_RESULT_LINES);
-    const lineEnd = lineStart + blockLines('回复', body);
-    blocks.push({ id: 'response', type: 'response', title: '回复', body, lineStart, lineEnd });
-    lineStart = lineEnd;
+    addCollapsibleBlock('response', 'response', '回复', body);
   }
 
   return blocks;
