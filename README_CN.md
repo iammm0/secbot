@@ -100,7 +100,7 @@ uv sync
 # 从 https://ollama.ai 安装Ollama
 
 # 下载所需模型
-ollama pull gpt-oss:20b
+ollama pull gemma3:3b
 ollama pull nomic-embed-text
 
 # Ollama服务默认运行在 http://localhost:11434
@@ -222,8 +222,6 @@ uv run python -m build
 
 - 使用 [LangChain](https://github.com/langchain-ai/langchain) 构建
 - 由 [Ollama](https://ollama.ai) 提供支持
-- CLI使用 [Typer](https://typer.tiangolo.com) 构建
-- 使用 [Rich](https://github.com/Textualize/rich) 实现美观的输出
 
 ## ⚠️ 免责声明
 
