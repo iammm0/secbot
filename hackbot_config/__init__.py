@@ -110,8 +110,14 @@ def delete_config_from_sqlite(key: str) -> bool:
 
 
 def delete_provider_api_key(provider: str) -> bool:
-    """删除指定厂商在本地数据库中的 API Key（认证失败时清除无效 key）"""
-    return delete_config_from_sqlite(f"{provider}_api_key")
+    """删除指定厂商的 API Key：SQLite + keyring（认证失败时立即清除无效 key）"""
+    ok = delete_config_from_sqlite(f"{provider}_api_key")
+    try:
+        import keyring
+        keyring.delete_password("secbot", provider)
+    except Exception:
+        pass
+    return ok
 
 
 # 向下兼容别名
