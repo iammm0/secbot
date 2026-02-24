@@ -5,7 +5,8 @@
 import asyncio
 import json
 import traceback
-from typing import AsyncGenerator
+import uuid
+from typing import Any, AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
 from rich.console import Console
@@ -18,11 +19,15 @@ from router.dependencies import (
     get_qa_agent,
     get_summary_agent,
 )
-from router.schemas import ChatRequest, ChatResponse
+from router.schemas import ChatRequest, ChatResponse, RootResponseRequest
 from core.session import SessionManager
 from utils.event_bus import EventBus, EventType, Event
+from utils.root_policy import save_root_policy
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
+
+# 需 root 权限时：request_id -> Future[dict | None]，由 POST /root-response 解析
+_root_pending: dict[str, asyncio.Future[dict[str, Any] | None]] = {}
 
 
 def _event_to_sse(event: Event) -> tuple[str, dict] | None:
@@ -74,6 +79,11 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
         return ("report", {"content": d.get("report", "")})
     if t == EventType.TASK_PHASE:
         return ("phase", {"phase": d.get("phase", ""), "detail": d.get("detail", "")})
+    if t == EventType.ROOT_REQUIRED:
+        return (
+            "root_required",
+            {"request_id": d.get("request_id", ""), "command": d.get("command", "")},
+        )
     if t == EventType.ERROR:
         return ("error", {"error": d.get("error", "")})
     return None
@@ -112,9 +122,27 @@ async def _interaction_event_generator(
         EventType.CONTENT,
         EventType.REPORT_END,
         EventType.TASK_PHASE,
+        EventType.ROOT_REQUIRED,
         EventType.ERROR,
     ):
         event_bus.subscribe(et, on_bus_event)
+
+    async def get_root_password(command: str) -> dict[str, Any] | None:
+        """需 root 时暂停：发 root_required，等客户端 POST root-response 后返回。"""
+        request_id = str(uuid.uuid4())
+        fut: asyncio.Future[dict[str, Any] | None] = asyncio.get_running_loop().create_future()
+        _root_pending[request_id] = fut
+        try:
+            event_bus.emit_simple(
+                EventType.ROOT_REQUIRED,
+                request_id=request_id,
+                command=command,
+            )
+            return await asyncio.wait_for(fut, timeout=300.0)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            _root_pending.pop(request_id, None)
 
     session_manager = SessionManager(
         event_bus=event_bus,
@@ -123,6 +151,7 @@ async def _interaction_event_generator(
         planner=get_planner_agent(),
         qa_agent=get_qa_agent(),
         summary_agent=get_summary_agent(),
+        get_root_password=get_root_password,
     )
 
     force_qa = request.mode == "ask"
@@ -200,6 +229,29 @@ async def chat_stream(request: ChatRequest):
     返回 text/event-stream，客户端通过 SSE 接收推理过程与最终响应。
     """
     return EventSourceResponse(_interaction_event_generator(request))
+
+
+@router.post("/root-response", summary="需 root 权限时用户选择回传")
+async def root_response(body: RootResponseRequest):
+    """
+    当 SSE 收到 root_required 后，前端弹窗让用户选择「执行一次 / 总是允许 / 拒绝」，
+    首次允许时输入本机账户或 root 密码，然后 POST 到此接口以继续执行。
+    """
+    request_id = body.request_id
+    fut = _root_pending.get(request_id)
+    if not fut or fut.done():
+        raise HTTPException(status_code=400, detail="无效或已过期的 request_id")
+    if body.action == "always_allow":
+        save_root_policy(root_policy="always_allow")
+        # 首次「总是允许」时若提供了密码，本次仍用密码执行一次，后续才不询问
+        if body.password:
+            fut.set_result({"action": "run_once", "password": body.password})
+            return {}
+    payload: dict[str, Any] = {"action": body.action}
+    if body.password is not None:
+        payload["password"] = body.password
+    fut.set_result(payload)
+    return {}
 
 
 # ---------------------------------------------------------------------------
