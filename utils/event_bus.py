@@ -46,6 +46,10 @@ class EventType(str, Enum):
     SESSION_UPDATE = "session_update"
     ERROR = "error"
 
+    # UI 反馈（OpenCode 理念：事件驱动 Toast）
+    TOAST_SHOW = "toast_show"
+    COMMAND_EXECUTE = "command_execute"
+
 
 @dataclass
 class Event:

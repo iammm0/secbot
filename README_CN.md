@@ -2,10 +2,6 @@
 
 <div align="center">
 
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Status](https://img.shields.io/badge/status-beta-orange.svg)
-
 **一个智能化的自动化渗透测试机器人，具备AI驱动的安全测试能力**
 
 [English](README_EN.md) | [中文](#hackbot-自动化渗透测试机器人)
@@ -21,12 +17,6 @@
 - ✅ 仅对您拥有或已获得明确书面授权的系统使用
 - ✅ 确保遵守所有适用的法律法规
 - ✅ 负责任和道德地使用
-
-## 初始化界面展示
-
-启动交互模式后的界面示意（`uv run secbot` 或 `python main.py`）：
-
-![Secbot 初始化界面](assets/show_picture.png)
 
 ## 🚀 功能特性
 
@@ -135,139 +125,43 @@ uv run python -m build
 # 安装包
 uv pip install dist/hackbot-1.0.0-py3-none-any.whl
 
-# 现在可以直接使用 'hackbot' 命令
-hackbot --help
+# 现在可直接使用 hackbot / secbot（无参数即交互模式）
+hackbot
 ```
 
 ## 🎯 快速开始
 
-### 基本使用
+### 基本使用（无参数即交互模式）
 
 ```bash
-# 查看帮助
-hackbot --help
-
-# 交互式聊天
-hackbot interactive
-
-# 文本聊天
-hackbot chat "你好，介绍一下你自己"
-
-# 列出可用智能体
-hackbot list-agents
+# 无参数运行即进入交互模式（占据整个终端，退出后恢复）
+python main.py
+# 或
+uv run secbot
+# 或（若已安装）hackbot / secbot
 ```
 
-### 渗透测试命令
+所有交互（对话、切换智能体、工具、斜杠命令）均在交互会话内完成。输入 `/` 后回车可列出命令；输入 `exit` 或 `quit` 退出。
 
-```bash
-# 网络发现
-hackbot discover
+### 在交互模式内（示例）
 
-# 端口扫描（通过聊天）
-hackbot chat "扫描 192.168.1.1 的端口"
+启动后可以：
 
-# 列出已授权目标
-hackbot list-targets
+- **渗透/扫描**：例如「扫描 192.168.1.1 的端口」，或使用斜杠命令 `/list-targets`、`/list-authorizations`、`/defense-scan`、`/defense-blocked`
+- **系统/数据库/语音/提示词**：使用 `/system-info`、`/db-stats`、`/db-history`、`/prompt-list` 等；输入 `/` 后回车可查看全部命令
 
-# 撤销授权
-hackbot revoke 192.168.1.100
+远程控制、防御、系统状态、数据库、语音、提示词等均在交互模式内通过斜杠命令或自然语言使用（如 `/list-authorizations`、`/defense-scan`、`/system-info`、`/db-stats`、`/prompt-list` 等），输入 `/` 后回车可查看全部命令。
 
-# 注意：高级漏洞利用命令（exploit, attack-chain, generate-payload）
-# 在实验版本中可用。运行 'hackbot --help' 查看完整命令列表。
-```
+### 终端 UI（TypeScript 生态，推荐）
 
-### 远程控制命令
+终端界面采用 **TypeScript 生态**（[Ink](https://github.com/vadimdemedes/ink) + React），通过 HTTP/SSE 连接 Python 后端：
 
-```bash
-# 在授权主机上执行远程命令
-hackbot remote-execute 192.168.1.100 "ls -la"
+1. 先启动后端：`python -m router.main` 或 `uv run hackbot-server`
+2. 在另一终端进入 `terminal-ui` 并运行：`npm install && npm run tui`
 
-# 上传文件到远程主机
-hackbot upload-file 192.168.1.100 local.txt /remote/path/
+配置后端地址：环境变量 `SECBOT_API_URL` 或 `BASE_URL`（默认 `http://localhost:8000`）。一键启动：Windows 运行 `.\scripts\start-ts-tui.ps1`，Linux/macOS 运行 `./scripts/start-ts-tui.sh`。详见 [terminal-ui/README.md](terminal-ui/README.md)。
 
-# 从远程主机下载文件
-hackbot download-file 192.168.1.100 /remote/file.txt local_copy.txt
-
-# 列出所有授权
-hackbot list-authorizations
-```
-
-### 防御系统命令
-
-```bash
-# 执行全面安全扫描
-hackbot defense-scan
-
-# 启动防御监控
-hackbot defense-monitor --start --interval 60
-
-# 查看防御状态
-hackbot defense-monitor --status
-
-# 列出被封禁的IP
-hackbot defense-blocked --list
-
-# 生成防御报告
-hackbot defense-report --type vulnerability
-```
-
-### 系统操作
-
-```bash
-# 系统信息
-hackbot system-info
-
-# 系统状态
-hackbot system-status
-
-# 列出进程
-hackbot list-processes --filter python
-
-# 执行命令
-hackbot execute "ls -la"
-
-# 列出目录中的文件
-hackbot file-list /path/to/dir --recursive
-```
-
-### 数据库管理
-
-```bash
-# 查看统计信息
-hackbot db-stats
-
-# 查看对话历史
-hackbot db-history --limit 20
-
-# 清空历史（需要确认）
-hackbot db-clear --yes
-```
-
-### 语音交互命令
-
-```bash
-# 语音转文字转录
-hackbot transcribe audio.wav --output transcript.txt
-
-# 文字转语音合成
-hackbot synthesize "Hello world" --output speech.wav --language en
-
-# 与智能体语音聊天
-hackbot voice audio.wav --agent hackbot
-```
-
-### 提示词管理命令
-
-```bash
-# 列出可用提示词模板和链
-hackbot prompt-list
-
-# 创建新的提示词链
-hackbot prompt-create my_chain --role "安全专家" --instruction "执行渗透测试"
-
-# 从文件加载提示词链
-hackbot prompt-load my_prompt.yaml
-```
+也可使用上述 Python 交互模式（无参数运行 `python main.py` 或 `uv run secbot`），作为无需 Node 的备用方式。
 
 ## 🔧 开发
 
@@ -290,6 +184,7 @@ uv run python -m build
 ## 📚 文档
 
 - [快速开始指南](docs/QUICKSTART.md)
+- [UI 设计与交互](docs/UI-DESIGN-AND-INTERACTION.md) — 终端 UI（TypeScript/Ink）架构说明
 - [API 文档](docs/API.md)
 - [移动应用指南](docs/APP.md)
 - [技能与记忆系统](docs/SKILLS_AND_MEMORY.md)
@@ -341,6 +236,3 @@ uv run python -m build
 **⭐ 如果您觉得这个项目有用，请考虑给它一个星标！⭐**
 
 </div>
-
-
-

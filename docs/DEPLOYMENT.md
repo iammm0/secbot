@@ -43,11 +43,11 @@ uv pip install dist/hackbot-*.whl
 
 ### 使用安装后的命令
 
-安装后可以直接使用 `hackbot` 命令：
+安装后可直接使用 `hackbot` 或 `secbot`（无参数即进入交互模式，占据整个终端）：
 
 ```bash
-hackbot --help
-hackbot chat "你好"
+hackbot
+# 或 secbot
 ```
 
 ## Docker 部署
@@ -146,8 +146,8 @@ uv sync
 cp env.example .env
 nano .env
 
-# 3. 运行应用（项目仅使用 SQLite，无需额外数据库服务）
-uv run python main.py chat "你好"
+# 3. 运行应用（无参数即进入交互模式，项目仅使用 SQLite，无需额外数据库服务）
+uv run python main.py
 ```
 
 ### 系统服务（systemd）
@@ -163,7 +163,7 @@ After=network.target
 Type=simple
 User=your-user
 WorkingDirectory=/path/to/hackbot
-ExecStart=/path/to/hackbot/.venv/bin/python main.py interactive
+ExecStart=/path/to/hackbot/.venv/bin/python main.py
 Restart=always
 RestartSec=10
 

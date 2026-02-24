@@ -1,13 +1,11 @@
 """
-交互响应流程测试：验证 Planning -> Reasoning/Action -> Report 能否正常回应。
-运行: python -m pytest tests/test_interactive_response.py -v -s
-或:  python tests/test_interactive_response.py
+交互响应流程测试：验证 core.session.SessionManager 与 core 模型。
+不依赖已删除的 tui 组件；仅测 core 与 event_bus。
 """
 import asyncio
 import sys
 from pathlib import Path
 
-# 保证项目根在 path 中
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -17,11 +15,11 @@ def test_imports():
     """确保关键模块可导入"""
     from rich.console import Console
     from utils.event_bus import EventBus, EventType, Event
-    from tui.models import RequestType, PlanResult, TodoItem, TodoStatus
-    from agents.planner_agent import PlannerAgent
-    from tui.session_manager import SessionManager
-    from agents.hackbot_agent import HackbotAgent
-    from agents.superhackbot_agent import SuperHackbotAgent
+    from core.models import RequestType, PlanResult, TodoItem, TodoStatus
+    from core.agents.planner_agent import PlannerAgent
+    from core.session import SessionManager
+    from core.agents.hackbot_agent import HackbotAgent
+    from core.agents.superhackbot_agent import SuperHackbotAgent
     from utils.audit import AuditTrail
     from database.manager import DatabaseManager
     console = Console(width=80)
@@ -35,12 +33,12 @@ async def test_simple_reply():
     """简单请求（如「你好」）应直接得到回复，不经过 agent 执行"""
     from rich.console import Console
     from utils.event_bus import EventBus
-    from tui.session_manager import SessionManager
-    from agents.planner_agent import PlannerAgent
+    from core.session import SessionManager
+    from core.agents.planner_agent import PlannerAgent
     from database.manager import DatabaseManager
     from utils.audit import AuditTrail
-    from agents.hackbot_agent import HackbotAgent
-    from agents.superhackbot_agent import SuperHackbotAgent
+    from core.agents.hackbot_agent import HackbotAgent
+    from core.agents.superhackbot_agent import SuperHackbotAgent
 
     console = Console(width=80)
     event_bus = EventBus()
@@ -70,13 +68,13 @@ async def test_technical_flow_no_llm():
     """技术请求：仅跑规划 + 一次 process（不依赖 LLM 可用时再测）"""
     from rich.console import Console
     from utils.event_bus import EventBus, EventType
-    from tui.session_manager import SessionManager
-    from agents.planner_agent import PlannerAgent
+    from core.session import SessionManager
+    from core.agents.planner_agent import PlannerAgent
     from database.manager import DatabaseManager
     from utils.audit import AuditTrail
-    from agents.hackbot_agent import HackbotAgent
-    from agents.superhackbot_agent import SuperHackbotAgent
-    from tui.models import PlanResult, RequestType
+    from core.agents.hackbot_agent import HackbotAgent
+    from core.agents.superhackbot_agent import SuperHackbotAgent
+    from core.models import PlanResult, RequestType
 
     console = Console(width=80)
     event_bus = EventBus()
@@ -88,14 +86,12 @@ async def test_technical_flow_no_llm():
     }
     planner = PlannerAgent()
 
-    # 1) 仅规划
     plan_result = await planner.plan("scan localhost ports")
     assert plan_result is not None
     assert plan_result.request_type == RequestType.TECHNICAL
     assert len(plan_result.todos) >= 1
     print("OK  plan_result:", len(plan_result.todos), "todos")
 
-    # 2) 完整 SessionManager 流程（会调 LLM，可能超时或不可用）
     session_mgr = SessionManager(
         event_bus=event_bus,
         console=console,
@@ -116,85 +112,13 @@ async def test_technical_flow_no_llm():
         raise
 
 
-def test_planning_component_render():
-    """Planning 组件 render 不报错（含 Group + Markdown）"""
-    from rich.console import Console
-    from utils.event_bus import EventBus, EventType, Event
-    from tui.components.planning import PlanningComponent
-    from tui.models import TodoItem, TodoStatus
-
-    console = Console(width=80)
-    bus = EventBus()
-    comp = PlanningComponent(console, bus)
-    # 无 todos
-    p = comp.render()
-    assert p is not None
-    # 有 todos 和 plan_summary
-    comp.plan_summary = "**目标**: 扫描端口"
-    comp.todos = [
-        TodoItem(id="1", content="端口扫描", status=TodoStatus.PENDING, tool_hint="port_scan"),
-    ]
-    p2 = comp.render()
-    assert p2 is not None
-    print("OK  planning render with Group+Markdown")
-
-
-def test_reasoning_component_markdown():
-    """Reasoning 组件 Markdown 渲染不报错"""
-    from rich.console import Console
-    from utils.event_bus import EventBus, EventType, Event
-    from tui.components.reasoning import ReasoningComponent
-
-    console = Console(width=80)
-    bus = EventBus()
-    comp = ReasoningComponent(console, bus)
-    bus.emit(Event(type=EventType.THINK_START, data={"iteration": 1}))
-    bus.emit(Event(type=EventType.THINK_END, data={"thought": "**分析**: 需要执行 port_scan"}))
-    assert len(comp.thoughts) == 1
-    panel = comp.render_thought(comp.thoughts[0], collapsed=False)
-    assert panel is not None
-    print("OK  reasoning Markdown render")
-
-
-def test_content_component_markdown():
-    """Content 组件 Markdown 不报错"""
-    from rich.console import Console
-    from tui.components.content import ContentComponent
-
-    console = Console(width=80)
-    comp = ContentComponent(console)
-    comp.display_content("**测试** 内容")
-    comp.display_observation("观察 **结果**")
-    comp.display_user_message("用户**输入**")
-    print("OK  content Markdown")
-
-
-def test_execution_component_markdown():
-    """Execution 组件结果用 Markdown 不报错"""
-    from rich.console import Console
-    from utils.event_bus import EventBus, EventType, Event
-    from tui.components.execution import ExecutionComponent
-
-    console = Console(width=80)
-    bus = EventBus()
-    comp = ExecutionComponent(console, bus)
-    bus.emit(Event(type=EventType.EXEC_START, data={"tool": "port_scan", "params": {"target": "localhost"}}, iteration=1))
-    bus.emit(Event(type=EventType.EXEC_RESULT, data={
-        "tool": "port_scan", "success": True, "result": "开放: **22**, **80**"
-    }, iteration=1))
-    assert len(comp.executions) == 1
-    assert comp.executions[0].get("result") is not None
-    print("OK  execution Markdown")
-
-
 def test_agent_process_skip_flags():
-    """process(skip_planning=True, skip_report=True) 不报错且不产生 planning/report 事件。
-    依赖真实 LLM（Ollama），超时或不可用时跳过。"""
+    """process(skip_planning=True, skip_report=True) 不报错且不产生 planning/report 事件。"""
     from rich.console import Console
     from utils.event_bus import EventBus, EventType
     from database.manager import DatabaseManager
     from utils.audit import AuditTrail
-    from agents.hackbot_agent import HackbotAgent
+    from core.agents.hackbot_agent import HackbotAgent
 
     console = Console(width=80)
     db = DatabaseManager()
@@ -203,10 +127,13 @@ def test_agent_process_skip_flags():
     bus = EventBus()
     planning_emitted = []
     report_emitted = []
+
     def on_plan(evt):
         planning_emitted.append(evt)
+
     def on_report(evt):
         report_emitted.append(evt)
+
     bus.subscribe(EventType.PLAN_START, on_plan)
     bus.subscribe(EventType.REPORT_END, on_report)
 
@@ -232,20 +159,19 @@ def test_agent_process_skip_flags():
         raise
 
 
-def test_report_end_received_and_rendered():
-    """技术请求完成后 _run_summary 应发射 REPORT_END，Report 组件能渲染"""
+def test_run_summary_returns_report():
+    """SessionManager._run_summary 返回 InteractionSummary，含 raw_report"""
     from rich.console import Console
-    from utils.event_bus import EventBus, EventType, Event
-    from tui.session_manager import SessionManager
-    from tui.components.report import ReportComponent
-    from tui.models import (
+    from utils.event_bus import EventBus
+    from core.session import SessionManager
+    from core.agents.planner_agent import PlannerAgent
+    from core.models import (
         PlanResult,
         RequestType,
         TodoItem,
         TodoStatus,
         InteractionSummary,
     )
-    from agents.planner_agent import PlannerAgent
 
     class MockSummaryAgent:
         async def summarize_interaction(self, **kwargs):
@@ -268,9 +194,7 @@ def test_report_end_received_and_rendered():
         planner=planner,
         summary_agent=MockSummaryAgent(),
     )
-    report_comp = ReportComponent(console, event_bus)
 
-    # 构造技术请求的 plan_result 和假 agent
     plan_result = PlanResult(
         request_type=RequestType.TECHNICAL,
         plan_summary="扫描本地端口",
@@ -278,6 +202,7 @@ def test_report_end_received_and_rendered():
             TodoItem(id="1", content="端口扫描", status=TodoStatus.COMPLETED, tool_hint="port_scan"),
         ],
     )
+
     class StubAgent:
         _react_history = [
             {"type": "thought", "content": "执行端口扫描"},
@@ -296,39 +221,24 @@ def test_report_end_received_and_rendered():
     summary = asyncio.run(run())
     assert summary is not None
     assert summary.raw_report
-    report_text = report_comp.get_report_text()
-    assert report_text == summary.raw_report
-    assert "报告" in report_text
-    print("OK  REPORT_END received and Report component has content:", report_text[:60])
+    assert "报告" in summary.raw_report
+    print("OK  _run_summary returns report:", summary.raw_report[:60])
 
 
 if __name__ == "__main__":
-    import sys
     verbose = "-v" in sys.argv or "--verbose" in sys.argv
     run_async = "async" in sys.argv or "full" in sys.argv
 
     print("=== 1. Imports ===")
     test_imports()
 
-    print("\n=== 2. Planning component render ===")
-    test_planning_component_render()
-
-    print("\n=== 3. Reasoning component Markdown ===")
-    test_reasoning_component_markdown()
-
-    print("\n=== 4. Content component Markdown ===")
-    test_content_component_markdown()
-
-    print("\n=== 5. Execution component Markdown ===")
-    test_execution_component_markdown()
-
-    print("\n=== 6. Agent process skip flags ===")
+    print("\n=== 2. Agent process skip flags ===")
     test_agent_process_skip_flags()
 
-    print("\n=== 6b. REPORT_END received and Report component ===")
-    test_report_end_received_and_rendered()
+    print("\n=== 3. _run_summary returns report ===")
+    test_run_summary_returns_report()
 
-    print("\n=== 7. Simple reply (async) ===")
+    print("\n=== 4. Simple reply (async) ===")
     try:
         reply = asyncio.run(test_simple_reply())
         if verbose:
@@ -338,7 +248,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if run_async:
-        print("\n=== 8. Technical flow (async, may timeout) ===")
+        print("\n=== 5. Technical flow (async, may timeout) ===")
         try:
             asyncio.run(test_technical_flow_no_llm())
         except Exception as e:
