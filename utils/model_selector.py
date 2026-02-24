@@ -14,7 +14,14 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from hackbot_config import settings, get_provider_api_key, get_provider_base_url, get_provider_model, save_config_to_sqlite
+from hackbot_config import (
+    settings,
+    get_provider_api_key,
+    get_provider_base_url,
+    get_provider_model,
+    save_config_to_sqlite,
+    delete_provider_api_key,
+)
 
 # ---------------------------------------------------------------------------
 # 厂商注册表
@@ -284,7 +291,9 @@ def get_llm_connection_hint(exception: Exception, provider: Optional[str] = None
             )
         return "无法连接 LLM 服务（Connection refused），请检查网络与配置。"
     if "api_key" in s or "unauthorized" in s or "401" in s:
-        return f"API 认证失败，请使用 /model 重新配置 {provider} 的 API Key。"
+        if provider and provider != "ollama":
+            delete_provider_api_key(provider)
+        return f"API 认证失败，已清除无效 Key，请使用 /model 在弹窗中重新配置 {provider} 的 API Key。"
     return str(exception)
 
 
