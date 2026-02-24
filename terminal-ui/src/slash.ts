@@ -91,6 +91,26 @@ export function parseSlash(
       },
     };
   }
+  if (cmd === '/model') {
+    return {
+      handled: true,
+      fetchThen: async () => {
+        const r = await api.get<{
+          llm_provider: string;
+          ollama_model: string;
+          ollama_base_url: string;
+          deepseek_model?: string;
+        }>('/api/system/config');
+        const lines = [
+          `推理后端: ${r.llm_provider}`,
+          `Ollama 模型: ${r.ollama_model}`,
+          `Ollama 地址: ${r.ollama_base_url}`,
+        ];
+        if (r.deepseek_model) lines.push(`DeepSeek 模型: ${r.deepseek_model}`);
+        return lines.join('\n');
+      },
+    };
+  }
 
   return { handled: false };
 }

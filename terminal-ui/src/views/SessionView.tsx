@@ -8,9 +8,11 @@ import { MainContent } from '../MainContent.js';
 import { SlashSuggestions } from '../components/SlashSuggestions.js';
 import { parseSlash, getAgentFromState } from '../slash.js';
 import { isSimpleGreetingOrNonTask } from '../intent.js';
-import { useSync, useLocal, useTheme, useKeybind, useCommand } from '../contexts/index.js';
+import { useSync, useLocal, useTheme, useKeybind, useCommand, useDialog } from '../contexts/index.js';
 import { inkKeyToParsedKey } from '../contexts/KeybindContext.js';
 import { streamStateToBlocks } from '../contentBlocks.js';
+import { ModelConfigDialog } from '../components/ModelConfigDialog.js';
+import { RootPermissionDialog } from '../components/RootPermissionDialog.js';
 
 const CONTENT_HEIGHT_OFFSET = 8;
 
@@ -28,30 +30,35 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   const [hasAppliedInitialPrompt, setHasAppliedInitialPrompt] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showScrollbar, setShowScrollbar] = useState(true);
+  const [expandedBlockIds, setExpandedBlockIds] = useState<Set<string>>(new Set());
   const { commands, register } = useCommand();
   const totalLinesRef = useRef(0);
   const scrollableHeightRef = useRef(1);
 
-  useEffect(() => {
-    if (initialPrompt && !hasAppliedInitialPrompt) {
-      setInputValue(initialPrompt);
-      setHasAppliedInitialPrompt(true);
-    }
-  }, [initialPrompt, hasAppliedInitialPrompt]);
   const theme = useTheme();
   const sync = useSync();
   const local = useLocal();
   const keybind = useKeybind();
-  const { streaming, streamState, apiOutput, sendMessage, setRESTOutput } = sync;
+  const dialog = useDialog();
+  const { streaming, streamState, apiOutput, pendingRootRequest, setPendingRootRequest, sendMessage, setRESTOutput } = sync;
   const { mode, agent, setMode, setAgent } = local;
 
   const contentHeight = useMemo(() => Math.max(8, rows - CONTENT_HEIGHT_OFFSET), [rows]);
   const scrollableHeight = Math.max(1, contentHeight - 1);
   const maxScroll = Math.max(0, totalLines - scrollableHeight);
 
+  const collapsibleOrder = useMemo(() => {
+    const ids: string[] = [];
+    if (apiOutput != null) ids.push('api');
+    if (streamState.content) ids.push('content');
+    if (streamState.report) ids.push('report');
+    if (streamState.response) ids.push('response');
+    return ids;
+  }, [apiOutput, streamState.content, streamState.report, streamState.response]);
+
   const blocks = useMemo(
-    () => streamStateToBlocks(streamState, streaming, apiOutput),
-    [streamState, streaming, apiOutput]
+    () => streamStateToBlocks(streamState, streaming, apiOutput, undefined, expandedBlockIds),
+    [streamState, streaming, apiOutput, expandedBlockIds]
   );
 
   useEffect(() => {
@@ -72,6 +79,21 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   useEffect(() => {
     setSlashSelectedIndex(0);
   }, [inputValue]);
+
+  useEffect(() => {
+    if (!pendingRootRequest) return;
+    dialog.replace(
+      <RootPermissionDialog
+        requestId={pendingRootRequest.requestId}
+        command={pendingRootRequest.command}
+        onResolve={() => {
+          setPendingRootRequest(null);
+          dialog.pop();
+        }}
+      />,
+      () => setPendingRootRequest(null)
+    );
+  }, [pendingRootRequest]);
 
   const findNextBlockOffset = useCallback(
     (direction: 'next' | 'prev'): number | null => {
@@ -251,6 +273,11 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       scrollToNextBlock('next');
       return;
     }
+    if (keybind.match('expand_block', evt)) {
+      const first = collapsibleOrder.find((id) => !expandedBlockIds.has(id));
+      if (first) setExpandedBlockIds((prev) => new Set([...prev, first]));
+      return;
+    }
     if (slashSuggestions.length > 0) {
       if (key.upArrow) {
         setSlashSelectedIndex((i) => Math.max(0, i - 1));
@@ -305,6 +332,12 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
             return;
           }
           if (result.fetchThen) {
+            const cmd = trimmed.split(/\s+/)[0]?.toLowerCase();
+            if (cmd === '/model') {
+              dialog.replace(<ModelConfigDialog />);
+              setInputValue('');
+              return;
+            }
             setRESTOutput('加载中…');
             result
               .fetchThen()
@@ -323,8 +356,16 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       setInputValue('');
       toBottom();
     },
-    [mode, agent, sendMessage, setRESTOutput, setMode, setAgent, inputValue, toBottom]
+    [mode, agent, sendMessage, setRESTOutput, setMode, setAgent, inputValue, toBottom, dialog]
   );
+
+  // 进入会话时若有初始消息，立即发送，无需用户再回车
+  useEffect(() => {
+    if (initialPrompt?.trim() && !hasAppliedInitialPrompt) {
+      setHasAppliedInitialPrompt(true);
+      handleSubmit(initialPrompt.trim());
+    }
+  }, [initialPrompt, hasAppliedInitialPrompt, handleSubmit]);
 
   return (
     <Box flexDirection="column" flexGrow={1} minHeight={0}>
@@ -339,8 +380,12 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
           setScrollOffset={setScrollOffset}
           onLinesChange={setTotalLines}
           showScrollbar={showScrollbar}
+          expandedBlockIds={expandedBlockIds}
         />
       </Box>
+
+      {/* 交互区与内容区/进度条之间的固定间距 */}
+      <Box flexShrink={0} height={2} />
 
       {/* 键入 / 后显示可选命令 */}
       {inputValue.startsWith('/') ? (

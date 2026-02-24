@@ -6,11 +6,14 @@ import React from 'react';
 import { createSimpleContext } from './helper.js';
 import { useChat } from '../useChat.js';
 import type { StreamState } from '../types.js';
+import type { PendingRootRequest } from '../useChat.js';
 
 export interface SyncContextValue {
   streaming: boolean;
   streamState: StreamState;
   apiOutput: string | null;
+  pendingRootRequest: PendingRootRequest | null;
+  setPendingRootRequest: React.Dispatch<React.SetStateAction<PendingRootRequest | null>>;
   sendMessage: (message: string, mode: 'ask' | 'plan' | 'agent', agent: string) => void;
   setRESTOutput: (text: string | null) => void;
 }
@@ -25,6 +28,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         streaming: value.streaming,
         streamState: value.streamState,
         apiOutput: value.apiOutput,
+        pendingRootRequest: value.pendingRootRequest,
+        setPendingRootRequest: value.setPendingRootRequest,
         sendMessage: value.sendMessage,
         setRESTOutput: value.setRESTOutput,
       }}

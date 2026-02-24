@@ -15,6 +15,11 @@ const initialStreamState: StreamState = {
   response: null,
 };
 
+export interface PendingRootRequest {
+  requestId: string;
+  command: string;
+}
+
 function resetStreamState(): StreamState {
   return {
     ...initialStreamState,
@@ -27,6 +32,7 @@ export function useChat() {
   const [streaming, setStreaming] = useState(false);
   const [streamState, setStreamState] = useState<StreamState>(initialStreamState);
   const [apiOutput, setApiOutput] = useState<string | null>(null);
+  const [pendingRootRequest, setPendingRootRequest] = useState<PendingRootRequest | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const appendContent = useCallback((text: string) => {
@@ -134,6 +140,12 @@ export function useChat() {
                   detail: (data.detail as string) ?? '',
                 }));
                 break;
+              case 'root_required':
+                setPendingRootRequest({
+                  requestId: (data.request_id as string) ?? '',
+                  command: (data.command as string) ?? '',
+                });
+                break;
               case 'error':
                 setStreamState((s) => ({ ...s, error: (data.error as string) ?? 'Unknown error' }));
                 break;
@@ -171,6 +183,8 @@ export function useChat() {
     streaming,
     streamState,
     apiOutput,
+    pendingRootRequest,
+    setPendingRootRequest,
     sendMessage,
     stopStream,
     setRESTOutput,
