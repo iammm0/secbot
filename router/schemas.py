@@ -28,6 +28,16 @@ class ChatResponse(BaseModel):
     agent: str = Field(..., description="使用的智能体类型")
 
 
+RootAction = Literal["run_once", "always_allow", "deny"]
+
+
+class RootResponseRequest(BaseModel):
+    """需 root 权限时，用户选择后的回传"""
+    request_id: str = Field(..., description="后端 root_required 事件中的 request_id")
+    action: RootAction = Field(..., description="执行一次 / 总是允许 / 拒绝")
+    password: Optional[str] = Field(None, description="本机账户或 root 密码，执行一次或首次总是允许时必填")
+
+
 # ===================================================================
 # Agents
 # ===================================================================
@@ -65,6 +75,36 @@ class SystemInfoResponse(BaseModel):
     python_version: str
     hostname: str
     username: str
+
+
+class SystemConfigResponse(BaseModel):
+    """当前推理/模型配置（供 TUI /model 等使用）"""
+    llm_provider: str = Field(..., description="当前推理后端，如 ollama / deepseek")
+    ollama_model: str = Field(..., description="Ollama 默认模型")
+    ollama_base_url: str = Field(..., description="Ollama 服务地址")
+    deepseek_model: Optional[str] = Field(None, description="DeepSeek 默认模型")
+    deepseek_base_url: Optional[str] = Field(None, description="DeepSeek API 地址")
+
+
+class ProviderApiKeyStatus(BaseModel):
+    id: str
+    name: str
+    needs_api_key: bool = True
+    configured: bool = False
+
+
+class ProviderListResponse(BaseModel):
+    providers: list[ProviderApiKeyStatus]
+
+
+class SetApiKeyRequest(BaseModel):
+    provider: str = Field(..., description="厂商 id，如 deepseek / openai")
+    api_key: str = Field(..., description="API Key，空字符串表示删除")
+
+
+class SetApiKeyResponse(BaseModel):
+    success: bool
+    message: str
 
 
 class CpuInfo(BaseModel):

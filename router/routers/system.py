@@ -7,7 +7,12 @@ from fastapi import APIRouter, HTTPException
 from router.dependencies import get_os_controller, get_os_detector
 from router.schemas import (
     SystemInfoResponse,
+    SystemConfigResponse,
     SystemStatusResponse,
+    ProviderApiKeyStatus,
+    ProviderListResponse,
+    SetApiKeyRequest,
+    SetApiKeyResponse,
     CpuInfo,
     MemoryInfo,
     DiskInfo,
@@ -35,6 +40,64 @@ async def system_info():
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取系统信息失败: {e}")
+
+
+@router.get("/config", response_model=SystemConfigResponse, summary="推理/模型配置")
+async def system_config():
+    """返回当前 LLM 后端与模型配置，供 TUI /model 等使用。"""
+    try:
+        from hackbot_config import settings
+        return SystemConfigResponse(
+            llm_provider=settings.llm_provider,
+            ollama_model=settings.ollama_model,
+            ollama_base_url=settings.ollama_base_url,
+            deepseek_model=getattr(settings, "deepseek_model", None),
+            deepseek_base_url=getattr(settings, "deepseek_base_url", None),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取配置失败: {e}")
+
+
+@router.get("/config/providers", response_model=ProviderListResponse, summary="列出需 API Key 的厂商及配置状态")
+async def list_providers_api_key_status():
+    """供 TUI 弹窗展示：哪些厂商需要 Key、是否已配置。"""
+    try:
+        from utils.model_selector import PROVIDER_REGISTRY, has_provider_api_key
+        providers = [
+            ProviderApiKeyStatus(
+                id=p["id"],
+                name=p["name"],
+                needs_api_key=p.get("needs_api_key", False),
+                configured=has_provider_api_key(p["id"]) if p.get("needs_api_key") else True,
+            )
+            for p in PROVIDER_REGISTRY
+        ]
+        return ProviderListResponse(providers=providers)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/config/api-key", response_model=SetApiKeyResponse, summary="设置或删除 API Key")
+async def set_api_key(body: SetApiKeyRequest):
+    """设置厂商 API Key；若 api_key 为空则删除。"""
+    try:
+        from hackbot_config import save_config_to_sqlite, delete_provider_api_key
+        provider = (body.provider or "").strip().lower()
+        if not provider:
+            return SetApiKeyResponse(success=False, message="provider 不能为空")
+        key = (body.api_key or "").strip()
+        if not key:
+            delete_provider_api_key(provider)
+            return SetApiKeyResponse(success=True, message=f"已删除 {provider} 的 API Key")
+        save_config_to_sqlite(
+            f"{provider}_api_key",
+            key,
+            category="api_keys",
+            description=f"{provider} API Key",
+        )
+        return SetApiKeyResponse(success=True, message=f"已保存 {provider} API Key")
+    except Exception as e:
+        return SetApiKeyResponse(success=False, message=str(e))
 
 
 @router.get("/status", response_model=SystemStatusResponse, summary="系统状态")
