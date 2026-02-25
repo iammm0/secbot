@@ -36,8 +36,10 @@ class ReportGeneratorTool(BaseTool):
         fmt = kwargs.get("format", "markdown").strip().lower()
         target = kwargs.get("target", "").strip()
 
-        if not findings:
-            return ToolResult(success=False, result=None, error="缺少参数: findings（发现列表不能为空）")
+        if findings is None:
+            findings = []
+        if not isinstance(findings, (list, tuple)):
+            findings = [findings] if findings else []
 
         if fmt not in ("markdown", "html", "json"):
             return ToolResult(success=False, result=None, error="format 可选值: markdown / html / json")
@@ -134,6 +136,10 @@ class ReportGeneratorTool(BaseTool):
             "## 详细发现",
             "",
         ]
+        if not findings:
+            lines.append("*本次扫描未发现明显安全问题。*")
+            lines.append("")
+            return "\n".join(lines)
 
         # 按风险排序
         risk_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -167,6 +173,8 @@ class ReportGeneratorTool(BaseTool):
         sorted_findings = sorted(findings, key=lambda x: risk_order.get(x["risk"], 5))
 
         findings_html = ""
+        if not findings:
+            findings_html = "<p><em>本次扫描未发现明显安全问题。</em></p>"
         for i, f in enumerate(sorted_findings, 1):
             color = risk_colors.get(f["risk"], "#6c757d")
             tag = self.RISK_EMOJI.get(f["risk"], "[未知]")
@@ -210,8 +218,8 @@ th{{background:#f2f2f2;}}</style></head>
                 "title": {"type": "string", "description": "报告标题", "required": True},
                 "findings": {
                     "type": "array",
-                    "description": "发现列表，每项含 title/risk/description/recommendation",
-                    "required": True,
+                    "description": "发现列表，每项含 title/risk/description/recommendation；可为空，将生成「无明显发现」摘要",
+                    "required": False,
                 },
                 "format": {"type": "string", "description": "输出格式: markdown/html/json（默认 markdown）", "required": False},
                 "target": {"type": "string", "description": "测试目标（可选）", "required": False},
