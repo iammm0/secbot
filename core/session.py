@@ -15,6 +15,7 @@ from core.agents.planner_agent import PlannerAgent
 from core.agents.qa_agent import QAAgent
 from core.agents.router import route as message_route
 from core.agents.summary_agent import SummaryAgent
+from core.executor import TaskExecutor
 from core.models import (
     InteractionSummary,
     MessageRole,
@@ -206,7 +207,8 @@ class SessionManager:
                     ],
                 )
         else:
-            plan_result = await self._run_planning(user_input)
+            at = agent_type or self.get_current_agent_type()
+            plan_result = await self._run_planning(user_input, agent_type=at)
 
             if (
                 not force_agent_flow
@@ -252,8 +254,9 @@ class SessionManager:
         def event_bridge(event_type: str, data: dict):
             self._bridge_agent_event(event_type, data, plan_result)
 
-        # 编排流程下：规划与报告由 SessionManager 各做一次，agent 只做 reasoning + action
-        # 传入当前计划步骤，便于 agent 在未完成所有步骤前不提前输出 Final Answer
+        # 编排流程下：规划与报告由 SessionManager 各做一次
+        # 当有计划步骤且 Agent 支持 execute_todo 时，使用分层执行器（支持并行/串行）
+        # 否则回退到 ReAct 循环
         todos_snapshot = [
             {
                 "id": t.id,
@@ -262,14 +265,31 @@ class SessionManager:
             }
             for t in plan_result.todos
         ]
-        response = await agent_instance.process(
-            user_input,
-            on_event=event_bridge,
-            skip_planning=True,
-            skip_report=True,
-            todos=todos_snapshot,
-            get_root_password=getattr(self, "get_root_password", None),
+        use_layer_executor = (
+            plan_result.todos
+            and hasattr(agent_instance, "execute_todo")
         )
+        if use_layer_executor:
+            executor = TaskExecutor(
+                plan_result=plan_result,
+                agent=agent_instance,
+                planner=self.planner,
+                event_bus=self.event_bus,
+                get_root_password=getattr(self, "get_root_password", None),
+            )
+            response = await executor.run(
+                user_input, on_event=event_bridge
+            )
+            # 分层执行后需记录工具结果供摘要使用（由 event_bridge 已更新 _current_tool_results）
+        else:
+            response = await agent_instance.process(
+                user_input,
+                on_event=event_bridge,
+                skip_planning=True,
+                skip_report=True,
+                todos=todos_snapshot,
+                get_root_password=getattr(self, "get_root_password", None),
+            )
 
         # ---- 阶段 3：摘要 ----
         summary = await self._run_summary(
@@ -290,9 +310,19 @@ class SessionManager:
     # 阶段实现
     # ------------------------------------------------------------------
 
-    async def _run_planning(self, user_input: str) -> PlanResult:
-        """阶段 1：规划"""
-        plan_result = await self.planner.plan(user_input)
+    async def _run_planning(
+        self, user_input: str, agent_type: Optional[str] = None
+    ) -> PlanResult:
+        """阶段 1：规划，预加载工具列表供 Planner 生成更准确的 tool_hint"""
+        context: Dict[str, Any] = {}
+        agent_instance = self.get_agent(agent_type) if agent_type else None
+        if agent_instance and hasattr(agent_instance, "tools_dict"):
+            tool_names = list(agent_instance.tools_dict.keys())
+            context["tools"] = tool_names
+        elif agent_instance and hasattr(agent_instance, "security_tools"):
+            tool_names = [t.name for t in agent_instance.security_tools]
+            context["tools"] = tool_names
+        plan_result = await self.planner.plan(user_input, context=context)
 
         if plan_result.request_type == RequestType.TECHNICAL and plan_result.todos:
             # 发射规划事件
