@@ -44,10 +44,18 @@ export interface ActionItemData {
   error?: string;
 }
 
+/** 可渲染的块类型（扩展多种展示形态） */
+export type BlockRenderType =
+  | 'api' | 'phase' | 'error' | 'planning' | 'thought' | 'actions'
+  | 'content' | 'report' | 'response' | 'warning' | 'summary' | 'code'
+  | 'json' | 'table' | 'bullet' | 'numbered' | 'quote' | 'heading' | 'divider'
+  | 'link' | 'key_value' | 'diff' | 'terminal' | 'security' | 'tool_result'
+  | 'exception' | 'suggestion' | 'success' | 'info';
+
 /** 内容块：用于分块 + Markdown 渲染 */
 export interface ContentBlock {
   id: string;
-  type: 'api' | 'phase' | 'error' | 'planning' | 'thought' | 'actions' | 'content' | 'report' | 'response' | 'warning' | 'summary' | 'code';
+  type: BlockRenderType;
   title?: string;
   /** Markdown 正文，由 MD 渲染组件渲染；折叠时为占位文案 */
   body: string;
@@ -61,4 +69,6 @@ export interface ContentBlock {
   lineStart: number;
   /** 块结束行（不含） */
   lineEnd: number;
+  /** 经判别模块解析后的渲染类型（可选，无则运行时判别） */
+  resolvedType?: ContentBlock['type'];
 }

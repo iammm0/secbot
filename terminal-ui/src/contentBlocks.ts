@@ -8,6 +8,9 @@ import type { ContentBlock } from './types.js';
 /** 执行结果类块最大展示行数，超出省略，避免刷屏 */
 const MAX_RESULT_LINES = 24;
 
+/** 低于此行数不折叠，直接展示；超长内容才折叠 */
+const COLLAPSE_THRESHOLD_LINES = 15;
+
 /** 完成后仅标识“完成”并随后消失、且不渲染其输出内容的工具 */
 const TRANSIENT_TOOLS = new Set<string>(['system_info', 'network_analyze']);
 
@@ -20,6 +23,21 @@ function truncateBody(body: string, maxLines: number): string {
   const lines = body.split('\n');
   if (lines.length <= maxLines) return body;
   return lines.slice(0, maxLines).join('\n') + '\n\n… 已省略';
+}
+
+/** 将连接中断等模糊错误转为可读提示 */
+function normalizeErrorMessage(error: string): string {
+  const lower = error.toLowerCase().trim();
+  if (lower === 'terminated' || (lower.includes('stream') && lower.includes('terminated'))) {
+    return '连接已中断。可能原因：后端重启、网络波动或请求超时。请重试。';
+  }
+  if (lower.includes('aborted') || lower.includes('abort')) {
+    return '请求已取消。';
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return '连接超时，请确认后端已启动且 SECBOT_API_URL 正确。';
+  }
+  return error;
 }
 
 export function streamStateToBlocks(
@@ -40,7 +58,7 @@ export function streamStateToBlocks(
   function addCollapsibleBlock(id: string, type: ContentBlock['type'], title: string, fullBody: string): void {
     const lineCount = blockLines(title, fullBody);
     const isExpanded = expanded.has(id);
-    if (isExpanded || lineCount <= 2) {
+    if (isExpanded || lineCount <= COLLAPSE_THRESHOLD_LINES) {
       blocks.push({ id, type, title, body: fullBody, lineStart, lineEnd: lineStart + lineCount });
       lineStart += lineCount;
     } else {
@@ -64,7 +82,8 @@ export function streamStateToBlocks(
   }
 
   if (error) {
-    const body = `**错误**\n\n${error}`;
+    const normalized = normalizeErrorMessage(error);
+    const body = `**错误**\n\n${normalized}`;
     const lineEnd = lineStart + blockLines(undefined, body);
     blocks.push({ id: 'error', type: 'error', body, lineStart, lineEnd });
     lineStart = lineEnd;

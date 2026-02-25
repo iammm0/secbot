@@ -4,11 +4,15 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
+import figlet from 'figlet';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useKeybind } from '../contexts/KeybindContext.js';
 import { useRoute } from '../contexts/RouteContext.js';
 
 const VERSION = '1.0.0';
+
+/** 标题式 ASCII 艺术字 */
+const TITLE_ASCII = figlet.textSync('Secbot', { font: 'Standard', horizontalLayout: 'default' });
 
 export function HomeView() {
   const theme = useTheme();
@@ -30,10 +34,10 @@ export function HomeView() {
       <Box flexGrow={1} minHeight={1} />
       <Box height={1} minHeight={0} flexShrink={1} />
 
-      {/* Logo — 居中、醒目 */}
+      {/* Logo — 标题式 ASCII 艺术字 */}
       <Box flexShrink={0} alignItems="center" justifyContent="center">
-        <Text bold color={theme.text}>
-          Secbot
+        <Text color={theme.primary} bold>
+          {TITLE_ASCII}
         </Text>
       </Box>
 
