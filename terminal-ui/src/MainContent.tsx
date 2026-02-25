@@ -3,8 +3,11 @@ import { Box, Text } from 'ink';
 import type { StreamState } from './types.js';
 import type { ContentBlock as ContentBlockType } from './types.js';
 import { streamStateToBlocks } from './contentBlocks.js';
+import { DiscriminatorPool } from './blockDiscriminators/index.js';
 import { ContentBlock } from './components/ContentBlock.js';
-import { useKeybind } from './contexts/KeybindContext.js';
+
+/** 判别器池数量，用于批量判别时拆分加速 */
+const POOL_SIZE = 3;
 
 /** 完成后仅展示“完成”并在短暂延迟后从执行列表消失的工具 */
 const TRANSIENT_TOOL_NAMES = new Set(['system_info', 'network_analyze']);
@@ -56,7 +59,6 @@ export function MainContent({
   showScrollbar = true,
   expandedBlockIds = new Set(),
 }: MainContentProps) {
-  const keybind = useKeybind();
   const [dismissedTransientTools, setDismissedTransientTools] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -80,7 +82,7 @@ export function MainContent({
   );
 
   const totalLines = useMemo(() => (blocks.length === 0 ? 0 : blocks[blocks.length - 1].lineEnd), [blocks]);
-  const scrollableHeight = Math.max(1, contentHeight - 1);
+  const scrollableHeight = Math.max(1, contentHeight);
   const prevTotalRef = useRef<number>(0);
 
   useEffect(() => {
@@ -101,15 +103,21 @@ export function MainContent({
     return blocks.filter((b) => b.lineEnd > scrollOffset && b.lineStart < end);
   }, [blocks, scrollOffset, scrollableHeight]);
 
+  /** 经判别模块预解析的可见块，多个池实例并行处理 */
+  const discriminatedBlocks = useMemo(() => {
+    if (visibleBlocks.length === 0) return [];
+    const pools = Array.from({ length: POOL_SIZE }, () => DiscriminatorPool.create());
+    return visibleBlocks.map((block, i) => {
+      const pool = pools[i % POOL_SIZE];
+      const resolvedType = pool.discriminate(block);
+      return { ...block, resolvedType };
+    });
+  }, [visibleBlocks]);
+
   const spacerLines = useMemo(() => {
     if (visibleBlocks.length === 0) return 0;
     return Math.max(0, scrollOffset - visibleBlocks[0].lineStart);
   }, [visibleBlocks, scrollOffset]);
-
-  const atTop = scrollOffset <= 0;
-  const atBottom = totalLines <= scrollableHeight || scrollOffset >= totalLines - scrollableHeight;
-  const rangeStart = totalLines === 0 ? 0 : scrollOffset + 1;
-  const rangeEnd = totalLines === 0 ? 0 : Math.min(scrollOffset + scrollableHeight, totalLines);
 
   // 使用单列 ASCII 字符，避免 CJK 等环境下双宽字符导致溢出乱码
   const scrollbarLines = useMemo(() => {
@@ -142,7 +150,7 @@ export function MainContent({
             <>
               {spacerLines > 0 &&
                 Array.from({ length: spacerLines }, (_, i) => <Text key={`spacer-${i}`}> </Text>)}
-              {visibleBlocks.map((block) => {
+              {discriminatedBlocks.map((block) => {
                 const visibleLineStart = Math.max(scrollOffset, block.lineStart);
                 const visibleLineEnd = Math.min(scrollOffset + scrollableHeight, block.lineEnd);
                 const lineCount = visibleLineEnd - visibleLineStart;
@@ -169,14 +177,6 @@ export function MainContent({
             ))}
           </Box>
         )}
-      </Box>
-      <Box flexDirection="row">
-        <Text color="dim">
-          {totalLines > 0 ? ` ${rangeStart}-${rangeEnd}/${totalLines} 行 ` : ' '}
-          ↑/↓ {keybind.print('page_up')}/{keybind.print('page_down')} Home/End 首/尾 {keybind.print('expand_block')} 展开 点击滚动条
-          {atTop ? '' : ' ↑'}
-          {atBottom ? '' : ' ↓'}
-        </Text>
       </Box>
     </Box>
   );

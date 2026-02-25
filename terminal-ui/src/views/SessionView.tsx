@@ -8,13 +8,15 @@ import { MainContent } from '../MainContent.js';
 import { SlashSuggestions } from '../components/SlashSuggestions.js';
 import { parseSlash, getAgentFromState } from '../slash.js';
 import { isSimpleGreetingOrNonTask } from '../intent.js';
-import { useSync, useLocal, useTheme, useKeybind, useCommand, useDialog } from '../contexts/index.js';
+import { useSync, useLocal, useTheme, useKeybind, useCommand, useDialog, useToast } from '../contexts/index.js';
 import { inkKeyToParsedKey } from '../contexts/KeybindContext.js';
 import { streamStateToBlocks } from '../contentBlocks.js';
 import { ModelConfigDialog } from '../components/ModelConfigDialog.js';
 import { RootPermissionDialog } from '../components/RootPermissionDialog.js';
+import { AgentSelectDialog } from '../components/AgentSelectDialog.js';
+import { LoadingBar } from '../components/LoadingBar.js';
 
-const CONTENT_HEIGHT_OFFSET = 8;
+const CONTENT_HEIGHT_OFFSET = 9;
 
 interface SessionViewProps {
   columns: number;
@@ -40,11 +42,12 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   const local = useLocal();
   const keybind = useKeybind();
   const dialog = useDialog();
+  const toast = useToast();
   const { streaming, streamState, apiOutput, pendingRootRequest, setPendingRootRequest, sendMessage, setRESTOutput } = sync;
   const { mode, agent, setMode, setAgent } = local;
 
   const contentHeight = useMemo(() => Math.max(8, rows - CONTENT_HEIGHT_OFFSET), [rows]);
-  const scrollableHeight = Math.max(1, contentHeight - 1);
+  const scrollableHeight = Math.max(1, contentHeight);
   const maxScroll = Math.max(0, totalLines - scrollableHeight);
 
   const collapsibleOrder = useMemo(() => {
@@ -316,6 +319,15 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       if (!trimmed) return;
 
       if (trimmed.startsWith('/')) {
+        const parts = trimmed.split(/\s+/);
+        const cmd = parts[0]?.toLowerCase();
+
+        if (cmd === '/agent' && parts.length <= 1) {
+          dialog.replace(<AgentSelectDialog />);
+          setInputValue('');
+          return;
+        }
+
         const result = parseSlash(trimmed, { mode, agent });
         if (result.handled) {
           setAgent(getAgentFromState(trimmed, agent));
@@ -328,11 +340,12 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
           }
           if (result.chat && !result.chat.message) {
             setMode(result.chat.mode);
+            const modeLabels: Record<string, string> = { plan: '计划', ask: '问答', agent: '执行' };
+            toast.show({ message: `已切换到${modeLabels[result.chat.mode] ?? result.chat.mode}模式`, variant: 'success' });
             setInputValue('');
             return;
           }
           if (result.fetchThen) {
-            const cmd = trimmed.split(/\s+/)[0]?.toLowerCase();
             if (cmd === '/model') {
               dialog.replace(<ModelConfigDialog />);
               setInputValue('');
@@ -356,7 +369,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       setInputValue('');
       toBottom();
     },
-    [mode, agent, sendMessage, setRESTOutput, setMode, setAgent, inputValue, toBottom, dialog]
+    [mode, agent, sendMessage, setRESTOutput, setMode, setAgent, inputValue, toBottom, dialog, toast]
   );
 
   // 进入会话时若有初始消息，立即发送，无需用户再回车
@@ -384,8 +397,17 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         />
       </Box>
 
-      {/* 交互区与内容区/进度条之间的固定间距 */}
-      <Box flexShrink={0} height={2} />
+      {/* 交互区与内容区之间的可视分隔线 */}
+      <Box flexShrink={0} paddingLeft={2} paddingRight={2} paddingTop={1}>
+        <Text color={theme.border}>{'─'.repeat(Math.max(0, columns - 6))}</Text>
+      </Box>
+
+      {/* 执行中加载条 */}
+      {streaming ? (
+        <Box flexShrink={0} paddingTop={1}>
+          <LoadingBar active={streaming} phase={streamState.phase || undefined} />
+        </Box>
+      ) : null}
 
       {/* 键入 / 后显示可选命令 */}
       {inputValue.startsWith('/') ? (
@@ -415,7 +437,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         flexDirection="row"
         justifyContent="space-between"
         paddingTop={1}
-        paddingBottom={1}
+        paddingBottom={0}
         paddingLeft={2}
         paddingRight={2}
       >
@@ -424,6 +446,18 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         </Text>
         <Text color={theme.textMuted}>
           tab agents · {keybind.print('command_list')} commands
+        </Text>
+      </Box>
+
+      {/* 统计与快捷键 — 置于最底部 */}
+      <Box flexShrink={0} paddingLeft={2} paddingRight={2} paddingTop={0} paddingBottom={1}>
+        <Text color={theme.textMuted}>
+          {totalLines > 0
+            ? ` ${Math.min(scrollOffset + 1, totalLines)}-${Math.min(scrollOffset + scrollableHeight, totalLines)}/${totalLines} 行 `
+            : ' '}
+          ↑/↓ {keybind.print('page_up')}/{keybind.print('page_down')} Home/End 首/尾 {keybind.print('expand_block')} 展开 点击滚动条
+          {scrollOffset <= 0 ? '' : ' ↑'}
+          {totalLines <= scrollableHeight || scrollOffset >= totalLines - scrollableHeight ? '' : ' ↓'}
         </Text>
       </Box>
     </Box>
