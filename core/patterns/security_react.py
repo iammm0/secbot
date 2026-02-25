@@ -1226,3 +1226,114 @@ Final Answer: <最终结论和报告>
             else:
                 return f"结果: {tool_output}"
         return f"❌ 执行失败: {result.error}"
+
+    async def execute_todo(
+        self,
+        todo,
+        user_input: str,
+        context: Optional[Dict[str, Any]] = None,
+        on_event=None,
+        iteration: int = 1,
+        get_root_password=None,
+        emit_events: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        单步执行：根据 todo 的 tool_hint 执行对应工具，供 TaskExecutor 分层调度使用。
+        返回 {success, obs, result}。
+        """
+        from core.models import TodoItem
+
+        tool_hint = getattr(todo, "tool_hint", None) or (
+            todo.get("tool_hint") if isinstance(todo, dict) else None
+        )
+        content = getattr(todo, "content", None) or (
+            todo.get("content", "") if isinstance(todo, dict) else ""
+        )
+
+        tool = None
+        if tool_hint:
+            tool = self.tools_dict.get(tool_hint)
+            if not tool:
+                for name, t in self.tools_dict.items():
+                    if tool_hint.lower() in name.lower():
+                        tool = t
+                        break
+
+        if not tool:
+            obs = f"无法找到工具 '{tool_hint}'，跳过步骤: {content}"
+            return {"success": False, "obs": obs, "result": None}
+
+        # 使用 LLM 提取参数
+        context_str = ""
+        if context:
+            for k, v in context.items():
+                if v is not None:
+                    preview = str(v)[:200] + "..." if len(str(v)) > 200 else str(v)
+                    context_str += f"\n- {k}: {preview}"
+
+        schema = tool.get_schema()
+        params_desc = schema.get("parameters", {})
+        if isinstance(params_desc, dict):
+            params_help = "\n".join(
+                f"  - {k}: {v.get('description', '')}" if isinstance(v, dict) else f"  - {k}"
+                for k, v in params_desc.items()
+            )
+        else:
+            params_help = str(params_desc)
+
+        prompt = f"""用户请求: {user_input}
+执行步骤: {content}
+工具: {tool.name}
+工具参数说明:
+{params_help}
+上下文（上一步结果）:\n{context_str or "无"}
+
+请输出 JSON 格式的工具调用，例如: {{"tool": "{tool.name}", "params": {{"host": "localhost"}}}}
+只输出 JSON，不要其他文字。"""
+
+        messages = [
+            SystemMessage(content="你是一个安全测试助手。根据用户请求和上下文，提取工具调用参数。只输出有效的 JSON。"),
+            HumanMessage(content=prompt),
+        ]
+        try:
+            response = await self._call_llm(messages)
+            action_info = self._parse_action(response, iteration)
+            if not action_info or action_info.get("tool") != tool.name:
+                action_info = {"tool": tool.name, "params": {}}
+            tool_params = action_info.get("params", {})
+        except Exception as e:
+            logger.warning(f"参数提取失败，使用空参数: {e}")
+            tool_params = {}
+
+        if emit_events and on_event:
+            self._emit_event(
+                "action_start",
+                {"iteration": iteration, "tool": tool.name, "params": tool_params},
+                on_event,
+            )
+
+        self._get_root_password = get_root_password
+        result = await self._execute_tool(tool, tool_params)
+        obs = self._format_observation(result)
+
+        if emit_events and on_event:
+            self._emit_event(
+                "action_result",
+                {
+                    "iteration": iteration,
+                    "tool": tool.name,
+                    "success": result.success,
+                    "result": result.result if result.success else None,
+                    "error": result.error if not result.success else None,
+                },
+                on_event,
+            )
+
+        return {
+            "success": result.success,
+            "obs": obs,
+            "result": result.result if result.success else None,
+            "error": result.error if not result.success else "",
+            "tool": tool.name,
+            "params": tool_params,
+        }
