@@ -13,7 +13,7 @@ from rich.console import Console
 
 from core.agents.planner_agent import PlannerAgent
 from core.agents.qa_agent import QAAgent
-from core.agents.router import route as message_route
+from core.agents.router import route_with_llm as message_route_with_llm
 from core.agents.summary_agent import SummaryAgent
 from core.executor import TaskExecutor
 from core.models import (
@@ -167,12 +167,8 @@ class SessionManager:
 
         self._current_tool_results = []
 
-        # ---- 强制 Q&A 或 路由 -> Q&A ----
-        if force_qa or (
-            not force_agent_flow
-            and plan_override is None
-            and message_route(user_input) == "qa"
-        ):
+        # ---- 强制 Q&A 或 路由（含 LLM 分类）-> Q&A / 人格回复 / 技术流 ----
+        if force_qa:
             await self.event_bus.emit_simple_async(
                 EventType.TASK_PHASE, phase="done", detail=""
             )
@@ -180,6 +176,34 @@ class SessionManager:
             if self.current_session:
                 self.current_session.add_message(MessageRole.ASSISTANT, response)
             return response
+
+        if not force_agent_flow and plan_override is None:
+            route_type, direct_reply = await message_route_with_llm(user_input)
+            # 与安全/电脑无关的问候 → 人格化直接回复
+            if route_type == "other":
+                reply = direct_reply or (
+                    "你好呀～有安全巡检或电脑上的事可以随时叫我。"
+                )
+                await self.event_bus.emit_simple_async(
+                    EventType.TASK_PHASE, phase="done", detail=""
+                )
+                if self.current_session:
+                    self.current_session.add_message(
+                        MessageRole.ASSISTANT, reply
+                    )
+                return reply
+            # 项目/能力/帮助类 → QAAgent
+            if route_type == "qa":
+                await self.event_bus.emit_simple_async(
+                    EventType.TASK_PHASE, phase="done", detail=""
+                )
+                response = await self.qa_agent.answer(user_input)
+                if self.current_session:
+                    self.current_session.add_message(
+                        MessageRole.ASSISTANT, response
+                    )
+                return response
+            # technical：继续走规划+执行
 
         # 通知 UI：进入规划阶段（便于加载组件显示「规划中」）
         await self.event_bus.emit_simple_async(
