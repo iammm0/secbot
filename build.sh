@@ -1,37 +1,45 @@
 #!/bin/bash
-# M-Bot 构建脚本
+# Secbot 构建脚本（源码分发包 sdist/wheel）
+# 推荐使用: uv run python -m build
 
 set -e
 
-echo "🚀 开始构建 M-Bot..."
+echo "🚀 开始构建 Secbot..."
 
-# 颜色输出
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# 检查 Python 版本
-echo -e "${YELLOW}检查 Python 版本...${NC}"
-python_version=$(python3 --version 2>&1 | awk '{print $2}')
-echo "Python 版本: $python_version"
+# 检查 Python
+echo -e "${YELLOW}检查 Python...${NC}"
+if command -v python3 &>/dev/null; then
+  python_version=$(python3 --version 2>&1)
+elif command -v python &>/dev/null; then
+  python_version=$(python --version 2>&1)
+else
+  echo "错误: 未找到 Python，请先安装 Python 3.10+"
+  exit 1
+fi
+echo "$python_version"
 
-# 清理旧的构建文件
+# 清理旧构建
 echo -e "${YELLOW}清理旧的构建文件...${NC}"
 rm -rf build/ dist/ *.egg-info
 
-# 安装构建工具
-echo -e "${YELLOW}安装构建工具...${NC}"
-pip install --upgrade pip build wheel
+# 优先使用 uv，否则用 pip
+if command -v uv &>/dev/null; then
+  echo -e "${YELLOW}使用 uv 构建...${NC}"
+  uv run python -m build
+else
+  echo -e "${YELLOW}安装构建工具并构建...${NC}"
+  pip install --upgrade pip build wheel
+  python -m build
+fi
 
-# 构建分发包
-echo -e "${YELLOW}构建 Python 包...${NC}"
-python -m build
-
-# 显示构建结果
 echo -e "${GREEN}✅ 构建完成！${NC}"
 echo -e "${YELLOW}构建产物：${NC}"
 ls -lh dist/
 
-echo -e "${GREEN}安装方式：${NC}"
-echo "pip install dist/m_bot-1.0.0-py3-none-any.whl"
-
+echo -e "${GREEN}安装示例：${NC}"
+echo "  pip install dist/secbot-*.whl"
+echo "  或: uv pip install dist/secbot-*.whl"

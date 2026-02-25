@@ -1,35 +1,40 @@
 @echo off
-REM M-Bot Windows 构建脚本
+REM Secbot 构建脚本（源码分发包 sdist/wheel）（Windows）
+REM 推荐使用: uv run python -m build
 
-echo 🚀 开始构建 M-Bot...
+echo 🚀 开始构建 Secbot...
 
 REM 检查 Python
-python --version
+python --version >nul 2>&1
 if errorlevel 1 (
     echo 错误: 未找到 Python，请先安装 Python 3.10+
     exit /b 1
 )
+python --version
 
 REM 清理旧的构建文件
 echo 清理旧的构建文件...
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
-if exist *.egg-info rmdir /s /q *.egg-info
+for /d %%d in (*.egg-info) do if exist "%%d" rmdir /s /q "%%d"
 
-REM 安装构建工具
-echo 安装构建工具...
-python -m pip install --upgrade pip build wheel
+REM 优先使用 uv，否则用 pip
+where uv >nul 2>&1
+if %errorlevel% equ 0 (
+    echo 使用 uv 构建...
+    uv run python -m build
+) else (
+    echo 安装构建工具并构建...
+    python -m pip install --upgrade pip build wheel
+    python -m build
+)
 
-REM 构建分发包
-echo 构建 Python 包...
-python -m build
-
-REM 显示构建结果
 echo ✅ 构建完成！
 echo 构建产物：
 dir dist
 
-echo 安装方式：
-echo pip install dist\m_bot-1.0.0-py3-none-any.whl
+echo 安装示例：
+echo   pip install dist\secbot-*.whl
+echo   或: uv pip install dist\secbot-*.whl
 
 pause
