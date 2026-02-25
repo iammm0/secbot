@@ -9,6 +9,7 @@ import { Toast } from './components/Toast.js';
 import { Dialog } from './components/Dialog.js';
 import { CommandPanel } from './components/CommandPanel.js';
 import { ModelConfigDialog } from './components/ModelConfigDialog.js';
+import { AgentSelectDialog } from './components/AgentSelectDialog.js';
 import { HomeView } from './views/HomeView.js';
 import { SessionView } from './views/SessionView.js';
 
@@ -65,10 +66,10 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
 
   useEffect(() => {
     const unregs = [
-      register({ title: '计划模式', value: '/plan', category: '会话', slash: '/plan', onSelect: ({ close }) => { setMode('plan'); close(); } }),
-      register({ title: '开始执行', value: '/start', category: '会话', slash: '/start', onSelect: ({ close }) => { setMode('agent'); sendMessage('执行既定安全测试计划', 'agent', agent); close(); } }),
-      register({ title: 'Ask 模式', value: '/ask', category: '会话', slash: '/ask', onSelect: ({ close }) => { setMode('ask'); close(); } }),
-      register({ title: '切换智能体 (hackbot|super)', value: '/agent', category: '会话', slash: '/agent', onSelect: ({ close }) => close() }),
+      register({ title: '计划模式', value: '/plan', category: '会话', slash: '/plan', onSelect: ({ close }) => { setMode('plan'); toast.show({ message: '已切换到计划模式', variant: 'success' }); close(); } }),
+      register({ title: '开始执行', value: '/start', category: '会话', slash: '/start', onSelect: ({ close }) => { setMode('agent'); sendMessage('执行既定安全测试计划', 'agent', agent); toast.show({ message: '开始执行安全测试计划', variant: 'info' }); close(); } }),
+      register({ title: 'Ask 模式', value: '/ask', category: '会话', slash: '/ask', onSelect: ({ close }) => { setMode('ask'); toast.show({ message: '已切换到问答模式', variant: 'success' }); close(); } }),
+      register({ title: '切换智能体', value: '/agent', category: '会话', slash: '/agent', onSelect: ({ close }) => { close(); dialog.replace(<AgentSelectDialog />); } }),
       register({
         title: '列出智能体',
         value: '/list-tools',
@@ -125,7 +126,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
       }),
     ];
     return () => { unregs.forEach((u) => u()); };
-  }, [register, agent, sendMessage, setRESTOutput, setMode, dialog]);
+  }, [register, agent, sendMessage, setRESTOutput, setMode, dialog, toast]);
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);

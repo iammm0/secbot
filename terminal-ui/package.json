@@ -15,6 +15,7 @@
     "dev": "npx tsx src/cli.tsx"
   },
   "dependencies": {
+    "figlet": "^1.10.0",
     "fuzzysort": "^3.0.0",
     "ink": "^4.4.1",
     "ink-markdown": "^1.0.4",
