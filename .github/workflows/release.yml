@@ -57,10 +57,12 @@ jobs:
             # UV_PYTHON 指向 x86_64 Python，uv 在 arm64 下运行即可为该解释器创建 x86_64 venv（不可用 arch -x86_64 运行 uv，会 Bad CPU type）
             export UV_PYTHON="/Library/Frameworks/Python.framework/Versions/3.11/bin/python3"
             uv sync --no-install-project
+            # 必须指定 x86_64 的 .venv，否则 uv 会装到 arm64 环境
+            uv pip install --python .venv/bin/python pyinstaller
           else
             uv sync --no-install-project
+            uv pip install pyinstaller
           fi
-          uv pip install pyinstaller
 
       - name: Build executable (PyInstaller onedir)
         shell: bash
