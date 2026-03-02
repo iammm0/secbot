@@ -60,11 +60,7 @@ jobs:
           else
             uv sync --no-install-project
           fi
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            .venv/Scripts/python.exe -m pip install pyinstaller
-          else
-            .venv/bin/python -m pip install pyinstaller
-          fi
+          uv pip install pyinstaller
 
       - name: Build executable (PyInstaller onedir)
         shell: bash
