@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import subprocess
+import shutil
 from pathlib import Path
 
 
@@ -21,6 +22,26 @@ def _project_root() -> Path | None:
 def _backend_cwd() -> Path:
     """启动后端时使用的工作目录（无 TUI 时用当前目录，便于读 .env）。"""
     return Path.cwd()
+
+
+def _check_tui_readiness(root: Path) -> tuple[bool, list[str]]:
+    """检查 TUI 启动条件是否就绪。返回 (是否就绪, 缺失项列表)。"""
+    missing: list[str] = []
+    tui_dir = root / "terminal-ui"
+    if not tui_dir.is_dir():
+        missing.append("目录 terminal-ui 不存在")
+        return False, missing
+    if not (tui_dir / "package.json").exists():
+        missing.append("terminal-ui/package.json 不存在")
+        return False, missing
+    if not (tui_dir / "node_modules").exists():
+        missing.append("未执行 npm install，请在 terminal-ui 目录运行: npm install")
+        return False, missing
+    node = shutil.which("node")
+    if not node:
+        missing.append("未找到 Node.js，请安装 Node.js 18+ 并确保在 PATH 中")
+        return False, missing
+    return True, missing
 
 
 def _backend_running(port: int = 8000) -> bool:
@@ -69,14 +90,12 @@ def _wait_backend(port: int = 8000, timeout: float = 15.0) -> bool:
 
 
 def _run_tui(root: Path) -> int:
-    """运行 TS TUI。Windows 下在当前控制台运行以继承 TTY；非 Windows 用 npm run tui。"""
+    """运行 TS TUI。Windows 下在新控制台窗口运行；非 Windows 用 npm run tui。"""
     tui_dir = root / "terminal-ui"
     env = os.environ.copy()
     env.setdefault("SECBOT_API_URL", "http://localhost:8000")
-
-    if sys.platform == "win32":
-        # 新控制台窗口运行 TUI，保证有真实 TTY
-        try:
+    try:
+        if sys.platform == "win32":
             proc = subprocess.Popen(
                 ["cmd", "/k", "node --import tsx src/cli.tsx"],
                 cwd=tui_dir,
@@ -84,21 +103,14 @@ def _run_tui(root: Path) -> int:
                 creationflags=subprocess.CREATE_NEW_CONSOLE,
             )
             return proc.wait() or 0
-        except FileNotFoundError:
-            print("未找到 node。请安装 Node.js 18+ 并执行: cd terminal-ui && npm install", file=sys.stderr)
-            return 1
-        except Exception as e:
-            print(f"启动 TUI 失败: {e}", file=sys.stderr)
-            return 1
-    try:
         proc = subprocess.run(
             ["npm", "run", "tui"],
             cwd=tui_dir,
             env=env,
         )
         return proc.returncode or 0
-    except FileNotFoundError:
-        print("未找到 npm。请安装 Node.js 18+ 并执行: cd terminal-ui && npm install", file=sys.stderr)
+    except FileNotFoundError as e:
+        print(f"未找到 node/npm。请安装 Node.js 18+ 并在 terminal-ui 目录执行: npm install\n{e}", file=sys.stderr)
         return 1
     except Exception as e:
         print(f"启动 TUI 失败: {e}", file=sys.stderr)
@@ -139,6 +151,12 @@ def run_tui_only(port: int = 8000) -> int:
             "请从 GitHub Release 下载对应平台 zip，或从源码运行以使用 TUI。",
             file=sys.stderr,
         )
+        return 1
+    ready, missing = _check_tui_readiness(root)
+    if not ready:
+        print("TUI 启动条件未满足：", file=sys.stderr)
+        for m in missing:
+            print(f"  - {m}", file=sys.stderr)
         return 1
     if not _backend_running(port):
         print(f"后端未运行。请先执行: secbot --backend 或 uv run python main.py --backend", file=sys.stderr)
@@ -184,6 +202,17 @@ def launch_tui(port: int = 8000) -> int:
                 backend_proc.terminate()
                 backend_proc.wait()
         return 0
+
+    ready, missing = _check_tui_readiness(root)
+    if not ready:
+        print("[2/2] TUI 启动条件未满足：", file=sys.stderr)
+        for m in missing:
+            print(f"  - {m}", file=sys.stderr)
+        print("请按上述提示准备后再启动。", file=sys.stderr)
+        if backend_proc is not None and backend_proc.poll() is None:
+            backend_proc.terminate()
+            backend_proc.wait()
+        return 1
 
     print("[2/2] 启动 TUI…", flush=True)
     code = _run_tui(root)
