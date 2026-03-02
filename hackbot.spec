@@ -8,26 +8,27 @@ import sys
 
 IS_LINUX = sys.platform == 'linux'
 
-# 顶层包与模块（确保被打包）
+# 顶层包与模块（与 pyproject.toml [tool.setuptools] packages 对齐）
 TOP_LEVEL = [
-    'config',
-    'agents',
-    'attack_chain',
+    'hackbot',
+    'core',
+    'core.agents',
+    'core.patterns',
+    'core.attack_chain',
+    'core.memory',
+    'skills',
+    'hackbot_config',
     'controller',
     'crawler',
     'database',
     'defense',
-    'exploit',
-    'memory',
-    'patterns',
     'payloads',
     'prompts',
-    'scanner',
     'system',
     'tools',
     'tui',
     'utils',
-    'm_bot',
+    'router',
 ]
 
 # 运行时可能动态加载的库
@@ -48,6 +49,8 @@ HIDDEN_IMPORTS = [
     'httpx',
     'aiohttp',
     'openai',
+    'router.main',
+    'hackbot.launch_tui',
 ] + TOP_LEVEL
 
 # 数据文件：提示词模板等
