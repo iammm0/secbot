@@ -19,6 +19,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - runner: ubuntu-22.04
+            name: linux-amd64
           - runner: windows-latest
             name: windows-amd64
           - runner: macos-14
@@ -80,8 +82,10 @@ jobs:
         run: |
           if [ "${{ matrix.name }}" = "darwin-amd64" ]; then
             python3 -c "import shutil,os; os.chdir('dist'); shutil.make_archive('hackbot-${{ matrix.name }}', 'zip', '.', 'hackbot')"
-          else
+          elif [ "${{ runner.os }}" = "Windows" ]; then
             python -c "import shutil,os; os.chdir('dist'); shutil.make_archive('hackbot-${{ matrix.name }}', 'zip', '.', 'hackbot')"
+          else
+            .venv/bin/python -c "import shutil,os; os.chdir('dist'); shutil.make_archive('hackbot-${{ matrix.name }}', 'zip', '.', 'hackbot')"
           fi
 
       - name: Upload artifact
@@ -117,15 +121,16 @@ jobs:
           body: |
             ## 安装与运行
 
-            1. 下载对应平台的 zip（如 `hackbot-windows-amd64.zip`、`hackbot-darwin-arm64.zip`（Apple 芯片）、`hackbot-darwin-amd64.zip`（Intel Mac）），解压得到 `hackbot` 目录。
+            1. 下载对应平台的 zip（如 `hackbot-linux-amd64.zip`、`hackbot-windows-amd64.zip`、`hackbot-darwin-arm64.zip`（Apple 芯片）、`hackbot-darwin-amd64.zip`（Intel Mac）），解压得到 `hackbot` 目录。
             2. 配置 **DeepSeek API Key**（启动前唯一必须条件）：
-               - **环境变量**：`export DEEPSEEK_API_KEY=sk-xxx`（macOS）或 系统环境变量（Windows）
+               - **环境变量**：`export DEEPSEEK_API_KEY=sk-xxx`（Linux/macOS）或 系统环境变量（Windows）
                - **或** 在 `hackbot` 目录内创建 `.env` 文件，内容：`DEEPSEEK_API_KEY=sk-xxx`
-            3. 进入 `hackbot` 目录，运行 `hackbot.exe`（Windows）或 `./hackbot`（macOS），即可进入交互式安全测试界面。
+            3. 进入 `hackbot` 目录，运行 `hackbot.exe`（Windows）或 `./hackbot`（Linux/macOS），即可进入交互式安全测试界面。
 
             获取 API Key：https://platform.deepseek.com
           draft: false
           files: |
+            artifacts/hackbot-linux-amd64/hackbot-linux-amd64.zip
             artifacts/hackbot-windows-amd64/hackbot-windows-amd64.zip
             artifacts/hackbot-darwin-arm64/hackbot-darwin-arm64.zip
             artifacts/hackbot-darwin-amd64/hackbot-darwin-amd64.zip
