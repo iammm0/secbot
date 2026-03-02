@@ -216,7 +216,7 @@ uv run python -m build
 - [Speech Guide](docs/SPEECH_GUIDE.md)
 - [SQLite Setup](docs/SQLITE_SETUP.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
-- [Changelog](docs/CHANGELOG.md) · [Release](docs/RELEASE.md) · [PyPI Publish](docs/PYPI_PUBLISH.md)
+- [Changelog](docs/CHANGELOG.md) · [Release](docs/RELEASE.md)
 
 ## 🤝 Contributing
 
