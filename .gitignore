@@ -59,9 +59,6 @@ dist/
 data/
 !data/.gitkeep
 
-# 报告输出目录
-reports/
-
 # 缓存
 .cache/
 .pytest_cache/
