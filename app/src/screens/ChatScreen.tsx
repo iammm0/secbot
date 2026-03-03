@@ -30,10 +30,9 @@ import BlockRenderer from '../components/BlockRenderer';
 import ChatDebugPanel from '../components/ChatDebugPanel';
 import type { RenderBlock, SSEEvent } from '../types';
 
-// 模式：ask=仅提问, plan=编写计划, agent=执行智能体（可选自动/专家）
+// 模式：ask=仅提问, agent=执行智能体（可选自动/专家）
 const CHAT_MODES = [
   { id: 'ask', label: 'Ask' },
-  { id: 'plan', label: 'Plan' },
   { id: 'agent', label: 'Agent' },
 ] as const;
 const AGENT_SUB = [
@@ -43,7 +42,7 @@ const AGENT_SUB = [
 const MODELS = [
   { id: 'default', label: '后端默认' },
   { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-  { id: 'gpt-oss:20b', label: 'Ollama gpt-oss:20b' },
+  { id: 'gemma3:3b', label: 'Ollama gpt-oss:20b' },
 ];
 const PHASE_LABELS: Record<string, string> = {
   idle: '空闲',
@@ -62,7 +61,7 @@ const nextBlockId = () =>
 export default function ChatScreen() {
   const [blocks, setBlocks] = useState<RenderBlock[]>([]);
   const [input, setInput] = useState('');
-  const [mode, setMode] = useState<'ask' | 'plan' | 'agent'>('agent');
+  const [mode, setMode] = useState<'ask' | 'agent'>('agent');
   const [agentSubType, setAgentSubType] = useState<'hackbot' | 'superhackbot'>('hackbot');
   const [model, setModel] = useState('default');
   const [debugVisible, setDebugVisible] = useState(false);
@@ -393,7 +392,7 @@ export default function ChatScreen() {
     // 立即显示「连接中」阶段，保证列表和状态栏马上有反馈
     setPhase('thinking', '连接中…');
 
-    // 发起 SSE 流：mode=ask|plan|agent，agent 在 mode=agent 时有效
+    // 发起 SSE 流：mode=ask|agent，agent 在 mode=agent 时有效
     const body: Record<string, string> = {
       message: trimmed,
       mode,
