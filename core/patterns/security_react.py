@@ -51,6 +51,7 @@ def _create_llm(
     """
     创建 LLM 实例，支持多厂商：
     - ollama: 本地 Ollama
+    - groq / openrouter: 免费档云端（OpenAI 兼容）
     - deepseek / openai / zhipu / qwen / moonshot / baichuan / yi / custom: OpenAI API 兼容
     - anthropic: Anthropic Claude
     - google: Google Gemini
@@ -68,7 +69,7 @@ def _create_llm(
     # --- 查找厂商配置 ---
     config = get_provider_config(p)
     if config is None:
-        raise ValueError(f"不支持的推理后端: {p}，可用: ollama / deepseek / openai / anthropic / google / zhipu / qwen / moonshot / baichuan / yi / custom")
+        raise ValueError(f"不支持的推理后端: {p}，可用: ollama / groq / openrouter / deepseek / openai / anthropic / google / zhipu / qwen / moonshot / baichuan / yi / custom")
 
     provider_type = config.get("type", "openai_compatible")
 
@@ -177,6 +178,45 @@ class SecurityReActAgent(BaseAgent):
         self._skip_report = (
             False  # 由 process(skip_report=True) 设置，供 handle_accept 使用
         )
+        # 当前会话的摘要式上下文（每轮推理后提取，供后续轮参考）
+        self._session_context_summary: str = ""
+        self._session_context_max_chars: int = 4500
+
+    def append_turn_to_session_context(
+        self,
+        user_input: str,
+        plan_summary: str,
+        summary: Optional[Any] = None,
+    ) -> None:
+        """
+        将本轮对话的摘要式信息追加到当前会话上下文中，供后续推理参考。
+        每轮任务（规划→执行→摘要）结束后由 SessionManager 调用。
+        """
+        parts = [f"【本轮】请求: {user_input.strip()[:200]}"]
+        if plan_summary and plan_summary.strip():
+            parts.append(f"计划: {plan_summary.strip()[:300]}")
+        if summary is not None:
+            task_summary = getattr(summary, "task_summary", None) or ""
+            if task_summary:
+                parts.append(f"摘要: {task_summary.strip()[:400]}")
+            key_findings = getattr(summary, "key_findings", None) or []
+            if key_findings:
+                findings_str = "; ".join(str(f)[:80] for f in key_findings[:3])
+                parts.append(f"关键发现: {findings_str}")
+            conclusion = getattr(summary, "overall_conclusion", None) or ""
+            if conclusion:
+                parts.append(f"结论: {conclusion.strip()[:200]}")
+        block = " | ".join(parts)
+        self._session_context_summary = (
+            (self._session_context_summary + "\n\n" + block).strip()
+        )
+        if len(self._session_context_summary) > self._session_context_max_chars:
+            self._session_context_summary = self._session_context_summary[
+                -self._session_context_max_chars :
+            ].strip()
+            first_nl = self._session_context_summary.find("\n\n")
+            if first_nl > 0:
+                self._session_context_summary = self._session_context_summary[first_nl + 2 :]
 
     def _emit_event(self, event_type: str, data: dict, on_event=None):
         """触发事件回调，同时发射到 EventBus（如果已配置）"""
@@ -881,6 +921,27 @@ class SecurityReActAgent(BaseAgent):
             t = item["type"].upper()
             history_text += f"\n[{t}] {item['content']}"
 
+        # 本轮之前的对话历史（供模型理解上下文，避免多轮不连贯）
+        conv_lines: List[str] = []
+        try:
+            past = self.get_conversation_history(limit=20)
+            # 若最后一条是当前本轮用户输入，则不重复放入「先前对话」
+            if past and past[-1].role == "user" and (past[-1].content or "").strip() == (user_input or "").strip():
+                past = past[:-1]
+            for msg in past:
+                role_label = "用户" if msg.role == "user" else "助手"
+                conv_lines.append(f"{role_label}: {msg.content}")
+        except Exception:
+            pass
+        conversation_section = ""
+        if conv_lines:
+            conversation_section = "\n## 本轮之前的对话（供理解上下文）\n" + "\n\n".join(conv_lines[-10:]) + "\n"
+
+        # 当前会话的摘要式上下文（每轮任务后提取的要点，供连续任务参考）
+        session_context_section = ""
+        if getattr(self, "_session_context_summary", "").strip():
+            session_context_section = "\n## 当前会话上下文（摘要）\n" + self._session_context_summary.strip() + "\n"
+
         tools_desc = self._get_tools_description()
 
         # 若有当前计划步骤，生成完成情况说明，并强调“未完成不输出 Final Answer”
@@ -942,6 +1003,8 @@ Final Answer: <最终结论和报告>
 4. **不要过早结束**：如果你只进行了一两次工具调用，很可能还没有收集到足够信息。继续思考下一步需要做什么。
 {todos_section}
 {context_block}
+{conversation_section}
+{session_context_section}
 ## 当前任务
 
 用户请求: {user_input}
@@ -1260,7 +1323,10 @@ Final Answer: <最终结论和报告>
                         break
 
         if not tool:
-            obs = f"无法找到工具 '{tool_hint}'，跳过步骤: {content}"
+            if not tool_hint or (isinstance(tool_hint, str) and not tool_hint.strip()):
+                obs = f"该步骤未指定工具（tool_hint 为空），跳过: {content}"
+            else:
+                obs = f"无法找到工具 '{tool_hint}'，跳过步骤: {content}"
             return {"success": False, "obs": obs, "result": None}
 
         # 使用 LLM 提取参数

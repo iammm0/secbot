@@ -145,7 +145,7 @@ class PlannerAgent(BaseAgent):
         for i, todo in enumerate(plan_result.todos, 1):
             tool_part = f" - {todo.tool_hint}" if todo.tool_hint else ""
             lines.append(f"{i}. {todo.content}{tool_part}")
-        lines.append("\n**开始执行**")
+        lines.append("\n**执行计划**")
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
@@ -446,6 +446,7 @@ class PlannerAgent(BaseAgent):
 - 不要添加任何 JSON 之外的文字"""
 
         try:
+            import asyncio
             from core.patterns.security_react import _create_llm
             provider = (settings.llm_provider or "deepseek").strip().lower()
             llm = _create_llm(provider=provider, temperature=0.3)
@@ -453,7 +454,10 @@ class PlannerAgent(BaseAgent):
                 SystemMessage(content=self.system_prompt),
                 HumanMessage(content=planning_prompt),
             ]
-            response = llm.invoke(messages)
+            if hasattr(llm, "ainvoke"):
+                response = await llm.ainvoke(messages)
+            else:
+                response = await asyncio.to_thread(llm.invoke, messages)
             text = response.content if hasattr(response, "content") else str(response)
 
             return self._parse_plan_json(text, user_input)
@@ -501,7 +505,7 @@ class PlannerAgent(BaseAgent):
         user_input_lower = user_input.lower()
         todos = []
 
-        if any(k in user_input_lower for k in ["scan", "端口", "port"]):
+        if any(k in user_input_lower for k in ["scan", "扫描", "端口", "port", "内网", "网络"]):
             todos.append(
                 TodoItem(id="step_1", content="执行端口扫描", tool_hint="port_scan")
             )
@@ -525,11 +529,11 @@ class PlannerAgent(BaseAgent):
                 TodoItem(id="step_1", content="获取系统信息", tool_hint="system_info")
             )
             todos.append(
-                TodoItem(id="step_2", content="查看系统状态", tool_hint="system_status")
+                TodoItem(id="step_2", content="查看系统状态", tool_hint="system_info")
             )
         elif any(k in user_input_lower for k in ["crawl", "爬取", "网页"]):
             todos.append(
-                TodoItem(id="step_1", content="爬取目标网页", tool_hint="crawler")
+                TodoItem(id="step_1", content="爬取目标网页", tool_hint="web_crawler")
             )
         elif any(k in user_input_lower for k in ["command", "命令", "execute", "执行"]):
             todos.append(
