@@ -37,6 +37,24 @@ PROVIDER_REGISTRY: List[Dict[str, Any]] = [
         "needs_api_key": False,
     },
     {
+        "id": "groq",
+        "name": "Groq (免费档)",
+        "description": "极速推理，免费额度，Llama/Gemma 等",
+        "type": "openai_compatible",
+        "default_base_url": "https://api.groq.com/openai/v1",
+        "default_models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-001"],
+        "needs_api_key": True,
+    },
+    {
+        "id": "openrouter",
+        "name": "OpenRouter (免费模型)",
+        "description": "一站式多模型，部分免费（:free 后缀）",
+        "type": "openai_compatible",
+        "default_base_url": "https://openrouter.ai/api/v1",
+        "default_models": ["meta-llama/llama-3.2-3b-instruct:free", "google/gemma-2-9b-it:free", "qwen/qwen-2.5-7b-instruct:free"],
+        "needs_api_key": True,
+    },
+    {
         "id": "deepseek",
         "name": "DeepSeek",
         "description": "深度求索，推理模型首选",
@@ -151,8 +169,10 @@ def get_provider_config(provider_id: str) -> Optional[Dict[str, Any]]:
 
 
 def check_ollama_running(base_url: Optional[str] = None) -> bool:
-    """检查当前主机上 Ollama 服务是否在运行。"""
-    base_url = (base_url or settings.ollama_base_url).rstrip("/")
+    """检查当前主机上 Ollama 服务是否在运行（GET /api/tags）。"""
+    base_url = (base_url or settings.ollama_base_url or "").strip().rstrip("/")
+    if not base_url:
+        base_url = "http://localhost:11434"
     try:
         import httpx
         r = httpx.get(f"{base_url}/api/tags", timeout=3.0)
@@ -174,6 +194,58 @@ def get_ollama_models(base_url: Optional[str] = None) -> List[str]:
         return [m.get("name", "") for m in models if m.get("name")]
     except Exception:
         return []
+
+
+def get_ollama_models_detail(base_url: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    获取 Ollama 本地（及在线）可用模型详情，等价于 ollama list 的信息。
+    返回列表每项包含 name, size, modified_at，以及可选的 parameter_size 等。
+    """
+    base_url = (base_url or settings.ollama_base_url).rstrip("/")
+    try:
+        import httpx
+        r = httpx.get(f"{base_url}/api/tags", timeout=5.0)
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        models = data.get("models") or []
+        out = []
+        for m in models:
+            name = m.get("name") or m.get("model") or ""
+            if not name:
+                continue
+            detail = m.get("details") or {}
+            out.append({
+                "name": name,
+                "size": m.get("size"),
+                "modified_at": m.get("modified_at"),
+                "parameter_size": detail.get("parameter_size"),
+                "family": detail.get("family"),
+            })
+        return out
+    except Exception:
+        return []
+
+
+def pull_ollama_model(model_name: str, base_url: Optional[str] = None, timeout: int = 600) -> bool:
+    """
+    拉取指定模型到本地，等价于执行 ollama pull <model_name>。
+    若模型已存在则不再拉取。返回 True 表示成功或已存在，False 表示失败。
+    """
+    base_url = (base_url or settings.ollama_base_url).rstrip("/")
+    if not model_name or not model_name.strip():
+        return False
+    model_name = model_name.strip()
+    try:
+        import httpx
+        r = httpx.post(
+            f"{base_url}/api/pull",
+            json={"model": model_name, "stream": False},
+            timeout=timeout,
+        )
+        return r.status_code == 200
+    except Exception:
+        return False
 
 
 def has_provider_api_key(provider: str) -> bool:
