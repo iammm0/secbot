@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from router.routers.chat import router as chat_router
 from router.routers.agents import router as agents_router
+from router.routers.sessions import router as sessions_router
 from router.routers.system import router as system_router
 from router.routers.defense import router as defense_router
 from router.routers.network import router as network_router
@@ -40,6 +41,7 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     application.include_router(chat_router)
     application.include_router(agents_router)
+    application.include_router(sessions_router)
     application.include_router(system_router)
     application.include_router(defense_router)
     application.include_router(network_router)
@@ -64,12 +66,23 @@ def run_server():
     脚本入口 — hackbot-server 命令
     可通过 `hackbot-server` 或 `python -m router.main` 启动。
     """
+    import socket
+    import sys
     import uvicorn
 
+    port = 8000
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex(("127.0.0.1", port)) == 0:
+            print(
+                f"端口 {port} 已被占用。请先停止占用 {port} 的进程后再启动。",
+                file=sys.stderr,
+            )
+            print(f"  Windows: netstat -ano | findstr :{port} 查看 PID，再用 taskkill /PID <pid> /F 结束。", file=sys.stderr)
+            sys.exit(1)
     uvicorn.run(
         "router.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=port,
         reload=True,
     )
 

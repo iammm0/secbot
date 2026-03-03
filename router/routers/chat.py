@@ -155,7 +155,7 @@ async def _interaction_event_generator(
     )
 
     force_qa = request.mode == "ask"
-    plan_only = request.mode == "plan"
+    plan_only = False  # 已移除 plan 模式，仅 ask / agent
     force_agent_flow = request.mode == "agent"
     agent_type = request.agent if request.mode == "agent" else None
     if agent_type and request.prompt:
@@ -193,8 +193,6 @@ async def _interaction_event_generator(
                             or (
                                 "qa"
                                 if force_qa
-                                else "planner"
-                                if plan_only
                                 else "agent"
                             ),
                         },
@@ -262,7 +260,7 @@ async def root_response(body: RootResponseRequest):
 @router.post("/sync", response_model=ChatResponse, summary="同步聊天")
 async def chat_sync(request: ChatRequest):
     """
-    同步聊天接口。按 mode: ask=QA, plan=规划, agent=智能体。
+    同步聊天接口。按 mode: ask=QA, agent=智能体（开源版自动化安全测试智能体）。
     仍直接调用各 agent，不经过 SessionManager。
     """
     try:
@@ -270,16 +268,6 @@ async def chat_sync(request: ChatRequest):
             qa = get_qa_agent()
             response = await qa.answer(request.message)
             return ChatResponse(response=response, agent="qa")
-        if request.mode == "plan":
-            planner = get_planner_agent()
-            plan_result = await planner.plan(request.message)
-            summary = plan_result.plan_summary or ""
-            if plan_result.direct_response:
-                summary = plan_result.direct_response + "\n\n" + summary
-            if plan_result.todos:
-                lines = [f"- {t.content} ({t.status.value})" for t in plan_result.todos]
-                summary = summary + "\n\n**待办:**\n" + "\n".join(lines)
-            return ChatResponse(response=summary, agent="planner")
         agent_instance = get_agent(request.agent)
         if request.prompt:
             agent_instance.update_system_prompt(request.prompt)
