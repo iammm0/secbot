@@ -16,10 +16,10 @@ curl -fsSL https://ollama.ai/install.sh | sh
 
 ### 1. 下载推理模型
 
-下载 `gpt-oss:20b` 模型用于对话：
+下载 `gemma3:1b` 模型用于对话（若本地没有，打开 /model 模型列表时会自动拉取）：
 
 ```bash
-ollama pull gpt-oss:20b
+ollama pull gemma3:1b
 ```
 
 ### 2. 下载向量嵌入模型
@@ -45,7 +45,7 @@ ollama pull nomic-embed-text
 ollama list
 
 # 测试模型
-ollama run gpt-oss:20b "你好"
+ollama run gemma3:1b "你好"
 ```
 
 ## 配置项目
@@ -54,7 +54,7 @@ ollama run gpt-oss:20b "你好"
 2. 确认配置：
    ```
    OLLAMA_BASE_URL=http://localhost:11434
-   OLLAMA_MODEL=gpt-oss:20b
+   OLLAMA_MODEL=gemma3:1b
    OLLAMA_EMBEDDING_MODEL=nomic-embed-text
    ```
 
@@ -83,7 +83,7 @@ API服务将在 `http://localhost:8000` 启动。
 ollama list
 
 # 如果模型不存在，下载它
-ollama pull gpt-oss:20b
+ollama pull gemma3:1b
 ```
 
 ### 性能优化
