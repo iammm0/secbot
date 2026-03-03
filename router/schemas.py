@@ -12,12 +12,12 @@ from pydantic import BaseModel, Field
 # Chat
 # ===================================================================
 
-ChatMode = Literal["ask", "plan", "agent"]
+ChatMode = Literal["ask", "agent"]
 
 
 class ChatRequest(BaseModel):
     message: str = Field(..., description="用户消息")
-    mode: ChatMode = Field("agent", description="模式: ask=仅提问, plan=编写计划, agent=执行智能体")
+    mode: ChatMode = Field("agent", description="模式: ask=仅提问, agent=执行智能体（开源版自动化安全测试智能体）")
     agent: str = Field("hackbot", description="智能体类型 (hackbot/superhackbot)，mode=agent 时有效")
     prompt: Optional[str] = Field(None, description="自定义系统提示词")
     model: Optional[str] = Field(None, description="模型偏好（如 deepseek-reasoner / gpt-oss:20b），后端可选使用")
@@ -86,11 +86,31 @@ class SystemConfigResponse(BaseModel):
     deepseek_base_url: Optional[str] = Field(None, description="DeepSeek API 地址")
 
 
+class OllamaModelItem(BaseModel):
+    """Ollama 本地/在线可用模型项（等价 ollama list 一行）"""
+    name: str = Field(..., description="模型名")
+    size: Optional[int] = Field(None, description="占用大小（字节）")
+    modified_at: Optional[str] = Field(None, description="最后修改时间")
+    parameter_size: Optional[str] = Field(None, description="参数量，如 7B")
+    family: Optional[str] = Field(None, description="模型族，如 llama")
+
+
+class OllamaModelsResponse(BaseModel):
+    """Ollama 可用模型列表（调用 ollama list / api/tags）"""
+    models: list[OllamaModelItem] = Field(default_factory=list, description="本地及在线可用模型")
+    base_url: str = Field("", description="请求使用的 Ollama 服务地址")
+    error: Optional[str] = Field(None, description="若无法连接 Ollama 时的错误信息")
+    pulling_model: Optional[str] = Field(None, description="若默认模型不在本地且正在后台拉取，则为该模型名")
+
+
 class ProviderApiKeyStatus(BaseModel):
     id: str
     name: str
     needs_api_key: bool = True
     configured: bool = False
+    # 对于 OpenAI 兼容中转等，还可能需要 Base URL
+    needs_base_url: bool = False
+    has_base_url: bool = False
 
 
 class ProviderListResponse(BaseModel):
@@ -98,8 +118,13 @@ class ProviderListResponse(BaseModel):
 
 
 class SetApiKeyRequest(BaseModel):
-    provider: str = Field(..., description="厂商 id，如 deepseek / openai")
+    provider: str = Field(..., description="厂商 id，如 deepseek / openai / custom")
     api_key: str = Field(..., description="API Key，空字符串表示删除")
+    # 对于 OpenAI 兼容中转等，可同时设置 Base URL（可选）
+    base_url: Optional[str] = Field(
+        None,
+        description="可选 Base URL，空字符串表示清除自定义 base_url",
+    )
 
 
 class SetApiKeyResponse(BaseModel):
