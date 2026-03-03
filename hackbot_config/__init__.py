@@ -167,7 +167,7 @@ class Settings(BaseSettings):
 
     # Ollama 配置（当 LLM_PROVIDER=ollama 时使用）
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    ollama_model: str = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+    ollama_model: str = os.getenv("OLLAMA_MODEL", "gemma3:1b")
     ollama_embedding_model: str = os.getenv(
         "OLLAMA_EMBEDDING_MODEL", "nomic-embed-text"
     )
