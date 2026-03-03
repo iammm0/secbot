@@ -8,10 +8,11 @@ interface DialogProps {
   height: number;
 }
 
-/** 对话框栈：全屏不透明遮罩 + 居中内容区，确保弹窗浮于主内容之上 */
+/** 对话框栈：全屏不透明遮罩 + 居中内容区。Esc 仅由 App 统一 dialog.clear()，避免与内层 pop 竞态。 */
 export function Dialog({ width, height }: DialogProps) {
   const { stack } = useDialog();
   const theme = useTheme();
+
   if (stack.length === 0) return null;
   const top = stack[stack.length - 1];
   const contentWidth = Math.min(60, width - 4);

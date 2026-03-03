@@ -1,8 +1,35 @@
 /**
- * 斜杠命令：本地模式切换 + 调用 REST API
+ * 斜杠命令：本地模式切换 + 调用 REST API + 静态 /help
  */
 import type { ChatMode } from './types.js';
 import { api } from './api.js';
+
+/** SECBOT 集成的安全工具（静态，不调 API）— 供 /help 展示 */
+export const HELP_TOOLS_TEXT = `SECBOT 集成的安全工具
+
+【核心】
+  port_scan     — 端口扫描
+  service_detect — 服务识别
+  vuln_scan     — 漏洞扫描
+  recon         — 侦察信息收集
+
+【网络】
+  网络发现、目标管理、DNS/Whois/Ping/Traceroute、SSL 分析等
+
+【防御】
+  防御扫描、拦截状态、放行/报告
+
+【Web】
+  Web 扫描、爬虫、Web 研究
+
+【其他】
+  OSINT、协议探测、报告、云安全、系统命令等
+
+【高级（仅 SuperHackbot，需确认）】
+  attack_test   — 攻击测试
+  exploit       — 漏洞利用
+
+输入 / 可查看全部斜杠命令。`;
 
 export interface SlashResult {
   handled: boolean;
@@ -20,31 +47,10 @@ export function parseSlash(
   if (!raw.startsWith('/')) {
     return { handled: false };
   }
-  const lower = raw.toLowerCase();
   const parts = raw.split(/\s+/);
   const cmd = parts[0].toLowerCase();
 
-  // 本地：模式与智能体
-  if (cmd === '/plan') {
-    return {
-      handled: true,
-      chat: {
-        message: parts.slice(1).join(' ') || '请帮我编写自动化安全测试计划',
-        mode: 'plan',
-        agent: localState.agent,
-      },
-    };
-  }
-  if (cmd === '/start') {
-    return {
-      handled: true,
-      chat: {
-        message: '执行既定安全测试计划',
-        mode: 'agent',
-        agent: localState.agent,
-      },
-    };
-  }
+  // 本地：模式与智能体（仅 ask / task / agent，已移除 plan、/start）
   if (cmd === '/ask') {
     return {
       handled: true,
@@ -55,39 +61,35 @@ export function parseSlash(
       },
     };
   }
+  if (cmd === '/task') {
+    return {
+      handled: true,
+      chat: {
+        message: parts.slice(1).join(' ') || '',
+        mode: 'agent',
+        agent: localState.agent,
+      },
+    };
+  }
   if (cmd === '/agent') {
     const arg = parts[1]?.toLowerCase();
     const agent = arg === 'super' || arg === 'superhackbot' ? 'superhackbot' : 'hackbot';
     return { handled: true };
   }
 
-  // REST 命令
-  if (cmd === '/list-tools' || cmd === '/list-agents') {
+  // /help — 静态展示集成的安全工具，不调 API
+  if (cmd === '/help') {
+    return {
+      handled: true,
+      fetchThen: () => Promise.resolve(HELP_TOOLS_TEXT),
+    };
+  }
+  if (cmd === '/list-agents') {
     return {
       handled: true,
       fetchThen: async () => {
         const r = await api.get<{ agents: Array<{ type: string; name: string; description: string }> }>('/api/agents');
         return (r.agents ?? []).map((a) => `${a.type}: ${a.name} — ${a.description}`).join('\n');
-      },
-    };
-  }
-  if (cmd === '/system-info') {
-    return {
-      handled: true,
-      fetchThen: async () => {
-        const r = await api.get<Record<string, string>>('/api/system/info');
-        return Object.entries(r)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join('\n');
-      },
-    };
-  }
-  if (cmd === '/db-stats') {
-    return {
-      handled: true,
-      fetchThen: async () => {
-        const r = await api.get<Record<string, unknown>>('/api/db/stats');
-        return JSON.stringify(r, null, 2);
       },
     };
   }
@@ -130,8 +132,7 @@ export function getAgentFromState(
 
 export function getModeFromSlash(input: string): ChatMode | null {
   const cmd = (input.trim().split(/\s+/)[0] ?? '').toLowerCase();
-  if (cmd === '/plan') return 'plan';
   if (cmd === '/ask') return 'ask';
-  if (cmd === '/start') return 'agent';
+  if (cmd === '/task') return 'agent';
   return null;
 }

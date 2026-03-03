@@ -51,7 +51,7 @@ function relaunchInNewWindow(): boolean {
   try {
     const cwd = process.cwd();
     const env = { ...process.env };
-    const child = spawn('cmd', ['/c', 'start', 'Secbot TUI', 'cmd', '/k', 'node --import tsx src/cli.tsx'], {
+    const child = spawn('cmd', ['/c', 'start', 'SECBOT TUI', 'cmd', '/k', 'node --import tsx src/cli.tsx'], {
       cwd,
       env,
       stdio: 'ignore',
@@ -104,7 +104,7 @@ async function main() {
       <AllProviders onExit={handleExit}>
         <App columns={columns} rows={rows} />
       </AllProviders>,
-      { exitOnCtrlC: true }
+      { exitOnCtrlC: false }
     );
     instance.waitUntilExit().then((code) => {
       handleExit(code ?? 0);

@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 
-/** 语义 token，对齐 UI-DESIGN-AND-INTERACTION 6.2 */
+/** 语义 token，对齐 UI-DESIGN-AND-INTERACTION 6.2 — 赛博朋克风：主色绿 + 霓虹七彩 */
 export interface ThemeColors {
   primary: string;
   secondary: string;
@@ -15,22 +15,25 @@ export interface ThemeColors {
   backgroundPanel: string;
   border: string;
   borderActive: string;
+  /** 赛博彩虹色板（用于 Logo/标识）：绿主色 + 霓虹七彩 */
+  cyberRainbow: string[];
 }
 
 const defaultTheme: ThemeColors = {
-  primary: 'cyan',
-  secondary: 'blue',
+  primary: 'green',
+  secondary: 'cyan',
   accent: 'magenta',
   error: 'red',
   warning: 'yellow',
-  success: 'green',
-  info: 'blue',
+  success: 'greenBright',
+  info: 'cyan',
   text: 'white',
   textMuted: 'gray',
   background: 'black',
   backgroundPanel: 'gray',
   border: 'gray',
-  borderActive: 'cyan',
+  borderActive: 'green',
+  cyberRainbow: ['green', 'cyan', 'magenta', 'yellow', 'greenBright', 'blue', 'cyanBright', 'magentaBright'],
 };
 
 const ThemeContext = createContext<ThemeColors>(defaultTheme);

@@ -24,7 +24,7 @@ const GREETING_PATTERNS = [
 const SHORT_NON_TASK = /^[\s\u4e00-\u9fa5a-zA-Z]{1,3}[？?！!。.]?$/;
 
 /**
- * 若为简单问候或明显非任务型输入，返回 true，应用 ask 模式，不触发 plan/agent 执行
+ * 若为简单问候或明显非任务型输入，返回 true，应用 ask 模式，不触发 agent 执行
  */
 export function isSimpleGreetingOrNonTask(text: string): boolean {
   const trimmed = text.trim();

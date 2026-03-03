@@ -11,6 +11,7 @@ export type KeybindId =
   | 'exit'
   | 'command_list'
   | 'escape'
+  | 'agent_switch'
   | 'page_up'
   | 'page_down'
   | 'messages_first'
@@ -27,6 +28,7 @@ export const DEFAULT_KEYBINDS: Record<KeybindId, { keys: ParsedKey[]; label: str
   exit: { keys: [{ name: 'c', ctrl: true }], label: 'Ctrl+C' },
   command_list: { keys: [{ name: 'k', ctrl: true }], label: 'Ctrl+K' },
   escape: { keys: [{ name: 'escape' }], label: 'Esc' },
+  agent_switch: { keys: [{ name: 'tab' }], label: 'Tab' },
   page_up: { keys: [{ name: 'pageup' }], label: 'Page Up' },
   page_down: { keys: [{ name: 'pagedown' }], label: 'Page Down' },
   messages_first: { keys: [{ name: 'home' }], label: 'Home' },
@@ -65,6 +67,7 @@ export interface InkKey {
   ctrl?: boolean;
   shift?: boolean;
   escape?: boolean;
+  tab?: boolean;
   pageUp?: boolean;
   pageDown?: boolean;
   upArrow?: boolean;
@@ -76,6 +79,7 @@ export interface InkKey {
 /** 将 Ink (input, key) 转为 ParsedKey，供 match 使用 */
 export function inkKeyToParsedKey(input: string, key: InkKey): ParsedKey {
   if (key.escape) return { name: 'escape' };
+  if (key.tab || input === '\t') return { name: 'tab' };
   if (key.home) return { name: 'home' };
   if (key.end) return { name: 'end' };
   if (key.ctrl && key.pageUp) return { name: 'pageup', ctrl: true };

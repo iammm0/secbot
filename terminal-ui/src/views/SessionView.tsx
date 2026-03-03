@@ -8,15 +8,17 @@ import { MainContent } from '../MainContent.js';
 import { SlashSuggestions } from '../components/SlashSuggestions.js';
 import { parseSlash, getAgentFromState } from '../slash.js';
 import { isSimpleGreetingOrNonTask } from '../intent.js';
-import { useSync, useLocal, useTheme, useKeybind, useCommand, useDialog, useToast } from '../contexts/index.js';
+import { useSync, useLocal, useTheme, useKeybind, useCommand, useDialog, useToast, useExit } from '../contexts/index.js';
 import { inkKeyToParsedKey } from '../contexts/KeybindContext.js';
 import { streamStateToBlocks } from '../contentBlocks.js';
 import { ModelConfigDialog } from '../components/ModelConfigDialog.js';
+import { RestResultDialog } from '../components/RestResultDialog.js';
 import { RootPermissionDialog } from '../components/RootPermissionDialog.js';
-import { AgentSelectDialog } from '../components/AgentSelectDialog.js';
 import { LoadingBar } from '../components/LoadingBar.js';
 
 const CONTENT_HEIGHT_OFFSET = 9;
+/** 彩虹流动动效间隔（与 HomeView 一致） */
+const RAINBOW_PHASE_MS = 180;
 
 interface SessionViewProps {
   columns: number;
@@ -33,7 +35,9 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showScrollbar, setShowScrollbar] = useState(true);
   const [expandedBlockIds, setExpandedBlockIds] = useState<Set<string>>(new Set());
-  const { commands, register } = useCommand();
+  /** 彩虹流动动效相位（底部 Secbot 标识） */
+  const [rainbowPhase, setRainbowPhase] = useState(0);
+  const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
   const scrollableHeightRef = useRef(1);
 
@@ -43,6 +47,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   const keybind = useKeybind();
   const dialog = useDialog();
   const toast = useToast();
+  const exit = useExit();
   const { streaming, streamState, apiOutput, pendingRootRequest, setPendingRootRequest, sendMessage, setRESTOutput } = sync;
   const { mode, agent, setMode, setAgent } = local;
 
@@ -82,6 +87,11 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   useEffect(() => {
     setSlashSelectedIndex(0);
   }, [inputValue]);
+
+  useEffect(() => {
+    const id = setInterval(() => setRainbowPhase((p) => p + 1), RAINBOW_PHASE_MS);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!pendingRootRequest) return;
@@ -206,44 +216,12 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
     return () => unregs.forEach((u) => u());
   }, [register, maxScroll, scrollableHeight, scrollToNextBlock]);
 
-  // 启用鼠标跟踪，便于点击滚动条跳转
-  useEffect(() => {
-    const stdout = typeof process !== 'undefined' && process.stdout;
-    if (!stdout?.write) return;
-    stdout.write('\x1b[?1006h');
-    return () => {
-      stdout.write('\x1b[?1006l');
-    };
-  }, []);
-
-  /** 消息区域在终端中的起始行（1-based）：App padding 1 + 主内容首行 */
-  const messageAreaTop = 2;
-  /** 滚动条列在终端中的 x（1-based）：右侧最后一列 */
-  const scrollbarColumnX = columns;
-
   useInput((input, key) => {
-    const keyWithMouse = key as typeof key & {
-      mouse?: { x: number; y: number; button: string; action: string };
-    };
-    if (keyWithMouse.mouse && keyWithMouse.mouse.button === 'left') {
-      const { x, y } = keyWithMouse.mouse;
-      if (
-        totalLines > scrollableHeight &&
-        x >= scrollbarColumnX - 1 &&
-        y >= messageAreaTop &&
-        y < messageAreaTop + scrollableHeight
-      ) {
-        const clickRow = y - messageAreaTop;
-        const newOffset =
-          scrollableHeight <= 1
-            ? 0
-            : Math.min(maxScroll, Math.max(0, Math.round((clickRow / (scrollableHeight - 1)) * maxScroll)));
-        setScrollOffset(newOffset);
-        return;
-      }
-    }
-
     const evt = inkKeyToParsedKey(input, key);
+    if (keybind.match('agent_switch', evt)) {
+      trigger('/agent');
+      return;
+    }
     if (keybind.match('page_up', evt)) {
       setScrollOffset((s) => Math.max(0, s - contentHeight));
       return;
@@ -290,13 +268,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         setSlashSelectedIndex((i) => Math.min(slashSuggestions.length - 1, i + 1));
         return;
       }
-      if (key.return) {
-        const selected = slashSuggestions[Math.min(slashSelectedIndex, slashSuggestions.length - 1)];
-        if (selected) {
-          handleSubmit(selected.value);
-        }
-        return;
-      }
+      if (key.return && slashSuggestions.length > 0) return;
       if (key.escape) {
         setInputValue('');
         return;
@@ -318,12 +290,25 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       const trimmed = (valueOr ?? inputValue).trim();
       if (!trimmed) return;
 
+      if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit') {
+        setInputValue('');
+        exit(0);
+        return;
+      }
+
       if (trimmed.startsWith('/')) {
         const parts = trimmed.split(/\s+/);
         const cmd = parts[0]?.toLowerCase();
-
-        if (cmd === '/agent' && parts.length <= 1) {
-          dialog.replace(<AgentSelectDialog />);
+        const exact = commands.find((c) => c.slash && c.slash.toLowerCase() === cmd);
+        const chatOnlySlash = ['/ask', '/task'];
+        const restSlashUseParseSlash = ['/help', '/list-agents'];
+        if (
+          exact &&
+          !chatOnlySlash.includes(cmd) &&
+          (cmd !== '/agent' || parts.length <= 1) &&
+          !restSlashUseParseSlash.includes(cmd)
+        ) {
+          trigger(exact.value);
           setInputValue('');
           return;
         }
@@ -340,7 +325,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
           }
           if (result.chat && !result.chat.message) {
             setMode(result.chat.mode);
-            const modeLabels: Record<string, string> = { plan: '计划', ask: '问答', agent: '执行' };
+            const modeLabels: Record<string, string> = { ask: '问答', agent: '执行' };
             toast.show({ message: `已切换到${modeLabels[result.chat.mode] ?? result.chat.mode}模式`, variant: 'success' });
             setInputValue('');
             return;
@@ -351,17 +336,22 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
               setInputValue('');
               return;
             }
-            setRESTOutput('加载中…');
-            result
-              .fetchThen()
-              .then(setRESTOutput)
-              .catch((err) => setRESTOutput(`错误: ${err.message}`));
+            const restTitles: Record<string, string> = {
+              '/help': 'SECBOT 帮助',
+              '/list-agents': '智能体列表',
+            };
+            const title = restTitles[cmd] ?? 'API 结果';
+            dialog.replace(<RestResultDialog title={title} fetchContent={result.fetchThen} />);
             setInputValue('');
             return;
           }
           setInputValue('');
           return;
         }
+        // 以 / 开头但未匹配到命令：不触发推理，仅清空或提示
+        setInputValue('');
+        toast.show({ message: '未知斜杠命令，输入 / 可查看列表', variant: 'info' });
+        return;
       }
 
       const effectiveMode = isSimpleGreetingOrNonTask(trimmed) ? 'ask' : mode;
@@ -369,7 +359,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       setInputValue('');
       toBottom();
     },
-    [mode, agent, sendMessage, setRESTOutput, setMode, setAgent, inputValue, toBottom, dialog, toast]
+    [mode, agent, sendMessage, setRESTOutput, setMode, setAgent, inputValue, toBottom, dialog, toast, exit, commands, trigger]
   );
 
   // 进入会话时若有初始消息，立即发送，无需用户再回车
@@ -399,7 +389,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
 
       {/* 交互区与内容区之间的可视分隔线 */}
       <Box flexShrink={0} paddingLeft={2} paddingRight={2} paddingTop={1}>
-        <Text color={theme.border}>{'─'.repeat(Math.max(0, columns - 6))}</Text>
+        <Text color={theme.border}>{'━'.repeat(Math.max(0, columns - 6))}</Text>
       </Box>
 
       {/* 执行中加载条 */}
@@ -426,12 +416,22 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         <TextInput
           value={inputValue}
           onChange={setInputValue}
-          onSubmit={handleSubmit}
+          onSubmit={() => {
+            if (slashSuggestions.length > 0) {
+              const sel = slashSuggestions[Math.min(slashSelectedIndex, slashSuggestions.length - 1)];
+              if (sel) {
+                setInputValue(sel.slash ?? sel.value);
+                handleSubmit(sel.value);
+                return;
+              }
+            }
+            handleSubmit();
+          }}
           placeholder="Ask anything..."
         />
       </Box>
 
-      {/* 底部状态栏 — 左：Secbot · mode · agent，右：快捷键 */}
+      {/* 底部状态栏 — SECBOT 赛博朋克七彩 · mode · agent */}
       <Box
         flexShrink={0}
         flexDirection="row"
@@ -442,10 +442,12 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         paddingRight={2}
       >
         <Text color={theme.textMuted}>
-          Secbot · {mode} · {agent}
-        </Text>
-        <Text color={theme.textMuted}>
-          tab agents · {keybind.print('command_list')} commands
+          {'SECBOT'.split('').map((char, i) => (
+            <Text key={i} color={theme.cyberRainbow[(i + rainbowPhase) % theme.cyberRainbow.length]} bold>
+              {char}
+            </Text>
+          ))}
+          <Text color={theme.textMuted}> · {mode} · {agent}</Text>
         </Text>
       </Box>
 
@@ -455,7 +457,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
           {totalLines > 0
             ? ` ${Math.min(scrollOffset + 1, totalLines)}-${Math.min(scrollOffset + scrollableHeight, totalLines)}/${totalLines} 行 `
             : ' '}
-          ↑/↓ {keybind.print('page_up')}/{keybind.print('page_down')} Home/End 首/尾 {keybind.print('expand_block')} 展开 点击滚动条
+          ↑/↓ {keybind.print('page_up')}/{keybind.print('page_down')} Home/End 首/尾 {keybind.print('expand_block')} 展开
           {scrollOffset <= 0 ? '' : ' ↑'}
           {totalLines <= scrollableHeight || scrollOffset >= totalLines - scrollableHeight ? '' : ' ↓'}
         </Text>

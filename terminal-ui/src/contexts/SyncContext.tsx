@@ -14,7 +14,7 @@ export interface SyncContextValue {
   apiOutput: string | null;
   pendingRootRequest: PendingRootRequest | null;
   setPendingRootRequest: React.Dispatch<React.SetStateAction<PendingRootRequest | null>>;
-  sendMessage: (message: string, mode: 'ask' | 'plan' | 'agent', agent: string) => void;
+  sendMessage: (message: string, mode: 'ask' | 'agent', agent: string) => void;
   setRESTOutput: (text: string | null) => void;
 }
 
