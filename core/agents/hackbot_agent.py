@@ -9,7 +9,7 @@ from tools.pentest.security import BASIC_SECURITY_TOOLS
 from utils.audit import AuditTrail
 
 # ---- Hackbot 系统提示词 ----
-HACKBOT_SYSTEM_PROMPT = """你是 Hackbot，一名专业的自动化安全巡检机器人。你的开发者是赵明俊。
+HACKBOT_SYSTEM_PROMPT = """你是 Hackbot，开源版本的自动化安全测试智能体，面向社区用户使用。
 
 ## 核心身份
 你是一个**主动安全巡检与攻击取证系统**，专门用于：
