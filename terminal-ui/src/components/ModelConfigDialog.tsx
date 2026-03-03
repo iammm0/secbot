@@ -4,7 +4,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import { useDialog } from '../contexts/DialogContext.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { api } from '../api.js';
 
@@ -21,6 +20,9 @@ interface ProviderApiKeyStatus {
   name: string;
   needs_api_key: boolean;
   configured: boolean;
+  // 后端可选字段：对于 OpenAI 兼容中转等，标记是否需要 / 已配置 Base URL
+  needs_base_url?: boolean;
+  has_base_url?: boolean;
 }
 
 type ProviderId = 'current' | 'ollama' | 'deepseek' | 'api_key';
@@ -33,7 +35,6 @@ const PROVIDERS: { id: ProviderId; label: string }[] = [
 ];
 
 export function ModelConfigDialog() {
-  const { pop } = useDialog();
   const theme = useTheme();
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,6 +47,10 @@ export function ModelConfigDialog() {
   const [apiKeyEditingProvider, setApiKeyEditingProvider] = useState<ProviderApiKeyStatus | null>(null);
   const [apiKeyInputValue, setApiKeyInputValue] = useState('');
   const [apiKeyMessage, setApiKeyMessage] = useState<string | null>(null);
+  const [apiKeyStep, setApiKeyStep] = useState<'key' | 'base_url'>('key');
+  const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; size?: number; parameter_size?: string }>>([]);
+  const [ollamaModelsError, setOllamaModelsError] = useState<string | null>(null);
+  const [ollamaPullingModel, setOllamaPullingModel] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -61,6 +66,36 @@ export function ModelConfigDialog() {
     }
   }, [view]);
 
+  useEffect(() => {
+    if (view === 'detail' && (detailProvider === 'ollama' || (detailProvider === 'current' && config?.llm_provider === 'ollama'))) {
+      setOllamaModelsError(null);
+      const formatOllamaError = (msg: string) => {
+        if (/404|Not Found/i.test(msg)) {
+          return '无法获取本地模型列表（请重启后端以使用最新接口，或在本机执行 ollama list 查看）';
+        }
+        return msg;
+      };
+      api
+        .get<{ models: Array<{ name: string; size?: number; parameter_size?: string }>; error?: string; pulling_model?: string }>('/api/system/ollama-models')
+        .then((r) => {
+          if (r.error) {
+            setOllamaModelsError(formatOllamaError(r.error));
+            setOllamaModels([]);
+            setOllamaPullingModel(null);
+          } else {
+            setOllamaModels(r.models ?? []);
+            setOllamaModelsError(null);
+            setOllamaPullingModel(r.pulling_model ?? null);
+          }
+        })
+        .catch((e) => {
+          setOllamaModelsError(formatOllamaError(String((e as Error).message)));
+          setOllamaModels([]);
+          setOllamaPullingModel(null);
+        });
+    }
+  }, [view, detailProvider, config?.llm_provider]);
+
   useInput((input, key) => {
     if (key.escape) {
       if (view === 'api_key_input') {
@@ -68,14 +103,14 @@ export function ModelConfigDialog() {
         setApiKeyEditingProvider(null);
         setApiKeyInputValue('');
         setApiKeyMessage(null);
+        setApiKeyStep('key');
       } else if (view === 'api_key_list') {
         setView('list');
       } else if (view === 'detail') {
         setView('list');
         setDetailProvider(null);
-      } else {
-        pop();
       }
+      // 顶层 list 的 Esc 不在此 pop()，由 App 统一 clear()，避免竞态
       return;
     }
     if (view === 'api_key_input') return;
@@ -87,6 +122,7 @@ export function ModelConfigDialog() {
         setApiKeyEditingProvider(list[apiKeyListIndex]);
         setApiKeyInputValue('');
         setApiKeyMessage(null);
+        setApiKeyStep('key');
         setView('api_key_input');
       }
       return;
@@ -131,32 +167,71 @@ export function ModelConfigDialog() {
   if (!config) return null;
 
   if (view === 'api_key_input' && apiKeyEditingProvider) {
+    const isCustomProvider = apiKeyEditingProvider.id === 'custom';
+    const isBaseUrlStep = apiKeyStep === 'base_url';
+
     const handleSubmit = (value: string) => {
       const trimmed = value.trim();
-      api
-        .post<{ success: boolean; message: string }>('/api/system/config/api-key', { provider: apiKeyEditingProvider.id, api_key: trimmed })
-        .then((r) => {
-          setApiKeyMessage(r.success ? r.message : r.message);
-          if (r.success) {
-            setApiKeyInputValue('');
-            setApiKeyEditingProvider(null);
-            setView('api_key_list');
-          }
-        })
-        .catch((e) => setApiKeyMessage(String((e as Error).message)));
+      if (!isBaseUrlStep) {
+        // 第一步：保存 API Key
+        api
+          .post<{ success: boolean; message: string }>('/api/system/config/api-key', {
+            provider: apiKeyEditingProvider.id,
+            api_key: trimmed,
+          })
+          .then((r) => {
+            setApiKeyMessage(r.message);
+            if (r.success) {
+              setApiKeyInputValue('');
+              if (isCustomProvider) {
+                // OpenAI 兼容中转（custom）：继续第二步输入 Base URL
+                setApiKeyStep('base_url');
+                setApiKeyMessage('API Key 已保存，请继续输入 Base URL（如 https://your-proxy.com/v1）。');
+              } else {
+                setApiKeyEditingProvider(null);
+                setView('api_key_list');
+              }
+            }
+          })
+          .catch((e) => setApiKeyMessage(String((e as Error).message)));
+      } else {
+        // 第二步：保存 Base URL（仅 OpenAI 兼容中转等）
+        api
+          .post<{ success: boolean; message: string }>('/api/system/config/api-key', {
+            provider: apiKeyEditingProvider.id,
+            // 不修改已有 Key，只根据 base_url 更新 Base URL。
+            api_key: '',
+            base_url: trimmed,
+          })
+          .then((r) => {
+            setApiKeyMessage(r.message);
+            if (r.success) {
+              setApiKeyInputValue('');
+              setApiKeyEditingProvider(null);
+              setView('api_key_list');
+              setApiKeyStep('key');
+            }
+          })
+          .catch((e) => setApiKeyMessage(String((e as Error).message)));
+      }
     };
     return (
       <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={48}>
         <Text bold color={theme.primary}>
-          {apiKeyEditingProvider.name} — 输入新 Key（留空删除）
+          {apiKeyEditingProvider.name}{' '}
+          {isBaseUrlStep ? '— 输入 Base URL（留空清除自定义）' : '— 输入新 Key（留空删除）'}
         </Text>
         <Box flexDirection="row" marginTop={1}>
-          <Text color={theme.text}>Key: </Text>
+          <Text color={theme.text}>{isBaseUrlStep ? 'Base URL: ' : 'Key: '}</Text>
           <TextInput
             value={apiKeyInputValue}
             onChange={setApiKeyInputValue}
             onSubmit={handleSubmit}
-            placeholder="粘贴 API Key 或留空删除"
+            placeholder={
+              isBaseUrlStep
+                ? '例如 https://your-proxy.com/v1（留空清除自定义 Base URL）'
+                : '粘贴 API Key 或留空删除'
+            }
             showCursor
           />
         </Box>
@@ -198,6 +273,24 @@ export function ModelConfigDialog() {
       if (config.llm_provider === 'ollama') {
         lines.push(`  模型: ${config.ollama_model}`);
         lines.push(`  地址: ${config.ollama_base_url}`);
+        if (ollamaModelsError) {
+          lines.push('');
+          lines.push(`  本地模型列表: ${ollamaModelsError}`);
+        } else if (ollamaModels.length > 0) {
+          lines.push('');
+          lines.push('  本地可用模型（ollama list）:');
+          ollamaModels.forEach((m) => {
+            const sizeStr = m.size != null ? ` ${(m.size / 1e9).toFixed(2)} GB` : '';
+            const paramStr = m.parameter_size ? ` ${m.parameter_size}` : '';
+            lines.push(`    - ${m.name}${paramStr}${sizeStr}`);
+          });
+        } else if (ollamaPullingModel) {
+          lines.push('');
+          lines.push(`  正在拉取默认模型 ${ollamaPullingModel}…（可稍后刷新查看）`);
+        } else {
+          lines.push('');
+          lines.push('  本地可用模型: 加载中…');
+        }
       } else if (config.llm_provider === 'deepseek') {
         lines.push(`  模型: ${config.deepseek_model ?? '-'}`);
         lines.push(`  地址: ${config.deepseek_base_url ?? '-'}`);
@@ -206,6 +299,24 @@ export function ModelConfigDialog() {
       lines.push('Ollama 配置');
       lines.push(`  默认模型 (OLLAMA_MODEL): ${config.ollama_model}`);
       lines.push(`  服务地址 (OLLAMA_BASE_URL): ${config.ollama_base_url}`);
+      if (ollamaModelsError) {
+        lines.push('');
+        lines.push(`  本地模型列表: ${ollamaModelsError}`);
+      } else if (ollamaModels.length > 0) {
+        lines.push('');
+        lines.push('  本地可用模型（ollama list）:');
+        ollamaModels.forEach((m) => {
+          const sizeStr = m.size != null ? ` ${(m.size / 1e9).toFixed(2)} GB` : '';
+          const paramStr = m.parameter_size ? ` ${m.parameter_size}` : '';
+          lines.push(`    - ${m.name}${paramStr}${sizeStr}`);
+        });
+      } else if (ollamaPullingModel) {
+        lines.push('');
+        lines.push(`  正在拉取默认模型 ${ollamaPullingModel}…（可稍后刷新查看）`);
+      } else {
+        lines.push('');
+        lines.push('  本地可用模型: 加载中…');
+      }
     } else if (detailProvider === 'deepseek') {
       lines.push('DeepSeek 配置');
       lines.push(`  默认模型 (DEEPSEEK_MODEL): ${config.deepseek_model ?? '-'}`);

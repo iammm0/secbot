@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, useInput } from 'ink';
-import { useExit, useCommand, useToast, useRoute, useSync, useLocal, useKeybind } from './contexts/index.js';
+import { useCommand, useToast, useRoute, useSync, useLocal, useKeybind } from './contexts/index.js';
 import { inkKeyToParsedKey } from './contexts/KeybindContext.js';
 import { useDialog } from './contexts/DialogContext.js';
 import { api } from './api.js';
@@ -9,7 +9,9 @@ import { Toast } from './components/Toast.js';
 import { Dialog } from './components/Dialog.js';
 import { CommandPanel } from './components/CommandPanel.js';
 import { ModelConfigDialog } from './components/ModelConfigDialog.js';
+import { RestResultDialog } from './components/RestResultDialog.js';
 import { AgentSelectDialog } from './components/AgentSelectDialog.js';
+import { HELP_TOOLS_TEXT } from './slash.js';
 import { HomeView } from './views/HomeView.js';
 import { SessionView } from './views/SessionView.js';
 
@@ -42,7 +44,6 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   }, [stdout]);
 
   const { columns, rows } = dimensions;
-  const exit = useExit();
   const dialog = useDialog();
   const keybind = useKeybind();
   const { register, trigger } = useCommand();
@@ -66,19 +67,22 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
 
   useEffect(() => {
     const unregs = [
-      register({ title: '计划模式', value: '/plan', category: '会话', slash: '/plan', onSelect: ({ close }) => { setMode('plan'); toast.show({ message: '已切换到计划模式', variant: 'success' }); close(); } }),
-      register({ title: '开始执行', value: '/start', category: '会话', slash: '/start', onSelect: ({ close }) => { setMode('agent'); sendMessage('执行既定安全测试计划', 'agent', agent); toast.show({ message: '开始执行安全测试计划', variant: 'info' }); close(); } }),
       register({ title: 'Ask 模式', value: '/ask', category: '会话', slash: '/ask', onSelect: ({ close }) => { setMode('ask'); toast.show({ message: '已切换到问答模式', variant: 'success' }); close(); } }),
+      register({ title: '任务模式', value: '/task', category: '会话', slash: '/task', onSelect: ({ close }) => { setMode('agent'); toast.show({ message: '已切换到任务模式', variant: 'success' }); close(); } }),
       register({ title: '切换智能体', value: '/agent', category: '会话', slash: '/agent', onSelect: ({ close }) => { close(); dialog.replace(<AgentSelectDialog />); } }),
       register({
-        title: '列出智能体',
-        value: '/list-tools',
+        title: '帮助（集成安全工具）',
+        value: '/help',
         category: 'REST',
-        slash: '/list-tools',
+        slash: '/help',
         onSelect: ({ close }) => {
-          setRESTOutput('加载中…');
-          api.get<{ agents: Array<{ type: string; name: string }> }>('/api/agents').then((r) => setRESTOutput((r.agents ?? []).map((a) => `${a.type}: ${a.name}`).join('\n'))).catch((e) => setRESTOutput(String((e as Error).message)));
           close();
+          dialog.replace(
+            <RestResultDialog
+              title="SECBOT 帮助"
+              fetchContent={() => Promise.resolve(HELP_TOOLS_TEXT)}
+            />
+          );
         },
       }),
       register({
@@ -87,9 +91,17 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         category: 'REST',
         slash: '/list-agents',
         onSelect: ({ close }) => {
-          setRESTOutput('加载中…');
-          api.get<{ agents: Array<{ type: string; name: string; description: string }> }>('/api/agents').then((r) => setRESTOutput((r.agents ?? []).map((a) => `${a.type}: ${a.name} — ${a.description}`).join('\n'))).catch((e) => setRESTOutput(String((e as Error).message)));
           close();
+          dialog.replace(
+            <RestResultDialog
+              title="智能体列表"
+              fetchContent={() =>
+                api.get<{ agents: Array<{ type: string; name: string; description: string }> }>('/api/agents').then((r) =>
+                  (r.agents ?? []).map((a) => `${a.type}: ${a.name} — ${a.description}`).join('\n')
+                )
+              }
+            />
+          );
         },
       }),
       register({
@@ -102,49 +114,35 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
           dialog.replace(<ModelConfigDialog />);
         },
       }),
-      register({
-        title: '系统信息',
-        value: '/system-info',
-        category: 'REST',
-        slash: '/system-info',
-        onSelect: ({ close }) => {
-          setRESTOutput('加载中…');
-          api.get<Record<string, string>>('/api/system/info').then((r) => setRESTOutput(Object.entries(r).map(([k, v]) => `${k}: ${v}`).join('\n'))).catch((e) => setRESTOutput(String((e as Error).message)));
-          close();
-        },
-      }),
-      register({
-        title: '数据库统计',
-        value: '/db-stats',
-        category: 'REST',
-        slash: '/db-stats',
-        onSelect: ({ close }) => {
-          setRESTOutput('加载中…');
-          api.get<Record<string, unknown>>('/api/db/stats').then((r) => setRESTOutput(JSON.stringify(r, null, 2))).catch((e) => setRESTOutput(String((e as Error).message)));
-          close();
-        },
-      }),
     ];
     return () => { unregs.forEach((u) => u()); };
-  }, [register, agent, sendMessage, setRESTOutput, setMode, dialog, toast]);
+  }, [register, setRESTOutput, setMode, dialog, toast]);
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
-    if (keybind.match('exit', evt)) {
-      exit(0);
-      return;
-    }
-    if (keybind.match('escape', evt)) {
-      dialog.pop();
-      return;
+    if (keybind.match('exit', evt) || keybind.match('escape', evt)) {
+      // #region agent log
+      fetch('http://127.0.0.1:7331/ingest/20b0ff39-6b05-4e73-951e-46c45fc901e8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'56b7f1'},body:JSON.stringify({sessionId:'56b7f1',location:'App.tsx:useInput',message:'App received escape',data:{stackLen:dialog.stack.length,willClear:dialog.stack.length>0},timestamp:Date.now(),hypothesisId:'H1',runId:'esc'})}).catch(()=>{});
+      // #endregion
+      if (dialog.stack.length > 0) {
+        dialog.clear();
+        return;
+      }
     }
     if (keybind.match('command_list', evt)) {
       dialog.replace(<CommandPanel />, () => dialog.clear());
       return;
     }
+    if (!hasDialog && keybind.match('agent_switch', evt)) {
+      trigger('/agent');
+      return;
+    }
   });
 
   const hasDialog = dialog.stack.length > 0;
+  // #region agent log
+  if (typeof fetch !== 'undefined') fetch('http://127.0.0.1:7331/ingest/20b0ff39-6b05-4e73-951e-46c45fc901e8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'56b7f1'},body:JSON.stringify({sessionId:'56b7f1',location:'App.tsx:render',message:'App render branch',data:{hasDialog,routeType:route.type,stackLen:dialog.stack.length},timestamp:Date.now(),hypothesisId:'H4',runId:'render'})}).catch(()=>{});
+  // #endregion
 
   return (
     <Box flexDirection="column" width={columns} height={rows} padding={1}>
