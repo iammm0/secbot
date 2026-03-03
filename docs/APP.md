@@ -129,7 +129,7 @@ export const BASE_URL = DEV_API_HOST;
 ### 1. 聊天界面 (Chat)
 
 - **流式聊天**: 使用 SSE 实时接收 AI 响应
-- **模式切换**: ask (仅提问)、plan (规划)、agent (执行)
+- **模式切换**: ask (仅提问)、agent (执行，开源版自动化安全测试智能体)
 - **智能体选择**: hackbot、superhackbot
 - **ReAct 过程展示**: 规划、推理、执行、报告
 

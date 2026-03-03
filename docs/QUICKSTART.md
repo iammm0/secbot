@@ -26,8 +26,8 @@ pip install -r requirements.txt
 # 安装Ollama（如果未安装）
 # 访问 https://ollama.ai 下载安装
 
-# 下载推理模型
-ollama pull gpt-oss:20b
+# 下载推理模型（默认 gemma3:1b，若本地没有会在打开模型列表时自动拉取）
+ollama pull gemma3:1b
 
 # 下载向量嵌入模型（用于文本向量化）
 ollama pull nomic-embed-text
@@ -51,7 +51,18 @@ cp env.example .env
 
 编辑 `.env` 文件，根据需要调整Ollama配置：
 - `OLLAMA_BASE_URL`: Ollama服务地址（默认: http://localhost:11434）
-- `OLLAMA_MODEL`: 使用的模型名称（默认: gpt-oss:20b）
+- `OLLAMA_MODEL`: 使用的模型名称（默认: gemma3:1b，本地没有时会自动拉取）
+
+### 可选：使用免费云端 API（类似 OpenCode）
+
+无需本地 Ollama 时，可使用免费/免费档云端推理：
+
+| 厂商 | 说明 | 配置 |
+|------|------|------|
+| **Groq** | 极速推理，免费额度，Llama/Gemma 等 | 在 [Groq Console](https://console.groq.com/keys) 申请 Key，`.env` 中设置 `LLM_PROVIDER=groq`、`GROQ_API_KEY=你的Key` |
+| **OpenRouter** | 一站式多模型，部分模型带 `:free` 免费使用 | 在 [OpenRouter](https://openrouter.ai/keys) 申请 Key，`.env` 中设置 `LLM_PROVIDER=openrouter`、`OPENROUTER_API_KEY=你的Key` |
+
+也可在 TUI 中通过 `/model` →「配置 API Key」为 Groq / OpenRouter 配置 Key，再在 `.env` 中设置 `LLM_PROVIDER=groq` 或 `LLM_PROVIDER=openrouter`。
 - `OLLAMA_EMBEDDING_MODEL`: 向量嵌入模型（默认: nomic-embed-text）
 
 ## 4. 使用 CLI 应用（无参数即交互模式）
@@ -75,7 +86,7 @@ uv run hackbot
 ![Secbot 初始化界面](../assets/show_picture.png)
 
 - 交互模式会占用整屏终端，输入 `exit` 或 `quit` 退出后，终端恢复为进入前的状态。
-- 在交互界面内可使用斜杠命令（如 `/list-agents`、`/list-tools`、`/model`、`/agent` 等），输入 `/` 后回车可查看全部命令。
+- 在交互界面内可使用斜杠命令（如 `/help`、`/list-agents`、`/model`、`/agent` 等），输入 `/` 后回车可查看全部命令。
 - 语音等能力在交互模式内通过对应命令或对话使用；详见项目内文档。
 
 ## 5. 项目结构说明

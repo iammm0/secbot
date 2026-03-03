@@ -97,14 +97,14 @@ uv sync
 # Install Ollama from https://ollama.ai
 
 # Pull required models
-ollama pull gpt-oss:20b
+ollama pull gemma3:1b
 ollama pull nomic-embed-text
 
 # Ollama service runs on http://localhost:11434 by default
 ```
 
 Edit `.env` file:
-- `OLLAMA_MODEL`: Inference model (default: `gpt-oss:20b`)
+- `OLLAMA_MODEL`: Inference model (default: `gemma3:1b`). If not present locally, the app will pull it when you open the model list.
 - `OLLAMA_EMBEDDING_MODEL`: Embedding model (default: `nomic-embed-text`)
 
 ### 5. Build and Install (Optional)
