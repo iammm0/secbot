@@ -58,8 +58,92 @@ def _backend_running(port: int = 8000) -> bool:
         return False
 
 
+def _pids_listening_on_port(port: int) -> list[int]:
+    """返回正在监听给定端口的进程 PID 列表（可能为空）。"""
+    pids: list[int] = []
+    if sys.platform == "win32":
+        try:
+            out = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW if getattr(subprocess, "CREATE_NO_WINDOW", 0) else 0,
+            )
+            for line in (out.stdout or "").splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.split()
+                    if parts:
+                        try:
+                            pids.append(int(parts[-1]))
+                        except ValueError:
+                            pass
+        except Exception:
+            pass
+    else:
+        try:
+            out = subprocess.run(
+                ["lsof", "-i", f":{port}", "-t"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            for s in (out.stdout or "").strip().split():
+                try:
+                    pids.append(int(s))
+                except ValueError:
+                    pass
+        except Exception:
+            pass
+    return list(dict.fromkeys(pids))  # 去重保持顺序
+
+
+def _kill_processes_on_port(port: int = 8000) -> bool:
+    """结束占用指定端口的所有进程。返回是否曾尝试结束过进程。"""
+    pids = _pids_listening_on_port(port)
+    if not pids:
+        return False
+    if sys.platform == "win32":
+        for pid in pids:
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    capture_output=True,
+                    timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW if getattr(subprocess, "CREATE_NO_WINDOW", 0) else 0,
+                )
+            except Exception:
+                pass
+    else:
+        for pid in pids:
+            try:
+                os.kill(pid, 9)
+            except (ProcessLookupError, PermissionError):
+                pass
+    return True
+
+
+def _stop_backend(port: int = 8000) -> bool:
+    """结束占用端口的后端进程（再次启动时先关后开）。返回是否成功释放端口。"""
+    if not _kill_processes_on_port(port):
+        return True
+    return _wait_port_free(port, timeout=8.0)
+
+
+def _wait_port_free(port: int, timeout: float = 10.0) -> bool:
+    """轮询直到端口无进程监听或超时。"""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not _pids_listening_on_port(port):
+            return True
+        time.sleep(0.3)
+    return False
+
+
 def _start_backend(root: Path, port: int = 8000) -> subprocess.Popen | None:
     """后台启动 Python 后端（优先 uv run python -m router.main）。root 为工作目录。返回 Popen 或 None。"""
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"  # 确保后端加载最新 .py 源码
     for cmd in (
         ["uv", "run", "python", "-m", "router.main"],
         [sys.executable, "-m", "router.main"],
@@ -68,6 +152,7 @@ def _start_backend(root: Path, port: int = 8000) -> subprocess.Popen | None:
             proc = subprocess.Popen(
                 cmd,
                 cwd=root,
+                env=env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
@@ -87,6 +172,42 @@ def _wait_backend(port: int = 8000, timeout: float = 15.0) -> bool:
             return True
         time.sleep(0.5)
     return False
+
+
+def _terminate_backend_proc(proc: subprocess.Popen | None, port: int = 8000, wait_timeout: float = 8.0) -> None:
+    """优雅结束本进程启动的后端并等待释放端口。Windows 下结束进程树以便 uv 子进程一并退出。"""
+    if proc is None or proc.poll() is not None:
+        return
+    if sys.platform == "win32":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                capture_output=True,
+                timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW if getattr(subprocess, "CREATE_NO_WINDOW", 0) else 0,
+            )
+        except Exception:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+    else:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+    try:
+        proc.wait(timeout=wait_timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            proc.kill()
+            proc.wait(timeout=2)
+        except Exception:
+            pass
+    # 轮询直到端口释放，避免下一轮启动时仍提示占用
+    deadline = time.monotonic() + wait_timeout
+    while time.monotonic() < deadline and _pids_listening_on_port(port):
+        time.sleep(0.2)
 
 
 def _run_tui(root: Path) -> int:
@@ -121,8 +242,10 @@ def run_backend_only(port: int = 8000) -> int:
     """仅启动后端并阻塞（前台运行，Ctrl+C 退出）。用于单独排查后端。"""
     root = _project_root() or _backend_cwd()
     if _backend_running(port):
-        print(f"后端已在 {port} 端口运行。", flush=True)
-        return 0
+        print(f"检测到后端已在 {port} 端口运行，正在关闭占用该端口的进程…", flush=True)
+        if not _stop_backend(port):
+            print(f"未能释放端口。请手动关闭占用 {port} 端口的进程后重试。", file=sys.stderr)
+            return 1
     print("[后端] 正在启动…", flush=True)
     proc = _start_backend(root, port)
     if proc is None:
@@ -171,20 +294,22 @@ def launch_tui(port: int = 8000) -> int:
     backend_cwd = root if root is not None else _backend_cwd()
     backend_proc = None
 
-    if not _backend_running(port):
-        print("[1/2] 启动后端…", flush=True)
-        backend_proc = _start_backend(backend_cwd, port)
-        if backend_proc is None:
-            print("启动后端失败。请手动运行: secbot --backend 或 uv run python -m router.main", file=sys.stderr)
+    if _backend_running(port):
+        print("[1/2] 检测到后端已在运行，正在关闭占用 8000 端口的进程…", flush=True)
+        if not _stop_backend(port):
+            print("未能释放端口。请手动关闭占用 8000 端口的进程后重试。", file=sys.stderr)
             return 1
-        if not _wait_backend(port):
-            if backend_proc.poll() is None:
-                backend_proc.terminate()
-            print("后端启动超时。请检查 8000 端口。", file=sys.stderr)
-            return 1
-        print("[1/2] 后端已就绪。", flush=True)
-    else:
-        print("[1/2] 后端已在运行。", flush=True)
+    print("[1/2] 启动后端…", flush=True)
+    backend_proc = _start_backend(backend_cwd, port)
+    if backend_proc is None:
+        print("启动后端失败。请手动运行: secbot --backend 或 uv run python main.py --backend", file=sys.stderr)
+        return 1
+    if not _wait_backend(port):
+        if backend_proc.poll() is None:
+            backend_proc.terminate()
+        print("后端启动超时。请检查 8000 端口。", file=sys.stderr)
+        return 1
+    print("[1/2] 后端已就绪。", flush=True)
 
     if root is None:
         print(
@@ -199,8 +324,7 @@ def launch_tui(port: int = 8000) -> int:
             try:
                 backend_proc.wait()
             except KeyboardInterrupt:
-                backend_proc.terminate()
-                backend_proc.wait()
+                _terminate_backend_proc(backend_proc, port)
         return 0
 
     ready, missing = _check_tui_readiness(root)
@@ -209,13 +333,10 @@ def launch_tui(port: int = 8000) -> int:
         for m in missing:
             print(f"  - {m}", file=sys.stderr)
         print("请按上述提示准备后再启动。", file=sys.stderr)
-        if backend_proc is not None and backend_proc.poll() is None:
-            backend_proc.terminate()
-            backend_proc.wait()
+        _terminate_backend_proc(backend_proc, port)
         return 1
 
     print("[2/2] 启动 TUI…", flush=True)
     code = _run_tui(root)
-    if backend_proc is not None and backend_proc.poll() is None:
-        backend_proc.terminate()
+    _terminate_backend_proc(backend_proc, port)
     return code
