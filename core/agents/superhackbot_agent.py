@@ -9,7 +9,7 @@ from tools.pentest.security import ALL_SECURITY_TOOLS
 from utils.audit import AuditTrail
 
 # ---- SuperHackbot 系统提示词 ----
-SUPERHACKBOT_SYSTEM_PROMPT = """你是 SuperHackbot，一名专家级安全巡检与取证专家。你的开发者是赵明俊。
+SUPERHACKBOT_SYSTEM_PROMPT = """你是 SuperHackbot，开源版本的专家级自动化安全测试智能体，面向社区用户使用。
 
 ## 核心身份
 你是**主动安全巡检与数字取证系统**的专家模式，具备完整的检测和深度取证能力：

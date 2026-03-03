@@ -148,15 +148,17 @@ class SessionManager:
         """
         处理单条消息的完整编排流程（Interaction）：
         1. force_qa 或 路由为简单问候 -> QAAgent 简要回复
-        2. plan_only -> 仅规划，返回计划文本
-        3. 否则：规划 -> 核心 Agent 执行 -> SummaryAgent 总结
+        2. 否则：规划 -> 核心 Agent 执行 -> SummaryAgent 总结
+
+        对外仅支持 ask（force_qa）与 agent（force_agent_flow）两种模式，无 plan 模式。
+        plan_only / plan_override 为内部预留参数，API 层不再传入 plan 模式。
 
         Args:
             user_input: 用户输入
             agent_type: 指定 agent 类型（覆盖会话默认值）
-            plan_override: 若提供则跳过规划阶段，直接使用该计划执行（用于 /plan 后 /start）
+            plan_override: 若提供则跳过规划阶段，直接使用该计划执行（预留）
             force_qa: 强制走 Q&A，不规划不执行
-            plan_only: 仅规划并返回计划，不执行、不摘要
+            plan_only: 仅规划并返回计划，不执行、不摘要（内部预留，API 不传）
             force_agent_flow: 强制走 Agent 编排链路（不走 QA 快捷路由）
 
         Returns:
@@ -319,6 +321,17 @@ class SessionManager:
         summary = await self._run_summary(
             user_input, plan_result, agent_instance, response
         )
+
+        # 将本轮摘要式信息写入 agent 的会话上下文，供后续连续任务参考
+        if hasattr(agent_instance, "append_turn_to_session_context") and summary is not None:
+            try:
+                agent_instance.append_turn_to_session_context(
+                    user_input,
+                    plan_result.plan_summary or "",
+                    summary,
+                )
+            except Exception as e:
+                logger.warning(f"更新会话上下文摘要失败: {e}")
 
         # 记录助手消息
         if self.current_session:
