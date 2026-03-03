@@ -24,7 +24,11 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const pop = useCallback(() => {
+    // #region agent log
     setStack((prev) => {
+      const lenBefore = prev.length;
+      if (typeof fetch !== 'undefined') fetch('http://127.0.0.1:7331/ingest/20b0ff39-6b05-4e73-951e-46c45fc901e8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'56b7f1'},body:JSON.stringify({sessionId:'56b7f1',location:'DialogContext:pop',message:'pop called',data:{stackLenBefore:lenBefore},timestamp:Date.now(),hypothesisId:'H2',runId:'pop'})}).catch(()=>{});
+      // #endregion
       if (prev.length === 0) return prev;
       const top = prev[prev.length - 1];
       top?.onClose?.();
@@ -33,7 +37,11 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const clear = useCallback(() => {
+    // #region agent log
     setStack((prev) => {
+      const lenBefore = prev.length;
+      if (typeof fetch !== 'undefined') fetch('http://127.0.0.1:7331/ingest/20b0ff39-6b05-4e73-951e-46c45fc901e8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'56b7f1'},body:JSON.stringify({sessionId:'56b7f1',location:'DialogContext:clear',message:'clear called',data:{stackLenBefore:lenBefore},timestamp:Date.now(),hypothesisId:'H3',runId:'clear'})}).catch(()=>{});
+      // #endregion
       const top = prev[prev.length - 1];
       top?.onClose?.();
       return [];
