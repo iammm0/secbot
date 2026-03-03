@@ -113,7 +113,7 @@ cp .env.example .env
 ```
 
 编辑 `.env` 文件：
-- `OLLAMA_MODEL`: 推理模型（默认: `gpt-oss:20b`）
+- `OLLAMA_MODEL`: 推理模型（默认: `gemma3:1b`，本地没有时打开模型列表会自动拉取）
 - `OLLAMA_EMBEDDING_MODEL`: 嵌入模型（默认: `nomic-embed-text`）
 
 ### 5. 构建并安装（可选）

@@ -186,7 +186,7 @@ sudo systemctl status hackbot
 主要环境变量配置（详见 `env.example`）：
 
 - `OLLAMA_BASE_URL`: Ollama 服务地址（默认: http://localhost:11434）
-- `OLLAMA_MODEL`: 使用的模型名称（默认: gpt-oss:20b）
+- `OLLAMA_MODEL`: 使用的模型名称（默认: gemma3:1b，本地没有时会自动拉取）
 - `DATABASE_URL`: SQLite 数据库连接字符串（默认: sqlite:///./data/agents.db 或项目内约定路径）
 - `STT_MODEL`: 语音识别模型（默认: base）
 - `TTS_ENGINE`: 语音合成引擎（默认: gtts）

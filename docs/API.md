@@ -70,7 +70,7 @@ Hackbot 提供基于 FastAPI 的 RESTful API 接口，支持同步请求和 Serv
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | message | string | 是 | 用户消息 |
-| mode | string | 否 | 模式: `ask`(仅提问), `plan`(编写计划), `agent`(执行智能体)，默认 `agent` |
+| mode | string | 否 | 模式: `ask`(仅提问), `agent`(执行智能体，开源版自动化安全测试)，默认 `agent` |
 | agent | string | 否 | 智能体类型: `hackbot`(自动模式), `superhackbot`(专家模式)，默认 `hackbot` |
 | prompt | string | 否 | 自定义系统提示词 |
 | model | string | 否 | 模型偏好 |
