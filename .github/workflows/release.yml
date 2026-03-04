@@ -1,5 +1,5 @@
-# 多平台构建 Hackbot 可执行程序并发布到 GitHub Release
-# 依赖: pyproject.toml + uv（不再使用 requirements.txt）
+# 多平台构建 Secbot 并发布到 GitHub Release
+# 纯 TypeScript/Node.js 项目
 # 触发: 推送 tag 如 v1.0.0，或手动 workflow_dispatch
 
 name: Release
@@ -25,51 +25,48 @@ jobs:
             name: windows-amd64
           - runner: macos-14
             name: darwin-arm64
-          - runner: macos-15-intel
-            name: darwin-amd64
 
     runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.11'
+          node-version: '20'
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
 
-      - name: Install dependencies (uv)
-        shell: bash
-        run: |
-          uv sync --no-install-project
-          uv pip install pyinstaller
+      - name: Build server
+        working-directory: server
+        run: npm run build
 
-      - name: Build executable (PyInstaller onedir)
-        shell: bash
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            .venv/Scripts/python.exe -m PyInstaller hackbot.spec
-          else
-            .venv/bin/python -m PyInstaller hackbot.spec
-          fi
+      - name: Install terminal-ui dependencies
+        working-directory: terminal-ui
+        run: npm ci
+
+      - name: Build terminal-ui
+        working-directory: terminal-ui
+        run: npm run build
 
       - name: Package artifact (zip)
         shell: bash
         run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            python -c "import shutil,os; os.chdir('dist'); shutil.make_archive('hackbot-${{ matrix.name }}', 'zip', '.', 'hackbot')"
-          else
-            .venv/bin/python -c "import shutil,os; os.chdir('dist'); shutil.make_archive('hackbot-${{ matrix.name }}', 'zip', '.', 'hackbot')"
-          fi
+          mkdir -p dist/secbot
+          cp -r server/dist dist/secbot/server
+          cp server/package.json dist/secbot/server-package.json
+          cp -r terminal-ui/dist dist/secbot/terminal-ui 2>/dev/null || true
+          cp terminal-ui/package.json dist/secbot/tui-package.json
+          cd dist && zip -r "secbot-${{ matrix.name }}.zip" secbot/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hackbot-${{ matrix.name }}
-          path: dist/hackbot-${{ matrix.name }}.zip
+          name: secbot-${{ matrix.name }}
+          path: dist/secbot-${{ matrix.name }}.zip
 
   release:
     needs: build
@@ -94,22 +91,36 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Hackbot ${{ steps.tag.outputs.version }}
+          name: Secbot ${{ steps.tag.outputs.version }}
           body: |
-            ## 安装与运行
+            ## Secbot — 开源自动化安全测试智能体
 
-            1. 下载对应平台的 zip（如 `hackbot-linux-amd64.zip`、`hackbot-windows-amd64.zip`、`hackbot-darwin-arm64.zip`（Apple 芯片）、`hackbot-darwin-amd64.zip`（Intel Mac）），解压得到 `hackbot` 目录。
-            2. 配置 **DeepSeek API Key**（启动前唯一必须条件）：
-               - **环境变量**：`export DEEPSEEK_API_KEY=sk-xxx`（Linux/macOS）或 系统环境变量（Windows）
-               - **或** 在 `hackbot` 目录内创建 `.env` 文件，内容：`DEEPSEEK_API_KEY=sk-xxx`
-            3. 进入 `hackbot` 目录，运行 `hackbot.exe`（Windows）或 `./hackbot`（Linux/macOS），即可进入交互式安全测试界面。
+            ### 安装与运行
 
-            获取 API Key：https://platform.deepseek.com
+            **系统要求：** Node.js 18+
+
+            1. 克隆仓库并安装依赖：
+               ```bash
+               git clone https://github.com/iammm0/secbot.git secbot
+               cd secbot
+               cd server && npm install && cd ..
+               cd terminal-ui && npm install && cd ..
+               ```
+            2. 配置 LLM：
+               - 默认使用 Ollama（本地运行，无需 API Key）
+               - 或设置环境变量 `LLM_PROVIDER=deepseek` + `DEEPSEEK_API_KEY=sk-xxx`
+            3. 启动后端：
+               ```bash
+               npm run dev
+               ```
+            4. 启动 TUI（另一个终端）：
+               ```bash
+               npm run tui
+               ```
           draft: false
           files: |
-            artifacts/hackbot-linux-amd64/hackbot-linux-amd64.zip
-            artifacts/hackbot-windows-amd64/hackbot-windows-amd64.zip
-            artifacts/hackbot-darwin-arm64/hackbot-darwin-arm64.zip
-            artifacts/hackbot-darwin-amd64/hackbot-darwin-amd64.zip
+            artifacts/secbot-linux-amd64/secbot-linux-amd64.zip
+            artifacts/secbot-windows-amd64/secbot-windows-amd64.zip
+            artifacts/secbot-darwin-arm64/secbot-darwin-arm64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
