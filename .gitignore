@@ -1,30 +1,11 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
+# Go
+bin/
+*.exe
+*.exe~
+*.dll
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# 虚拟环境
-venv/
-env/
-ENV/
-.venv
+*.dylib
+vendor/
 
 # IDE
 .vscode/
@@ -41,38 +22,27 @@ ENV/
 logs/
 *.log
 
-# 数据库
-*.db
-*.sqlite
-*.sqlite3
-agents.db
-
-# 构建产物
-build/
-dist/
-*.egg-info/
-*.egg
-*.whl
-*.tar.gz
-
-# 数据目录（包含SQLite数据库和Docker数据）
+# 数据目录
 data/
 !data/.gitkeep
 
-# 报告输出目录
+# 报告输出
 reports/
 
 # 缓存
 .cache/
-.pytest_cache/
-.mypy_cache/
 
-# Node.js (React Native app)
-node_modules/
-app/.expo/
-
-# 其他
+# OS
 .DS_Store
 *.bak
 *.tmp
 
+# 残留的旧目录（待清理）
+terminal-ui/
+server/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+node_modules/
