@@ -1,143 +1,106 @@
-# 快速启动指南
+# SecBot 快速启动指南
 
-## 1. 安装依赖
+## 前置条件
 
-### 使用 uv (推荐)
+- **Go 1.21+**：[安装 Go](https://go.dev/dl/)
+- **LLM 后端**（三选一）：
+  - DeepSeek API Key（推荐，性价比高）
+  - OpenAI API Key
+  - 本地 Ollama 服务
 
-```bash
-# 安装uv（如果尚未安装）
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 使用uv安装依赖
-uv sync
-```
-
-### 使用 pip (备选方案)
+## 第一步：获取代码
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/yourusername/secbot.git
+cd secbot
+git checkout refactor-by-go
 ```
 
-## 2. 安装并启动Ollama
-
-确保已安装Ollama并下载了所需模型：
+## 第二步：配置环境
 
 ```bash
-# 安装Ollama（如果未安装）
-# 访问 https://ollama.ai 下载安装
-
-# 下载推理模型
-ollama pull gpt-oss:20b
-
-# 下载向量嵌入模型（用于文本向量化）
-ollama pull nomic-embed-text
-
-# 启动Ollama服务（默认运行在 http://localhost:11434）
-# Ollama通常会自动启动，如果没有，运行：
-ollama serve
+cp .env.example .env
 ```
 
-## 3. 配置环境变量
+编辑 `.env` 文件，根据你选择的 LLM 后端配置：
 
-复制 `env.example` 为 `.env`：
+### 使用 DeepSeek（推荐）
+
+```env
+LLM_PROVIDER=deepseek
+MODEL_NAME=deepseek-chat
+DEEPSEEK_API_KEY=your-key-here
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+```
+
+### 使用 Ollama（本地）
+
+```env
+LLM_PROVIDER=ollama
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=gemma3:1b
+```
+
+### 使用 OpenAI
+
+```env
+LLM_PROVIDER=openai
+MODEL_NAME=gpt-4o
+OPENAI_API_KEY=your-key-here
+```
+
+## 第三步：运行
 
 ```bash
-# Windows
-copy env.example .env
+# 直接运行（开发模式）
+go run ./cmd/secbot/
 
-# Linux/Mac
-cp env.example .env
+# 或编译后运行（生产模式，更快）
+go build -o bin/secbot ./cmd/secbot/
+./bin/secbot
 ```
 
-编辑 `.env` 文件，根据需要调整Ollama配置：
-- `OLLAMA_BASE_URL`: Ollama服务地址（默认: http://localhost:11434）
-- `OLLAMA_MODEL`: 使用的模型名称（默认: gpt-oss:20b）
-- `OLLAMA_EMBEDDING_MODEL`: 向量嵌入模型（默认: nomic-embed-text）
+## 第四步：开始使用
 
-## 4. 使用 CLI 应用（无参数即交互模式）
+进入交互界面后，直接输入自然语言指令：
 
-本程序**无子命令**：直接运行即进入交互模式，并**占据整个终端**（使用 alternate screen）；退出后自动恢复终端原内容。
+```
+secbot> 你好
+secbot> 扫描 scanme.nmap.org 的常见端口
+secbot> 检查 github.com 的 SSL 证书安全性
+secbot> /tools
+secbot> /help
+```
 
-### 启动交互模式
+## 使用 Makefile
 
 ```bash
-# 方式一：从项目根目录运行
-python main.py
-
-# 方式二：使用 secbot / hackbot 命令（需先 uv sync 或安装包）
-uv run secbot
-# 或
-uv run hackbot
+make build    # 编译
+make run      # 运行
+make test     # 测试
+make tidy     # 整理依赖
+make clean    # 清理构建产物
 ```
 
-启动后界面示意：
+## 跨平台编译
 
-![Secbot 初始化界面](../assets/show_picture.png)
-
-- 交互模式会占用整屏终端，输入 `exit` 或 `quit` 退出后，终端恢复为进入前的状态。
-- 在交互界面内可使用斜杠命令（如 `/list-agents`、`/list-tools`、`/model`、`/agent` 等），输入 `/` 后回车可查看全部命令。
-- 语音等能力在交互模式内通过对应命令或对话使用；详见项目内文档。
-
-## 5. 项目结构说明
-
-```
-m-bot/
-├── main.py              # CLI应用入口
-├── config.py            # 配置管理
-├── agents/              # 智能体实现
-│   ├── base.py          # 基础智能体类
-│   └── simple.py        # 简单智能体
-├── patterns/            # 设计模式
-│   └── react.py         # ReAct模式
-├── tools/               # 工具和插件
-│   ├── base.py          # 基础工具类
-│   └── web_search.py    # 网络搜索工具
-├── memory/              # 记忆管理
-├── utils/               # 工具函数
-│   ├── logger.py        # 日志配置
-│   ├── embeddings.py    # 向量嵌入
-│   └── speech.py        # 语音处理
-├── tests/               # 测试文件
-├── requirements.txt     # 依赖项
-├── env.example          # 环境变量示例
-└── README.md           # 项目说明
+```bash
+make build-linux     # Linux amd64
+make build-darwin    # macOS arm64
+make build-windows   # Windows amd64
+make build-all       # 全平台
 ```
 
-## 6. 开发新智能体
+## 常见问题
 
-1. 继承 `BaseAgent` 类
-2. 实现 `process` 方法
-3. 在 `main.py` 中注册新智能体
+### Q: 提示"API key is required"
 
-示例：
+检查 `.env` 中对应 provider 的 API Key 是否正确配置。
 
-```python
-from agents.base import BaseAgent
+### Q: Ollama 连接失败
 
-class MyAgent(BaseAgent):
-    async def process(self, user_input: str, **kwargs) -> str:
-        # 你的处理逻辑
-        return "响应"
-```
+确保 Ollama 服务正在运行：`ollama serve`，并且模型已下载：`ollama pull gemma3:1b`。
 
-然后在 `main.py` 的 `agents` 字典中添加：
-```python
-agents["myagent"] = MyAgent(name="MyAgent")
-```
+### Q: 编译失败
 
-## 7. 添加新工具
-
-1. 继承 `BaseTool` 类
-2. 实现 `execute` 方法
-3. 在智能体中使用工具
-
-## 注意事项
-
-- 确保已配置Ollama并下载了所需模型
-- 首次使用Whisper会自动下载模型（约500MB-3GB）
-- 建议使用虚拟环境：`python -m venv venv`
-- 语音功能需要安装额外的依赖（见SPEECH_GUIDE.md）
-
-## 虚拟环境测试
-
-在 VMware 中使用 Ubuntu 作为目标机进行功能测试时，可参考 [虚拟测试环境使用指南](VIRTUAL_TEST_ENVIRONMENT.md)，其中包含环境搭建步骤及各功能对应的 prompt 示例。
+确保 Go 版本 >= 1.21，运行 `go mod tidy` 更新依赖。

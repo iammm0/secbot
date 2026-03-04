@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-03-04
+
+### Changed
+
+- **全面 Go 重写**：项目从 Python + TypeScript 混合架构迁移至纯 Go 实现
+- 移除 React Native (Expo) 前端 `app/`
+- 移除 Ink 终端 TUI `terminal-ui/`
+- 移除 NestJS 后端 `server/`
+- 移除所有 Python 代码（core/、hackbot/、router/、tools/、defense/ 等）
+- 移除 PyInstaller/PyPI 构建发布流程
+
+### Added
+
+- Go CLI 入口 `cmd/secbot/`：纯终端 REPL 交互，极致快速
+- LLM 接入层 `internal/llm/`：支持 DeepSeek、Ollama、OpenAI
+- Agent 层 `internal/agent/`：意图路由、安全 Agent、规划 Agent、摘要 Agent
+- 设计模式 `internal/patterns/`：ReAct、SecurityReAct、路由、规划、反思循环
+- 安全工具集 `internal/tools/`：端口扫描、DNS 查询、Ping、WHOIS、HTTP 请求、安全头分析、SSL 检查、技术栈检测、哈希计算、编码解码、IP 地理定位、系统信息、系统命令
+- 会话管理 `internal/session/`：会话编排 + 任务执行器
+- 会话记忆 `internal/memory/`：短期对话记忆 + 长期上下文
+- 事件总线 `pkg/event/`
+- 日志系统 `pkg/logger/`
+- 配置管理 `config/`：从 .env 读取，支持多 LLM provider
+
+---
+
 ## [1.2.10] - 2026-02-17
 
 ### Fixed

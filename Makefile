@@ -1,42 +1,34 @@
-.PHONY: help install build clean test docker-build docker-up docker-down deploy
+.PHONY: build run test clean tidy
 
-help:
-	@echo "Hackbot 构建和部署命令"
-	@echo ""
-	@echo "可用命令:"
-	@echo "  make install      - 安装依赖 (使用 uv)"
-	@echo "  make build        - 构建 Python 包"
-	@echo "  make clean        - 清理构建文件"
-	@echo "  make test         - 运行测试"
-	@echo "  make docker-build - 构建 Docker 镜像"
-	@echo "  make docker-up    - 启动 Docker 服务"
-	@echo "  make docker-down  - 停止 Docker 服务"
-	@echo "  make deploy       - 部署到生产环境"
-
-install:
-	uv sync
+BINARY  := secbot
+SRC     := ./cmd/secbot
 
 build:
-	uv run python -m build
+	go build -o bin/$(BINARY) $(SRC)
 
-clean:
-	rm -rf build/ dist/ *.egg-info/
-	find . -type d -name __pycache__ -exec rm -r {} +
-	find . -type f -name "*.pyc" -delete
+run:
+	go run $(SRC)
 
 test:
-	uv run pytest tests/ -v
+	go test ./... -v
 
-docker-build:
-	docker build -t hackbot:latest .
+clean:
+	rm -rf bin/
 
-docker-up:
-	docker-compose -f docker-compose.prod.yml up -d
+tidy:
+	go mod tidy
 
-docker-down:
-	docker-compose -f docker-compose.prod.yml down
+lint:
+	golangci-lint run ./...
 
-deploy: clean build
-	@echo "构建完成，安装方式："
-	@echo "uv pip install dist/hackbot-*.whl"
+# 跨平台编译
+build-linux:
+	GOOS=linux GOARCH=amd64 go build -o bin/$(BINARY)-linux-amd64 $(SRC)
 
+build-darwin:
+	GOOS=darwin GOARCH=arm64 go build -o bin/$(BINARY)-darwin-arm64 $(SRC)
+
+build-windows:
+	GOOS=windows GOARCH=amd64 go build -o bin/$(BINARY)-windows-amd64.exe $(SRC)
+
+build-all: build-linux build-darwin build-windows
