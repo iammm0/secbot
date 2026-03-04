@@ -1,0 +1,26 @@
+{
+  "name": "secbot",
+  "version": "0.1.0",
+  "description": "Secbot — 开源自动化安全测试智能体（纯 TypeScript 实现）",
+  "private": true,
+  "scripts": {
+    "dev": "cd server && npm run start:dev",
+    "start": "cd server && npm start",
+    "build": "cd server && npm run build",
+    "tui": "cd terminal-ui && npm run tui",
+    "dev:all": "npx concurrently \"npm run dev\" \"npm run tui\"",
+    "install:all": "cd server && npm install && cd ../terminal-ui && npm install",
+    "test": "cd server && npm test"
+  },
+  "bin": {
+    "secbot": "./server/dist/main.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iammm0/secbot.git"
+  },
+  "license": "MIT"
+}

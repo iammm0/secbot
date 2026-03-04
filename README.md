@@ -1,260 +1,80 @@
-# hackbot: Automated Penetration Testing Robot
+# Secbot
 
-<div align="center">
+> 开源自动化安全测试智能体 — 纯 TypeScript 实现
 
-**An intelligent automated penetration testing robot with AI-powered security testing capabilities**
+Secbot 是一个基于 ReAct（Reasoning + Acting）模式的 AI 安全测试智能体，集成端口扫描、服务识别、漏洞检测、Web 安全分析等 12+ 种安全工具，通过 LLM 驱动自动化渗透测试流程。
 
-[English](#hackbot-automated-penetration-testing-robot) | [中文](README_CN.md)
+## 系统要求
 
-</div>
+- **Node.js** 18+（推荐 20 LTS）
+- **LLM 后端**（二选一）：
+  - [Ollama](https://ollama.com)（本地运行，无需 API Key）
+  - DeepSeek / OpenAI 兼容 API（需设置 API Key）
 
----
-
-## ⚠️ Security Warning
-
-**This tool is intended for authorized security testing only. Unauthorized use of this tool for network attacks is illegal.**
-
-- ✅ Only use on systems you own or have explicit written authorization to test
-- ✅ Ensure you comply with all applicable laws and regulations
-- ✅ Use responsibly and ethically
-
-## 🚀 Features
-
-### Core Capabilities
-
-- 🤖 **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
-- 🌐 **AI Web Research Agent**: Independent sub-agent with ReAct loop for internet research—smart search, page extraction, multi-page crawling, and API interaction
-- 💻 **CLI Interface**: Built with Typer for intuitive command-line interaction
-- 🎤 **Voice Interaction**: Complete speech-to-text and text-to-speech functionality
-- 🕷️ **AI Web Crawler**: Real-time web information capture and monitoring
-- 💻 **OS Control**: File operations, process management, system information
-
-### Penetration Testing
-
-- 🔍 **Reconnaissance**: Automated information gathering (hostname, IP, ports, services)
-- 🔍 **Vulnerability Scanning**: Port scanning, service detection, vulnerability identification
-- ⚔️ **Exploit Engine**: Automated exploitation of SQL injection, XSS, command injection, file upload, path traversal, SSRF
-- 🔗 **Automated Attack Chain**: Complete penetration testing workflow automation
-  - Information Gathering → Vulnerability Scanning → Exploitation → Post-Exploitation
-- 📦 **Payload Generator**: Automatic generation of attack payloads
-- 🎯 **Post-Exploitation**: Privilege escalation, persistence, lateral movement, data exfiltration
-- ⚔️ **Network Attacks**: Brute force, DoS testing, buffer overflow (authorized testing only)
-
-### Security & Defense
-
-- 🛡️ **Active Defense**: Information collection, vulnerability scanning, network analysis, intrusion detection
-- 📊 **Security Reports**: Automated detailed security analysis reports
-- 🔍 **Network Discovery**: Automatic discovery of all hosts in the network
-- 🎯 **Authorization Management**: Manage legal authorization for target hosts
-- 🖥️ **Remote Control**: Remote command execution and file transfer on authorized hosts
-
-### Web Research (Internet Capabilities)
-
-- 🔎 **Smart Search**: DuckDuckGo search → fetch result pages → AI summarization and synthesis
-- 📄 **Page Extract**: Extract page content by mode—plain text, structured (tables/lists), or custom AI schema
-- 🕸️ **Deep Crawl**: BFS multi-page crawling from a start URL with depth/URL filter and optional AI extraction
-- 🔌 **API Client**: Generic REST client with presets (weather, IP info, GitHub, exchange rates, DNS, etc.)
-- 🤖 **Web Research Tool**: Delegate to the Web Research sub-agent for autonomous research or call tools directly
-
-### Additional Features
-
-- 📝 **Prompt Chain Management**: Flexible agent prompt configuration
-- 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
-- ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
-- 🎨 **Beautiful Terminal Output**: Rich formatting with Rich library
-
-## 📋 Requirements
-
-- Python 3.10+
-- [uv](https://github.com/astral-sh/uv) - Fast Python package manager
-- Ollama (for LLM inference)
-- Dependencies are managed in `pyproject.toml`
-
-## 🛠️ Installation
-
-### 1. Clone the Repository
+## 快速开始
 
 ```bash
-git clone https://github.com/iammm0/hackbot.git
-cd hackbot
+# 克隆项目
+git clone https://github.com/iammm0/secbot.git secbot
+cd secbot
+
+# 安装依赖
+cd server && npm install && cd ..
+cd terminal-ui && npm install && cd ..
+
+# 启动后端（开发模式）
+npm run dev
+
+# 在另一个终端启动 TUI
+npm run tui
 ```
 
-### 2. Install Dependencies
+## 项目结构
 
-[uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver.
-
-```bash
-# Install uv if not already installed
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies using uv
-uv sync
+```
+secbot/
+├── server/          # NestJS 后端（核心 Agent + 安全工具 + API）
+├── terminal-ui/     # 终端 TUI（Ink + React）
+├── app/             # 移动端 App（Expo + React Native）
+└── package.json     # 根级脚本入口
 ```
 
-### 3. Install and Start Ollama
+## 常用命令
 
-```bash
-# Install Ollama from https://ollama.ai
+| 命令 | 说明 |
+|------|------|
+| `npm run dev` | 启动后端（开发模式，热重载） |
+| `npm run tui` | 启动终端 TUI |
+| `npm run dev:all` | 同时启动后端 + TUI |
+| `npm run build` | 构建生产版本 |
+| `npm start` | 启动生产版本 |
 
-# Pull required models
-ollama pull gemma3:1b
-ollama pull nomic-embed-text
+## 环境变量
 
-# Ollama service runs on http://localhost:11434 by default
-```
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `LLM_PROVIDER` | `ollama` | LLM 后端（ollama / deepseek / openai） |
+| `OLLAMA_MODEL` | `llama3.2` | Ollama 模型名 |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
+| `DEEPSEEK_API_KEY` | - | DeepSeek API Key |
+| `PORT` | `8000` | 后端监听端口 |
+| `SECBOT_API_URL` | `http://localhost:8000` | TUI 连接的后端地址 |
 
-Edit `.env` file:
-- `OLLAMA_MODEL`: Inference model (default: `gemma3:1b`). If not present locally, the app will pull it when you open the model list.
-- `OLLAMA_EMBEDDING_MODEL`: Embedding model (default: `nomic-embed-text`)
+## 集成的安全工具
 
-### 5. Build and Install (Optional)
+- **端口扫描** — TCP connect 扫描目标主机开放端口
+- **服务识别** — 识别端口上运行的服务类型
+- **漏洞扫描** — 检测已知漏洞
+- **信息收集** — DNS 解析与基础信息收集
+- **DNS 查询** — 查询域名 DNS 记录（A/AAAA/MX/NS/TXT）
+- **WHOIS 查询** — 查询域名或 IP 注册信息
+- **HTTP 请求** — 发送 HTTP 请求并分析响应
+- **HTTP 头分析** — 分析网站安全头配置
+- **CORS 检查** — 检测跨域资源共享配置
+- **SSL/TLS 分析** — 分析证书与加密配置
+- **子域名枚举** — 枚举目标域名的子域名
+- **技术检测** — 识别网站使用的技术栈
 
-```bash
-# Build package using uv
-uv run python -m build
+## 许可证
 
-# Install package（包名为 secbot，版本见 pyproject.toml）
-uv pip install dist/secbot-*.whl
-
-# 安装后可使用以下命令（无参数均为交互模式）
-hackbot
-# 或
-secbot
-```
-
-## 🎯 Quick Start
-
-### 推荐：一条命令启动（后端 + 终端 TUI）
-
-```bash
-# 无参数运行：先启动 Python 后端（若未运行），再启动 TypeScript 终端 TUI（全屏）
-python main.py
-# 或安装后
-hackbot
-# 或
-secbot
-```
-
-会接管当前终端；输入 `exit` 或 `quit` 退出。所有交互（对话、切换 agent、工具、斜杠命令）均在 TUI 内完成，输入 `/` 后回车可查看命令列表。
-
-### 仅启动后端（供 TUI 或 API 调用）
-
-```bash
-python main.py --backend
-# 或
-uv run secbot-server
-# 或
-uv run hackbot-server
-# 或
-python -m router.main
-```
-
-默认监听 `http://localhost:8000`。
-
-### 仅 Python 交互 CLI（无需 Node）
-
-若不想使用 TypeScript TUI，可直接用 Python 自带的交互模式（无需先起后端）：
-
-```bash
-uv run secbot
-# 或
-uv run hackbot
-```
-
-### 在交互模式中的示例
-
-启动后（无论 TUI 还是 `uv run secbot`），你可以：
-
-- **Web research**: e.g. "Research the latest CVE-2024 vulnerabilities and summarize", or "Use smart_search to find Python asyncio best practices", or "Use api_client with preset weather and query Beijing"
-- **Recon / scanning**: e.g. "Scan ports on 192.168.1.1" or use slash commands like `/list-targets`, `/list-authorizations`, `/defense-scan`, `/defense-blocked`
-- **Remote control / defense**: use slash commands such as `/list-targets`, `/list-authorizations`; other operations are available via natural language or `/` commands (type `/` then Enter to list all).
-
-System info, database stats/history, voice, and prompt management are available inside the interactive session via slash commands (e.g. `/system-info`, `/db-stats`, `/db-history`, `/prompt-list`) or natural language. See in-app help (type `/` then Enter) for the full list.
-
-### Terminal UI（TypeScript 生态，推荐）
-
-终端界面采用 **TypeScript 生态**（[Ink](https://github.com/vadimdemedes/ink) + React），通过 HTTP/SSE 连接 Python 后端。
-
-- **一条命令进入 TUI**：在项目根目录执行 `python main.py`（会自动启动后端并打开 TUI）。
-- **分步启动**：先启动后端（`uv run secbot-server` 或 `python -m router.main`），再在另一终端进入 `terminal-ui` 运行 `npm install && npm run tui`。
-
-后端地址：环境变量 `SECBOT_API_URL` 或 `BASE_URL`（默认 `http://localhost:8000`）。一键脚本：Windows 运行 `.\scripts\start-ts-tui.ps1` 或 `.\scripts\start-cli.ps1`，Linux/macOS 运行 `./scripts/start-ts-tui.sh`。详见 [terminal-ui/README.md](terminal-ui/README.md)。
-
-无需 Node 时可使用 Python 交互 CLI：`uv run secbot` 或 `uv run hackbot`。
-
-## 🔧 Development
-
-### Running Tests
-
-```bash
-pytest tests/
-```
-
-### Building Package
-
-```bash
-# Using uv (recommended)
-uv run python -m build
-
-# Or using the build script
-./build.sh
-```
-
-## 📚 Documentation
-
-- [Quick Start Guide](docs/QUICKSTART.md)
-- [UI Design & Interaction](docs/UI-DESIGN-AND-INTERACTION.md) — terminal UI (TypeScript/Ink) 架构说明
-- [API Documentation](docs/API.md)
-- [Mobile App Guide](docs/APP.md)
-- [Skills & Memory System](docs/SKILLS_AND_MEMORY.md)
-- [Database Guide](docs/DATABASE_GUIDE.md)
-- [Docker Setup](docs/DOCKER_SETUP.md)
-- [Ollama Setup](docs/OLLAMA_SETUP.md)
-- [Security Warning](docs/SECURITY_WARNING.md)
-- [Virtual Test Environment (VMware + Ubuntu)](docs/VIRTUAL_TEST_ENVIRONMENT.md) — 在虚拟机中测试 secbot 的说明
-- [Prompt Guide](docs/PROMPT_GUIDE.md)
-- [Speech Guide](docs/SPEECH_GUIDE.md)
-- [SQLite Setup](docs/SQLITE_SETUP.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
-- [Changelog](docs/CHANGELOG.md) · [Release](docs/RELEASE.md)
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👤 Author
-
-**赵明俊 (Zhao Mingjun)**
-
-- GitHub: [@iammm0](https://github.com/iammm0)
-- Email: wisewater5419@gmail.com
-
-## 🙏 Acknowledgments
-
-- Built with [LangChain](https://github.com/langchain-ai/langchain)
-- Powered by [Ollama](https://ollama.ai)
-
-## ⚠️ Disclaimer
-
-This tool is provided for educational and authorized security testing purposes only. The authors and contributors are not responsible for any misuse or damage caused by this tool. Users must ensure they have proper authorization before using this tool on any system.
-
----
-
-<div align="center">
-
-**⭐ If you find this project useful, please consider giving it a star! ⭐**
-
-</div>
-
-
-
+MIT
