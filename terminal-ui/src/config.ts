@@ -4,7 +4,12 @@
 const DEFAULT_BASE_URL = 'http://localhost:8000';
 
 export function getBaseUrl(): string {
-  return process.env.SECBOT_API_URL ?? process.env.BASE_URL ?? DEFAULT_BASE_URL;
+  return (
+    process.env.SECBOT_API_URL ??
+    process.env.OPENCOMSAGENT_API_URL ??
+    process.env.BASE_URL ??
+    DEFAULT_BASE_URL
+  );
 }
 
 export const CONNECTION_TIMEOUT_MS = 15000;

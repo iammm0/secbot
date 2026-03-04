@@ -7,17 +7,32 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${getBaseUrl()}${path}`;
   const res = await fetch(url, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers as Record<string, string>) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    },
   });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
   }
-  return res.json() as Promise<T>;
+  const json = (await res.json()) as unknown;
+  if (
+    json &&
+    typeof json === 'object' &&
+    'success' in (json as Record<string, unknown>) &&
+    'data' in (json as Record<string, unknown>)
+  ) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path, { method: 'GET' }),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  get:   <T>(path: string) => request<T>(path, { method: 'GET' }),
+  post:  <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: 'POST',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 };

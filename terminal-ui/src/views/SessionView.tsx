@@ -35,7 +35,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showScrollbar, setShowScrollbar] = useState(true);
   const [expandedBlockIds, setExpandedBlockIds] = useState<Set<string>>(new Set());
-  /** 彩虹流动动效相位（底部 Secbot 标识） */
+  /** 彩虹流动动效相位（底部 SECBOT 标识） */
   const [rainbowPhase, setRainbowPhase] = useState(0);
   const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
@@ -337,7 +337,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
               return;
             }
             const restTitles: Record<string, string> = {
-              '/help': 'SECBOT 帮助',
+              '/help': 'OPENCOMSAGENT 帮助',
               '/list-agents': '智能体列表',
             };
             const title = restTitles[cmd] ?? 'API 结果';
@@ -443,11 +443,18 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       >
         <Text color={theme.textMuted}>
           {'SECBOT'.split('').map((char, i) => (
-            <Text key={i} color={theme.cyberRainbow[(i + rainbowPhase) % theme.cyberRainbow.length]} bold>
+            <Text
+              key={i}
+              color={theme.cyberRainbow[(i + rainbowPhase) % theme.cyberRainbow.length]}
+              bold
+            >
               {char}
             </Text>
           ))}
-          <Text color={theme.textMuted}> · {mode} · {agent}</Text>
+          <Text color={theme.textMuted}>
+            {' '}
+            · {mode} · {agent}
+          </Text>
         </Text>
       </Box>
 

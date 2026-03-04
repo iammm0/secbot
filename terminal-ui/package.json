@@ -1,7 +1,7 @@
 {
   "name": "secbot-terminal-ui",
   "version": "1.0.0",
-  "description": "TypeScript terminal TUI for Secbot (Ink), connects to Python backend via HTTP/SSE",
+  "description": "TypeScript terminal TUI for Secbot (Ink), connects to TypeScript backend via HTTP/SSE",
   "private": true,
   "type": "module",
   "main": "dist/cli.js",
@@ -12,7 +12,7 @@
     "build": "tsc",
     "tui": "npx tsx src/cli.tsx",
     "start": "npx tsx src/cli.tsx",
-    "dev": "npx tsx src/cli.tsx"
+    "dev": "npx tsx watch src/cli.tsx"
   },
   "dependencies": {
     "figlet": "^1.10.0",

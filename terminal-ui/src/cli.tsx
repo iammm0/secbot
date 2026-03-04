@@ -51,12 +51,16 @@ function relaunchInNewWindow(): boolean {
   try {
     const cwd = process.cwd();
     const env = { ...process.env };
-    const child = spawn('cmd', ['/c', 'start', 'SECBOT TUI', 'cmd', '/k', 'node --import tsx src/cli.tsx'], {
-      cwd,
-      env,
-      stdio: 'ignore',
-      windowsHide: false,
-    });
+    const child = spawn(
+      'cmd',
+      ['/c', 'start', 'SECBOT TUI', 'cmd', '/k', 'node --import tsx src/cli.tsx'],
+      {
+        cwd,
+        env,
+        stdio: 'ignore',
+        windowsHide: false,
+      },
+    );
     child.unref();
     return true;
   } catch {
@@ -72,10 +76,11 @@ async function main() {
     if (relaunchInNewWindow()) {
       process.exit(0);
     }
-    const msg = '当前不是真实终端（TTY），Ink 需要 TTY。已尝试在新窗口启动；若未弹出窗口请到系统 CMD/PowerShell 中执行: cd terminal-ui && npm run tui';
+    const msg =
+      '当前不是真实终端（TTY），Ink 需要 TTY。已尝试在新窗口启动；若未弹出窗口请到系统 CMD/PowerShell 中执行: cd terminal-ui && npm run tui';
     writeErrorLog('NO_TTY', msg);
     console.error(msg);
-    console.error('或: 在项目根目录执行 python main.py（会先启动后端再开 TUI）');
+    console.error('或: 在项目根目录执行 npm run dev（先启动后端）');
     process.exit(1);
   }
 
@@ -83,7 +88,7 @@ async function main() {
   if (!backend.ok) {
     const err = backend.error ?? '未知';
     writeErrorLog('BACKEND_UNREACHABLE', `${getBaseUrl()} ${err}`);
-    console.error('无法连接后端，请先启动：uv run python main.py --backend');
+    console.error('无法连接后端，请先启动：npm run dev');
     console.error('地址: ' + getBaseUrl());
     console.error('错误: ' + err);
     process.exit(1);
