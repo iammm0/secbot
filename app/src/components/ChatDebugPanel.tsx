@@ -110,9 +110,11 @@ export default function ChatDebugPanel({
                   <View key={`${ev.event}-${i}`} style={styles.logRow}>
                     <Text style={styles.logEvent}>{ev.event}</Text>
                     <Text style={styles.logData} numberOfLines={1}>
-                      {typeof ev.data === 'object'
+                      {ev.data != null && typeof ev.data === 'object'
                         ? JSON.stringify(ev.data).slice(0, 60) + '…'
-                        : String(ev.data)}
+                        : ev.data != null
+                          ? String(ev.data)
+                          : '—'}
                     </Text>
                   </View>
                 ))
