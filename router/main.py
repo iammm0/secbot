@@ -5,13 +5,15 @@ Hackbot FastAPI 服务入口 — 组装所有路由、CORS、uvicorn 入口
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from router.routers.chat import router as chat_router
-from router.routers.agents import router as agents_router
-from router.routers.sessions import router as sessions_router
-from router.routers.system import router as system_router
-from router.routers.defense import router as defense_router
-from router.routers.network import router as network_router
-from router.routers.database import router as database_router
+from router.chat import router as chat_router
+from router.agents import router as agents_router
+from router.sessions import router as sessions_router
+from router.system import router as system_router
+from router.defense import router as defense_router
+from router.network import router as network_router
+from router.database import router as database_router
+from router.tools import router as tools_router
+from router.dependencies import get_db_manager
 
 
 def create_app() -> FastAPI:
@@ -46,6 +48,14 @@ def create_app() -> FastAPI:
     application.include_router(defense_router)
     application.include_router(network_router)
     application.include_router(database_router)
+    application.include_router(tools_router)
+
+    # ------------------------------------------------------------------
+    # 启动时初始化数据库（确保 secbot.db 与表在首次请求前就存在）
+    # ------------------------------------------------------------------
+    @application.on_event("startup")
+    def _init_db_on_startup():
+        get_db_manager()
 
     # ------------------------------------------------------------------
     # 健康检查

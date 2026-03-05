@@ -39,19 +39,34 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
             {
                 "content": d.get("summary", ""),
                 "todos": d.get("todos", []),
+                "agent": d.get("agent"),
             },
         )
     if t == EventType.THINK_START:
-        return ("thought_start", {"iteration": d.get("iteration", 1)})
+        return (
+            "thought_start",
+            {
+                "iteration": d.get("iteration", 1),
+                "agent": d.get("agent"),
+            },
+        )
     if t == EventType.THINK_CHUNK:
         return (
             "thought_chunk",
-            {"chunk": d.get("chunk", ""), "iteration": d.get("iteration", 1)},
+            {
+                "chunk": d.get("chunk", ""),
+                "iteration": d.get("iteration", 1),
+                "agent": d.get("agent"),
+            },
         )
     if t == EventType.THINK_END:
         return (
             "thought",
-            {"content": d.get("thought", ""), "iteration": d.get("iteration", 1)},
+            {
+                "content": d.get("thought", ""),
+                "iteration": d.get("iteration", 1),
+                "agent": d.get("agent"),
+            },
         )
     if t == EventType.EXEC_START:
         return (
@@ -60,6 +75,7 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
                 "tool": d.get("tool", ""),
                 "params": d.get("params", {}),
                 "iteration": d.get("iteration", 1),
+                "agent": d.get("agent"),
             },
         )
     if t == EventType.EXEC_RESULT:
@@ -71,21 +87,47 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
                 "result": d.get("result"),
                 "error": d.get("error", ""),
                 "iteration": d.get("iteration", 1),
+                "agent": d.get("agent"),
             },
         )
     if t == EventType.CONTENT:
-        return ("content", {"content": d.get("content", "")})
+        return (
+            "content",
+            {
+                "content": d.get("content", ""),
+                "agent": d.get("agent"),
+            },
+        )
     if t == EventType.REPORT_END:
-        return ("report", {"content": d.get("report", "")})
+        return (
+            "report",
+            {
+                "content": d.get("report", ""),
+                "agent": d.get("agent"),
+            },
+        )
     if t == EventType.TASK_PHASE:
-        return ("phase", {"phase": d.get("phase", ""), "detail": d.get("detail", "")})
+        return (
+            "phase",
+            {
+                "phase": d.get("phase", ""),
+                "detail": d.get("detail", ""),
+                "agent": d.get("agent"),
+            },
+        )
     if t == EventType.ROOT_REQUIRED:
         return (
             "root_required",
             {"request_id": d.get("request_id", ""), "command": d.get("command", "")},
         )
     if t == EventType.ERROR:
-        return ("error", {"error": d.get("error", "")})
+        return (
+            "error",
+            {
+                "error": d.get("error", ""),
+                "agent": d.get("agent"),
+            },
+        )
     return None
 
 
@@ -271,7 +313,14 @@ async def chat_sync(request: ChatRequest):
         agent_instance = get_agent(request.agent)
         if request.prompt:
             agent_instance.update_system_prompt(request.prompt)
-        response = await agent_instance.process(request.message)
+
+        # 若 Agent 定义了并发锁，则保证同一 Agent 的任务串行执行
+        lock = getattr(agent_instance, "_concurrency_lock", None)
+        if lock is not None:
+            async with lock:
+                response = await agent_instance.process(request.message)
+        else:
+            response = await agent_instance.process(request.message)
         return ChatResponse(response=response, agent=request.agent)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

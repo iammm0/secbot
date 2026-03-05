@@ -7,6 +7,7 @@ import uuid
 from functools import lru_cache
 
 from core.agents.hackbot_agent import HackbotAgent
+from core.agents.coordinator_agent import CoordinatorAgent
 from core.agents.superhackbot_agent import SuperHackbotAgent
 from core.agents.qa_agent import QAAgent
 from core.agents.planner_agent import PlannerAgent
@@ -71,8 +72,10 @@ class _Singletons:
     def agents(cls) -> dict:
         if cls._agents is None:
             audit = cls.audit_trail()
+            # hackbot：使用 CoordinatorAgent 作为主入口，内部再协调专职子 Agent
+            coordinator = CoordinatorAgent(name="Hackbot", audit_trail=audit)
             cls._agents = {
-                "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit),
+                "hackbot": coordinator,
                 "superhackbot": SuperHackbotAgent(
                     name="SuperHackbot", audit_trail=audit
                 ),

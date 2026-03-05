@@ -8,6 +8,18 @@ from tools.base import BaseTool, ToolResult
 from utils.logger import logger
 
 
+def _ensure_str(val: Any, default: str = "") -> str:
+    """将参数规范为字符串：若为 dict 则取 city/query/q 或首个值，避免 'dict' has no attribute 'strip'"""
+    if val is None:
+        return default
+    if isinstance(val, str):
+        return (val or default).strip()
+    if isinstance(val, dict):
+        s = val.get("city") or val.get("query") or val.get("q") or (next(iter(val.values()), None) if val else None)
+        return _ensure_str(s, default)
+    return str(val).strip() if val else default
+
+
 class WebResearchTool(BaseTool):
     """
     Web 研究桥接工具：将联网研究任务委托给 WebResearchAgent 子 Agent。
@@ -31,10 +43,10 @@ class WebResearchTool(BaseTool):
         )
 
     async def execute(self, **kwargs) -> ToolResult:
-        query = kwargs.get("query", "").strip()
-        mode = kwargs.get("mode", "auto").strip().lower()
-        url = kwargs.get("url", "").strip()
-        preset = kwargs.get("preset", "").strip()
+        query = _ensure_str(kwargs.get("query"))
+        mode = _ensure_str(kwargs.get("mode"), "auto").lower()
+        url = _ensure_str(kwargs.get("url"))
+        preset = _ensure_str(kwargs.get("preset"))
 
         if not query and mode == "auto":
             return ToolResult(
@@ -164,6 +176,7 @@ class WebResearchTool(BaseTool):
             body=kwargs.get("body"),
             auth_type=kwargs.get("auth_type", "none"),
             auth_value=kwargs.get("auth_value", ""),
+            timeout=kwargs.get("timeout"),
         )
 
     def get_schema(self) -> Dict[str, Any]:
@@ -206,6 +219,36 @@ class WebResearchTool(BaseTool):
                     "type": "integer",
                     "description": "crawl 模式的最大页面数",
                     "default": 10,
+                },
+                "headers": {
+                    "type": "object",
+                    "description": "api 模式下传递给 API 的自定义请求头",
+                    "required": False,
+                },
+                "params": {
+                    "type": "object",
+                    "description": "api 模式下的 URL 查询参数",
+                    "required": False,
+                },
+                "body": {
+                    "type": "string",
+                    "description": "api 模式下的请求体（字符串或 JSON 字符串）",
+                    "required": False,
+                },
+                "auth_type": {
+                    "type": "string",
+                    "description": "api 模式下的认证类型: none/bearer/api_key",
+                    "required": False,
+                },
+                "auth_value": {
+                    "type": "string",
+                    "description": "api 模式下的认证值（token 或 API key）",
+                    "required": False,
+                },
+                "timeout": {
+                    "type": "number",
+                    "description": "api 模式下 API 调用的超时时间（秒）",
+                    "required": False,
                 },
             },
         }

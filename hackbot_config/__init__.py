@@ -34,13 +34,13 @@ def _get_api_key_from_keyring(provider: str) -> Optional[str]:
 
 def _get_db_path() -> Path:
     """解析 DATABASE_URL 得到 SQLite 文件路径，与 DatabaseManager 使用同一路径（避免写入了读不到）"""
-    db_url = os.getenv("DATABASE_URL", "sqlite:///./data/hackbot.db")
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./data/secbot.db")
     if db_url and db_url.startswith("sqlite:///"):
         path_str = db_url.replace("sqlite:///", "")
         if path_str.startswith("./"):
             return _config_dir / path_str[2:]
         return Path(path_str)
-    return _config_dir / "data" / "hackbot.db"
+    return _config_dir / "data" / "secbot.db"
 
 
 def _get_config_from_sqlite(key: str) -> Optional[str]:
@@ -222,7 +222,7 @@ class Settings(BaseSettings):
 
     # 数据库配置
     redis_url: Optional[str] = os.getenv("REDIS_URL")
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/hackbot.db")
+    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/secbot.db")
 
     # 日志配置
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
