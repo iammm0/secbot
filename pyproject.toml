@@ -127,12 +127,8 @@ packages = [
     "tools.utility",
     "tools.web",
     "tools.web_research",
-    "tui",
-    "tui.components",
-    "tui.widgets",
     "utils",
     "router",
-    "router.routers",
 ]
 
 [tool.setuptools.package-data]

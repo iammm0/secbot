@@ -1,4 +1,6 @@
-index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+# 清华镜像若出现 tls handshake eof，可暂时改用官方源
+index-url = "https://pypi.org/simple"
+# 国内加速可改用（需镜像正常时）: https://pypi.tuna.tsinghua.edu.cn/simple
 
 override-dependencies = [
     "torch==2.9.0"
