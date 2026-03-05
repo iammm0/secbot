@@ -7,6 +7,18 @@ from tools.base import BaseTool, ToolResult
 from utils.logger import logger
 
 
+def _ensure_str(val: Any, default: str = "") -> str:
+    """将参数规范为字符串：若为 dict 则取 city/query/q 或首个值，避免 'dict' has no attribute 'strip'"""
+    if val is None:
+        return default
+    if isinstance(val, str):
+        return (val or default).strip()
+    if isinstance(val, dict):
+        s = val.get("city") or val.get("query") or val.get("q") or (next(iter(val.values()), None) if val else None)
+        return _ensure_str(s, default)
+    return str(val).strip() if val else default
+
+
 # 内置 API 模板
 API_PRESETS: Dict[str, Dict[str, Any]] = {
     "weather": {
@@ -104,15 +116,15 @@ class ApiClientTool(BaseTool):
         )
 
     async def execute(self, **kwargs) -> ToolResult:
-        preset = kwargs.get("preset", "").strip()
-        query = kwargs.get("query", "").strip()
+        preset = _ensure_str(kwargs.get("preset"))
+        query = _ensure_str(kwargs.get("query"))
 
         # 模式 1: 使用内置模板
         if preset:
             return await self._execute_preset(preset, query, kwargs)
 
         # 模式 2: 自定义请求
-        url = kwargs.get("url", "").strip()
+        url = _ensure_str(kwargs.get("url"))
         if not url:
             # 列出可用模板
             presets_info = []
@@ -146,6 +158,15 @@ class ApiClientTool(BaseTool):
             )
 
         config = API_PRESETS[preset]
+        # 部分模板需要单参数（如天气需城市名），未提供时使用默认值
+        if "{query}" in config["url_template"] and not query:
+            if preset == "weather":
+                query = "北京"
+            else:
+                return ToolResult(
+                    success=False, result=None,
+                    error=f"模板 {preset} 需要 query 参数，请提供。",
+                )
         url = config["url_template"].format(query=query) if query else config["url_template"]
         method = config.get("method", "GET")
         headers = dict(config.get("headers", {}))
@@ -155,8 +176,8 @@ class ApiClientTool(BaseTool):
         if isinstance(extra_headers, dict):
             headers.update(extra_headers)
 
-        auth_type = kwargs.get("auth_type", "none").strip().lower()
-        auth_value = kwargs.get("auth_value", "").strip()
+        auth_type = _ensure_str(kwargs.get("auth_type"), "none").lower()
+        auth_value = _ensure_str(kwargs.get("auth_value"))
         headers = self._apply_auth(headers, auth_type, auth_value)
 
         return await self._do_request(url, method, headers, params=None, body=None, preset_name=config["name"])
@@ -182,11 +203,13 @@ class ApiClientTool(BaseTool):
                 params = {}
         body = kwargs.get("body")
 
-        auth_type = kwargs.get("auth_type", "none").strip().lower()
-        auth_value = kwargs.get("auth_value", "").strip()
+        auth_type = _ensure_str(kwargs.get("auth_type"), "none").lower()
+        auth_value = _ensure_str(kwargs.get("auth_value"))
         headers = self._apply_auth(headers, auth_type, auth_value)
 
-        return await self._do_request(url, method, headers, params, body)
+        timeout = self._parse_timeout(kwargs)
+
+        return await self._do_request(url, method, headers, params, body, timeout=timeout)
 
     # ------------------------------------------------------------------
     # 核心请求
@@ -200,15 +223,31 @@ class ApiClientTool(BaseTool):
         params: Optional[dict],
         body: Any,
         preset_name: str = "",
+        timeout: Optional[float] = None,
     ) -> ToolResult:
         """发送 HTTP 请求并解析响应"""
+        # 规范化超时时间（秒）
+        timeout_val: float = 20.0
+        if timeout is not None:
+            try:
+                t = float(timeout)
+                if t > 0:
+                    timeout_val = max(1.0, min(t, 60.0))
+            except (TypeError, ValueError):
+                pass
+
         try:
-            import httpx
+            try:
+                import httpx
+            except ImportError:
+                msg = "缺少依赖: httpx，请先安装: pip install httpx"
+                logger.error(msg)
+                return ToolResult(success=False, result=None, error=msg)
 
             headers.setdefault("User-Agent", "HackBot-ApiClient/2.0")
 
             async with httpx.AsyncClient(
-                timeout=20,
+                timeout=timeout_val,
                 follow_redirects=True,
                 verify=False,
             ) as client:
@@ -227,7 +266,7 @@ class ApiClientTool(BaseTool):
 
                 resp = await client.request(**request_kwargs)
 
-            # 解析响应
+            # 解析响应（无论状态码如何都尝试返回内容）
             result: Dict[str, Any] = {
                 "url": str(resp.url),
                 "method": method,
@@ -239,13 +278,27 @@ class ApiClientTool(BaseTool):
             if preset_name:
                 result["preset"] = preset_name
 
+            # HTTP 状态辅助字段
+            ok = 200 <= resp.status_code < 300
+            result["ok"] = ok
+            if not ok:
+                result["http_error"] = {
+                    "status_code": resp.status_code,
+                    "reason": getattr(resp, "reason_phrase", ""),
+                }
+
             # 尝试解析 JSON
             try:
                 json_data = resp.json()
                 # 限制 JSON 输出大小
                 json_str = json.dumps(json_data, ensure_ascii=False, indent=2)
                 if len(json_str) > 5000:
-                    result["data"] = json_data if isinstance(json_data, dict) else {"items": json_data[:20] if isinstance(json_data, list) else json_data}
+                    if isinstance(json_data, dict):
+                        result["data"] = json_data
+                    elif isinstance(json_data, list):
+                        result["data"] = {"items": json_data[:20]}
+                    else:
+                        result["data"] = json_data
                     result["data_truncated"] = True
                     result["total_size"] = len(json_str)
                 else:
@@ -257,11 +310,18 @@ class ApiClientTool(BaseTool):
 
             result["response_headers"] = dict(list(resp.headers.items())[:20])
 
+            # 即使 HTTP 非 2xx，也视为成功返回结果，由调用方根据 ok/http_error 决定处理方式
             return ToolResult(success=True, result=result)
 
         except Exception as e:
-            logger.error(f"ApiClientTool 请求错误: {e}")
-            return ToolResult(success=False, result=None, error=str(e))
+            # 尝试区分网络错误与其他异常
+            err_msg = str(e)
+            logger.error(f"ApiClientTool 请求错误: {err_msg}")
+            return ToolResult(
+                success=False,
+                result={"url": url, "method": method},
+                error=err_msg,
+            )
 
     # ------------------------------------------------------------------
     # 辅助方法
@@ -276,6 +336,20 @@ class ApiClientTool(BaseTool):
             headers["X-API-Key"] = auth_value
         return headers
 
+    @staticmethod
+    def _parse_timeout(kwargs: dict) -> Optional[float]:
+        """从参数中解析 timeout（秒），返回合法的 float 或 None"""
+        raw = kwargs.get("timeout")
+        if raw is None or raw == "":
+            return None
+        try:
+            t = float(raw)
+            if t <= 0:
+                return None
+            return t
+        except (TypeError, ValueError):
+            return None
+
     def get_schema(self) -> Dict[str, Any]:
         return {
             "name": self.name,
@@ -287,6 +361,7 @@ class ApiClientTool(BaseTool):
                 "headers": {"type": "object", "description": "自定义请求头"},
                 "params": {"type": "object", "description": "URL 查询参数"},
                 "body": {"type": "string", "description": "请求体数据"},
+                "timeout": {"type": "number", "description": "请求超时时间（秒，默认 20，最大 60）", "required": False},
                 "auth_type": {"type": "string", "description": "认证类型: none/bearer/api_key", "default": "none"},
                 "auth_value": {"type": "string", "description": "认证值（token 或 API key）"},
                 "preset": {"type": "string", "description": "内置 API 模板名称"},

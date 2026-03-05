@@ -5,6 +5,7 @@ SecurityReActAgent：LLM 驱动的安全测试 ReAct 引擎
 
 import json
 import re
+import asyncio
 from typing import Optional, List, Dict, Any
 
 from core.agents.base import BaseAgent
@@ -182,6 +183,9 @@ class SecurityReActAgent(BaseAgent):
         self._session_context_summary: str = ""
         self._session_context_max_chars: int = 4500
 
+        # 并发控制：同一智能体同一时间只处理一个核心任务，请求自动排队
+        self._concurrency_lock: asyncio.Lock = asyncio.Lock()
+
     def append_turn_to_session_context(
         self,
         user_input: str,
@@ -219,11 +223,23 @@ class SecurityReActAgent(BaseAgent):
                 self._session_context_summary = self._session_context_summary[first_nl + 2 :]
 
     def _emit_event(self, event_type: str, data: dict, on_event=None):
-        """触发事件回调，同时发射到 EventBus（如果已配置）"""
+        """触发事件回调，同时发射到 EventBus（如果已配置）
+
+        为所有事件自动附加 agent 字段，标记事件来源的智能体：
+        - 优先使用 self.agent_type（子 Agent 可自定义）
+        - 其次回退到 self.name
+        """
+        # 确保不会就地修改上层传入的 data
+        payload = dict(data or {})
+        if "agent" not in payload:
+            agent_label = getattr(self, "agent_type", None) or getattr(self, "name", "")
+            if agent_label:
+                payload["agent"] = agent_label
+
         # 传统回调方式（向后兼容）
         if on_event and callable(on_event):
             try:
-                on_event(event_type, data)
+                on_event(event_type, payload)
             except Exception as e:
                 logger.error(f"事件回调错误: {e}")
 
@@ -247,11 +263,11 @@ class SecurityReActAgent(BaseAgent):
                 }
                 mapped = _type_map.get(event_type)
                 if mapped:
-                    iteration = data.get("iteration", 0)
+                    iteration = payload.get("iteration", 0)
                     self.event_bus.emit(
                         Event(
                             type=mapped,
-                            data=data,
+                            data=payload,
                             iteration=iteration,
                         )
                     )

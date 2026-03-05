@@ -117,6 +117,7 @@ class SummaryAgent(BaseAgent):
         tool_results: Optional[List[Dict[str, Any]]] = None,
         interaction_type: str = "technical",
         brief: bool = False,
+        agent_tool_results_by_agent: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> InteractionSummary:
         """
         总结单次交互行为。
@@ -143,7 +144,12 @@ class SummaryAgent(BaseAgent):
         # 构建报告 prompt（brief 时用简短版）
         if brief:
             report_prompt = self._build_brief_summary_prompt(
-                user_input, todos, todo_completion, observations, tool_results
+                user_input,
+                todos,
+                todo_completion,
+                observations,
+                tool_results,
+                agent_tool_results_by_agent,
             )
         else:
             report_prompt = self._build_report_prompt_v2(
@@ -153,6 +159,7 @@ class SummaryAgent(BaseAgent):
                 observations,
                 tool_results,
                 interaction_type,
+                agent_tool_results_by_agent,
             )
 
         # 调用 LLM 生成报告
@@ -277,6 +284,7 @@ class SummaryAgent(BaseAgent):
         todo_completion: Dict[str, int],
         observations: List[str],
         tool_results: Optional[List[Dict[str, Any]]],
+        agent_tool_results_by_agent: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> str:
         """构建简要总结的 prompt（最后报告：简要说下做了什么即可）"""
         todo_lines = []
@@ -287,8 +295,8 @@ class SummaryAgent(BaseAgent):
                 "cancelled": "[-]",
             }.get(t.status.value, "[ ]")
             todo_lines.append(f"  {status_icon} {t.content}")
-        tools_used = []
-        failed_tools = []
+        tools_used: List[str] = []
+        failed_tools: List[Dict[str, str]] = []
         if tool_results:
             for tr in tool_results:
                 if tr.get("tool"):
@@ -306,12 +314,39 @@ class SummaryAgent(BaseAgent):
             lines = [f"  - {ft['tool']}: {ft['error']}" for ft in failed_tools]
             failed_section = "\n- 执行失败的工具：\n" + "\n".join(lines)
 
+        # 按子 Agent 的执行概览（若存在多 Agent 协作）
+        agent_overview_lines: List[str] = []
+        if agent_tool_results_by_agent:
+            for agent, results in agent_tool_results_by_agent.items():
+                total = len(results)
+                success_cnt = sum(1 for r in results if r.get("success", False))
+                if total == 0:
+                    continue
+                tools = sorted(
+                    {
+                        str(r.get("tool"))
+                        for r in results
+                        if r.get("tool") is not None
+                    }
+                )
+                tools_str = ", ".join(tools) if tools else "无明确工具名"
+                agent_overview_lines.append(
+                    f"- {agent}: {success_cnt}/{total} 步成功，涉及工具: {tools_str}"
+                )
+
+        agent_section = ""
+        if agent_overview_lines:
+            agent_section = (
+                "\n- 子智能体执行概览：\n"
+                + "\n".join(agent_overview_lines)
+            )
+
         return f"""请用 3～5 句话简要总结本次交互（不要长报告）：
 
 - 用户请求：{user_input}
 - Todo 完成：{todo_completion.get("completed", 0)}/{todo_completion.get("total", 0)} 项
 - 执行的工具：{", ".join(tools_used) if tools_used else "无"}
-- 观察结果条数：{len(observations)}{failed_section}
+- 观察结果条数：{len(observations)}{failed_section}{agent_section}
 
 请直接输出简要总结，包含：做了什么、完成情况、主要结论。若有未完成步骤或工具执行失败，请明确列出并简要说明原因。不要分章节、不要长列表。"""
 
@@ -323,6 +358,7 @@ class SummaryAgent(BaseAgent):
         observations: List[str],
         tool_results: Optional[List[Dict[str, Any]]],
         interaction_type: str,
+        agent_tool_results_by_agent: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> str:
         """构建 v2 版本的报告生成 prompt"""
         # Todo 完成情况
@@ -340,7 +376,7 @@ class SummaryAgent(BaseAgent):
             todo_section = "\n## Todo 完成情况\n" + "\n".join(todo_lines)
 
         # 工具使用与失败记录
-        tools_used = []
+        tools_used: List[str] = []
         failed_tools_section = ""
         if tool_results:
             for tr in tool_results:
@@ -360,6 +396,29 @@ class SummaryAgent(BaseAgent):
                     "\n## 执行失败的工具\n\n" + "\n".join(lines) + "\n"
                 )
 
+        # 多 Agent 执行概览
+        agent_overview = ""
+        if agent_tool_results_by_agent:
+            lines: List[str] = []
+            for agent, results in agent_tool_results_by_agent.items():
+                total = len(results)
+                if total == 0:
+                    continue
+                success_cnt = sum(1 for r in results if r.get("success", False))
+                tools = sorted(
+                    {
+                        str(r.get("tool"))
+                        for r in results
+                        if r.get("tool") is not None
+                    }
+                )
+                tools_str = ", ".join(tools) if tools else "无"
+                lines.append(
+                    f"- **{agent}**: 执行 {total} 步，其中 {success_cnt} 步成功，涉及工具: {tools_str}"
+                )
+            if lines:
+                agent_overview = "\n## 子智能体执行概览\n\n" + "\n".join(lines) + "\n"
+
         prompt = f"""请根据以下执行结果生成报告。
 
 ## 用户原始请求
@@ -372,6 +431,7 @@ class SummaryAgent(BaseAgent):
 ## 执行的工具
 {", ".join(tools_used) if tools_used else "无"}
 {failed_tools_section}
+{agent_overview}
 
 ## 执行过程
 """

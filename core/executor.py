@@ -149,10 +149,22 @@ class TaskExecutor:
                 "params": {},
             }
 
-        context = {
-            tid: r.get("result") if isinstance(r, dict) else r
-            for tid, r in self._layer_results.items()
-        }
+        # 上下文聚合：
+        # - by_todo: 以 todo_id 为 key 的结果映射（向后兼容）
+        # - _by_resource_: 以 resource 为 key 的结果列表，便于后续步骤按资产维度引用
+        by_todo: Dict[str, Any] = {}
+        by_resource: Dict[str, List[Any]] = {}
+        for tid, r in self._layer_results.items():
+            value = r.get("result") if isinstance(r, dict) else r
+            by_todo[tid] = value
+            todo_obj = self._get_todo_by_id(tid)
+            resource = getattr(todo_obj, "resource", None) if todo_obj else None
+            if resource is not None:
+                by_resource.setdefault(resource, []).append(value)
+
+        context: Dict[str, Any] = dict(by_todo)
+        if by_resource:
+            context["_by_resource_"] = by_resource
 
         result = await self.agent.execute_todo(
             todo=todo,

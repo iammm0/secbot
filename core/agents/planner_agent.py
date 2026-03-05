@@ -9,7 +9,8 @@ PlannerAgent v2：通用任务规划智能体
 import json
 import re
 import uuid
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
+from urllib.parse import urlparse
 
 from core.agents.base import BaseAgent
 from core.models import TodoItem, TodoStatus, PlanResult, RequestType
@@ -74,6 +75,8 @@ class PlannerAgent(BaseAgent):
         super().__init__(name=name, system_prompt=system_prompt)
         # 当前规划结果（用于实时追踪）
         self._current_plan: Optional[PlanResult] = None
+        # 单个任务层内允许的最大并行 Todo 数量（逻辑上限，真正并行度还受执行器限制）
+        self.max_parallel_per_layer: int = 3
         logger.info("初始化 PlannerAgent v2")
 
     # ------------------------------------------------------------------
@@ -176,29 +179,69 @@ class PlannerAgent(BaseAgent):
 
     def get_execution_order(self) -> List[List[str]]:
         """
-        根据依赖关系返回分层执行顺序。
-        返回值为列表的列表，每个内层列表中的 todo 可并行执行。
+        根据依赖关系 + resource/risk_level 返回**分层并行执行顺序**。
+
+        - 先按依赖关系做拓扑分层；
+        - 再在每一拓扑层内，根据 resource / risk_level 进行「安全并发」控制：
+          - 同一资源上 risk_level="high" 的 Todo 强制串行（不会出现在同一层）；
+          - 受 self.max_parallel_per_layer 控制全局并发上限；
+        - 返回值为列表的列表，每个内层列表中的 todo 可并行执行。
         """
         if not self._current_plan:
             return []
 
-        todos = {t.id: t for t in self._current_plan.todos}
+        todos: Dict[str, TodoItem] = {t.id: t for t in self._current_plan.todos}
+        if not todos:
+            return []
+
         remaining = set(todos.keys())
-        completed = set()
-        layers = []
+        completed: set[str] = set()
+        layers: List[List[str]] = []
+        max_parallel = max(int(self.max_parallel_per_layer or 1), 1)
 
         while remaining:
-            # 找出所有依赖已完成的 todo
-            layer = []
-            for tid in list(remaining):
-                deps = todos[tid].depends_on
-                if all(d in completed for d in deps):
-                    layer.append(tid)
-            if not layer:
-                # 有循环依赖，强制取出剩余
-                layer = list(remaining)
-            layers.append(layer)
-            for tid in layer:
+            # 1) 找出所有依赖已满足的 Todo（拓扑“就绪集”）
+            ready: List[str] = [
+                tid
+                for tid in remaining
+                if all(d in completed for d in todos[tid].depends_on)
+            ]
+
+            # 若不存在任何就绪节点，说明存在环或非法依赖，退化为旧逻辑：一次性取出所有剩余
+            if not ready:
+                layers.append(list(remaining))
+                break
+
+            # 2) 在就绪集中，按 resource/risk_level 做并发切分
+            current_layer: List[str] = []
+            used_high_risk_resources: set[str] = set()
+
+            # 保持顺序稳定：按 Todo id 排序
+            for tid in sorted(ready):
+                if len(current_layer) >= max_parallel:
+                    # 并发上限已满，剩余就绪节点留到下一层
+                    continue
+
+                todo = todos[tid]
+                resource = getattr(todo, "resource", None) or None
+                risk_level = (getattr(todo, "risk_level", None) or "").lower()
+                is_high_risk = risk_level == "high"
+
+                # 对同一 resource 的高危步骤强制串行：同一层内只允许 1 个
+                if is_high_risk and resource:
+                    if resource in used_high_risk_resources:
+                        # 推迟到下一层
+                        continue
+                    used_high_risk_resources.add(resource)
+
+                current_layer.append(tid)
+
+            # 如果由于各种限制导致当前层为空，则退化为「全部就绪节点一层执行」
+            if not current_layer:
+                current_layer = ready
+
+            layers.append(current_layer)
+            for tid in current_layer:
                 remaining.discard(tid)
                 completed.add(tid)
 
@@ -479,16 +522,23 @@ class PlannerAgent(BaseAgent):
         if json_match:
             try:
                 data = json.loads(json_match.group())
-                todos = []
+                todos: List[TodoItem] = []
                 for td in data.get("todos", []):
-                    todos.append(
-                        TodoItem(
-                            id=td.get("id", f"step_{len(todos) + 1}"),
-                            content=td.get("content", ""),
-                            tool_hint=td.get("tool_hint"),
-                            depends_on=td.get("depends_on", []),
-                        )
+                    todo = TodoItem(
+                        id=td.get("id", f"step_{len(todos) + 1}"),
+                        content=td.get("content", ""),
+                        tool_hint=td.get("tool_hint"),
+                        depends_on=td.get("depends_on", []),
+                        # 允许 LLM 直接输出 resource / risk_level / agent_hint（向后兼容，可为空）
+                        resource=td.get("resource"),
+                        risk_level=td.get("risk_level"),
+                        agent_hint=td.get("agent_hint"),
                     )
+                    todos.append(todo)
+
+                # 基于用户请求 + Todo 内容填充/修正 resource、risk_level、agent_hint
+                self._enrich_todos_with_metadata(todos, user_input)
+
                 return PlanResult(
                     request_type=RequestType.TECHNICAL,
                     todos=todos,
@@ -505,9 +555,16 @@ class PlannerAgent(BaseAgent):
         user_input_lower = user_input.lower()
         todos = []
 
-        if any(k in user_input_lower for k in ["scan", "扫描", "端口", "port", "内网", "网络"]):
+        if any(
+            k in user_input_lower
+            for k in ["scan", "扫描", "端口", "port", "内网", "网络"]
+        ):
             todos.append(
-                TodoItem(id="step_1", content="执行端口扫描", tool_hint="port_scan")
+                TodoItem(
+                    id="step_1",
+                    content="执行端口扫描",
+                    tool_hint="port_scan",
+                )
             )
             todos.append(
                 TodoItem(
@@ -519,30 +576,53 @@ class PlannerAgent(BaseAgent):
             )
         elif any(k in user_input_lower for k in ["vuln", "漏洞"]):
             todos.append(
-                TodoItem(id="step_1", content="执行漏洞扫描", tool_hint="vuln_scan")
+                TodoItem(
+                    id="step_1",
+                    content="执行漏洞扫描",
+                    tool_hint="vuln_scan",
+                )
             )
             todos.append(
                 TodoItem(id="step_2", content="分析检测结果", depends_on=["step_1"])
             )
         elif any(k in user_input_lower for k in ["system", "系统", "status", "状态"]):
             todos.append(
-                TodoItem(id="step_1", content="获取系统信息", tool_hint="system_info")
+                TodoItem(
+                    id="step_1",
+                    content="获取系统信息",
+                    tool_hint="system_info",
+                )
             )
             todos.append(
-                TodoItem(id="step_2", content="查看系统状态", tool_hint="system_info")
+                TodoItem(
+                    id="step_2",
+                    content="查看系统状态",
+                    tool_hint="system_info",
+                )
             )
         elif any(k in user_input_lower for k in ["crawl", "爬取", "网页"]):
             todos.append(
-                TodoItem(id="step_1", content="爬取目标网页", tool_hint="web_crawler")
+                TodoItem(
+                    id="step_1",
+                    content="爬取目标网页",
+                    tool_hint="web_crawler",
+                )
             )
         elif any(k in user_input_lower for k in ["command", "命令", "execute", "执行"]):
             todos.append(
                 TodoItem(
-                    id="step_1", content="执行指定命令", tool_hint="execute_command"
+                    id="step_1",
+                    content="执行指定命令",
+                    tool_hint="terminal_session",
                 )
             )
         else:
-            todos.append(TodoItem(id="step_1", content=f"分析用户需求: {user_input}"))
+            todos.append(
+                TodoItem(
+                    id="step_1",
+                    content=f"分析用户需求: {user_input}",
+                )
+            )
             todos.append(
                 TodoItem(
                     id="step_2",
@@ -551,11 +631,217 @@ class PlannerAgent(BaseAgent):
                 )
             )
 
+        # 为回退计划同样补充 resource / risk_level / agent_hint
+        self._enrich_todos_with_metadata(todos, user_input)
+
         return PlanResult(
             request_type=RequestType.TECHNICAL,
             todos=todos,
             plan_summary=f"分析任务: {user_input}",
         )
+
+    # ------------------------------------------------------------------
+    # Todo 元数据推断：resource / risk_level / agent_hint
+    # ------------------------------------------------------------------
+
+    def _enrich_todos_with_metadata(
+        self,
+        todos: List[TodoItem],
+        user_input: str,
+    ) -> None:
+        """为 Todo 补充 resource / risk_level / agent_hint 元数据。"""
+        for todo in todos:
+            resource, risk_level = self._infer_resource_and_risk(todo, user_input)
+            if resource and not getattr(todo, "resource", None):
+                todo.resource = resource
+            if risk_level and not getattr(todo, "risk_level", None):
+                todo.risk_level = risk_level
+            if not getattr(todo, "agent_hint", None):
+                todo.agent_hint = self._map_tool_to_agent_hint(
+                    todo.tool_hint, todo.resource or resource
+                )
+
+    def _infer_resource_and_risk(
+        self,
+        todo: TodoItem,
+        user_input: str,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """综合 Todo 内容与用户请求推断 resource 与 risk_level。"""
+        resource = getattr(todo, "resource", None) or self._infer_resource(
+            todo, user_input
+        )
+        risk_level = getattr(todo, "risk_level", None) or self._infer_risk_level(
+            todo, user_input
+        )
+        return resource, risk_level
+
+    def _infer_resource(self, todo: TodoItem, user_input: str) -> Optional[str]:
+        """根据 Todo 内容 + 用户输入，粗略推断目标资产 resource。"""
+        text = f"{todo.content or ''}\n{user_input or ''}"
+        tool = (todo.tool_hint or "").lower()
+
+        # 1) URL → web 资产
+        url_match = re.search(r"https?://[^\s]+", text)
+        if url_match:
+            raw_url = url_match.group(0)
+            try:
+                parsed = urlparse(raw_url)
+                if parsed.scheme and parsed.netloc:
+                    origin = f"{parsed.scheme}://{parsed.netloc}"
+                    return f"web:{origin}"
+            except Exception:
+                # 解析失败时仍保留原始 URL
+                return f"web:{raw_url}"
+
+        # 2) IP / 子网 → host / subnet
+        cidr_match = re.search(
+            r"\b(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}\b",
+            text,
+        )
+        if cidr_match:
+            return f"subnet:{cidr_match.group(0)}"
+
+        ip_match = re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text)
+        if ip_match:
+            return f"host:{ip_match.group(0)}"
+
+        # 3) 域名 → domain
+        domain_match = re.search(
+            r"\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b",
+            text,
+        )
+        if domain_match:
+            return f"domain:{domain_match.group(0)}"
+
+        # 4) 纯本机/系统信息类 → 视为本机 host
+        if tool in {"system_info", "system_status"}:
+            return "host:localhost"
+
+        return None
+
+    def _infer_risk_level(self, todo: TodoItem, user_input: str) -> Optional[str]:
+        """基于 tool_hint / 文本关键词粗略推断风险等级：high / medium / low。"""
+        text = f"{todo.content or ''}\n{user_input or ''}".lower()
+        tool = (todo.tool_hint or "").lower()
+
+        high_keywords = [
+            "exploit",
+            "攻击",
+            "attack",
+            "暴力",
+            "brute",
+            "fuzz",
+            "dos",
+            "ddos",
+            "poc",
+        ]
+        if any(k in tool for k in high_keywords) or any(
+            k in text for k in high_keywords
+        ):
+            return "high"
+
+        medium_keywords = [
+            "scan",
+            "扫描",
+            "枚举",
+            "enum",
+            "vuln",
+            "漏洞",
+            "fingerprint",
+            "recon",
+        ]
+        if any(k in tool for k in medium_keywords) or any(
+            k in text for k in medium_keywords
+        ):
+            return "medium"
+
+        # 其他默认视为低风险
+        return "low"
+
+    def _map_tool_to_agent_hint(
+        self,
+        tool_hint: Optional[str],
+        resource: Optional[str],
+    ) -> Optional[str]:
+        """
+        将 tool_hint / resource 映射为 agent_hint：
+        - network_recon / web_pentest / osint / terminal_ops / defense_monitor
+        """
+        if not tool_hint and not resource:
+            return None
+
+        hint = (tool_hint or "").lower()
+
+        # 优先根据工具名判断
+        network_keywords = [
+            "port_scan",
+            "service_detect",
+            "recon",
+            "nmap",
+            "subnet",
+            "ping",
+            "traceroute",
+            "arp",
+            "network_scan",
+        ]
+        web_keywords = [
+            "dir",
+            "waf",
+            "tech_detect",
+            "header",
+            "cors",
+            "jwt",
+            "param",
+            "xss",
+            "sql",
+            "ssrf",
+            "web_",
+            "http_",
+        ]
+        osint_keywords = [
+            "shodan",
+            "virustotal",
+            "osint",
+            "smart_search",
+            "deep_crawl",
+            "api_client",
+            "web_research",
+        ]
+        terminal_keywords = [
+            "terminal_session",
+            "execute_command",
+            "shell",
+        ]
+        defense_keywords = [
+            "defense",
+            "intrusion",
+            "self_vuln",
+            "network_analyze",
+            "system_info",
+            "system_status",
+        ]
+
+        if any(k in hint for k in network_keywords):
+            return "network_recon"
+        if any(k in hint for k in web_keywords):
+            return "web_pentest"
+        if any(k in hint for k in osint_keywords):
+            return "osint"
+        if any(k in hint for k in terminal_keywords):
+            return "terminal_ops"
+        if any(k in hint for k in defense_keywords):
+            return "defense_monitor"
+
+        # 再根据 resource 前缀做一轮兜底映射
+        if resource:
+            if resource.startswith(("host:", "subnet:", "ip:")):
+                return "network_recon"
+            if resource.startswith("web:"):
+                return "web_pentest"
+            if resource.startswith(("domain:", "osint:")):
+                return "osint"
+
+        return None
 
 
 def is_simple_request(user_input: str) -> bool:

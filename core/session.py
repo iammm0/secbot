@@ -164,6 +164,42 @@ class SessionManager:
         Returns:
             最终响应文本
         """
+        # 统一处理斜杠命令，如 /help
+        stripped = user_input.strip()
+        if stripped.startswith("/"):
+            cmd = stripped.split()[0].lower()
+            if cmd in ("/help", "/h", "/?"):
+                help_text = (
+                    "我是 Hackbot / Secbot 内置的自动化安全测试助手。\n\n"
+                    "【角色定位】\n"
+                    "- 核心身份：自动化渗透测试与主动安全巡检系统（hackbot 自动模式 / superhackbot 专家模式）。\n"
+                    "- 同时也是一个通用 AI 助手，可以回答和安全无关的各种问题。\n\n"
+                    "【我能做什么】\n"
+                    "- 安全/渗透测试相关：\n"
+                    "  * 资产与信息收集（端口扫描、服务识别、指纹探测）。\n"
+                    "  * Web 目录爆破、基础漏洞探测（如常见弱点、自检巡检）。\n"
+                    "  * 简单 OSINT 查询（Shodan / VirusTotal 等，需你在 .env 或设置里配置 API Key）。\n"
+                    "  * 结合多种工具，执行「信息收集 → 扫描 → 分析 → 报告」的一整套自动化流程。\n"
+                    "- 通用能力：\n"
+                    "  * 回答编程、系统使用、架构设计等通用问题。\n"
+                    "  * 帮你规划任务步骤、解释扫描结果、生成安全巡检报告。\n\n"
+                    "【内部架构（高层次理解）】\n"
+                    "- 前端 / TUI / App → 调用后端 FastAPI `/api/chat` 接口。\n"
+                    "- 后端由 `SessionManager` 负责会话编排，决定是走 QA 简答、还是走 Planner + 核心 Agent 的技术链路。\n"
+                    "- 核心 Agent（hackbot / superhackbot）基于 ReAct 模式调用安全工具，并通过 EventBus 把思考过程/工具调用结果推送给前端。\n"
+                    "- 最后由 SummaryAgent 汇总为一份可读的任务总结/安全报告。\n\n"
+                    "【如何和我配合】\n"
+                    "- 想做渗透测试/巡检时，可以直接告诉我目标和授权范围，比如：\n"
+                    "  * “帮我对 192.168.1.10 做一次基础安全巡检，包含端口和目录扫描。”\n"
+                    "  * “对 https://example.com 做一轮基础渗透测试，先信息收集再目录爆破。”\n"
+                    "- 想了解具体能力/架构时，可以直接用自然语言继续问，比如：\n"
+                    "  * “你现在集成了哪些安全工具？”\n"
+                    "  * “详细讲讲 hackbot 的工作流程和设计思路。”\n"
+                )
+                if self.current_session:
+                    self.current_session.add_message(MessageRole.ASSISTANT, help_text)
+                return help_text
+
         if self.current_session:
             self.current_session.add_message(MessageRole.USER, user_input)
 
@@ -228,6 +264,9 @@ class SessionManager:
                             "status": t.status.value,
                             "depends_on": t.depends_on,
                             "tool_hint": t.tool_hint,
+                            "resource": getattr(t, "resource", None),
+                            "risk_level": getattr(t, "risk_level", None),
+                            "agent_hint": getattr(t, "agent_hint", None),
                         }
                         for t in plan_result.todos
                     ],
@@ -276,8 +315,23 @@ class SessionManager:
             await self.event_bus.emit_simple_async(EventType.ERROR, error=error_msg)
             return error_msg
 
+        # 如 Agent 支持多子 Agent 聚合，先清空上一轮的聚合结果
+        if hasattr(agent_instance, "reset_agent_results"):
+            try:
+                agent_instance.reset_agent_results()
+            except Exception as e:
+                logger.warning(f"重置子 Agent 聚合结果失败: {e}")
+
         # 创建事件桥接：将 agent 的 on_event 回调转发到 EventBus + 自动更新 todo
         def event_bridge(event_type: str, data: dict):
+            # 若下层未标记 agent，则使用当前核心 Agent 的标识兜底
+            if "agent" not in data:
+                data = dict(data or {})
+                data["agent"] = getattr(
+                    agent_instance,
+                    "agent_type",
+                    getattr(agent_instance, "name", at),
+                )
             self._bridge_agent_event(event_type, data, plan_result)
 
         # 编排流程下：规划与报告由 SessionManager 各做一次
@@ -295,27 +349,53 @@ class SessionManager:
             plan_result.todos
             and hasattr(agent_instance, "execute_todo")
         )
-        if use_layer_executor:
-            executor = TaskExecutor(
-                plan_result=plan_result,
-                agent=agent_instance,
-                planner=self.planner,
-                event_bus=self.event_bus,
-                get_root_password=getattr(self, "get_root_password", None),
-            )
-            response = await executor.run(
-                user_input, on_event=event_bridge
-            )
-            # 分层执行后需记录工具结果供摘要使用（由 event_bridge 已更新 _current_tool_results）
+
+        # 若 Agent 定义了并发锁，则在锁内串行执行整个任务，避免多个请求并发打在同一个 Agent 上
+        lock = getattr(agent_instance, "_concurrency_lock", None)
+        if lock is not None:
+            async with lock:
+                if use_layer_executor:
+                    executor = TaskExecutor(
+                        plan_result=plan_result,
+                        agent=agent_instance,
+                        planner=self.planner,
+                        event_bus=self.event_bus,
+                        get_root_password=getattr(self, "get_root_password", None),
+                    )
+                    response = await executor.run(
+                        user_input, on_event=event_bridge
+                    )
+                    # 分层执行后需记录工具结果供摘要使用（由 event_bridge 已更新 _current_tool_results）
+                else:
+                    response = await agent_instance.process(
+                        user_input,
+                        on_event=event_bridge,
+                        skip_planning=True,
+                        skip_report=True,
+                        todos=todos_snapshot,
+                        get_root_password=getattr(self, "get_root_password", None),
+                    )
         else:
-            response = await agent_instance.process(
-                user_input,
-                on_event=event_bridge,
-                skip_planning=True,
-                skip_report=True,
-                todos=todos_snapshot,
-                get_root_password=getattr(self, "get_root_password", None),
-            )
+            if use_layer_executor:
+                executor = TaskExecutor(
+                    plan_result=plan_result,
+                    agent=agent_instance,
+                    planner=self.planner,
+                    event_bus=self.event_bus,
+                    get_root_password=getattr(self, "get_root_password", None),
+                )
+                response = await executor.run(
+                    user_input, on_event=event_bridge
+                )
+            else:
+                response = await agent_instance.process(
+                    user_input,
+                    on_event=event_bridge,
+                    skip_planning=True,
+                    skip_report=True,
+                    todos=todos_snapshot,
+                    get_root_password=getattr(self, "get_root_password", None),
+                )
 
         # ---- 阶段 3：摘要 ----
         summary = await self._run_summary(
@@ -362,10 +442,11 @@ class SessionManager:
         plan_result = await self.planner.plan(user_input, context=context)
 
         if plan_result.request_type == RequestType.TECHNICAL and plan_result.todos:
-            # 发射规划事件
+            # 发射规划事件（标记来源为 planner）
             await self.event_bus.emit_simple_async(
                 EventType.PLAN_START,
                 summary=plan_result.plan_summary,
+                agent="planner",
                 todos=[
                     {
                         "id": t.id,
@@ -373,6 +454,9 @@ class SessionManager:
                         "status": t.status.value,
                         "depends_on": t.depends_on,
                         "tool_hint": t.tool_hint,
+                        "resource": getattr(t, "resource", None),
+                        "risk_level": getattr(t, "risk_level", None),
+                        "agent_hint": getattr(t, "agent_hint", None),
                     }
                     for t in plan_result.todos
                 ],
@@ -399,6 +483,15 @@ class SessionManager:
                     elif item["type"] == "observation":
                         observations.append(item["content"])
 
+            agent_tool_results_by_agent = None
+            if hasattr(agent_instance, "get_agent_results_by_agent"):
+                try:
+                    agent_tool_results_by_agent = (
+                        agent_instance.get_agent_results_by_agent()
+                    )
+                except Exception as e:
+                    logger.warning(f"获取子 Agent 结果聚合失败: {e}")
+
             summary = await self.summary_agent.summarize_interaction(
                 user_input=user_input,
                 todos=plan_result.todos,
@@ -407,6 +500,7 @@ class SessionManager:
                 tool_results=self._current_tool_results,
                 interaction_type="technical",
                 brief=True,  # 最后报告：简要说下做了什么即可
+                agent_tool_results_by_agent=agent_tool_results_by_agent,
             )
 
             # 发射报告事件
@@ -443,22 +537,30 @@ class SessionManager:
         """
         iteration = data.get("iteration", 0)
 
+        agent = data.get("agent")
+
         if event_type == "planning":
             self.event_bus.emit_simple(
                 EventType.CONTENT,
                 content=data.get("content", ""),
                 type="text",
                 title="[bold magenta]Planning[/bold magenta]",
+                agent=agent,
             )
 
         elif event_type == "thought_start":
-            self.event_bus.emit_simple(EventType.THINK_START, iteration=iteration)
+            self.event_bus.emit_simple(
+                EventType.THINK_START,
+                iteration=iteration,
+                agent=agent,
+            )
 
         elif event_type == "thought_chunk":
             self.event_bus.emit_simple(
                 EventType.THINK_CHUNK,
                 iteration=iteration,
                 chunk=data.get("chunk", ""),
+                agent=agent,
             )
 
         elif event_type == "thought_end":
@@ -469,6 +571,7 @@ class SessionManager:
                 EventType.THINK_END,
                 iteration=iteration,
                 thought=data.get("content", ""),
+                agent=agent,
             )
 
         elif event_type == "action_start":
@@ -484,7 +587,12 @@ class SessionManager:
             self.event_bus.emit(
                 Event(
                     type=EventType.EXEC_START,
-                    data={"tool": tool, "params": params, "script": script},
+                    data={
+                        "tool": tool,
+                        "params": params,
+                        "script": script,
+                        "agent": agent,
+                    },
                     iteration=iteration,
                 )
             )
@@ -516,6 +624,7 @@ class SessionManager:
                         "success": success,
                         "result": data.get("result", "") if success else None,
                         "error": data.get("error", "") if not success else None,
+                        "agent": agent,
                     },
                     iteration=iteration,
                 )
@@ -527,6 +636,7 @@ class SessionManager:
                 content=data.get("content", ""),
                 type="text",
                 title="[bold blue]观察[/bold blue]",
+                agent=agent,
             )
 
         elif event_type == "content":
@@ -534,18 +644,21 @@ class SessionManager:
                 EventType.CONTENT,
                 content=data.get("content", ""),
                 type="text",
+                agent=agent,
             )
 
         elif event_type == "report":
             self.event_bus.emit_simple(
                 EventType.REPORT_END,
                 report=data.get("content", ""),
+                agent=agent,
             )
 
         elif event_type == "error":
             self.event_bus.emit_simple(
                 EventType.ERROR,
                 error=data.get("error", ""),
+                agent=agent,
             )
 
     def _auto_update_todo_on_exec(

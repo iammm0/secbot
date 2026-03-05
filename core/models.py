@@ -28,6 +28,17 @@ class TodoItem:
     status: TodoStatus = TodoStatus.PENDING
     depends_on: List[str] = field(default_factory=list)
     tool_hint: Optional[str] = None
+    # 目标资产标记，例如：
+    # - "host:192.168.1.10"
+    # - "subnet:192.168.1.0/24"
+    # - "web:https://example.com"
+    # - "domain:example.com"
+    resource: Optional[str] = None
+    # 风险等级：low / medium / high（为保持向后兼容使用 str）
+    risk_level: Optional[str] = None
+    # 建议由哪个子 agent 执行该 Todo，例如：
+    # - "network_recon" / "web_pentest" / "osint" / "terminal_ops" / "defense_monitor"
+    agent_hint: Optional[str] = None
     result_summary: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)

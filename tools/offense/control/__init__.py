@@ -3,5 +3,6 @@
 """
 
 from tools.offense.control.command_tool import CommandTool
+from tools.offense.control.terminal_tool import TerminalSessionTool
 
-__all__ = ["CommandTool"]
+__all__ = ["CommandTool", "TerminalSessionTool"]

@@ -49,8 +49,8 @@ class DatabaseManager:
                 else:
                     self.db_path = Path(path_str)
             else:
-                # 默认路径
-                self.db_path = Path(settings.project_root) / "data" / "hackbot.db"
+                # 默认路径（与 hackbot_config 默认一致）
+                self.db_path = Path(settings.project_root) / "data" / "secbot.db"
 
         # 确保目录存在
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
