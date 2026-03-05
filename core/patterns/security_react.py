@@ -6,6 +6,8 @@ SecurityReActAgent：LLM 驱动的安全测试 ReAct 引擎
 import json
 import re
 import asyncio
+from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from core.agents.base import BaseAgent
@@ -1160,6 +1162,14 @@ Final Answer: <最终结论和报告>
             logger.info(f"工具 {tool.name} 执行成功: {result.success}")
             if not result.success:
                 logger.error(f"工具 {tool.name} 执行失败: {result.error}")
+                # 失败时写入专用 debug 日志，便于后续精确排查与优化
+                self._write_tool_debug_log(
+                    tool_name=tool.name,
+                    params=log_params,
+                    success=False,
+                    error_msg=result.error or "",
+                    result_obj=result.result,
+                )
                 # 检测权限相关错误并提供更好的提示
                 error_msg = result.error or ""
                 if any(
@@ -1181,9 +1191,63 @@ Final Answer: <最终结论和报告>
         except Exception as e:
             logger.error(f"工具 {tool.name} 执行失败: {e}")
             error_msg = str(e)
+            # 异常时同样写入 debug 日志
+            self._write_tool_debug_log(
+                tool_name=tool.name,
+                params=log_params,
+                success=False,
+                error_msg=error_msg,
+                result_obj=None,
+            )
             hint = self._get_permission_hint(tool.name, error_msg)
             enhanced_error = f"{error_msg}\n\n{hint}" if hint else error_msg
             return ToolResult(success=False, result=None, error=enhanced_error)
+
+    def _write_tool_debug_log(
+        self,
+        tool_name: str,
+        params: Dict[str, Any],
+        success: bool,
+        error_msg: str,
+        result_obj: Any = None,
+    ) -> None:
+        """
+        将工具执行失败的详细信息写入专用 debug 日志文件夹。
+        日志路径示例: logs/tool_debug/20260305_153045_123456_api_client.json
+        """
+        try:
+            # 日志根目录与主日志同级，例如 logs/tool_debug
+            from hackbot_config import settings
+
+            base_dir = Path(settings.log_file).parent
+            debug_dir = base_dir / "tool_debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            safe_tool = "".join(
+                c if c.isalnum() or c in ("-", "_") else "_" for c in (tool_name or "")
+            ) or "unknown_tool"
+            file_path = debug_dir / f"{ts}_{safe_tool}.json"
+
+            agent_label = getattr(self, "agent_type", None) or getattr(self, "name", "")
+
+            payload: Dict[str, Any] = {
+                "timestamp": ts,
+                "agent": agent_label,
+                "tool": tool_name,
+                "params": params,
+                "success": success,
+                "error": error_msg,
+            }
+            if result_obj is not None:
+                payload["result_preview"] = (
+                    str(result_obj)[:2000] if not isinstance(result_obj, (dict, list)) else result_obj
+                )
+
+            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as log_err:
+            # 不能影响主流程，只做告警
+            logger.warning(f"写入工具 debug 日志失败: {log_err}")
 
     def _get_permission_hint(self, tool_name: str, error_msg: str) -> str:
         """根据工具和错误信息生成权限相关的提示"""
