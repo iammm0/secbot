@@ -56,7 +56,10 @@ export const getDefenseReport = (type = 'vulnerability') =>
 
 // -- Network --
 export const discoverNetwork = (network?: string) =>
-  api.post<DiscoverResponse>('/api/network/discover', { network });
+  api.post<DiscoverResponse>(
+    '/api/network/discover',
+    network !== undefined ? { network } : {},
+  );
 
 export const getTargets = (authorizedOnly = false) =>
   api.get<TargetListResponse>(

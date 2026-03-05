@@ -43,12 +43,12 @@ export default function TargetCard({ host, onPress }: Props) {
 
       <Text style={styles.hostname}>{host.hostname}</Text>
 
-      {host.open_ports.length > 0 && (
+      {(host.open_ports?.length ?? 0) > 0 && (
         <View style={styles.portsRow}>
           <Text style={styles.portsLabel}>端口: </Text>
           <Text style={styles.ports} numberOfLines={1}>
-            {host.open_ports.slice(0, 8).join(', ')}
-            {host.open_ports.length > 8 ? '...' : ''}
+            {(host.open_ports ?? []).slice(0, 8).join(', ')}
+            {(host.open_ports?.length ?? 0) > 8 ? '...' : ''}
           </Text>
         </View>
       )}

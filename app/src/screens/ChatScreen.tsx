@@ -142,6 +142,7 @@ export default function ChatScreen() {
             type: 'planning',
             timestamp: new Date(),
             content: data.content || '',
+            agent: data.agent,
           });
           break;
         }
@@ -162,6 +163,7 @@ export default function ChatScreen() {
             iteration,
             content: '',
             streaming: true,
+            agent: data.agent,
           });
           break;
         }
@@ -195,6 +197,7 @@ export default function ChatScreen() {
               content,
               streaming: false,
               iteration,
+              agent: data.agent,
             });
           } else {
             // 没有流式块，直接创建完成的推理块
@@ -205,6 +208,7 @@ export default function ChatScreen() {
               iteration,
               content,
               streaming: false,
+              agent: data.agent,
             });
           }
           thinkingIdRef.current = null;
@@ -227,6 +231,7 @@ export default function ChatScreen() {
             tool,
             params,
             streaming: true, // running
+            agent: data.agent,
           });
           break;
         }
@@ -246,6 +251,7 @@ export default function ChatScreen() {
               success,
               result,
               error,
+              agent: data.agent,
             });
           } else {
             // 单独创建结果块
@@ -257,6 +263,7 @@ export default function ChatScreen() {
               success,
               result,
               error,
+              agent: data.agent,
             });
           }
           currentExecRef.current = null;
@@ -271,6 +278,7 @@ export default function ChatScreen() {
             type: 'observation',
             timestamp: new Date(),
             content: data.content || '',
+            agent: data.agent,
           });
           break;
         }
@@ -285,6 +293,7 @@ export default function ChatScreen() {
             updateBlock(reportIdRef.current, {
               content: reportContentRef.current,
               streaming: false,
+              agent: data.agent,
             });
           } else {
             const id = nextBlockId();
@@ -296,6 +305,7 @@ export default function ChatScreen() {
               timestamp: new Date(),
               content: reportContent,
               streaming: false,
+              agent: data.agent,
             });
           }
           break;
@@ -309,6 +319,7 @@ export default function ChatScreen() {
             type: 'response',
             timestamp: new Date(),
             content: data.content || '',
+            agent: data.agent ?? (mode === 'agent' ? agentSubType : mode),
             detail: data.agent ?? (mode === 'agent' ? agentSubType : mode),
           });
           break;
