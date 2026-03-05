@@ -50,7 +50,7 @@ export default function App() {
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
-            const icons = TAB_ICONS[route.name];
+            const icons = TAB_ICONS[route.name] ?? TAB_ICONS.Chat;
             const iconName = focused ? icons.focused : icons.default;
             return <Ionicons name={iconName} size={size} color={color} />;
           },

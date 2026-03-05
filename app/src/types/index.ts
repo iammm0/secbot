@@ -40,6 +40,8 @@ export interface RenderBlock {
   timestamp: Date;
   // 各类型的数据载荷
   content?: string;
+  // 事件来源的智能体（hackbot / superhackbot / network_recon / web_pentest / osint 等）
+  agent?: string;
   // thinking
   iteration?: number;
   streaming?: boolean;

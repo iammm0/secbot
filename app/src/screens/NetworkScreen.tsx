@@ -36,11 +36,11 @@ export default function NetworkScreen() {
   const loadData = useCallback(() => {
     targets.execute(() => getTargets(false));
     auths.execute(getAuthorizations);
-  }, []);
+  }, [targets.execute, auths.execute]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const handleDiscover = async () => {
     setDiscovering(true);
@@ -48,7 +48,7 @@ export default function NetworkScreen() {
       const result = await discoverNetwork();
       Alert.alert(
         '发现完成',
-        `发现 ${result.hosts.length} 个在线主机`,
+        `发现 ${result?.hosts?.length ?? 0} 个在线主机`,
       );
       loadData();
     } catch (err: any) {

@@ -33,11 +33,11 @@ export default function DefenseScreen() {
   const loadData = useCallback(() => {
     status.execute(getDefenseStatus);
     blocked.execute(getBlockedIps);
-  }, []);
+  }, [status.execute, blocked.execute]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const handleScan = async () => {
     setScanning(true);

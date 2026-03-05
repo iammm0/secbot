@@ -24,11 +24,11 @@ export default function DashboardScreen() {
   const loadData = useCallback(() => {
     sysInfo.execute(getSystemInfo);
     sysStatus.execute(getSystemStatus);
-  }, []);
+  }, [sysInfo.execute, sysStatus.execute]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const refreshing = sysInfo.loading || sysStatus.loading;
 

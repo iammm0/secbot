@@ -45,6 +45,7 @@ export default function BlockRenderer({ block }: Props) {
           content={block.content || ''}
           iteration={block.iteration}
           streaming={block.streaming}
+          agent={block.agent}
         />
       );
 
@@ -54,6 +55,7 @@ export default function BlockRenderer({ block }: Props) {
           tool={block.tool || 'unknown'}
           params={block.params}
           running={block.streaming}
+          agent={block.agent}
         />
       );
 
@@ -65,6 +67,7 @@ export default function BlockRenderer({ block }: Props) {
           success={block.success}
           result={block.result}
           error={block.error}
+          agent={block.agent}
         />
       );
 
@@ -78,7 +81,10 @@ export default function BlockRenderer({ block }: Props) {
 
     case 'response':
       return (
-        <ResponseBlock content={block.content || ''} agent={block.detail || 'hackbot'} />
+        <ResponseBlock
+          content={block.content || ''}
+          agent={block.agent || block.detail || 'hackbot'}
+        />
       );
 
     case 'error':

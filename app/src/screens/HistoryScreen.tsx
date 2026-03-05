@@ -26,11 +26,11 @@ export default function HistoryScreen() {
   const loadData = useCallback(() => {
     stats.execute(getDbStats);
     history.execute(() => getDbHistory({ limit: 20 }));
-  }, []);
+  }, [stats.execute, history.execute]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const handleClear = () => {
     Alert.alert('确认清空', '确定清空所有对话记录？此操作不可恢复。', [
