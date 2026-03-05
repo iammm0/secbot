@@ -1,10 +1,10 @@
-# hackbot: Automated Penetration Testing Robot
+# secbot (formerly hackbot): Automated Penetration Testing Robot
 
 <div align="center">
 
 **An intelligent automated penetration testing robot with AI-powered security testing capabilities**
 
-[English](#hackbot-automated-penetration-testing-robot) | [中文](README.md)
+[English](#secbot-formerly-hackbot-automated-penetration-testing-robot) | [中文](README.md)
 
 </div>
 
@@ -23,7 +23,9 @@
 ### Core Capabilities
 
 - 🤖 **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
-- 💻 **CLI Interface**: Built with Typer for intuitive command-line interaction
+- 🌐 **AI Web Research Agent**: Independent sub-agent with ReAct loop for internet research—smart search, page extraction, multi-page crawling, and API interaction
+- 💻 **CLI Interface**: Simple, intuitive command-line tools for local control and configuration
+- 🖥️ **Persistent Terminal Session**: Agent-controlled dedicated shell session for multi-step command execution and system inspection
 - 🎤 **Voice Interaction**: Complete speech-to-text and text-to-speech functionality
 - 🕷️ **AI Web Crawler**: Real-time web information capture and monitoring
 - 💻 **OS Control**: File operations, process management, system information
@@ -47,12 +49,156 @@
 - 🎯 **Authorization Management**: Manage legal authorization for target hosts
 - 🖥️ **Remote Control**: Remote command execution and file transfer on authorized hosts
 
+### Web Research (Internet Capabilities)
+
+- 🔎 **Smart Search**: DuckDuckGo search → fetch result pages → AI summarization and synthesis
+- 📄 **Page Extract**: Extract page content by mode—plain text, structured (tables/lists), or custom AI schema
+- 🕸️ **Deep Crawl**: BFS multi-page crawling from a start URL with depth/URL filter and optional AI extraction
+- 🔌 **API Client**: Generic REST client with presets (weather, IP info, GitHub, exchange rates, DNS, etc.)
+- 🤖 **Web Research Tool**: Delegate to the Web Research sub-agent for autonomous research or call tools directly
+
 ### Additional Features
 
 - 📝 **Prompt Chain Management**: Flexible agent prompt configuration
 - 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
 - ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
-- 🎨 **Beautiful Terminal Output**: Rich formatting with Rich library
+- 🎨 **Terminal Output**: Colorized and structured terminal output for better readability and debugging
+
+## 🧩 Architecture & Multi-Agent Collaboration
+
+This section gives a detailed, code-oriented view of how components and agents collaborate inside secbot.
+
+> **Tip**: The static architecture diagram below (`assets/secbot_architecture.png`) is convenient for quick preview on GitHub / code hosting platforms. The following mermaid diagram and text then map each block to concrete source files.
+
+![Secbot architecture overview (Frontend / Router / Planner / Multi-Agent / Tools / Summary / EventBus / Storage)](assets/secbot_architecture.png)
+
+### High-Level Architecture (mapped to source modules)
+
+```mermaid
+flowchart LR
+  %% ---------------- Frontend / clients ----------------
+  subgraph Frontend / Clients
+    user[User]
+    tui[TUI / CLI\n(terminal-ui)]
+    app[Mobile App\n(React Native)]
+  end
+
+  user --> tui
+  user --> app
+
+  tui -->|HTTP / SSE| api[FastAPI /api/chat\nrouter/chat.py]
+  app -->|HTTP / SSE| api
+
+  %% ---------------- Backend router & session orchestration ----------------
+  subgraph Backend Router & Session
+    api --> sessionMgr[SessionManager\ncore/session.py]
+    sessionMgr --> eb[EventBus\nutils/event_bus.py]
+  end
+
+  %% ---------------- Planning & execution orchestration ----------------
+  subgraph Planning & Execution
+    sessionMgr --> planner[PlannerAgent\ncore/agents/planner_agent.py]
+    planner --> planResult[PlanResult + Todos\n(core/models.py: TodoItem,\nresource, risk_level, agent_hint)]
+    planResult --> executor[TaskExecutor\ncore/executor.py]
+  end
+
+  %% ---------------- Multi-agent coordination layer ----------------
+  subgraph Agent Orchestration
+    executor -->|layered parallel calls\n(get_execution_order())| coord[CoordinatorAgent (Hackbot)\ncore/agents/coordinator_agent.py]
+
+    subgraph Specialist Agents\n(core/agents/specialist_agents.py)
+      net[NetworkReconAgent]
+      web[WebPentestAgent]
+      osint[OSINTAgent]
+      term[TerminalOpsAgent]
+      defend[DefenseMonitorAgent]
+    end
+  end
+
+  coord -->|network_recon| net
+  coord -->|web_pentest| web
+  coord -->|osint| osint
+  coord -->|terminal_ops| term
+  coord -->|defense_monitor| defend
+
+  %% ---------------- Tool layer ----------------
+  subgraph Tools
+    toolsNet[(Network recon tools\nCORE_SECURITY_TOOLS + NETWORK_TOOLS\n tools/pentest/security.py,\n tools/pentest/network/…)]
+    toolsWeb[(Web pentest tools\nWEB_TOOLS\n tools/web/…)]
+    toolsOsint[(OSINT + WebResearch\nOSINT_TOOLS + WEB_RESEARCH_TOOLS\n tools/osint/…\n tools/web_research/…)]
+    toolsTerm[(Terminal sessions\nTerminalSessionTool\n tools/offense/control/terminal_tool.py)]
+    toolsDef[(Defense / self-check\nDEFENSE_TOOLS\n tools/defense/…)]
+  end
+
+  net --> toolsNet
+  web --> toolsWeb
+  osint --> toolsOsint
+  term --> toolsTerm
+  defend --> toolsDef
+
+  %% ---------------- Summary & storage ----------------
+  subgraph Summary & Storage
+    coord --> summary[SummaryAgent\ncore/agents/summary_agent.py]
+    summary --> db[SQLite DB\n(database/manager.py,\n hackbot_config/data/secbot.db)]
+  end
+
+  summary --> sessionMgr
+
+  %% ---------------- Event stream & UI rendering ----------------
+  eb -->|PLAN_* / THINK_* / EXEC_* /\nCONTENT / REPORT_END / ERROR\n(all with agent tag)| sse[SSE stream\nrouter/chat.py → /api/chat]
+
+  sse --> appUI[ChatScreen.tsx\n(app/src/screens/ChatScreen.tsx)\nThinkingBlock / ExecutionBlock /\nReportBlock / ResponseBlock]
+  sse --> tuiUI[Terminal UI\n(terminal-ui)]
+```
+
+### Key Design Ideas (by layer)
+
+- **Router & session orchestration (router/chat.py + core/session.py)**
+  - `/api/chat` (SSE endpoint) wraps the incoming request as `ChatRequest`, wires up an `EventBus`, subscribes to key event types (`PLAN_START/THINK_*/EXEC_*/CONTENT/REPORT_END/ERROR`, etc.), and then calls `SessionManager.handle_message()`.
+  - `_event_to_sse()` maps EventBus events to SSE frames consumed by the frontend and includes the `agent` field so the UI can distinguish which agent produced which output.
+  - `SessionManager` orchestrates each interaction in three phases:
+    1. **Routing**: decides whether to go through QA / small-talk vs. full technical flow (Planner + Hackbot).
+    2. **Planning**: calls `PlannerAgent.plan()` to obtain a `PlanResult`, then emits `PLAN_START` with the plan summary and Todos via `EventBus`.
+    3. **Execution**: depending on whether Todos exist and the agent capabilities:
+       - Layered execution mode: `TaskExecutor + CoordinatorAgent` (multi-agent, parallel-friendly).
+       - Compatibility mode: directly call `agent.process()` (classic ReAct loop).
+  - All agent callbacks go through `_bridge_agent_event()`, which:
+    - Normalizes events into `EventBus` types (`THINK_*`, `EXEC_*`, `CONTENT`, `REPORT_END`, `ERROR`).
+    - Ensures the `agent` field is present.
+    - Auto-updates `PlannerAgent` Todo status and emits `PLAN_TODO` events accordingly.
+
+- **PlannerAgent: structured, resource-aware planning**
+  - Breaks the user request into a list of `TodoItem`s, each with `depends_on`, `resource` (e.g. `host:192.168.1.10`, `web:https://example.com`), `risk_level`, and `agent_hint`.
+  - `get_execution_order()` uses dependency DAG + resource/risk to build a **safe parallel plan**: high-risk steps on the same resource are forced to run sequentially, independent resources are run in parallel where possible.
+
+- **TaskExecutor: layered parallel executor**
+  - Consumes `PlannerAgent.get_execution_order()` and executes Todos layer by layer: within a layer, tasks can be run in parallel; between layers, dependencies are honored strictly.
+  - Builds the `context` passed to agents with both per-todo results and a resource-centric view (`context["_by_resource_"]`), so later steps and sub-agents can easily reuse prior findings on the same asset.
+
+- **CoordinatorAgent (Hackbot core): multi-agent routing**
+  - Exposed externally as `"hackbot"`, but internally does **not** run tools directly; instead, it routes each Todo to a **specialist agent** based on `agent_hint` / `resource` / `tool_hint`:
+    - `network_recon` → `NetworkReconAgent`
+    - `web_pentest` → `WebPentestAgent`
+    - `osint` → `OSINTAgent`
+    - `terminal_ops` → `TerminalOpsAgent`
+    - `defense_monitor` → `DefenseMonitorAgent`
+  - Coordinator is responsible for routing and result aggregation only; concrete security tools live in the specialist agents.
+
+- **Specialist Agents: narrow but deep ReAct loops**
+  - All specialist agents inherit from `SecurityReActAgent`, with dedicated system prompts and tool-sets limited to their domain.
+  - Each maintains its own short-term session summary; at the end of an interaction, the Coordinator updates all agents’ summaries so the next task can leverage past intelligence.
+
+- **SummaryAgent: multi-agent report aggregation**
+  - Consumes agent-scoped tool results aggregated by the Coordinator and produces a structured report, e.g. sections for network attack surface, web security posture, OSINT findings, terminal/host state, and defense/alerts.
+
+- **EventBus + SSE: agent-tagged event stream**
+  - All THINK/EXEC/REPORT events carry an `agent` field. The frontend (`ChatScreen.tsx`) renders `ThinkingBlock` and `ExecutionBlock` components with labels such as `[network_recon]`, `[web_pentest]`, `[osint]`, making it clear which agent performed each step.
+
+### Repository Naming
+
+- The GitHub repository has been renamed to **`secbot`** (formerly **hackbot**). CLI entry points keep both names for compatibility, but new docs and examples prefer `secbot`.
+
+---
 
 ## 📋 Requirements
 
@@ -66,8 +212,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/iammm0/hackbot.git
-cd hackbot
+git clone https://github.com/iammm0/secbot.git
+cd secbot
 ```
 
 ### 2. Install Dependencies
@@ -178,6 +324,7 @@ uv run python -m build
 - [Speech Guide](docs/SPEECH_GUIDE.md)
 - [SQLite Setup](docs/SQLITE_SETUP.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
+- **API Key configuration**: API keys (e.g. DeepSeek / Groq / OpenRouter) are now configured primarily via the TUI/frontend settings or in-app commands (such as `/model`) rather than a separate Typer+Rich CLI tool. Under the hood, secbot still follows the conventions in [config-and-env](docs/design-paradigms/config-and-env.md), using `.env` plus keyring/database for secure storage of sensitive values.
 
 ## 🤝 Contributing
 
@@ -202,10 +349,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Built with [LangChain](https://github.com/langchain-ai/langchain)
-- Powered by [Ollama](https://ollama.ai)
-- CLI built with [Typer](https://typer.tiangolo.com)
-- Beautiful output with [Rich](https://github.com/Textualize/rich)
+secbot is built on top of a rich open-source ecosystem. We would like to express our sincere gratitude to all projects and communities that made this possible (**including but not limited to**, in no particular order):
+
+- Languages & runtimes: **Python**, **TypeScript/JavaScript**, **Node.js**
+- Backend & infrastructure: **FastAPI**, **Starlette / sse-starlette**, **uvicorn**, **uv**, **SQLite**
+- LLM & AI ecosystem: **LangChain**, `langchain-openai`, `langchain-anthropic`, `langchain-google-genai`, `langchain-community`, various **DeepSeek / OpenAI / Anthropic / Google Gemini** compatible APIs, and **Ollama** for local inference
+- Terminal & logging: terminal / logging related tooling (e.g. **loguru** and others)
+- Security & networking: the numerous security, networking and OSINT tools (e.g. nmap, scapy, etc.) that are wrapped or integrated by this project, and their maintainers
+- Frontend & mobile: **React**, **React Native**, **Expo**, **Ink**, **React Navigation** and the surrounding UI / state-management ecosystem
+- Other dependencies: `requests/httpx`, `pydantic`, `sqlalchemy` and many other third-party libraries directly or transitively used in this repository
+
+> If we are using your open-source project but failed to list it explicitly above, please accept our apologies — we are equally grateful for your work.
 
 ## ⚠️ Disclaimer
 
