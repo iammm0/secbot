@@ -153,18 +153,26 @@ class ApiClientTool(BaseTool):
         if preset not in API_PRESETS:
             available = ", ".join(API_PRESETS.keys())
             return ToolResult(
-                success=False, result=None,
+                success=False,
+                result=None,
                 error=f"未知模板: {preset}，可用模板: {available}",
             )
 
         config = API_PRESETS[preset]
-        # 部分模板需要单参数（如天气需城市名），未提供时使用默认值
+        # 部分模板需要单参数（如天气需城市名）
         if "{query}" in config["url_template"] and not query:
             if preset == "weather":
-                query = "北京"
+                # 1) 优先根据本机 IP 自动推断城市
+                auto_city = await self._detect_city_from_ip()
+                if auto_city:
+                    query = auto_city
+                else:
+                    # 2) 回退到固定默认城市，保证不会报错
+                    query = "北京"
             else:
                 return ToolResult(
-                    success=False, result=None,
+                    success=False,
+                    result=None,
                     error=f"模板 {preset} 需要 query 参数，请提供。",
                 )
         url = config["url_template"].format(query=query) if query else config["url_template"]
@@ -348,6 +356,69 @@ class ApiClientTool(BaseTool):
                 return None
             return t
         except (TypeError, ValueError):
+            return None
+
+    async def _detect_city_from_ip(self) -> Optional[str]:
+        """
+        尝试通过公网 IP 自动推断所在城市：
+        1) 使用 httpbin.org 获取本机公网 IP
+        2) 使用 ip-api.com 查询地理位置（中文）
+        失败时返回 None，不抛异常
+        """
+        try:
+            try:
+                import httpx
+            except ImportError:
+                logger.warning("自动定位城市失败: 缺少依赖 httpx")
+                return None
+
+            timeout_val = 8.0
+            headers = {"User-Agent": "HackBot-ApiClient/2.0"}
+
+            async with httpx.AsyncClient(
+                timeout=timeout_val,
+                follow_redirects=True,
+                verify=False,
+            ) as client:
+                # 第一步：获取公网 IP
+                ip_resp = await client.get("https://httpbin.org/ip", headers=headers)
+                ip_data = ip_resp.json()
+                ip = (
+                    ip_data.get("origin")
+                    or ip_data.get("ip")
+                    or (ip_data.get("origin_ip") if isinstance(ip_data, dict) else None)
+                )
+                if not ip:
+                    logger.warning("自动定位城市失败: 未能从 httpbin.org 响应中提取 IP")
+                    return None
+
+                # httpbin 可能返回 "1.2.3.4, 5.6.7.8" 形式，取第一个
+                if isinstance(ip, str) and "," in ip:
+                    ip = ip.split(",")[0].strip()
+
+                # 第二步：通过 ip-api 查询地理位置（返回中文字段）
+                geo_url = f"http://ip-api.com/json/{ip}?lang=zh-CN"
+                geo_resp = await client.get(geo_url, headers=headers)
+                geo_data = geo_resp.json()
+
+                if not isinstance(geo_data, dict) or geo_data.get("status") != "success":
+                    logger.warning("自动定位城市失败: ip-api 返回非 success 状态")
+                    return None
+
+                city = (
+                    _ensure_str(geo_data.get("city"))
+                    or _ensure_str(geo_data.get("regionName"))
+                    or _ensure_str(geo_data.get("country"))
+                )
+                city = city.strip()
+                if not city:
+                    logger.warning("自动定位城市失败: 未能从 ip-api 响应中提取城市信息")
+                    return None
+
+                return city
+
+        except Exception as e:
+            logger.warning(f"自动定位城市失败: {e}")
             return None
 
     def get_schema(self) -> Dict[str, Any]:
