@@ -1,67 +1,59 @@
-# hackbot: Automated Penetration Testing Robot
+# secbot（原 hackbot）: 自动化渗透测试机器人
 
 <div align="center">
 
-**An intelligent automated penetration testing robot with AI-powered security testing capabilities**
+**一个智能化的自动化渗透测试机器人，具备 AI 驱动的安全测试能力**
 
-[English](#hackbot-automated-penetration-testing-robot) | [中文](README_CN.md)
+[中文](README_CN.md) | [English](README_EN.md)
 
 </div>
 
 ---
 
-## ⚠️ Security Warning
+> **说明**：本仓库默认使用中文作为主文档语言。  
+> 详细功能介绍、架构设计、多智能体协作说明等内容，请优先参考 `README_CN.md`；英文版请查看 `README_EN.md`。
 
-**This tool is intended for authorized security testing only. Unauthorized use of this tool for network attacks is illegal.**
+- 若你希望快速了解项目整体，请直接阅读 `README_CN.md`。
+- 若你更习惯英文文档，可从 `README_EN.md` 开始阅读，其内容会尽量与中文保持同步。
 
-- ✅ Only use on systems you own or have explicit written authorization to test
-- ✅ Ensure you comply with all applicable laws and regulations
-- ✅ Use responsibly and ethically
+### 项目架构总览（预览）
 
-## 🚀 Features
+为了在 GitHub 等代码托管平台中快速预览整体架构，这里直接嵌入一张静态架构图（详细分层说明见 `README_CN.md` 的「架构与多智能体协作」一节）。
 
-### Core Capabilities
+![Secbot 架构总览（前端 / 路由 / Planner / 多智能体 / Tools / Summary / EventBus / 存储）](assets/secbot_architecture.png)
 
-- 🤖 **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
-- 🌐 **AI Web Research Agent**: Independent sub-agent with ReAct loop for internet research—smart search, page extraction, multi-page crawling, and API interaction
-- 💻 **CLI Interface**: Built with Typer for intuitive command-line interaction
-- 🎤 **Voice Interaction**: Complete speech-to-text and text-to-speech functionality
-- 🕷️ **AI Web Crawler**: Real-time web information capture and monitoring
-- 💻 **OS Control**: File operations, process management, system information
+- **PlannerAgent: structured, resource-aware planning**
+  - Breaks the user request into a list of `TodoItem`s, each with `depends_on`, `resource` (e.g. `host:192.168.1.10`, `web:https://example.com`), `risk_level`, and `agent_hint`.
+  - `get_execution_order()` uses dependency DAG + resource/risk to build a **safe parallel plan**: high-risk steps on the same resource are forced to run sequentially, independent resources are run in parallel where possible.
 
-### Penetration Testing
+- **TaskExecutor: layered parallel executor**
+  - Consumes `PlannerAgent.get_execution_order()` and executes Todos layer by layer: within a layer, tasks can be run in parallel; between layers, dependencies are honored strictly.
+  - Builds the `context` passed to agents with both per-todo results and a resource-centric view (`context["_by_resource_"]`), so later steps and sub-agents can easily reuse prior findings on the same asset.
 
-- 🔍 **Reconnaissance**: Automated information gathering (hostname, IP, ports, services)
-- 🔍 **Vulnerability Scanning**: Port scanning, service detection, vulnerability identification
-- ⚔️ **Exploit Engine**: Automated exploitation of SQL injection, XSS, command injection, file upload, path traversal, SSRF
-- 🔗 **Automated Attack Chain**: Complete penetration testing workflow automation
-  - Information Gathering → Vulnerability Scanning → Exploitation → Post-Exploitation
-- 📦 **Payload Generator**: Automatic generation of attack payloads
-- 🎯 **Post-Exploitation**: Privilege escalation, persistence, lateral movement, data exfiltration
-- ⚔️ **Network Attacks**: Brute force, DoS testing, buffer overflow (authorized testing only)
+- **CoordinatorAgent (Hackbot core): multi-agent routing**
+  - Exposed externally as `"hackbot"`, but internally does **not** run tools directly; instead, it routes each Todo to a **specialist agent** based on `agent_hint` / `resource` / `tool_hint`:
+    - `network_recon` → `NetworkReconAgent`
+    - `web_pentest` → `WebPentestAgent`
+    - `osint` → `OSINTAgent`
+    - `terminal_ops` → `TerminalOpsAgent`
+    - `defense_monitor` → `DefenseMonitorAgent`
+  - Coordinator is responsible for routing and result aggregation only; concrete security tools live in the specialist agents.
 
-### Security & Defense
+- **Specialist Agents: narrow but deep ReAct loops**
+  - All specialist agents inherit from `SecurityReActAgent`, with dedicated system prompts and tool-sets limited to their domain.
+  - Each maintains its own short-term session summary; at the end of an interaction, the Coordinator updates all agents’ summaries so the next task can leverage past intelligence.
 
-- 🛡️ **Active Defense**: Information collection, vulnerability scanning, network analysis, intrusion detection
-- 📊 **Security Reports**: Automated detailed security analysis reports
-- 🔍 **Network Discovery**: Automatic discovery of all hosts in the network
-- 🎯 **Authorization Management**: Manage legal authorization for target hosts
-- 🖥️ **Remote Control**: Remote command execution and file transfer on authorized hosts
+- **SummaryAgent: multi-agent report aggregation**
+  - Consumes agent-scoped tool results aggregated by the Coordinator and produces a structured report, e.g. sections for network attack surface, web security posture, OSINT findings, terminal/host state, and defense/alerts.
 
-### Web Research (Internet Capabilities)
+- **EventBus + SSE: agent-tagged event stream**
+  - All THINK/EXEC/REPORT events carry an `agent` field. The frontend (`ChatScreen.tsx`) renders `ThinkingBlock` and `ExecutionBlock` components with labels such as `[network_recon]`, `[web_pentest]`, `[osint]`, making it clear which agent performed each step.
 
-- 🔎 **Smart Search**: DuckDuckGo search → fetch result pages → AI summarization and synthesis
-- 📄 **Page Extract**: Extract page content by mode—plain text, structured (tables/lists), or custom AI schema
-- 🕸️ **Deep Crawl**: BFS multi-page crawling from a start URL with depth/URL filter and optional AI extraction
-- 🔌 **API Client**: Generic REST client with presets (weather, IP info, GitHub, exchange rates, DNS, etc.)
-- 🤖 **Web Research Tool**: Delegate to the Web Research sub-agent for autonomous research or call tools directly
+### Repository Naming
 
-### Additional Features
+- The GitHub repository has been renamed to **`secbot`** (formerly **hackbot**). CLI entry points keep both names for compatibility, but new docs and examples prefer `secbot`.
 
-- 📝 **Prompt Chain Management**: Flexible agent prompt configuration
-- 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
-- ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
-- 🎨 **Beautiful Terminal Output**: Rich formatting with Rich library
+---
 
 ## 📋 Requirements
 
@@ -75,8 +67,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/iammm0/hackbot.git
-cd hackbot
+git clone https://github.com/iammm0/secbot.git
+cd secbot
 ```
 
 ### 2. Install Dependencies
@@ -217,6 +209,7 @@ uv run python -m build
 - [SQLite Setup](docs/SQLITE_SETUP.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
 - [Changelog](docs/CHANGELOG.md) · [Release](docs/RELEASE.md)
+- **API Key configuration**: API keys (e.g. DeepSeek / Groq / OpenRouter) are configured via the TUI/frontend settings or in-app commands (such as `/model`), not via a standalone Typer+Rich CLI anymore. Internally, secbot still follows [config-and-env](docs/design-paradigms/config-and-env.md), using `.env` plus keyring/database for secure storage.
 
 ## 🤝 Contributing
 
@@ -241,8 +234,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Built with [LangChain](https://github.com/langchain-ai/langchain)
-- Powered by [Ollama](https://ollama.ai)
+secbot is built on top of a rich open-source ecosystem. We would like to express our sincere gratitude to all projects and communities that made this possible (**including but not limited to**, in no particular order):
+
+- Languages & runtimes: **Python**, **TypeScript/JavaScript**, **Node.js**
+- Backend & infrastructure: **FastAPI**, **Starlette / sse-starlette**, **uvicorn**, **uv**, **SQLite**
+- LLM & AI ecosystem: **LangChain**, `langchain-openai`, `langchain-anthropic`, `langchain-google-genai`, `langchain-community`, various **DeepSeek / OpenAI / Anthropic / Google Gemini** compatible APIs, and **Ollama** for local inference
+- Terminal & logging: terminal / logging related tooling (e.g. **loguru** and others)
+- Security & networking: the numerous security, networking and OSINT tools (e.g. nmap, scapy, etc.) that are wrapped or integrated by this project, and their maintainers
+- Frontend & mobile: **React**, **React Native**, **Expo**, **Ink**, **React Navigation** and the surrounding UI / state-management ecosystem
+- Other dependencies: `requests/httpx`, `pydantic`, `sqlalchemy` and many other third-party libraries directly or transitively used in this repository
+
+> If we are using your open-source project but failed to list it explicitly above, please accept our apologies — we are equally grateful for your work.
 
 ## ⚠️ Disclaimer
 
