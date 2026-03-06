@@ -1389,6 +1389,11 @@ Final Answer: <最终结论和报告>
         tool_hint = getattr(todo, "tool_hint", None) or (
             todo.get("tool_hint") if isinstance(todo, dict) else None
         )
+        # LLM 可能输出 JSON null 或字符串 "null"，均视为未指定工具
+        if tool_hint is not None and (
+            (isinstance(tool_hint, str) and tool_hint.strip().lower() == "null")
+        ):
+            tool_hint = None
         content = getattr(todo, "content", None) or (
             todo.get("content", "") if isinstance(todo, dict) else ""
         )

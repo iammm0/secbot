@@ -96,6 +96,21 @@ class CoordinatorAgent(BaseAgent):
 
         logger.info("初始化 CoordinatorAgent（hackbot 多子 Agent 协调器）")
 
+    @property
+    def tools_dict(self):
+        """
+        聚合所有子 Agent 的工具，供 SessionManager 规划阶段注入 Planner 的 context。
+        若无 tools_dict，Planner 收不到工具列表，会输出 tool_hint: null 导致无法执行。
+        """
+        if hasattr(self._default_agent, "tools_dict") and self._default_agent.tools_dict:
+            return self._default_agent.tools_dict
+        # 兜底：从各子 Agent 聚合
+        merged = {}
+        for agent in self.get_all_sub_agents():
+            if hasattr(agent, "tools_dict") and agent.tools_dict:
+                merged.update(agent.tools_dict)
+        return merged
+
     # ------------------------------------------------------------------
     # BaseAgent 接口：普通对话 / 同步模式仍走默认 Hackbot
     # ------------------------------------------------------------------
