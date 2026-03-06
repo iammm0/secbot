@@ -336,9 +336,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📝 License
+## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is under a custom open-source license. See the [LICENSE](LICENSE) file for the full text.
+
+- **Permitted**: You may use, modify, and distribute the software for **personal learning** and **academic research and exchange** (e.g. teaching, papers, non-profit sharing), provided that you keep the copyright and license notices.
+- **Commercial use**: Any commercial use requires **prior written permission** from the copyright holder. Unauthorized commercial use is not permitted.  
+  For commercial licensing: wisewater5419@gmail.com or [GitHub @iammm0](https://github.com/iammm0).
 
 ## 👤 Author
 
