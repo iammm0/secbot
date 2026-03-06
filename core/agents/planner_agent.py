@@ -36,7 +36,7 @@ class PlannerAgent(BaseAgent):
 - **问候类**：你好、hello、早上/下午/晚上好、再见、谢谢等
 - **闲聊类**：询问天气、闲聊、关于 Hackbot 本身的问题
 - **非技术类**：不属于安全巡检、系统操作、代码分析等技术范畴的请求
-- **技术类**：安全巡检、漏洞扫描、攻击取证、系统操作、命令执行等需要工具执行的请求
+- **技术类**：安全巡检、漏洞扫描、漏洞挖掘、红队攻击测试、系统操作、命令执行等需要工具执行的请求
 
 ### 2. 简单请求直接回复
 对于问候、闲聊、非技术请求，直接给出友好、简洁的回复，不需要调用任何工具。
@@ -45,10 +45,10 @@ class PlannerAgent(BaseAgent):
 对于需要执行操作的技术请求，将任务分解为结构化 JSON 格式的 TodoList。
 每个 Todo 必须包含：id、content、tool_hint（可选）、depends_on（依赖列表）。
 
-### 4. 巡检与取证任务的特殊处理
-对于安全巡检或攻击取证任务，规划时需注意：
+### 4. 巡检与渗透测试任务的特殊处理
+对于安全巡检或渗透测试任务，规划时需注意：
 - 巡检任务：按顺序执行信息收集→端口扫描→漏洞检测→报告生成
-- 取证任务：优先确保证据完整性，记录攻击者信息、时间线、攻击载荷
+- 渗透测试任务：信息收集→漏洞挖掘→漏洞利用→权限提升→报告生成，仅限授权目标
 
 ## 输出格式
 
@@ -100,7 +100,7 @@ class PlannerAgent(BaseAgent):
         request_type_str = self._quick_classify(user_input)
 
         if request_type_str == "greeting":
-            response = self._handle_greeting(user_input)
+            response = await self._reply_via_llm(user_input, "greeting")
             self.add_message("assistant", response)
             result = PlanResult(
                 request_type=RequestType.GREETING,
@@ -111,7 +111,7 @@ class PlannerAgent(BaseAgent):
             return result
 
         if request_type_str == "simple":
-            response = self._handle_simple(user_input)
+            response = await self._reply_via_llm(user_input, "simple")
             self.add_message("assistant", response)
             result = PlanResult(
                 request_type=RequestType.SIMPLE,
@@ -384,71 +384,57 @@ class PlannerAgent(BaseAgent):
         return "technical"
 
     # ------------------------------------------------------------------
-    # 问候/简单回复（与 v1 一致）
+    # 问候/简单回复（统一通过 LLM，不设快捷回复）
     # ------------------------------------------------------------------
 
-    def _handle_greeting(self, user_input: str) -> str:
-        user_input_lower = user_input.strip().lower()
-        if any(x in user_input_lower for x in ["再见", "拜拜", "bye", "quit", "exit"]):
-            return "再见！如有需要随时叫我。"
-        elif any(x in user_input_lower for x in ["谢谢", "thanks", "thank you"]):
-            return "不客气！很高兴能帮助你。"
-        elif any(x in user_input_lower for x in ["早上好", "早安", "上午好"]):
-            return "早上好！今天有什么我可以帮你的吗？"
-        elif any(x in user_input_lower for x in ["下午好"]):
-            return "下午好！工作顺利吗？需要什么帮助？"
-        elif any(x in user_input_lower for x in ["晚上好", "晚安"]):
-            return "晚上好！夜猫子吗？有什么需要帮忙的？"
-        elif any(x in user_input_lower for x in ["你好", "hello", "hi", "嗨"]):
-            return (
-                "你好！我是 Hackbot，一个安全测试助手。\n"
-                "我可以帮你进行端口扫描、漏洞检测、系统分析等任务。\n"
-                "直接说出你的需求吧！"
+    async def _reply_via_llm(self, user_input: str, request_type: str) -> str:
+        """通过 LLM 生成问候或简单请求的回复"""
+        import asyncio
+        from langchain_core.messages import SystemMessage, HumanMessage
+
+        prompt = (
+            "你是 Hackbot 的轻量问答助手。对用户的问候或简单问题做自然、友好的回复。"
+            "回复应简洁，不要调用任何工具。"
+        )
+        if request_type == "greeting":
+            prompt += " 当前是问候类输入，自然回应即可。"
+        else:
+            prompt += " 当前是简单问答（如能做什么、帮助等），简要说明能力并提示用户直接说需求。"
+
+        try:
+            llm = self._get_llm()
+            response = await asyncio.wait_for(
+                llm.ainvoke([
+                    SystemMessage(content=prompt),
+                    HumanMessage(content=user_input.strip()),
+                ]),
+                timeout=30.0,
             )
+            if hasattr(response, "content") and response.content:
+                return str(response.content).strip()
+            return str(response).strip()
+        except asyncio.TimeoutError:
+            return "回复超时，请稍后重试。"
+        except Exception as e:
+            logger.warning(f"PlannerAgent _reply_via_llm 错误: {e}")
+            return "你好！有什么可以帮你的吗？"
+
+    def _get_llm(self):
+        """获取 LLM 实例（延迟初始化）"""
+        if not hasattr(self, "_llm") or self._llm is None:
+            from core.patterns.security_react import _create_llm
+            self._llm = _create_llm()
+        return self._llm
+
+    def _handle_greeting(self, user_input: str) -> str:
+        """已废弃，保留仅为兼容；实际使用 _reply_via_llm"""
         return "你好！有什么可以帮你的吗？"
 
     def _handle_simple(self, user_input: str) -> str:
-        user_input_lower = user_input.strip().lower()
-
-        if "who are you" in user_input_lower or "你是谁" in user_input_lower:
-            return (
-                "我是 Hackbot，一个 AI 驱动的安全测试助手。\n\n"
-                "**我的能力包括：**\n"
-                "- 端口扫描和服务识别\n"
-                "- 漏洞扫描和安全检测\n"
-                "- 系统状态监控\n"
-                "- 报告生成\n\n"
-                "有什么安全相关的问题可以直接问我！"
-            )
-
-        if "天气" in user_input_lower or "weather" in user_input_lower:
-            return "我没有天气功能，但你可以看看窗外！"
-
-        if any(kw in user_input_lower for kw in ["帮助", "help", "能做什么"]):
-            return (
-                "**Hackbot 可用命令示例：**\n\n"
-                "- `Scan localhost for open ports` - 扫描本地端口\n"
-                "- `Check system status` - 查看系统状态\n"
-                "- `Crawl https://example.com` - 爬取网页\n"
-                "- `List all running processes` - 列出进程\n"
-                "- `Execute 'ls -la'` - 执行命令\n\n"
-                "直接说出你的需求即可！"
-            )
-
-        if "功能" in user_input_lower or "介绍" in user_input_lower:
-            return (
-                "**Hackbot 功能介绍：**\n\n"
-                "1. **安全扫描** - 端口扫描、服务识别、漏洞扫描\n"
-                "2. **信息收集** - 系统信息探测、网络发现\n"
-                "3. **系统操作** - 命令执行、进程管理、文件操作\n"
-                "4. **网页爬取** - 网页内容抓取、AI 信息提取\n\n"
-                "直接告诉我你需要什么！"
-            )
-
+        """已废弃，保留仅为兼容；实际使用 _reply_via_llm"""
         return (
-            f"我理解你的意思是：「{user_input}」\n\n"
-            "这看起来是一个简单的问题。如果你有具体的技术需求"
-            "（比如扫描、检测、执行命令等），请详细告诉我，我会帮你完成！"
+            "我是 Hackbot，一个 AI 驱动的安全测试助手。\n"
+            "有什么安全相关的问题可以直接问我！"
         )
 
     # ------------------------------------------------------------------
