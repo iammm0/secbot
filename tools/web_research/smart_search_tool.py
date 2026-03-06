@@ -1,9 +1,11 @@
 """
 智能搜索工具：搜索 → 访问结果页面 → AI 摘要 → 综合报告
+基于 ddgs / duckduckgo-search 进行网络搜索，失败时回退到 HTML 抓取
 """
 import asyncio
 from typing import Any, Dict, List
 from tools.base import BaseTool, ToolResult
+from tools.web_search_ddgs import search
 from utils.logger import logger
 
 
@@ -82,70 +84,13 @@ class SmartSearchTool(BaseTool):
     # ------------------------------------------------------------------
 
     async def _search(self, query: str, max_results: int) -> List[Dict[str, str]]:
-        """使用 DuckDuckGo 搜索"""
+        """使用 DuckDuckGo 搜索（ddgs / duckduckgo-search / HTML fallback）"""
         try:
-            from duckduckgo_search import DDGS
-
-            loop = asyncio.get_event_loop()
-
-            def _do_search():
-                with DDGS() as ddgs:
-                    return list(ddgs.text(query, max_results=max_results))
-
-            raw = await loop.run_in_executor(None, _do_search)
-            results = []
-            for r in raw:
-                results.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("href", r.get("link", "")),
-                    "snippet": r.get("body", r.get("snippet", "")),
-                })
+            results, _ = await search(query, max_results)
             return results
-        except ImportError:
-            logger.warning("duckduckgo-search 未安装，尝试 HTML 抓取")
-            return await self._search_html_fallback(query, max_results)
         except Exception as e:
             logger.error(f"搜索失败: {e}")
             return []
-
-    async def _search_html_fallback(self, query: str, max_results: int) -> List[Dict[str, str]]:
-        """通过 DuckDuckGo Lite HTML 页面抓取搜索结果（fallback）"""
-        import re
-        from urllib.request import Request, urlopen
-        from urllib.parse import quote_plus
-
-        loop = asyncio.get_event_loop()
-
-        def _fetch():
-            url = f"https://lite.duckduckgo.com/lite/?q={quote_plus(query)}"
-            req = Request(url)
-            req.add_header("User-Agent", "Mozilla/5.0 (compatible; HackBot/1.0)")
-            with urlopen(req, timeout=15) as resp:
-                return resp.read().decode(errors="ignore")
-
-        html = await loop.run_in_executor(None, _fetch)
-
-        results = []
-        link_pattern = re.compile(
-            r'<a[^>]+rel="nofollow"[^>]+href="([^"]+)"[^>]*>(.+?)</a>',
-            re.DOTALL,
-        )
-        snippet_pattern = re.compile(
-            r'<td[^>]*class="result-snippet"[^>]*>(.+?)</td>',
-            re.DOTALL,
-        )
-        links = link_pattern.findall(html)
-        snippets = snippet_pattern.findall(html)
-
-        for i, (url, title) in enumerate(links[:max_results]):
-            title_clean = re.sub(r"<[^>]+>", "", title).strip()
-            snippet = ""
-            if i < len(snippets):
-                snippet = re.sub(r"<[^>]+>", "", snippets[i]).strip()
-            if url.startswith("http"):
-                results.append({"title": title_clean, "url": url, "snippet": snippet})
-
-        return results
 
     async def _fetch_pages(self, search_results: List[Dict[str, str]]) -> List[str]:
         """并发访问搜索结果页面，提取纯文本内容"""
