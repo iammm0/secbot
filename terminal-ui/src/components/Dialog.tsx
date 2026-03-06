@@ -15,8 +15,8 @@ export function Dialog({ width, height }: DialogProps) {
 
   if (stack.length === 0) return null;
   const top = stack[stack.length - 1];
-  const contentWidth = Math.min(60, width - 4);
-  const contentHeight = Math.min(22, height - 4);
+  const contentWidth = Math.min(96, width - 4);
+  const contentHeight = Math.min(36, height - 4);
   return (
     <Box
       position="absolute"

@@ -113,6 +113,32 @@ export function parseSlash(
       },
     };
   }
+  if (cmd === '/tools') {
+    return {
+      handled: true,
+      fetchThen: async () => {
+        const r = await api.get<{
+          total: number;
+          basic_count: number;
+          advanced_count: number;
+          categories: Array<{ id: string; name: string; count: number; tools: Array<{ name: string; description: string }> }>;
+        }>('/api/tools');
+        const lines: string[] = [
+          `SECBOT 内置工具`,
+          `总计: ${r.total} 个（基础 ${r.basic_count}，高级 ${r.advanced_count}）`,
+          '',
+        ];
+        for (const cat of r.categories ?? []) {
+          lines.push(`【${cat.name}】${cat.count} 个`);
+          for (const t of cat.tools ?? []) {
+            lines.push(`  ${t.name.padEnd(22)} — ${t.description}`);
+          }
+          lines.push('');
+        }
+        return lines.join('\n');
+      },
+    };
+  }
 
   return { handled: false };
 }

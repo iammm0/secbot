@@ -301,7 +301,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         const cmd = parts[0]?.toLowerCase();
         const exact = commands.find((c) => c.slash && c.slash.toLowerCase() === cmd);
         const chatOnlySlash = ['/ask', '/task'];
-        const restSlashUseParseSlash = ['/help', '/list-agents'];
+        const restSlashUseParseSlash = ['/help', '/list-agents', '/tools'];
         if (
           exact &&
           !chatOnlySlash.includes(cmd) &&
@@ -339,6 +339,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
             const restTitles: Record<string, string> = {
               '/help': 'SECBOT 帮助',
               '/list-agents': '智能体列表',
+              '/tools': 'SECBOT 内置工具',
             };
             const title = restTitles[cmd] ?? 'API 结果';
             dialog.replace(<RestResultDialog title={title} fetchContent={result.fetchThen} />);
@@ -395,7 +396,11 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       {/* 执行中加载条 */}
       {streaming ? (
         <Box flexShrink={0} paddingTop={1}>
-          <LoadingBar active={streaming} phase={streamState.phase || undefined} />
+          <LoadingBar
+            active={streaming}
+            phase={streamState.phase || undefined}
+            detail={streamState.detail || undefined}
+          />
         </Box>
       ) : null}
 

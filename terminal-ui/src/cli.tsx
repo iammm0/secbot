@@ -92,8 +92,8 @@ async function main() {
   process.stdout.write(ALTERNATE_SCREEN_ON);
   process.on('exit', leaveAlternateScreen);
 
-  const columns = (process.stdout as NodeJS.WriteStream & { columns?: number }).columns ?? 80;
-  const rows = (process.stdout as NodeJS.WriteStream & { rows?: number }).rows ?? 24;
+  const columns = (process.stdout as NodeJS.WriteStream & { columns?: number }).columns ?? 100;
+  const rows = (process.stdout as NodeJS.WriteStream & { rows?: number }).rows ?? 32;
   const handleExit = (code?: number) => {
     leaveAlternateScreen();
     process.exit(code ?? 0);
