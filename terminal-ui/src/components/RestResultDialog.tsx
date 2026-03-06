@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../contexts/ThemeContext.js';
 
-const MAX_VISIBLE_LINES = 18;
+const MAX_VISIBLE_LINES = 28;
 
 interface RestResultDialogProps {
   title: string;

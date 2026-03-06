@@ -216,7 +216,7 @@ export function ModelConfigDialog() {
       }
     };
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={48}>
+      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
         <Text bold color={theme.primary}>
           {apiKeyEditingProvider.name}{' '}
           {isBaseUrlStep ? '— 输入 Base URL（留空清除自定义）' : '— 输入新 Key（留空删除）'}
@@ -245,7 +245,7 @@ export function ModelConfigDialog() {
     const list = apiKeyProviders;
     const safeIdx = Math.min(apiKeyListIndex, Math.max(0, list.length - 1));
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={48}>
+      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
         <Text bold color={theme.primary}>配置 API Key — 选择厂商</Text>
         <Text color={theme.textMuted}>↑↓ 选择 · Enter 配置 · Esc 返回</Text>
         <Box flexDirection="column" marginTop={1}>
@@ -326,7 +326,7 @@ export function ModelConfigDialog() {
     const label = PROVIDERS.find((p) => p.id === detailProvider)?.label ?? '';
 
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={48}>
+      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
         <Text bold color={theme.primary}>
           {label}
         </Text>
@@ -352,7 +352,7 @@ export function ModelConfigDialog() {
         : config.llm_provider;
 
   return (
-    <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={48}>
+    <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
       <Text bold color={theme.primary}>
         模型 / 推理配置 — 选择提供商查看或配置
       </Text>
