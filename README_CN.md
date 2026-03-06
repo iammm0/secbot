@@ -430,9 +430,13 @@ uv run python -m build
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 打开一个Pull Request
 
-## 📝 许可证
+## 📝 开源协议（License）
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+本项目采用自定义开源协议，详见 [LICENSE](LICENSE) 文件。
+
+- **允许**：个人学习、学术研究与交流（包括教学、论文、非营利技术分享等）可自由使用、修改与分发（须保留版权与协议声明）。
+- **商用**：任何商业用途须事先获得版权持有人书面授权，未经授权不得商用。  
+  商用授权联系：wisewater5419@gmail.com 或 [GitHub @iammm0](https://github.com/iammm0)。
 
 ## 👤 作者
 
