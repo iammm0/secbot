@@ -64,6 +64,8 @@ dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "sse-starlette>=1.8.0",
+    "langgraph>=0.2.0",
+    "ddgs>=9.0.0",
 ]
 
 [project.optional-dependencies]
@@ -81,12 +83,18 @@ all-providers = [
     "langchain-anthropic>=0.3.0",
     "langchain-google-genai>=2.0.0",
 ]
+exploit-tools = [
+    "pymetasploit3>=1.0.0",
+]
 
 [project.scripts]
 hackbot = "hackbot.cli:app"
 hackbot-server = "router.main:run_server"
 secbot = "hackbot.cli:app"
 secbot-server = "router.main:run_server"
+
+# 工具扩展 entry point：第三方包在其 pyproject.toml 中声明即可注册
+# 文档见 tools/registry.py 或 docs/TOOL_EXTENSION.md
 
 [project.urls]
 Homepage = "https://github.com/iammm0/hackbot"
@@ -101,7 +109,10 @@ packages = [
     "core.agents",
     "core.patterns",
     "core.attack_chain",
+    "core.attack_chain.graph",
     "core.memory",
+    "core.vuln_db",
+    "core.vuln_db.adapters",
     "skills",
     "hackbot_config",
     "controller",
