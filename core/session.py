@@ -216,20 +216,18 @@ class SessionManager:
             return response
 
         if not force_agent_flow and plan_override is None:
-            route_type, direct_reply = await message_route_with_llm(user_input)
-            # 与安全/电脑无关的问候 → 人格化直接回复
+            route_type, _direct_reply = await message_route_with_llm(user_input)
+            # 与安全/电脑无关的问候、闲聊 → 统一走 QAAgent 调用 LLM 回复
             if route_type == "other":
-                reply = direct_reply or (
-                    "你好呀～有安全巡检或电脑上的事可以随时叫我。"
-                )
                 await self.event_bus.emit_simple_async(
                     EventType.TASK_PHASE, phase="done", detail=""
                 )
+                response = await self.qa_agent.answer(user_input)
                 if self.current_session:
                     self.current_session.add_message(
-                        MessageRole.ASSISTANT, reply
+                        MessageRole.ASSISTANT, response
                     )
-                return reply
+                return response
             # 项目/能力/帮助类 → QAAgent
             if route_type == "qa":
                 await self.event_bus.emit_simple_async(
@@ -473,6 +471,12 @@ class SessionManager:
     ) -> Optional[InteractionSummary]:
         """阶段 3：摘要"""
         try:
+            await self.event_bus.emit_simple_async(
+                EventType.TASK_PHASE,
+                phase="report",
+                detail="报告生成",
+                agent=None,
+            )
             # 从 agent 中提取 ReAct 历史
             thoughts = []
             observations = []
@@ -550,6 +554,12 @@ class SessionManager:
 
         elif event_type == "thought_start":
             self.event_bus.emit_simple(
+                EventType.TASK_PHASE,
+                phase="thinking",
+                detail="推理中",
+                agent=agent,
+            )
+            self.event_bus.emit_simple(
                 EventType.THINK_START,
                 iteration=iteration,
                 agent=agent,
@@ -577,6 +587,15 @@ class SessionManager:
         elif event_type == "action_start":
             tool = data.get("tool", "")
             params = data.get("params", {})
+
+            # 发射执行阶段，供 UI 状态指示器显示
+            tool_label = self._tool_to_phase_label(tool)
+            self.event_bus.emit_simple(
+                EventType.TASK_PHASE,
+                phase="exec",
+                detail=tool_label,
+                agent=agent,
+            )
 
             # 自动更新 todo 状态
             self._auto_update_todo_on_exec(tool, plan_result, "in_progress")
@@ -700,6 +719,24 @@ class SessionManager:
                     status=status,
                     result_summary=result_summary,
                 )
+
+    def _tool_to_phase_label(self, tool: str) -> str:
+        """将工具名映射为可读的阶段描述，供 UI 状态指示器显示"""
+        _LABELS: dict[str, str] = {
+            "port_scan": "端口扫描",
+            "service_detect": "服务识别",
+            "vuln_scan": "漏洞扫描",
+            "recon": "信息收集",
+            "cve_lookup": "CVE 查询",
+            "exploit": "漏洞利用",
+            "report_generator": "报告生成",
+            "defense_scan": "防御扫描",
+            "terminal_session": "终端会话",
+            "execute_command": "命令执行",
+            "smart_search": "智能搜索",
+            "deep_crawl": "深度爬取",
+        }
+        return _LABELS.get(tool, tool.replace("_", " ") if tool else "执行中")
 
     def _format_action_script(self, tool: str, params: dict) -> Optional[str]:
         """格式化工具执行的脚本信息"""
