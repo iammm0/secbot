@@ -20,8 +20,8 @@ interface AppProps {
   rows?: number;
 }
 
-const DEFAULT_COLUMNS = 80;
-const DEFAULT_ROWS = 24;
+const DEFAULT_COLUMNS = 100;
+const DEFAULT_ROWS = 32;
 
 export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   const stdout = typeof process !== 'undefined' && process.stdout;
@@ -112,6 +112,41 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         onSelect: ({ close }) => {
           close();
           dialog.replace(<ModelConfigDialog />);
+        },
+      }),
+      register({
+        title: '内置工具（数量与种类）',
+        value: '/tools',
+        category: 'REST',
+        slash: '/tools',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="SECBOT 内置工具"
+              fetchContent={() =>
+                api.get<{
+                  total: number;
+                  basic_count: number;
+                  advanced_count: number;
+                  categories: Array<{ name: string; count: number; tools: Array<{ name: string; description: string }> }>;
+                }>('/api/tools').then((r) => {
+                  const lines: string[] = [
+                    `总计: ${r.total} 个（基础 ${r.basic_count}，高级 ${r.advanced_count}）`,
+                    '',
+                  ];
+                  for (const cat of r.categories ?? []) {
+                    lines.push(`【${cat.name}】${cat.count} 个`);
+                    for (const t of cat.tools ?? []) {
+                      lines.push(`  ${t.name.padEnd(22)} — ${t.description}`);
+                    }
+                    lines.push('');
+                  }
+                  return lines.join('\n');
+                })
+              }
+            />
+          );
         },
       }),
     ];
