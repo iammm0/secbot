@@ -29,6 +29,12 @@ def get_current_time_str() -> str:
     return f"{now.strftime('%Y-%m-%d %H:%M:%S')} {tz_str}"
 
 
+def get_current_date_str() -> str:
+    """返回当前日期的显式中文描述（便于模型明确识别年份与「今天」）。"""
+    now = datetime.now()
+    return f"{now.year}年{now.month}月{now.day}日"
+
+
 def get_environment_summary() -> dict:
     """收集当前运行环境信息（OS、Python、工作目录、是否容器/虚拟环境等）。"""
     info = {
@@ -76,11 +82,17 @@ def _in_ci() -> bool:
 def get_agent_context_block(include_time: bool = True, include_env: bool = True) -> str:
     """
     生成供注入到 Agent 提示词中的「当前上下文」文本块。
-    Hackbot 据此知晓当前时间和运行环境。
+    Hackbot 据此知晓自身所处的真实时间与运行位置，避免误用模型训练数据中的知识截止时间。
     """
-    lines = ["## 当前上下文"]
+    lines = ["## 当前上下文（你所处的时间与位置）"]
     if include_time:
         lines.append(f"- **当前时间**：{get_current_time_str()}")
+        lines.append(f"- **当前日期**：{get_current_date_str()}（运行环境提供的真实日期）")
+        lines.append(
+            "- **重要**：以上「当前时间/当前日期」由运行环境实时提供，表示你（secbot）所在的真实世界时间。"
+            "回答中涉及「现在」「最新」「今天」「当前」等时间概念时，请一律以此为准，"
+            "不要使用你训练数据中的知识截止时间（例如若你训练至 2024 年 7 月，仍应以本处给出的日期为准）。"
+        )
     if include_env:
         env = get_environment_summary()
         env_desc = []
@@ -93,5 +105,5 @@ def get_agent_context_block(include_time: bool = True, include_env: bool = True)
             env_desc.append("运行在 Docker 容器内")
         if env["in_ci"]:
             env_desc.append("运行在 CI 环境中")
-        lines.append("- **运行环境**：" + "；".join(env_desc))
+        lines.append("- **运行环境/位置**：" + "；".join(env_desc))
     return "\n".join(lines) + "\n"
