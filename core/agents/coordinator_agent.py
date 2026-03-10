@@ -308,6 +308,7 @@ class CoordinatorAgent(BaseAgent):
                     "deep_crawl",
                     "api_client",
                     "web_research",
+                    "ip_geolocation",
                 ]
             ):
                 return self._osint_agent, "osint"

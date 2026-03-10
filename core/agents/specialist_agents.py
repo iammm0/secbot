@@ -24,6 +24,7 @@ from tools.pentest.security import (
     OSINT_TOOLS,
     DEFENSE_TOOLS,
 )
+from tools.utility import IpGeoTool
 from tools.offense.control.terminal_tool import TerminalSessionTool
 from tools.web_research import WEB_RESEARCH_TOOLS
 from utils.audit import AuditTrail
@@ -154,7 +155,7 @@ class OSINTAgent(_SpecializedSecurityAgent):
         audit_trail: Optional[AuditTrail] = None,
         event_bus=None,
     ):
-        tools: List[BaseTool] = list(OSINT_TOOLS) + list(WEB_RESEARCH_TOOLS)
+        tools: List[BaseTool] = list(OSINT_TOOLS) + list(WEB_RESEARCH_TOOLS) + [IpGeoTool()]
         super().__init__(
             name="OSINTAgent",
             agent_type="osint",
