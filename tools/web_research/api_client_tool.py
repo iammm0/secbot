@@ -2,9 +2,43 @@
 通用 REST API 客户端工具：支持自定义请求与内置常用 API 模板
 """
 import json
-from typing import Any, Dict, Optional
+import traceback
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from datetime import datetime
 from tools.base import BaseTool, ToolResult
 from utils.logger import logger
+
+
+# 错误信息收集器
+@dataclass
+class ErrorCollector:
+    """收集API调用错误信息"""
+    errors: List[Dict[str, Any]] = field(default_factory=list)
+    max_size: int = 100
+
+    def add_error(self, error_type: str, message: str, context: Dict[str, Any]):
+        """添加错误信息"""
+        if len(self.errors) >= self.max_size:
+            self.errors.pop(0)
+        self.errors.append({
+            "timestamp": datetime.now().isoformat(),
+            "type": error_type,
+            "message": message,
+            "context": context
+        })
+
+    def get_recent_errors(self, count: int = 10) -> List[Dict[str, Any]]:
+        """获取最近的错误信息"""
+        return self.errors[-count:]
+
+    def clear(self):
+        """清空错误记录"""
+        self.errors.clear()
+
+
+# 全局错误收集器实例
+_error_collector = ErrorCollector()
 
 
 def _ensure_str(val: Any, default: str = "") -> str:
@@ -14,7 +48,8 @@ def _ensure_str(val: Any, default: str = "") -> str:
     if isinstance(val, str):
         return (val or default).strip()
     if isinstance(val, dict):
-        s = val.get("city") or val.get("query") or val.get("q") or (next(iter(val.values()), None) if val else None)
+        s = val.get("city") or val.get("query") or val.get("q") or (
+            next(iter(val.values()), None) if val else None)
         return _ensure_str(s, default)
     return str(val).strip() if val else default
 
@@ -100,7 +135,8 @@ class ApiClientTool(BaseTool):
     sensitivity = "low"
 
     def __init__(self):
-        preset_list = ", ".join(f"{k}({v['name']})" for k, v in API_PRESETS.items())
+        preset_list = ", ".join(
+            f"{k}({v['name']})" for k, v in API_PRESETS.items())
         super().__init__(
             name="api_client",
             description=(
@@ -175,7 +211,8 @@ class ApiClientTool(BaseTool):
                     result=None,
                     error=f"模板 {preset} 需要 query 参数，请提供。",
                 )
-        url = config["url_template"].format(query=query) if query else config["url_template"]
+        url = config["url_template"].format(
+            query=query) if query else config["url_template"]
         method = config.get("method", "GET")
         headers = dict(config.get("headers", {}))
 
@@ -244,92 +281,190 @@ class ApiClientTool(BaseTool):
             except (TypeError, ValueError):
                 pass
 
+        # 重试配置
+        max_retries = 3
+        retry_delay = 1.0
+
+        # 请求上下文信息
+        request_context = {
+            "url": url,
+            "method": method,
+            "headers": {k: v for k, v in headers.items() if k.lower() not in ["authorization", "x-api-key"]},
+            "params": params,
+            "timeout": timeout_val,
+            "preset_name": preset_name,
+        }
+
+        # 尝试导入 httpx
         try:
+            import httpx
+        except ImportError as e:
+            msg = f"缺少依赖: httpx，请先安装: pip install httpx"
+            logger.error(msg)
+            _error_collector.add_error("ImportError", msg, request_context)
+            return ToolResult(success=False, result=None, error=msg)
+
+        # SSL 警告
+        if not headers.get("verify", True):
+            logger.warning(f"SSL 验证已禁用: {url}")
+
+        # 重试循环
+        last_exception = None
+        for attempt in range(max_retries):
             try:
-                import httpx
-            except ImportError:
-                msg = "缺少依赖: httpx，请先安装: pip install httpx"
-                logger.error(msg)
-                return ToolResult(success=False, result=None, error=msg)
+                headers.setdefault("User-Agent", "HackBot-ApiClient/2.0")
 
-            headers.setdefault("User-Agent", "HackBot-ApiClient/2.0")
+                async with httpx.AsyncClient(
+                    timeout=timeout_val,
+                    follow_redirects=True,
+                    verify=False,  # 注意：生产环境应启用
+                ) as client:
+                    request_kwargs: Dict[str, Any] = {
+                        "method": method,
+                        "url": url,
+                        "headers": headers,
+                    }
+                    if params:
+                        request_kwargs["params"] = params
+                    if body:
+                        if isinstance(body, dict):
+                            request_kwargs["json"] = body
+                        elif isinstance(body, str):
+                            request_kwargs["content"] = body
 
-            async with httpx.AsyncClient(
-                timeout=timeout_val,
-                follow_redirects=True,
-                verify=False,
-            ) as client:
-                request_kwargs: Dict[str, Any] = {
+                    resp = await client.request(**request_kwargs)
+
+                # 解析响应（无论状态码如何都尝试返回内容）
+                result: Dict[str, Any] = {
+                    "url": str(resp.url),
                     "method": method,
-                    "url": url,
-                    "headers": headers,
-                }
-                if params:
-                    request_kwargs["params"] = params
-                if body:
-                    if isinstance(body, dict):
-                        request_kwargs["json"] = body
-                    elif isinstance(body, str):
-                        request_kwargs["content"] = body
-
-                resp = await client.request(**request_kwargs)
-
-            # 解析响应（无论状态码如何都尝试返回内容）
-            result: Dict[str, Any] = {
-                "url": str(resp.url),
-                "method": method,
-                "status_code": resp.status_code,
-                "content_type": resp.headers.get("content-type", ""),
-                "elapsed_ms": resp.elapsed.total_seconds() * 1000,
-            }
-
-            if preset_name:
-                result["preset"] = preset_name
-
-            # HTTP 状态辅助字段
-            ok = 200 <= resp.status_code < 300
-            result["ok"] = ok
-            if not ok:
-                result["http_error"] = {
                     "status_code": resp.status_code,
-                    "reason": getattr(resp, "reason_phrase", ""),
+                    "content_type": resp.headers.get("content-type", ""),
+                    "elapsed_ms": resp.elapsed.total_seconds() * 1000,
                 }
 
-            # 尝试解析 JSON
-            try:
-                json_data = resp.json()
-                # 限制 JSON 输出大小
-                json_str = json.dumps(json_data, ensure_ascii=False, indent=2)
-                if len(json_str) > 5000:
-                    if isinstance(json_data, dict):
-                        result["data"] = json_data
-                    elif isinstance(json_data, list):
-                        result["data"] = {"items": json_data[:20]}
+                if preset_name:
+                    result["preset"] = preset_name
+
+                # HTTP 状态辅助字段
+                ok = 200 <= resp.status_code < 300
+                result["ok"] = ok
+                if not ok:
+                    result["http_error"] = {
+                        "status_code": resp.status_code,
+                        "reason": getattr(resp, "reason_phrase", ""),
+                    }
+
+                # 尝试解析 JSON
+                try:
+                    json_data = resp.json()
+                    # 限制 JSON 输出大小
+                    json_str = json.dumps(
+                        json_data, ensure_ascii=False, indent=2)
+                    if len(json_str) > 5000:
+                        if isinstance(json_data, dict):
+                            result["data"] = json_data
+                        elif isinstance(json_data, list):
+                            result["data"] = {"items": json_data[:20]}
+                        else:
+                            result["data"] = json_data
+                        result["data_truncated"] = True
+                        result["total_size"] = len(json_str)
                     else:
                         result["data"] = json_data
-                    result["data_truncated"] = True
-                    result["total_size"] = len(json_str)
-                else:
-                    result["data"] = json_data
-            except (json.JSONDecodeError, Exception):
-                # 非 JSON 响应
-                text = resp.text[:3000]
-                result["body_preview"] = text
+                except (json.JSONDecodeError, Exception):
+                    # 非 JSON 响应
+                    text = resp.text[:3000]
+                    result["body_preview"] = text
 
-            result["response_headers"] = dict(list(resp.headers.items())[:20])
+                result["response_headers"] = dict(
+                    list(resp.headers.items())[:20])
 
-            # 即使 HTTP 非 2xx，也视为成功返回结果，由调用方根据 ok/http_error 决定处理方式
-            return ToolResult(success=True, result=result)
+                # 即使 HTTP 非 2xx，也视为成功返回结果，由调用方根据 ok/http_error 决定处理方式
+                return ToolResult(success=True, result=result)
 
-        except Exception as e:
-            # 尝试区分网络错误与其他异常
-            err_msg = str(e)
-            logger.error(f"ApiClientTool 请求错误: {err_msg}")
-            return ToolResult(
-                success=False,
-                result={"url": url, "method": method},
-                error=err_msg,
-            )
+            # ============== 详细的异常处理 ==============
+            except httpx.TimeoutException as e:
+                err_type = "TimeoutException"
+                err_msg = f"请求超时 (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                logger.warning(err_msg)
+                _error_collector.add_error(
+                    err_type, err_msg, {**request_context, "attempt": attempt + 1})
+                last_exception = e
+
+            except httpx.ConnectError as e:
+                err_type = "ConnectError"
+                err_msg = f"连接失败 (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                logger.warning(err_msg)
+                _error_collector.add_error(
+                    err_type, err_msg, {**request_context, "attempt": attempt + 1})
+                last_exception = e
+
+            except httpx.HTTPStatusError as e:
+                err_type = "HTTPStatusError"
+                err_msg = f"HTTP 错误 {e.response.status_code}: {str(e)}"
+                # HTTP 错误不重试，直接返回
+                logger.error(err_msg)
+                _error_collector.add_error(err_type, err_msg, {
+                    **request_context,
+                    "status_code": e.response.status_code,
+                    "response_body": str(e.response.text)[:500]
+                })
+                return ToolResult(
+                    success=False,
+                    result={
+                        "url": url,
+                        "method": method,
+                        "status_code": e.response.status_code,
+                    },
+                    error=err_msg,
+                )
+
+            except httpx.TooManyRedirects as e:
+                err_type = "TooManyRedirects"
+                err_msg = f"重定向过多: {str(e)}"
+                logger.error(err_msg)
+                _error_collector.add_error(err_type, err_msg, request_context)
+                return ToolResult(success=False, result={"url": url, "method": method}, error=err_msg)
+
+            except httpx.RequestError as e:
+                err_type = "RequestError"
+                err_msg = f"请求错误 (attempt {attempt + 1}/{max_retries}): {str(e)}"
+                logger.warning(err_msg)
+                _error_collector.add_error(
+                    err_type, err_msg, {**request_context, "attempt": attempt + 1})
+                last_exception = e
+
+            except Exception as e:
+                err_type = type(e).__name__
+                err_msg = f"未知错误: {str(e)}"
+                logger.error(f"ApiClientTool 请求错误 [{err_type}]: {err_msg}")
+                logger.debug(f"详细堆栈: {traceback.format_exc()}")
+                _error_collector.add_error(err_type, err_msg, {
+                    **request_context,
+                    "traceback": traceback.format_exc()
+                })
+                return ToolResult(
+                    success=False,
+                    result={"url": url, "method": method},
+                    error=err_msg,
+                )
+
+            # 重试前等待
+            if attempt < max_retries - 1:
+                import asyncio
+                await asyncio.sleep(retry_delay * (attempt + 1))  # 指数退避
+
+        # 所有重试都失败
+        err_msg = f"请求失败，已重试 {max_retries} 次: {str(last_exception)}"
+        logger.error(err_msg)
+        _error_collector.add_error("MaxRetriesExceeded", err_msg, {
+                                   **request_context, "max_retries": max_retries})
+        return ToolResult(
+            success=False,
+            result={"url": url, "method": method, "retries": max_retries},
+            error=err_msg,
+        )
 
     # ------------------------------------------------------------------
     # 辅助方法
@@ -420,6 +555,39 @@ class ApiClientTool(BaseTool):
         except Exception as e:
             logger.warning(f"自动定位城市失败: {e}")
             return None
+
+    # ------------------------------------------------------------------
+    # 错误信息收集接口
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def get_recent_errors(count: int = 10) -> List[Dict[str, Any]]:
+        """获取最近的错误信息"""
+        return _error_collector.get_recent_errors(count)
+
+    @staticmethod
+    def get_error_stats() -> Dict[str, Any]:
+        """获取错误统计信息"""
+        errors = _error_collector.errors
+        if not errors:
+            return {"total_errors": 0, "by_type": {}}
+
+        error_types = {}
+        for err in errors:
+            err_type = err.get("type", "Unknown")
+            error_types[err_type] = error_types.get(err_type, 0) + 1
+
+        return {
+            "total_errors": len(errors),
+            "by_type": error_types,
+            "oldest": errors[0]["timestamp"] if errors else None,
+            "newest": errors[-1]["timestamp"] if errors else None,
+        }
+
+    @staticmethod
+    def clear_errors():
+        """清空错误记录"""
+        _error_collector.clear()
 
     def get_schema(self) -> Dict[str, Any]:
         return {

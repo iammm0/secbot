@@ -8,31 +8,25 @@ from utils.logger import logger
 
 class SystemTool(BaseTool):
     """系统操作工具"""
-    
+
     def __init__(self):
         super().__init__(
             name="system_control",
             description="操作系统控制工具，可以执行文件操作、进程管理、系统信息查询等"
         )
         self.controller = OSController()
-    
+
     async def execute(self, action: str, **kwargs) -> ToolResult:
         """
         执行系统操作
-        
+
         Args:
             action: 操作类型
             **kwargs: 操作参数
         """
         try:
-            # #region debug log
-            import json, time
-            with open(r'c:\Users\physi\PycharmProjects\m-bot\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps({"sessionId":"debug-session","runId":"run2","hypothesisId":"H4","location":"tools/system_tool.py:30","message":"SystemTool.execute调用前","data":{"action":action,"kwargs_before":str(kwargs)},"timestamp":int(time.time()*1000)}) + "\n")
-            # #endregion
-            
             logger.info(f"执行系统操作: {action}, 参数: {kwargs}")
-            
+
             # 如果 kwargs 中包含一个 'kwargs' 键（嵌套的 kwargs），展开它
             # 这是因为工具调用格式可能是 {"action": "list_files", "kwargs": {"path": "."}}
             if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
@@ -41,15 +35,10 @@ class SystemTool(BaseTool):
                 # 移除 'kwargs' 键，使用展开后的参数
                 kwargs = {k: v for k, v in kwargs.items() if k != "kwargs"}
                 kwargs.update(actual_kwargs)
-            
-            # #region debug log
-            with open(r'c:\Users\physi\PycharmProjects\m-bot\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps({"sessionId":"debug-session","runId":"run2","hypothesisId":"H4","location":"tools/system_tool.py:42","message":"SystemTool.execute调用后","data":{"action":action,"kwargs_after":str(kwargs)},"timestamp":int(time.time()*1000)}) + "\n")
-            # #endregion
-            
+
             # 执行操作
             result = self.controller.execute(action, **kwargs)
-            
+
             if result["success"]:
                 return ToolResult(
                     success=True,
@@ -61,11 +50,11 @@ class SystemTool(BaseTool):
                     result=None,
                     error=result.get("error", "操作失败")
                 )
-        
+
         except Exception as e:
             logger.error(f"系统工具错误: {e}")
             return ToolResult(success=False, result=None, error=str(e))
-    
+
     def get_schema(self) -> dict:
         """获取工具模式"""
         return {
@@ -83,4 +72,3 @@ class SystemTool(BaseTool):
                 }
             }
         }
-

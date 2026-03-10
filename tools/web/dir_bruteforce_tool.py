@@ -55,9 +55,17 @@ class DirBruteforceTool(BaseTool):
         if not url:
             return ToolResult(success=False, result=None, error="缺少参数: url")
 
-        wordlist = kwargs.get("wordlist", COMMON_PATHS)
-        extensions = kwargs.get("extensions", [])
-        threads = int(kwargs.get("threads", 20))
+        # 安全处理参数，避免 int() 和 list() 错误
+        wordlist = kwargs.get("wordlist") or COMMON_PATHS
+        if wordlist is None:
+            wordlist = COMMON_PATHS
+
+        extensions = kwargs.get("extensions") or []
+        threads = kwargs.get("threads", 20)
+        try:
+            threads = int(threads) if threads is not None else 20
+        except (ValueError, TypeError):
+            threads = 20
 
         try:
             import urllib.request
@@ -80,7 +88,8 @@ class DirBruteforceTool(BaseTool):
                     def _request():
                         try:
                             req = urllib.request.Request(full_url)
-                            req.add_header("User-Agent", "Mozilla/5.0 (compatible; hackbot/1.0)")
+                            req.add_header(
+                                "User-Agent", "Mozilla/5.0 (compatible; hackbot/1.0)")
                             resp = urllib.request.urlopen(req, timeout=8)
                             return resp.status, len(resp.read()), resp.headers.get("Content-Type", "")
                         except urllib.error.HTTPError as e:
