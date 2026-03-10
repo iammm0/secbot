@@ -10,61 +10,61 @@
 
 ---
 
-## ⚠️ Security Warning
+## Security Warning
 
 **This tool is intended for authorized security testing only. Unauthorized use of this tool for network attacks is illegal.**
 
-- ✅ Only use on systems you own or have explicit written authorization to test
-- ✅ Ensure you comply with all applicable laws and regulations
-- ✅ Use responsibly and ethically
+- Only use on systems you own or have explicit written authorization to test
+- Ensure you comply with all applicable laws and regulations
+- Use responsibly and ethically
 
-## 🚀 Features
+## Features
 
 ### Core Capabilities
 
-- 🤖 **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
-- 🌐 **AI Web Research Agent**: Independent sub-agent with ReAct loop for internet research—smart search, page extraction, multi-page crawling, and API interaction
-- 💻 **CLI Interface**: Simple, intuitive command-line tools for local control and configuration
-- 🖥️ **Persistent Terminal Session**: Agent-controlled dedicated shell session for multi-step command execution and system inspection
-- 🎤 **Voice Interaction**: Complete speech-to-text and text-to-speech functionality
-- 🕷️ **AI Web Crawler**: Real-time web information capture and monitoring
-- 💻 **OS Control**: File operations, process management, system information
+- **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
+- **AI Web Research Agent**: Independent sub-agent with ReAct loop for internet research—smart search, page extraction, multi-page crawling, and API interaction
+- **CLI Interface**: Simple, intuitive command-line tools for local control and configuration
+- **Persistent Terminal Session**: Agent-controlled dedicated shell session for multi-step command execution and system inspection
+- **Voice Interaction**: Complete speech-to-text and text-to-speech functionality
+- **AI Web Crawler**: Real-time web information capture and monitoring
+- **OS Control**: File operations, process management, system information
 
 ### Penetration Testing
 
-- 🔍 **Reconnaissance**: Automated information gathering (hostname, IP, ports, services)
-- 🔍 **Vulnerability Scanning**: Port scanning, service detection, vulnerability identification
-- ⚔️ **Exploit Engine**: Automated exploitation of SQL injection, XSS, command injection, file upload, path traversal, SSRF
-- 🔗 **Automated Attack Chain**: Complete penetration testing workflow automation
+- **Reconnaissance**: Automated information gathering (hostname, IP, ports, services)
+- **Vulnerability Scanning**: Port scanning, service detection, vulnerability identification
+- **Exploit Engine**: Automated exploitation of SQL injection, XSS, command injection, file upload, path traversal, SSRF
+- **Automated Attack Chain**: Complete penetration testing workflow automation
   - Information Gathering → Vulnerability Scanning → Exploitation → Post-Exploitation
-- 📦 **Payload Generator**: Automatic generation of attack payloads
-- 🎯 **Post-Exploitation**: Privilege escalation, persistence, lateral movement, data exfiltration
-- ⚔️ **Network Attacks**: Brute force, DoS testing, buffer overflow (authorized testing only)
+- **Payload Generator**: Automatic generation of attack payloads
+- **Post-Exploitation**: Privilege escalation, persistence, lateral movement, data exfiltration
+- **Network Attacks**: Brute force, DoS testing, buffer overflow (authorized testing only)
 
 ### Security & Defense
 
-- 🛡️ **Active Defense**: Information collection, vulnerability scanning, network analysis, intrusion detection
-- 📊 **Security Reports**: Automated detailed security analysis reports
-- 🔍 **Network Discovery**: Automatic discovery of all hosts in the network
-- 🎯 **Authorization Management**: Manage legal authorization for target hosts
-- 🖥️ **Remote Control**: Remote command execution and file transfer on authorized hosts
+- **Active Defense**: Information collection, vulnerability scanning, network analysis, intrusion detection
+- **Security Reports**: Automated detailed security analysis reports
+- **Network Discovery**: Automatic discovery of all hosts in the network
+- **Authorization Management**: Manage legal authorization for target hosts
+- **Remote Control**: Remote command execution and file transfer on authorized hosts
 
 ### Web Research (Internet Capabilities)
 
-- 🔎 **Smart Search**: DuckDuckGo search → fetch result pages → AI summarization and synthesis
-- 📄 **Page Extract**: Extract page content by mode—plain text, structured (tables/lists), or custom AI schema
-- 🕸️ **Deep Crawl**: BFS multi-page crawling from a start URL with depth/URL filter and optional AI extraction
-- 🔌 **API Client**: Generic REST client with presets (weather, IP info, GitHub, exchange rates, DNS, etc.)
-- 🤖 **Web Research Tool**: Delegate to the Web Research sub-agent for autonomous research or call tools directly
+- **Smart Search**: DuckDuckGo search → fetch result pages → AI summarization and synthesis
+- **Page Extract**: Extract page content by mode—plain text, structured (tables/lists), or custom AI schema
+- **Deep Crawl**: BFS multi-page crawling from a start URL with depth/URL filter and optional AI extraction
+- **API Client**: Generic REST client with presets (weather, IP info, GitHub, exchange rates, DNS, etc.)
+- **Web Research Tool**: Delegate to the Web Research sub-agent for autonomous research or call tools directly
 
 ### Additional Features
 
-- 📝 **Prompt Chain Management**: Flexible agent prompt configuration
-- 💾 **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
-- ⏰ **Task Scheduling**: Support for scheduled penetration testing tasks
-- 🎨 **Terminal Output**: Colorized and structured terminal output for better readability and debugging
+- **Prompt Chain Management**: Flexible agent prompt configuration
+- **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
+- **Task Scheduling**: Support for scheduled penetration testing tasks
+- **Terminal Output**: Colorized and structured terminal output for better readability and debugging
 
-## 🧩 Architecture & Multi-Agent Collaboration
+## Architecture & Multi-Agent Collaboration
 
 This section gives a detailed, code-oriented view of how components and agents collaborate inside secbot.
 
@@ -77,36 +77,36 @@ This section gives a detailed, code-oriented view of how components and agents c
 ```mermaid
 flowchart LR
   %% ---------------- Frontend / clients ----------------
-  subgraph Frontend / Clients
+  subgraph FrontendClients["Frontend / Clients"]
     user[User]
-    tui[TUI / CLI\n(terminal-ui)]
-    app[Mobile App\n(React Native)]
+    tui["TUI / CLI (terminal-ui)"]
+    app["Mobile App (React Native)"]
   end
 
   user --> tui
   user --> app
 
-  tui -->|HTTP / SSE| api[FastAPI /api/chat\nrouter/chat.py]
+  tui -->|HTTP / SSE| api["FastAPI /api/chat (router/chat.py)"]
   app -->|HTTP / SSE| api
 
   %% ---------------- Backend router & session orchestration ----------------
-  subgraph Backend Router & Session
-    api --> sessionMgr[SessionManager\ncore/session.py]
-    sessionMgr --> eb[EventBus\nutils/event_bus.py]
+  subgraph BackendRouter["Backend Router & Session"]
+    api --> sessionMgr["SessionManager (core/session.py)"]
+    sessionMgr --> eb["EventBus (utils/event_bus.py)"]
   end
 
   %% ---------------- Planning & execution orchestration ----------------
-  subgraph Planning & Execution
-    sessionMgr --> planner[PlannerAgent\ncore/agents/planner_agent.py]
-    planner --> planResult[PlanResult + Todos\n(core/models.py: TodoItem,\nresource, risk_level, agent_hint)]
-    planResult --> executor[TaskExecutor\ncore/executor.py]
+  subgraph PlanningExecution["Planning & Execution"]
+    sessionMgr --> planner["PlannerAgent (core/agents/planner_agent.py)"]
+    planner --> planResult["PlanResult + Todos"]
+    planResult --> executor["TaskExecutor (core/executor.py)"]
   end
 
   %% ---------------- Multi-agent coordination layer ----------------
-  subgraph Agent Orchestration
-    executor -->|layered parallel calls\n(get_execution_order())| coord[CoordinatorAgent (Hackbot)\ncore/agents/coordinator_agent.py]
+  subgraph AgentOrchestration["Agent Orchestration"]
+    executor -->|layered parallel calls| coord["CoordinatorAgent (Hackbot)"]
 
-    subgraph Specialist Agents\n(core/agents/specialist_agents.py)
+    subgraph SpecialistAgents["Specialist Agents"]
       net[NetworkReconAgent]
       web[WebPentestAgent]
       osint[OSINTAgent]
@@ -122,12 +122,12 @@ flowchart LR
   coord -->|defense_monitor| defend
 
   %% ---------------- Tool layer ----------------
-  subgraph Tools
-    toolsNet[(Network recon tools\nCORE_SECURITY_TOOLS + NETWORK_TOOLS\n tools/pentest/security.py,\n tools/pentest/network/…)]
-    toolsWeb[(Web pentest tools\nWEB_TOOLS\n tools/web/…)]
-    toolsOsint[(OSINT + WebResearch\nOSINT_TOOLS + WEB_RESEARCH_TOOLS\n tools/osint/…\n tools/web_research/…)]
-    toolsTerm[(Terminal sessions\nTerminalSessionTool\n tools/offense/control/terminal_tool.py)]
-    toolsDef[(Defense / self-check\nDEFENSE_TOOLS\n tools/defense/…)]
+  subgraph ToolsLayer["Tool Layer"]
+    toolsNet[(Network Recon Tools)]
+    toolsWeb[(Web Pentest Tools)]
+    toolsOsint[(OSINT + WebResearch)]
+    toolsTerm[(Terminal Sessions)]
+    toolsDef[(Defense / Self-check)]
   end
 
   net --> toolsNet
@@ -137,18 +137,18 @@ flowchart LR
   defend --> toolsDef
 
   %% ---------------- Summary & storage ----------------
-  subgraph Summary & Storage
-    coord --> summary[SummaryAgent\ncore/agents/summary_agent.py]
-    summary --> db[SQLite DB\n(database/manager.py,\n hackbot_config/data/secbot.db)]
+  subgraph SummaryStorage["Summary & Storage"]
+    coord --> summary[SummaryAgent]
+    summary --> db[(SQLite DB)]
   end
 
   summary --> sessionMgr
 
   %% ---------------- Event stream & UI rendering ----------------
-  eb -->|PLAN_* / THINK_* / EXEC_* /\nCONTENT / REPORT_END / ERROR\n(all with agent tag)| sse[SSE stream\nrouter/chat.py → /api/chat]
+  eb -->|SSE Events| sse[SSE Stream]
 
-  sse --> appUI[ChatScreen.tsx\n(app/src/screens/ChatScreen.tsx)\nThinkingBlock / ExecutionBlock /\nReportBlock / ResponseBlock]
-  sse --> tuiUI[Terminal UI\n(terminal-ui)]
+  sse --> appUI[ChatScreen.tsx]
+  sse --> tuiUI[Terminal UI]
 ```
 
 ### Key Design Ideas (by layer)
@@ -200,14 +200,14 @@ flowchart LR
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - Python 3.10+
 - [uv](https://github.com/astral-sh/uv) - Fast Python package manager
 - Ollama (for LLM inference)
 - Dependencies are managed in `pyproject.toml`
 
-## 🛠️ Installation
+## Installation
 
 ### 1. Clone the Repository
 
@@ -263,7 +263,7 @@ uv pip install dist/hackbot-1.0.0-py3-none-any.whl
 hackbot
 ```
 
-## 🎯 Quick Start
+## Quick Start
 
 ### Basic Usage (no arguments = interactive mode)
 
@@ -292,7 +292,7 @@ Backend URL: set `SECBOT_API_URL` or `BASE_URL` (default `http://localhost:8000`
 
 You can also use the Python interactive mode (run `python main.py` or `uv run secbot` with no args) as a Node-free alternative.
 
-## 🔧 Development
+## Development
 
 ### Running Tests
 
@@ -310,7 +310,7 @@ uv run python -m build
 ./build.sh
 ```
 
-## 📚 Documentation
+## Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md)
 - [UI Design & Interaction](docs/UI-DESIGN-AND-INTERACTION.md) — terminal UI (TypeScript/Ink) architecture
@@ -326,7 +326,7 @@ uv run python -m build
 - [Deployment Guide](docs/DEPLOYMENT.md)
 - **API Key configuration**: API keys (e.g. DeepSeek / Groq / OpenRouter) are now configured primarily via the TUI/frontend settings or in-app commands (such as `/model`) rather than a separate Typer+Rich CLI tool. Under the hood, secbot still follows the conventions in [config-and-env](docs/design-paradigms/config-and-env.md), using `.env` plus keyring/database for secure storage of sensitive values.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -336,7 +336,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📄 License
+## License
 
 This project is under a custom open-source license. See the [LICENSE](LICENSE) file for the full text.
 
@@ -344,14 +344,14 @@ This project is under a custom open-source license. See the [LICENSE](LICENSE) f
 - **Commercial use**: Any commercial use requires **prior written permission** from the copyright holder. Unauthorized commercial use is not permitted.  
   For commercial licensing: wisewater5419@gmail.com or [GitHub @iammm0](https://github.com/iammm0).
 
-## 👤 Author
+## Author
 
 **赵明俊 (Zhao Mingjun)**
 
 - GitHub: [@iammm0](https://github.com/iammm0)
 - Email: wisewater5419@gmail.com
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 secbot is built on top of a rich open-source ecosystem. We would like to express our sincere gratitude to all projects and communities that made this possible (**including but not limited to**, in no particular order):
 
@@ -365,7 +365,7 @@ secbot is built on top of a rich open-source ecosystem. We would like to express
 
 > If we are using your open-source project but failed to list it explicitly above, please accept our apologies — we are equally grateful for your work.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 This tool is provided for educational and authorized security testing purposes only. The authors and contributors are not responsible for any misuse or damage caused by this tool. Users must ensure they have proper authorization before using this tool on any system.
 
@@ -373,6 +373,6 @@ This tool is provided for educational and authorized security testing purposes o
 
 <div align="center">
 
-**⭐ If you find this project useful, please consider giving it a star! ⭐**
+**If you find this project useful, please consider giving it a star!**
 
 </div>
