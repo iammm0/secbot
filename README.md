@@ -1,8 +1,8 @@
-# secbot（原 hackbot）: 自动化渗透测试机器人
+# secbot（原 hackbot）: 自动化渗透测试智能体
 
 <div align="center">
 
-**一个智能化的自动化渗透测试机器人，具备 AI 驱动的安全测试能力**
+**一个智能化的自动化渗透测试智能体，具备 AI 驱动的安全测试能力**
 
 [English](README_EN.md) | [中文](#secbot原-hackbot-自动化渗透测试机器人)
 
