@@ -48,7 +48,16 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   const dialog = useDialog();
   const toast = useToast();
   const exit = useExit();
-  const { streaming, streamState, apiOutput, pendingRootRequest, setPendingRootRequest, sendMessage, setRESTOutput } = sync;
+  const {
+    streaming,
+    streamState,
+    history,
+    apiOutput,
+    pendingRootRequest,
+    setPendingRootRequest,
+    sendMessage,
+    setRESTOutput,
+  } = sync;
   const { mode, agent, setMode, setAgent } = local;
 
   const contentHeight = useMemo(() => Math.max(8, rows - CONTENT_HEIGHT_OFFSET), [rows]);
@@ -376,6 +385,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
       {/* 主对话区 — 单栏、无边框、块间距 */}
       <Box flexDirection="column" flexGrow={1} minWidth={0} paddingLeft={2} paddingRight={2}>
         <MainContent
+          history={history}
           streamState={streamState}
           streaming={streaming}
           apiOutput={apiOutput}
@@ -393,16 +403,7 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         <Text color={theme.border}>{'━'.repeat(Math.max(0, columns - 6))}</Text>
       </Box>
 
-      {/* 执行中加载条 */}
-      {streaming ? (
-        <Box flexShrink={0} paddingTop={1}>
-          <LoadingBar
-            active={streaming}
-            phase={streamState.phase || undefined}
-            detail={streamState.detail || undefined}
-          />
-        </Box>
-      ) : null}
+      {/* 执行中加载条（根据需求已移除进度条展示，仅保留底部状态栏模式指示） */}
 
       {/* 键入 / 后显示可选命令 */}
       {inputValue.startsWith('/') ? (

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { connectSSE } from './sse.js';
 import type { ChatRequest, ChatMode, StreamState, SSEEvent } from './types.js';
 
@@ -31,9 +31,29 @@ function resetStreamState(): StreamState {
 export function useChat() {
   const [streaming, setStreaming] = useState(false);
   const [streamState, setStreamState] = useState<StreamState>(initialStreamState);
+  const [history, setHistory] = useState<StreamState[]>([]);
   const [apiOutput, setApiOutput] = useState<string | null>(null);
   const [pendingRootRequest, setPendingRootRequest] = useState<PendingRootRequest | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const streamStateRef = useRef<StreamState>(initialStreamState);
+
+  useEffect(() => {
+    streamStateRef.current = streamState;
+  }, [streamState]);
+
+  const hasContent = useCallback((state: StreamState): boolean => {
+    return Boolean(
+      state.phase ||
+        state.detail ||
+        state.planning ||
+        state.thought ||
+        state.actions.length > 0 ||
+        state.content ||
+        state.report ||
+        state.error ||
+        state.response
+    );
+  }, []);
 
   const appendContent = useCallback((text: string) => {
     setStreamState((s) => ({ ...s, content: s.content + text }));
@@ -42,6 +62,11 @@ export function useChat() {
   const sendMessage = useCallback(
     (message: string, mode: ChatMode = 'agent', agent: string = 'hackbot') => {
       abortRef.current?.abort();
+       // 在开始新一轮对话前，将上一轮非空流状态快照到本地历史，便于在 TUI 中滚动查看完整上下文
+      const prev = streamStateRef.current;
+      if (hasContent(prev)) {
+        setHistory((h) => [...h, prev]);
+      }
       setStreamState(resetStreamState());
       setApiOutput(null);
       setStreaming(true);
@@ -182,6 +207,7 @@ export function useChat() {
   return {
     streaming,
     streamState,
+    history,
     apiOutput,
     pendingRootRequest,
     setPendingRootRequest,

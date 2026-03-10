@@ -35,6 +35,7 @@ function sliceBlockForVisibleRange(
 }
 
 interface MainContentProps {
+  history: StreamState[];
   streamState: StreamState;
   streaming: boolean;
   apiOutput: string | null;
@@ -49,6 +50,7 @@ interface MainContentProps {
 }
 
 export function MainContent({
+  history,
   streamState,
   streaming,
   apiOutput,
@@ -76,10 +78,41 @@ export function MainContent({
     return () => clearTimeout(id);
   }, [streamState.actions, dismissedTransientTools]);
 
-  const blocks = useMemo(
-    () => streamStateToBlocks(streamState, streaming, apiOutput, dismissedTransientTools, expandedBlockIds),
-    [streamState, streaming, apiOutput, dismissedTransientTools, expandedBlockIds]
-  );
+  const blocks = useMemo(() => {
+    let lineOffset = 0;
+    const allBlocks: ContentBlockType[] = [];
+
+    history.forEach((h, idx) => {
+      const histBlocks = streamStateToBlocks(h, false, null, dismissedTransientTools, expandedBlockIds).map(
+        (b) => ({
+          ...b,
+          id: `h${idx}-${b.id}`,
+          lineStart: b.lineStart + lineOffset,
+          lineEnd: b.lineEnd + lineOffset,
+        })
+      );
+      if (histBlocks.length > 0) {
+        lineOffset = histBlocks[histBlocks.length - 1].lineEnd;
+        allBlocks.push(...histBlocks);
+      }
+    });
+
+    const currentBlocks = streamStateToBlocks(
+      streamState,
+      streaming,
+      apiOutput,
+      dismissedTransientTools,
+      expandedBlockIds
+    ).map((b) => ({
+      ...b,
+      id: `c-${b.id}`,
+      lineStart: b.lineStart + lineOffset,
+      lineEnd: b.lineEnd + lineOffset,
+    }));
+
+    allBlocks.push(...currentBlocks);
+    return allBlocks;
+  }, [history, streamState, streaming, apiOutput, dismissedTransientTools, expandedBlockIds]);
 
   const totalLines = useMemo(() => (blocks.length === 0 ? 0 : blocks[blocks.length - 1].lineEnd), [blocks]);
   const scrollableHeight = Math.max(1, contentHeight);

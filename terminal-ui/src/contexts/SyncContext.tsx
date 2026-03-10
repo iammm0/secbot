@@ -11,6 +11,7 @@ import type { PendingRootRequest } from '../useChat.js';
 export interface SyncContextValue {
   streaming: boolean;
   streamState: StreamState;
+  history: StreamState[];
   apiOutput: string | null;
   pendingRootRequest: PendingRootRequest | null;
   setPendingRootRequest: React.Dispatch<React.SetStateAction<PendingRootRequest | null>>;
@@ -27,6 +28,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       value={{
         streaming: value.streaming,
         streamState: value.streamState,
+        history: value.history,
         apiOutput: value.apiOutput,
         pendingRootRequest: value.pendingRootRequest,
         setPendingRootRequest: value.setPendingRootRequest,
