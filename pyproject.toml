@@ -102,6 +102,25 @@ Documentation = "https://github.com/iammm0/hackbot/docs"
 Repository = "https://github.com/iammm0/hackbot"
 Issues = "https://github.com/iammm0/hackbot/issues"
 
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+tag_format = "v{version}"
+changelog_file = "docs/CHANGELOG.md"
+commit_parser = "angular"
+build_command = ""
+commit_message = "chore(release): {version} [skip ci]"
+upload_to_pypi = false
+upload_to_release = true
+
+[tool.semantic_release.branches.main]
+match = "^(main)$"
+prerelease = false
+
+[tool.semantic_release.branches.beta]
+match = "^(beta)$"
+prerelease = true
+prerelease_token = "beta"
+
 [tool.setuptools]
 packages = [
     "hackbot",
