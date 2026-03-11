@@ -6,15 +6,41 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+      - beta
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build (tag/sha/branch). Leave empty to use current.
+        required: false
+        default: ""
 
 permissions:
   contents: write
 
 jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.semantic.outputs.released }}
+      version: ${{ steps.semantic.outputs.version }}
+      tag: ${{ steps.semantic.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python Semantic Release
+        id: semantic
+        if: github.event_name == 'push'
+        uses: python-semantic-release/python-semantic-release@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
   build:
+    needs: release
+    if: (github.event_name == 'push' && needs.release.outputs.released == 'true') || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -32,6 +58,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || needs.release.outputs.tag || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -56,6 +84,60 @@ jobs:
             .venv/bin/python -m PyInstaller hackbot.spec
           fi
 
+      - name: Create release README (in package)
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.release.outputs.tag || github.ref_name }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version || needs.release.outputs.tag || github.ref_name }}
+          PLATFORM_NAME: ${{ matrix.name }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import re
+          from datetime import datetime, timezone
+
+          release_tag = os.environ.get("RELEASE_TAG", "").strip()
+          release_version_raw = os.environ.get("RELEASE_VERSION", "").strip()
+          platform_name = os.environ.get("PLATFORM_NAME", "").strip()
+
+          version_for_changelog = release_version_raw.lstrip("v")
+          changelog_path = pathlib.Path("docs/CHANGELOG.md")
+
+          changelog_section = ""
+          if changelog_path.exists() and version_for_changelog:
+              text = changelog_path.read_text(encoding="utf-8")
+              header_re = re.compile(rf"^## \[{re.escape(version_for_changelog)}\].*$", re.M)
+              m = header_re.search(text)
+              if m:
+                  start = m.start()
+                  next_m = re.search(r"^## \[", text[m.end():], re.M)
+                  end = len(text) if not next_m else (m.end() + next_m.start())
+                  changelog_section = text[start:end].strip()
+
+          dist_dir = pathlib.Path("dist") / "hackbot"
+          dist_dir.mkdir(parents=True, exist_ok=True)
+
+          build_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          title_version = release_tag or release_version_raw or "dev"
+
+          content = [
+              f"# Hackbot {title_version}",
+              "",
+              f"Platform: {platform_name}",
+              f"Build: {build_time}",
+              "",
+          ]
+          if changelog_section:
+              content.append(changelog_section)
+              content.append("")
+
+          (dist_dir / "README_RELEASE.md").write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
+          readme_src = pathlib.Path("README.md")
+          if readme_src.exists():
+              (dist_dir / "README.md").write_text(readme_src.read_text(encoding="utf-8"), encoding="utf-8")
+          PY
+
       - name: Package artifact (zip)
         shell: bash
         run: |
@@ -71,45 +153,20 @@ jobs:
           name: hackbot-${{ matrix.name }}
           path: dist/hackbot-${{ matrix.name }}.zip
 
-  release:
-    needs: build
+  upload-assets:
+    needs: [release, build]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && needs.release.outputs.released == 'true'
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Get version from tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          else
-            echo "version=v0.0.0-dev" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create Release
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Hackbot ${{ steps.tag.outputs.version }}
-          body: |
-            ## 安装与运行
-
-            1. 下载对应平台的 zip（如 `hackbot-linux-amd64.zip`、`hackbot-windows-amd64.zip`、`hackbot-darwin-arm64.zip`（Apple 芯片）、`hackbot-darwin-amd64.zip`（Intel Mac）），解压得到 `hackbot` 目录。
-            2. 配置 **DeepSeek API Key**（启动前唯一必须条件）：
-               - **环境变量**：`export DEEPSEEK_API_KEY=sk-xxx`（Linux/macOS）或 系统环境变量（Windows）
-               - **或** 在 `hackbot` 目录内创建 `.env` 文件，内容：`DEEPSEEK_API_KEY=sk-xxx`
-            3. 进入 `hackbot` 目录，运行 `hackbot.exe`（Windows）或 `./hackbot`（Linux/macOS），即可进入交互式安全测试界面。
-
-            获取 API Key：https://platform.deepseek.com
-          draft: false
-          files: |
-            artifacts/hackbot-linux-amd64/hackbot-linux-amd64.zip
-            artifacts/hackbot-windows-amd64/hackbot-windows-amd64.zip
-            artifacts/hackbot-darwin-arm64/hackbot-darwin-arm64.zip
-            artifacts/hackbot-darwin-amd64/hackbot-darwin-amd64.zip
+          tag_name: ${{ needs.release.outputs.tag }}
+          files: artifacts/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
