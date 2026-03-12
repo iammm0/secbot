@@ -29,6 +29,7 @@ ENV/
 # IDE
 .vscode/
 .idea/
+.qoder/
 *.swp
 *.swo
 *~
@@ -68,8 +69,21 @@ data/
 node_modules/
 app/.expo/
 
+# 报告输出（含敏感扫描结果）
+reports/
+
+# 个人文档（不进入开源仓库）
+docs/personal/
+
+# 可执行文件（已通过 Releases 分发）
+*.exe
+*.spec
+bin/
+
 # 其他
 .DS_Store
 *.bak
 *.tmp
+commit_msg.txt
+test-reports/
 
