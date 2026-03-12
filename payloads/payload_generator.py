@@ -12,4 +12,3 @@ class PayloadGenerator(ABC):
     def generate(self, payload_type: str, options: Optional[Dict] = None) -> List[str]:
         """生成payload"""
         pass
-
