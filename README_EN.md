@@ -1,82 +1,96 @@
-# secbot (formerly hackbot): Automated Penetration Testing Robot
-
 <div align="center">
 
-**An intelligent automated penetration testing robot with AI-powered security testing capabilities**
+# Secbot
 
-[English](#secbot-formerly-hackbot-automated-penetration-testing-robot) | [中文](README.md)
+**AI-Powered Automated Penetration Testing Agent**
+
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)](pyproject.toml)
+[![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/iammm0/secbot/releases)
+[![LangChain](https://img.shields.io/badge/LangChain-0.1%2B-blueviolet.svg)](https://github.com/langchain-ai/langchain)
+
+English | [中文](README.md)
 
 </div>
 
 ---
 
-## Security Warning
+> **⚠️ Security Warning**: This tool is **for authorized security testing only**. Unauthorized use for network attacks is illegal. See [Security Warning](docs/SECURITY_WARNING.md).
 
-**This tool is intended for authorized security testing only. Unauthorized use of this tool for network attacks is illegal.**
+---
 
-- Only use on systems you own or have explicit written authorization to test
-- Ensure you comply with all applicable laws and regulations
-- Use responsibly and ethically
+## 📋 Table of Contents
 
-## Features
+- [✨ Features](#features)
+- [🏗️ Architecture](#architecture)
+- [📦 Requirements](#requirements)
+- [⚙️ Installation](#installation)
+- [🚀 Quick Start](#quick-start)
+- [🔧 Development](#development)
+- [📚 Documentation](#documentation)
+- [🤝 Contributing](#contributing)
+- [📄 License](#license)
+- [👤 Author](#author)
+- [🙏 Acknowledgments](#acknowledgments)
+- [⚖️ Disclaimer](#disclaimer)
+
+---
+
+## ✨ Features
 
 ### Core Capabilities
 
 - **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
-- **AI Web Research Agent**: Independent sub-agent with ReAct loop for internet research—smart search, page extraction, multi-page crawling, and API interaction
+- **AI Web Research Agent**: Independent `WebResearchAgent` with ReAct loop for smart search, page extraction, multi-page crawling, and API interaction
 - **CLI Interface**: Simple, intuitive command-line tools for local control and configuration
-- **Persistent Terminal Session**: Agent-controlled dedicated shell session for multi-step command execution and system inspection
-- **Voice Interaction**: Complete speech-to-text and text-to-speech functionality
+- **Persistent Terminal Session**: Agent-controlled dedicated shell for multi-step command execution and system inspection
 - **AI Web Crawler**: Real-time web information capture and monitoring
 - **OS Control**: File operations, process management, system information
 
 ### Penetration Testing
 
-- **Reconnaissance**: Automated information gathering (hostname, IP, ports, services)
+- **Reconnaissance**: Automated information gathering (hostname, IP, ports, service fingerprinting)
 - **Vulnerability Scanning**: Port scanning, service detection, vulnerability identification
 - **Exploit Engine**: Automated exploitation of SQL injection, XSS, command injection, file upload, path traversal, SSRF
-- **Automated Attack Chain**: Complete penetration testing workflow automation
-  - Information Gathering → Vulnerability Scanning → Exploitation → Post-Exploitation
-- **Payload Generator**: Automatic generation of attack payloads
+- **Automated Attack Chain**: Full pentest workflow — Recon → Scan → Exploit → Post-Exploitation
+- **Payload Generator**: On-demand generation of various attack payloads
 - **Post-Exploitation**: Privilege escalation, persistence, lateral movement, data exfiltration
-- **Network Attacks**: Brute force, DoS testing, buffer overflow (authorized testing only)
+- **Network Attacks**: Brute force, DoS testing (authorized testing only)
 
 ### Security & Defense
 
 - **Active Defense**: Information collection, vulnerability scanning, network analysis, intrusion detection
-- **Security Reports**: Automated detailed security analysis reports
-- **Network Discovery**: Automatic discovery of all hosts in the network
+- **Security Reports**: Automated structured security analysis reports
+- **Network Discovery**: Automatic host discovery across the network
 - **Authorization Management**: Manage legal authorization for target hosts
 - **Remote Control**: Remote command execution and file transfer on authorized hosts
 
 ### Web Research (Internet Capabilities)
 
-- **Smart Search**: DuckDuckGo search → fetch result pages → AI summarization and synthesis
-- **Page Extract**: Extract page content by mode—plain text, structured (tables/lists), or custom AI schema
-- **Deep Crawl**: BFS multi-page crawling from a start URL with depth/URL filter and optional AI extraction
-- **API Client**: Generic REST client with presets (weather, IP info, GitHub, exchange rates, DNS, etc.)
-- **Web Research Tool**: Delegate to the Web Research sub-agent for autonomous research or call tools directly
+- **Smart Search**: DuckDuckGo search → fetch result pages → LLM summarization
+- **Page Extract**: Plain text, structured (tables/lists), or custom AI Schema extraction modes
+- **Deep Crawl**: BFS multi-page crawl with depth/URL filtering and optional AI extraction
+- **API Client**: Generic REST client with presets for weather, IP info, GitHub, exchange rates, DNS, etc.
+- **Web Research Tool**: Delegate to `WebResearchAgent` for autonomous research or call tools directly
 
 ### Additional Features
 
 - **Prompt Chain Management**: Flexible agent prompt configuration
-- **SQLite Database**: Persistent storage for conversation history, prompt chains, configurations
+- **SQLite Persistence**: Store conversation history, prompt chains, and configuration
 - **Task Scheduling**: Support for scheduled penetration testing tasks
-- **Terminal Output**: Colorized and structured terminal output for better readability and debugging
+- **Colorized Structured Output**: Enhanced terminal output for readability and debugging
 
-## Architecture & Multi-Agent Collaboration
+---
 
-This section gives a detailed, code-oriented view of how components and agents collaborate inside secbot.
+## 🏗️ Architecture
 
-> **Tip**: The static architecture diagram below (`assets/secbot_architecture.png`) is convenient for quick preview on GitHub / code hosting platforms. The following mermaid diagram and text then map each block to concrete source files.
+![Secbot Architecture Overview](assets/secbot_architecture.png)
 
-![Secbot architecture overview (Frontend / Router / Planner / Multi-Agent / Tools / Summary / EventBus / Storage)](assets/secbot_architecture.png)
-
-### High-Level Architecture (mapped to source modules)
+### Architecture Layers
 
 ```mermaid
 flowchart LR
-  %% ---------------- Frontend / clients ----------------
   subgraph FrontendClients["Frontend / Clients"]
     user[User]
     tui["TUI / CLI (terminal-ui)"]
@@ -85,27 +99,22 @@ flowchart LR
 
   user --> tui
   user --> app
-
   tui -->|HTTP / SSE| api["FastAPI /api/chat (router/chat.py)"]
   app -->|HTTP / SSE| api
 
-  %% ---------------- Backend router & session orchestration ----------------
   subgraph BackendRouter["Backend Router & Session"]
     api --> sessionMgr["SessionManager (core/session.py)"]
     sessionMgr --> eb["EventBus (utils/event_bus.py)"]
   end
 
-  %% ---------------- Planning & execution orchestration ----------------
   subgraph PlanningExecution["Planning & Execution"]
     sessionMgr --> planner["PlannerAgent (core/agents/planner_agent.py)"]
     planner --> planResult["PlanResult + Todos"]
     planResult --> executor["TaskExecutor (core/executor.py)"]
   end
 
-  %% ---------------- Multi-agent coordination layer ----------------
   subgraph AgentOrchestration["Agent Orchestration"]
     executor -->|layered parallel calls| coord["CoordinatorAgent (Hackbot)"]
-
     subgraph SpecialistAgents["Specialist Agents"]
       net[NetworkReconAgent]
       web[WebPentestAgent]
@@ -121,7 +130,6 @@ flowchart LR
   coord -->|terminal_ops| term
   coord -->|defense_monitor| defend
 
-  %% ---------------- Tool layer ----------------
   subgraph ToolsLayer["Tool Layer"]
     toolsNet[(Network Recon Tools)]
     toolsWeb[(Web Pentest Tools)]
@@ -136,243 +144,325 @@ flowchart LR
   term --> toolsTerm
   defend --> toolsDef
 
-  %% ---------------- Summary & storage ----------------
   subgraph SummaryStorage["Summary & Storage"]
     coord --> summary[SummaryAgent]
     summary --> db[(SQLite DB)]
   end
 
   summary --> sessionMgr
-
-  %% ---------------- Event stream & UI rendering ----------------
-  eb -->|SSE Events| sse[SSE Stream]
-
+  eb -->|SSE Event Stream| sse[SSE Stream]
   sse --> appUI[ChatScreen.tsx]
-  sse --> tuiUI[Terminal UI]
 ```
 
-### Key Design Ideas (by layer)
+### Layer Responsibilities
 
-- **Router & session orchestration (router/chat.py + core/session.py)**
-  - `/api/chat` (SSE endpoint) wraps the incoming request as `ChatRequest`, wires up an `EventBus`, subscribes to key event types (`PLAN_START/THINK_*/EXEC_*/CONTENT/REPORT_END/ERROR`, etc.), and then calls `SessionManager.handle_message()`.
-  - `_event_to_sse()` maps EventBus events to SSE frames consumed by the frontend and includes the `agent` field so the UI can distinguish which agent produced which output.
-  - `SessionManager` orchestrates each interaction in three phases:
-    1. **Routing**: decides whether to go through QA / small-talk vs. full technical flow (Planner + Hackbot).
-    2. **Planning**: calls `PlannerAgent.plan()` to obtain a `PlanResult`, then emits `PLAN_START` with the plan summary and Todos via `EventBus`.
-    3. **Execution**: depending on whether Todos exist and the agent capabilities:
-       - Layered execution mode: `TaskExecutor + CoordinatorAgent` (multi-agent, parallel-friendly).
-       - Compatibility mode: directly call `agent.process()` (classic ReAct loop).
-  - All agent callbacks go through `_bridge_agent_event()`, which:
-    - Normalizes events into `EventBus` types (`THINK_*`, `EXEC_*`, `CONTENT`, `REPORT_END`, `ERROR`).
-    - Ensures the `agent` field is present.
-    - Auto-updates `PlannerAgent` Todo status and emits `PLAN_TODO` events accordingly.
+| Layer | Module | Responsibility |
+|-------|--------|----------------|
+| **Session Orchestration** | `core/session.py` | Route decisions, invoke PlannerAgent, drive TaskExecutor |
+| **Structured Planning** | `core/agents/planner_agent.py` | Decompose requests into TodoItem DAG (dependencies, resources, risk levels) |
+| **Layered Execution** | `core/executor.py` | Topological sort + intra-layer concurrency, strict inter-layer ordering |
+| **Multi-Agent Coordination** | `core/agents/coordinator_agent.py` | Route by `agent_hint` to specialist agents |
+| **Specialist Agents** | `core/agents/specialist_agents.py` | ReAct reasoning for recon/web-pentest/OSINT/terminal/defense |
+| **Summary Reports** | `core/agents/summary_agent.py` | Aggregate multi-agent results into structured security report |
+| **Event Stream** | `utils/event_bus.py` + `router/chat.py` | Agent-tagged SSE event stream for frontend differentiation |
 
-- **PlannerAgent: structured, resource-aware planning**
-  - Breaks the user request into a list of `TodoItem`s, each with `depends_on`, `resource` (e.g. `host:192.168.1.10`, `web:https://example.com`), `risk_level`, and `agent_hint`.
-  - `get_execution_order()` uses dependency DAG + resource/risk to build a **safe parallel plan**: high-risk steps on the same resource are forced to run sequentially, independent resources are run in parallel where possible.
-
-- **TaskExecutor: layered parallel executor**
-  - Consumes `PlannerAgent.get_execution_order()` and executes Todos layer by layer: within a layer, tasks can be run in parallel; between layers, dependencies are honored strictly.
-  - Builds the `context` passed to agents with both per-todo results and a resource-centric view (`context["_by_resource_"]`), so later steps and sub-agents can easily reuse prior findings on the same asset.
-
-- **CoordinatorAgent (Hackbot core): multi-agent routing**
-  - Exposed externally as `"hackbot"`, but internally does **not** run tools directly; instead, it routes each Todo to a **specialist agent** based on `agent_hint` / `resource` / `tool_hint`:
-    - `network_recon` → `NetworkReconAgent`
-    - `web_pentest` → `WebPentestAgent`
-    - `osint` → `OSINTAgent`
-    - `terminal_ops` → `TerminalOpsAgent`
-    - `defense_monitor` → `DefenseMonitorAgent`
-  - Coordinator is responsible for routing and result aggregation only; concrete security tools live in the specialist agents.
-
-- **Specialist Agents: narrow but deep ReAct loops**
-  - All specialist agents inherit from `SecurityReActAgent`, with dedicated system prompts and tool-sets limited to their domain.
-  - Each maintains its own short-term session summary; at the end of an interaction, the Coordinator updates all agents’ summaries so the next task can leverage past intelligence.
-
-- **SummaryAgent: multi-agent report aggregation**
-  - Consumes agent-scoped tool results aggregated by the Coordinator and produces a structured report, e.g. sections for network attack surface, web security posture, OSINT findings, terminal/host state, and defense/alerts.
-
-- **EventBus + SSE: agent-tagged event stream**
-  - All THINK/EXEC/REPORT events carry an `agent` field. The frontend (`ChatScreen.tsx`) renders `ThinkingBlock` and `ExecutionBlock` components with labels such as `[network_recon]`, `[web_pentest]`, `[osint]`, making it clear which agent performed each step.
-
-### Repository Naming
-
-- The GitHub repository has been renamed to **`secbot`** (formerly **hackbot**). CLI entry points keep both names for compatibility, but new docs and examples prefer `secbot`.
+> Full architecture details: [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md)
 
 ---
 
-## Requirements
+## 📦 Requirements
 
-- Python 3.10+
-- [uv](https://github.com/astral-sh/uv) - Fast Python package manager
-- Ollama (for LLM inference)
-- Dependencies are managed in `pyproject.toml`
+- **Python** 3.10+
+- **[uv](https://github.com/astral-sh/uv)** — Fast Python package manager (recommended)
+- **Ollama** — Local LLM inference (optional; defaults to DeepSeek cloud API)
+- **Node.js** 18+ — Required only for the TUI frontend
 
-## Installation
+---
 
-### 1. Clone the Repository
+## ⚙️ Installation
+
+### Option A: Download Pre-built Binary (no Python required)
+
+Download the archive for your platform from [Releases](https://github.com/iammm0/secbot/releases), extract, and run:
+
+```bash
+# Windows
+secbot.exe
+
+# Linux / macOS
+./secbot
+```
+
+Set up your API key before launching — create a `.env` file:
+
+```bash
+DEEPSEEK_API_KEY=sk-your-api-key-here
+```
+
+See [Release Guide](docs/RELEASE.md) for details.
+
+---
+
+### Option B: Build from Source
+
+#### 1. Clone the repository
 
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
 ```
 
-### 2. Install Dependencies
-
-[uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver.
+#### 2. Install uv and sync dependencies
 
 ```bash
-# Install uv if not already installed
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh   # Linux/macOS
+# Windows PowerShell:
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Install dependencies using uv
+# Sync all dependencies
 uv sync
 ```
 
-### 3. Install and Start Ollama
-
-```bash
-# Install Ollama from https://ollama.ai
-
-# Pull required models
-ollama pull gemma3:1b
-ollama pull nomic-embed-text
-
-# Ollama service runs on http://localhost:11434 by default
-```
-
-### 4. Configure Environment
+#### 3. Configure environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` file:
-- `OLLAMA_MODEL`: Inference model (default: `gemma3:1b`). If not present locally, the app will pull it automatically when you open the model list.
-- `OLLAMA_EMBEDDING_MODEL`: Embedding model (default: `nomic-embed-text`)
+Edit `.env` with your configuration:
 
-### 5. Build and Install (Optional)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DEEPSEEK_API_KEY` | DeepSeek API Key (recommended) | — |
+| `OLLAMA_MODEL` | Local inference model | `gemma3:1b` |
+| `OLLAMA_EMBEDDING_MODEL` | Embedding model | `nomic-embed-text` |
+
+#### 4. (Optional) Set up local Ollama models
 
 ```bash
-# Build package (using uv)
+# After installing Ollama from https://ollama.ai
+ollama pull gemma3:3b
+ollama pull nomic-embed-text
+```
+
+#### 5. (Optional) Build installable package
+
+```bash
 uv run python -m build
-
-# Install package
-uv pip install dist/hackbot-1.0.0-py3-none-any.whl
-
-# Now you can use 'hackbot' or 'secbot' (no args = interactive mode)
-hackbot
+uv pip install dist/secbot-*.whl
 ```
 
-## Quick Start
+---
 
-### Basic Usage (no arguments = interactive mode)
+## 🚀 Quick Start
+
+### Launch Interactive Mode
 
 ```bash
-# Run with no arguments to enter interactive mode (takes over the terminal; exit restores it)
+# Any of the following
 python main.py
-# or
 uv run secbot
-# or (if installed) hackbot / secbot
+secbot          # after package installation
+hackbot         # legacy entry point
 ```
 
-All interaction (chat, agent switch, tools, slash commands) happens inside the interactive session. Type `/` then Enter to list commands; `exit` or `quit` to leave.
+### Launch TUI Frontend (Recommended)
 
-### In interactive mode (examples)
+```bash
+# Terminal 1: Start backend API
+uv run hackbot-server
+# or
+python -m router.main
 
-After starting, you can: use natural language (e.g. "Scan ports on 192.168.1.1") or slash commands like `/list-targets`, `/list-authorizations`, `/defense-scan`, `/system-info`, `/db-stats`, `/prompt-list`. Type `/` then Enter to see the full list.
+# Terminal 2: Start TUI
+cd terminal-ui
+npm install && npm run tui
+```
 
-### Terminal UI (TypeScript stack, recommended)
+One-click launch scripts:
 
-The terminal interface uses the **TypeScript stack** ([Ink](https://github.com/vadimdemedes/ink) + React), connecting to the Python backend via HTTP/SSE:
+```bash
+# Windows
+.\scripts\start-ts-tui.ps1
 
-1. Start the backend first: `python -m router.main` or `uv run hackbot-server`
-2. In another terminal, go to `terminal-ui` and run: `npm install && npm run tui`
+# Linux / macOS
+./scripts/start-ts-tui.sh
+```
 
-Backend URL: set `SECBOT_API_URL` or `BASE_URL` (default `http://localhost:8000`). One-shot: Windows `.\scripts\start-ts-tui.ps1`, Linux/macOS `./scripts/start-ts-tui.sh`. See [terminal-ui/README.md](terminal-ui/README.md).
+### Common Slash Commands
 
-You can also use the Python interactive mode (run `python main.py` or `uv run secbot` with no args) as a Node-free alternative.
+Type `/` and press Enter in interactive mode to see all commands:
 
-## Development
+| Command | Description |
+|---------|-------------|
+| `/list-targets` | List all test targets |
+| `/list-authorizations` | List authorized targets |
+| `/defense-scan` | Start defense scan |
+| `/system-info` | View system information |
+| `/db-stats` | View database statistics |
+| `/prompt-list` | List prompt chains |
 
-### Running Tests
+### Penetration Testing Examples
+
+```
+# Scan target ports (authorization required first)
+Scan open ports and services on 192.168.1.1
+
+# Switch to SuperHackbot mode (high-risk actions require confirmation)
+/mode superhackbot
+Run a full pentest on 192.168.1.7 including port scan, vulnerability scan, and web vulnerability detection
+```
+
+---
+
+## 🔧 Development
+
+### Run Tests
 
 ```bash
 pytest tests/
+# Or a specific test file
+pytest tests/test_agents.py -v
 ```
 
-### Building Package
+### Code Quality
+
+```bash
+# Format
+uv run black .
+
+# Type checking
+uv run mypy .
+
+# Lint
+uv run flake8 .
+```
+
+### Build
 
 ```bash
 # Using uv (recommended)
 uv run python -m build
 
-# Or using the build script
-./build.sh
+# Using scripts
+./build.sh           # Linux/macOS
+.\build.bat          # Windows
 ```
 
-## Documentation
+### Project Structure
 
-- [Quick Start Guide](docs/QUICKSTART.md)
-- [UI Design & Interaction](docs/UI-DESIGN-AND-INTERACTION.md) — terminal UI (TypeScript/Ink) architecture
-- [API Documentation](docs/API.md)
-- [Mobile App Guide](docs/APP.md)
-- [Database Guide](docs/DATABASE_GUIDE.md)
-- [Docker Setup](docs/DOCKER_SETUP.md)
-- [Ollama Setup](docs/OLLAMA_SETUP.md)
-- [Security Warning](docs/SECURITY_WARNING.md)
-- [Prompt Guide](docs/PROMPT_GUIDE.md)
-- [Speech Guide](docs/SPEECH_GUIDE.md)
-- [SQLite Setup](docs/SQLITE_SETUP.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
-- **API Key configuration**: API keys (e.g. DeepSeek / Groq / OpenRouter) are now configured primarily via the TUI/frontend settings or in-app commands (such as `/model`) rather than a separate Typer+Rich CLI tool. Under the hood, secbot still follows the conventions in [config-and-env](docs/design-paradigms/config-and-env.md), using `.env` plus keyring/database for secure storage of sensitive values.
+```
+secbot/
+├── core/                   # Core agent framework
+│   ├── agents/             # All agent implementations
+│   ├── attack_chain/       # LangGraph attack chain graph
+│   ├── memory/             # Memory management
+│   └── patterns/           # ReAct reasoning patterns
+├── tools/                  # Tool collections
+│   ├── offense/            # Offensive tools (exploits, payloads)
+│   ├── defense/            # Defensive tools
+│   ├── web/                # Web penetration tools
+│   ├── osint/              # Intelligence gathering tools
+│   ├── pentest/            # Penetration testing tools
+│   └── web_research/       # Internet research tools
+├── scanner/                # Scanning engine
+├── router/                 # FastAPI routing layer
+├── terminal-ui/            # TypeScript TUI frontend
+├── app/                    # React Native mobile app
+├── docs/                   # Project documentation
+├── scripts/                # Launch and build scripts
+└── tests/                  # Test suite
+```
 
-## Contributing
+---
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Quick Start](docs/QUICKSTART.md) | Detailed installation and getting started guide |
+| [API Reference](docs/API.md) | REST API endpoint documentation |
+| [UI Design & Interaction](docs/UI-DESIGN-AND-INTERACTION.md) | TUI architecture and components |
+| [Prompt Guide](docs/PROMPT_GUIDE.md) | Prompt chain configuration and best practices |
+| [Skills & Memory](docs/SKILLS_AND_MEMORY.md) | Skill injection and memory management |
+| [Tool Extension](docs/TOOL_EXTENSION.md) | How to develop and register custom tools |
+| [Database Guide](docs/DATABASE_GUIDE.md) | SQLite database structure and operations |
+| [Deployment Guide](docs/DEPLOYMENT.md) | Production deployment options |
+| [Docker Setup](docs/DOCKER_SETUP.md) | Containerized deployment |
+| [Ollama Setup](docs/OLLAMA_SETUP.md) | Local model configuration |
+| [Speech Guide](docs/SPEECH_GUIDE.md) | Voice interaction setup |
+| [Virtual Test Environment](docs/VIRTUAL_TEST_ENVIRONMENT.md) | VMware + Ubuntu test environment setup |
+| [Release Guide](docs/RELEASE.md) | Pre-built binary usage |
+| [Security Warning](docs/SECURITY_WARNING.md) | Legal use declaration |
+| [Changelog](docs/CHANGELOG.md) | Version history |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit Issues and Pull Requests.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'feat: add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
-## License
+Please follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages:
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation update
+- `refactor:` Code refactoring
+- `test:` Test-related changes
 
-This project is under a custom open-source license. See the [LICENSE](LICENSE) file for the full text.
+---
 
-- **Permitted**: You may use, modify, and distribute the software for **personal learning** and **academic research and exchange** (e.g. teaching, papers, non-profit sharing), provided that you keep the copyright and license notices.
-- **Commercial use**: Any commercial use requires **prior written permission** from the copyright holder. Unauthorized commercial use is not permitted.  
-  For commercial licensing: wisewater5419@gmail.com or [GitHub @iammm0](https://github.com/iammm0).
+## 📄 License
 
-## Author
+This project is licensed under a custom open-source license. See the [LICENSE](LICENSE) file for details.
 
-**赵明俊 (Zhao Mingjun)**
+- **Permitted**: Personal learning, academic research, and non-commercial sharing (with copyright notice retained)
+- **Commercial use**: Requires prior written authorization from the copyright holder
+
+Commercial licensing: [wisewater5419@gmail.com](mailto:wisewater5419@gmail.com)
+
+---
+
+## 👤 Author
+
+**Zhao Mingjun (赵明俊)**
 
 - GitHub: [@iammm0](https://github.com/iammm0)
-- Email: wisewater5419@gmail.com
+- Email: [wisewater5419@gmail.com](mailto:wisewater5419@gmail.com)
 
-## Acknowledgments
+---
 
-secbot is built on top of a rich open-source ecosystem. We would like to express our sincere gratitude to all projects and communities that made this possible (**including but not limited to**, in no particular order):
+## 🙏 Acknowledgments
 
-- Languages & runtimes: **Python**, **TypeScript/JavaScript**, **Node.js**
-- Backend & infrastructure: **FastAPI**, **Starlette / sse-starlette**, **uvicorn**, **uv**, **SQLite**
-- LLM & AI ecosystem: **LangChain**, `langchain-openai`, `langchain-anthropic`, `langchain-google-genai`, `langchain-community`, various **DeepSeek / OpenAI / Anthropic / Google Gemini** compatible APIs, and **Ollama** for local inference
-- Terminal & logging: terminal / logging related tooling (e.g. **loguru** and others)
-- Security & networking: the numerous security, networking and OSINT tools (e.g. nmap, scapy, etc.) that are wrapped or integrated by this project, and their maintainers
-- Frontend & mobile: **React**, **React Native**, **Expo**, **Ink**, **React Navigation** and the surrounding UI / state-management ecosystem
-- Other dependencies: `requests/httpx`, `pydantic`, `sqlalchemy` and many other third-party libraries directly or transitively used in this repository
+This project is built upon many excellent open-source projects (in no particular order):
 
-> If we are using your open-source project but failed to list it explicitly above, please accept our apologies — we are equally grateful for your work.
+| Category | Projects |
+|----------|----------|
+| **AI / LLM** | LangChain, LangGraph, DeepSeek, Ollama, OpenAI |
+| **Backend** | FastAPI, Starlette, sse-starlette, uvicorn |
+| **Frontend** | React, React Native, Expo, Ink, React Navigation |
+| **Database** | SQLite, SQLAlchemy |
+| **Network / Security** | httpx, requests, nmap, scapy, paramiko |
+| **Toolchain** | uv, pydantic, loguru, pytest |
 
-## Disclaimer
+If any open-source project used in this project is not listed above, it is an oversight, and we express our sincere gratitude here as well.
 
-This tool is provided for educational and authorized security testing purposes only. The authors and contributors are not responsible for any misuse or damage caused by this tool. Users must ensure they have proper authorization before using this tool on any system.
+---
+
+## ⚖️ Disclaimer
+
+This tool is intended solely for educational purposes and authorized security testing. The authors and contributors are not responsible for any misuse or damage caused by this tool. **Ensure you have explicit authorization for all target systems before use.**
 
 ---
 
 <div align="center">
 
-**If you find this project useful, please consider giving it a star!**
+If this project is useful to you, please give it a ⭐ Star!
 
 </div>
