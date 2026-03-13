@@ -29,7 +29,8 @@ ENV/
 # IDE
 .vscode/
 .idea/
-.qoder/
+.qoder/agents/
+.qoder/skills/
 *.swp
 *.swo
 *~
