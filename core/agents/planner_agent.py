@@ -42,8 +42,10 @@ class PlannerAgent(BaseAgent):
 对于问候、闲聊、非技术请求，直接给出友好、简洁的回复，不需要调用任何工具。
 
 ### 3. 技术请求 — 结构化规划
+先判断是否有必要进行多步规划：若任务可一句话或单一工具完成，可只生成 1 个 todo。
 对于需要执行操作的技术请求，将任务分解为结构化 JSON 格式的 TodoList。
 每个 Todo 必须包含：id、content、tool_hint（可选）、depends_on（依赖列表）。
+若某步骤无需调用工具（仅需推理、说明或人工确认），tool_hint 填 null，执行时该步骤会视为完成、无需工具。
 
 ### 4. 巡检与渗透测试任务的特殊处理
 对于安全巡检或渗透测试任务，规划时需注意：
@@ -69,8 +71,8 @@ class PlannerAgent(BaseAgent):
 注意：
 - todos 中的 id 必须唯一
 - depends_on 只能引用前面步骤的 id
-- tool_hint 是建议使用的工具名，可以为 null
-- 步骤数量应在 2-6 个之间"""
+- tool_hint 是建议使用的工具名，可以为 null（无需工具的步骤执行时直接视为完成）
+- 步骤数量 1-6 个均可；无需多步时可只输出 1 个 todo"""
 
         super().__init__(name=name, system_prompt=system_prompt)
         # 当前规划结果（用于实时追踪）
@@ -401,6 +403,10 @@ class PlannerAgent(BaseAgent):
         else:
             prompt += " 当前是简单问答（如能做什么、帮助等），简要说明能力并提示用户直接说需求。"
 
+        messages_payload = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": user_input.strip()},
+        ]
         try:
             llm = self._get_llm()
             response = await asyncio.wait_for(
@@ -410,12 +416,24 @@ class PlannerAgent(BaseAgent):
                 ]),
                 timeout=30.0,
             )
-            if hasattr(response, "content") and response.content:
+            if isinstance(response, str):
+                return response.strip()
+            if hasattr(response, "content") and response.content is not None:
                 return str(response.content).strip()
             return str(response).strip()
         except asyncio.TimeoutError:
             return "回复超时，请稍后重试。"
         except Exception as e:
+            if "model_dump" in str(e).lower():
+                try:
+                    from utils.llm_http_fallback import chat_completions_request
+                    out = await chat_completions_request(
+                        messages_payload, max_tokens=2048, timeout=30.0
+                    )
+                    if not out.startswith("[LLM 回退失败:"):
+                        return out
+                except Exception as fb:
+                    logger.warning("PlannerAgent HTTP 回退失败: %s", fb)
             logger.warning(f"PlannerAgent _reply_via_llm 错误: {e}")
             return "你好！有什么可以帮你的吗？"
 
@@ -469,9 +487,9 @@ class PlannerAgent(BaseAgent):
 {{"plan_summary": "简要说明任务目标（1-2句话）", "todos": [{{"id": "step_1", "content": "具体步骤描述", "tool_hint": "建议工具名或null", "depends_on": []}}, {{"id": "step_2", "content": "具体步骤描述", "tool_hint": "建议工具名或null", "depends_on": ["step_1"]}}]}}
 
 规则：
-- todos 中 2-6 个步骤
-- id 格式为 step_N
-- depends_on 只引用前面步骤的 id
+- 先判断是否需要多步规划；若可一步完成可只输出 1 个 todo
+- todos 中 1-6 个步骤；某步骤无需工具时 tool_hint 填 null
+- id 格式为 step_N；depends_on 只引用前面步骤的 id
 - 不要添加任何 JSON 之外的文字"""
 
         try:
@@ -525,10 +543,16 @@ class PlannerAgent(BaseAgent):
                 # 基于用户请求 + Todo 内容填充/修正 resource、risk_level、agent_hint
                 self._enrich_todos_with_metadata(todos, user_input)
 
+                # 执行本计划需集成的工具（非空 tool_hint 去重）
+                tools_required = sorted(
+                    {t.tool_hint for t in todos if t.tool_hint and str(t.tool_hint).strip()}
+                )
+
                 return PlanResult(
                     request_type=RequestType.TECHNICAL,
                     todos=todos,
                     plan_summary=data.get("plan_summary", f"分析任务: {user_input}"),
+                    tools_required=tools_required,
                 )
             except json.JSONDecodeError:
                 pass
@@ -620,10 +644,14 @@ class PlannerAgent(BaseAgent):
         # 为回退计划同样补充 resource / risk_level / agent_hint
         self._enrich_todos_with_metadata(todos, user_input)
 
+        tools_required = sorted(
+            {t.tool_hint for t in todos if t.tool_hint and str(t.tool_hint).strip()}
+        )
         return PlanResult(
             request_type=RequestType.TECHNICAL,
             todos=todos,
             plan_summary=f"分析任务: {user_input}",
+            tools_required=tools_required,
         )
 
     # ------------------------------------------------------------------

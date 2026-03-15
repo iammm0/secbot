@@ -15,6 +15,9 @@ from router.schemas import (
     ProviderListResponse,
     SetApiKeyRequest,
     SetApiKeyResponse,
+    SetProviderRequest,
+    SetProviderSettingsRequest,
+    ProviderSettingsResponse,
     OllamaModelsResponse,
     OllamaModelItem,
     CpuInfo,
@@ -49,18 +52,54 @@ async def system_info():
 
 @router.get("/config", response_model=SystemConfigResponse, summary="推理/模型配置")
 async def system_config():
-    """返回当前 LLM 后端与模型配置，供 TUI /model 等使用。"""
+    """返回当前 LLM 后端与模型配置，供 TUI /model 等使用（含 SQLite 持久化后的生效值）。"""
     try:
-        from hackbot_config import settings
+        from hackbot_config import settings, get_provider_model, get_provider_base_url
+        # 优先返回 SQLite/环境变量中该厂商的生效值，便于 TUI 展示与编辑后回显
+        ollama_model = get_provider_model("ollama") or settings.ollama_model
+        ollama_base_url = (get_provider_base_url("ollama") or settings.ollama_base_url).rstrip("/")
+        deepseek_model = get_provider_model("deepseek") or getattr(settings, "deepseek_model", None)
+        deepseek_base_url = get_provider_base_url("deepseek") or getattr(settings, "deepseek_base_url", None)
+        if deepseek_base_url:
+            deepseek_base_url = deepseek_base_url.rstrip("/")
+        current_provider_model = get_provider_model(settings.llm_provider)
+        current_provider_base_url = get_provider_base_url(settings.llm_provider)
+        if current_provider_base_url:
+            current_provider_base_url = current_provider_base_url.rstrip("/")
         return SystemConfigResponse(
             llm_provider=settings.llm_provider,
-            ollama_model=settings.ollama_model,
-            ollama_base_url=settings.ollama_base_url,
-            deepseek_model=getattr(settings, "deepseek_model", None),
-            deepseek_base_url=getattr(settings, "deepseek_base_url", None),
+            ollama_model=ollama_model,
+            ollama_base_url=ollama_base_url,
+            deepseek_model=deepseek_model,
+            deepseek_base_url=deepseek_base_url or None,
+            current_provider_model=current_provider_model,
+            current_provider_base_url=current_provider_base_url or None,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取配置失败: {e}")
+
+
+@router.get("/config/provider/{provider_id}", response_model=ProviderSettingsResponse, summary="获取指定厂商的模型与 Base URL")
+async def get_provider_settings(provider_id: str):
+    """供「已配置的推理后端」进入详情时拉取该厂商的 model、base_url。"""
+    try:
+        from utils.model_selector import get_provider_config
+        from hackbot_config import get_provider_model, get_provider_base_url
+
+        pid = (provider_id or "").strip().lower()
+        if not pid:
+            raise HTTPException(status_code=400, detail="provider_id 不能为空")
+        if get_provider_config(pid) is None:
+            raise HTTPException(status_code=404, detail=f"不支持的推理后端: {pid}")
+        model = get_provider_model(pid)
+        base_url = get_provider_base_url(pid)
+        if base_url:
+            base_url = base_url.rstrip("/")
+        return ProviderSettingsResponse(provider=pid, model=model, base_url=base_url or None)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/ollama-models", response_model=OllamaModelsResponse, summary="Ollama 本地/在线可用模型列表")
@@ -154,17 +193,19 @@ async def list_providers_api_key_status():
 
 @router.post("/config/api-key", response_model=SetApiKeyResponse, summary="设置或删除 API Key")
 async def set_api_key(body: SetApiKeyRequest):
-    """设置厂商 API Key；若 api_key 为空则删除。"""
+    """设置厂商 API Key（空则删除）；可单独或同时提交 base_url（needs_base_url 的厂商）。"""
     try:
         from hackbot_config import save_config_to_sqlite, delete_provider_api_key
         provider = (body.provider or "").strip().lower()
         if not provider:
             return SetApiKeyResponse(success=False, message="provider 不能为空")
         key = (body.api_key or "").strip()
-        if not key:
+        only_update_base_url = not key and body.base_url is not None
+        msg = ""
+        if not key and not only_update_base_url:
             delete_provider_api_key(provider)
             msg = f"已删除 {provider} 的 API Key"
-        else:
+        elif key:
             save_config_to_sqlite(
                 f"{provider}_api_key",
                 key,
@@ -173,7 +214,7 @@ async def set_api_key(body: SetApiKeyRequest):
             )
             msg = f"已保存 {provider} API Key"
 
-        # 若同时携带 base_url，则一并处理（主要用于 OpenAI 兼容中转等）
+        # 若携带 base_url，则更新 Base URL（第二步仅提交 base_url 时不删 Key）
         if body.base_url is not None:
             base = (body.base_url or "").strip()
             save_config_to_sqlite(
@@ -183,11 +224,67 @@ async def set_api_key(body: SetApiKeyRequest):
                 description=f"{provider} Base URL",
             )
             if base:
-                msg += "，并已更新 Base URL"
+                msg = msg + "，并已更新 Base URL" if msg else "已更新 Base URL"
             else:
-                msg += "，并已清除自定义 Base URL"
+                msg = msg + "，并已清除自定义 Base URL" if msg else "已清除自定义 Base URL"
 
-        return SetApiKeyResponse(success=True, message=msg)
+        return SetApiKeyResponse(success=True, message=msg or "已保存")
+    except Exception as e:
+        return SetApiKeyResponse(success=False, message=str(e))
+
+
+@router.post("/config/provider", response_model=SetApiKeyResponse, summary="设置当前默认推理后端")
+async def set_provider(body: SetProviderRequest):
+    """切换默认推理后端，写入 SQLite，下次请求生效。"""
+    try:
+        from utils.model_selector import get_provider_config
+        from hackbot_config import save_llm_provider
+
+        provider = (body.llm_provider or "").strip().lower()
+        if not provider:
+            return SetApiKeyResponse(success=False, message="llm_provider 不能为空")
+        config = get_provider_config(provider)
+        if not config:
+            return SetApiKeyResponse(success=False, message=f"不支持的推理后端: {provider}")
+        save_llm_provider(provider)
+        return SetApiKeyResponse(success=True, message=f"已切换默认推理后端为 {config.get('name', provider)}")
+    except Exception as e:
+        return SetApiKeyResponse(success=False, message=str(e))
+
+
+@router.post("/config/provider-settings", response_model=SetApiKeyResponse, summary="更新厂商默认模型或 Base URL")
+async def set_provider_settings(body: SetProviderSettingsRequest):
+    """更新指定厂商的默认模型、Base URL（写入 SQLite），不涉及 API Key。"""
+    try:
+        from utils.model_selector import get_provider_config
+        from hackbot_config import save_config_to_sqlite
+
+        provider = (body.provider or "").strip().lower()
+        if not provider:
+            return SetApiKeyResponse(success=False, message="provider 不能为空")
+        if get_provider_config(provider) is None:
+            return SetApiKeyResponse(success=False, message=f"不支持的推理后端: {provider}")
+        parts = []
+        if body.model is not None:
+            save_config_to_sqlite(
+                f"{provider}_model",
+                body.model.strip(),
+                category="user_preference",
+                description=f"{provider} 默认模型",
+            )
+            parts.append("默认模型")
+        if body.base_url is not None:
+            val = body.base_url.strip()
+            save_config_to_sqlite(
+                f"{provider}_base_url",
+                val,
+                category="api_keys",
+                description=f"{provider} Base URL",
+            )
+            parts.append("API 地址" if val else "清除 API 地址")
+        if not parts:
+            return SetApiKeyResponse(success=False, message="请提供 model 或 base_url")
+        return SetApiKeyResponse(success=True, message=f"已更新 {provider} 的 {'、'.join(parts)}")
     except Exception as e:
         return SetApiKeyResponse(success=False, message=str(e))
 

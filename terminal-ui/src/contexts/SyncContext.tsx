@@ -6,12 +6,12 @@ import React from 'react';
 import { createSimpleContext } from './helper.js';
 import { useChat } from '../useChat.js';
 import type { StreamState } from '../types.js';
-import type { PendingRootRequest } from '../useChat.js';
+import type { PendingRootRequest, HistoryItem } from '../useChat.js';
 
 export interface SyncContextValue {
   streaming: boolean;
   streamState: StreamState;
-  history: StreamState[];
+  history: HistoryItem[];
   apiOutput: string | null;
   pendingRootRequest: PendingRootRequest | null;
   setPendingRootRequest: React.Dispatch<React.SetStateAction<PendingRootRequest | null>>;
