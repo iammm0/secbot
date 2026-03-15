@@ -77,6 +77,15 @@ class TaskExecutor:
                 self._layer_results[todo.id] = result
                 if result.get("obs"):
                     response_parts.append(result["obs"])
+                # 未指定工具的步骤：由执行器标记为已完成并通知 UI
+                if result.get("success") and not (getattr(todo, "tool_hint", None) or "").strip():
+                    self.planner.update_todo(todo.id, "completed", result.get("obs"))
+                    self.event_bus.emit_simple(
+                        EventType.PLAN_TODO,
+                        todo_id=todo.id,
+                        status="completed",
+                        result_summary=result.get("obs"),
+                    )
             else:
                 # 并行层：并发执行，收集结果后按 plan 顺序发送事件（保证线性渲染）
                 tasks = []
@@ -127,6 +136,15 @@ class TaskExecutor:
                                 if not res.get("success")
                                 else "",
                             },
+                        )
+                    # 未指定工具的步骤：由执行器标记为已完成并通知 UI
+                    if res.get("success") and not (getattr(todo, "tool_hint", None) or "").strip():
+                        self.planner.update_todo(todo.id, "completed", res.get("obs"))
+                        self.event_bus.emit_simple(
+                            EventType.PLAN_TODO,
+                            todo_id=todo.id,
+                            status="completed",
+                            result_summary=res.get("obs"),
                         )
                 iteration += len(todos_in_layer)
 

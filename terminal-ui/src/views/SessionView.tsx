@@ -17,8 +17,37 @@ import { RootPermissionDialog } from '../components/RootPermissionDialog.js';
 import { LoadingBar } from '../components/LoadingBar.js';
 
 const CONTENT_HEIGHT_OFFSET = 9;
-/** 彩虹流动动效间隔（与 HomeView 一致） */
-const RAINBOW_PHASE_MS = 180;
+/** 彩虹流动动效间隔（不宜过短，避免全屏下底部区域闪烁） */
+const RAINBOW_PHASE_MS = 400;
+
+/** 底部 SECBOT 彩虹条：相位状态与定时器隔离在此，避免整页因相位更新而重绘导致全屏闪烁 */
+function SessionStatusBar({
+  mode,
+  agent,
+  theme,
+}: {
+  mode: string;
+  agent: string;
+  theme: { textMuted: string; cyberRainbow: string[] };
+}) {
+  const [rainbowPhase, setRainbowPhase] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setRainbowPhase((p) => p + 1), RAINBOW_PHASE_MS);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <Box flexShrink={0} flexDirection="row" justifyContent="space-between" paddingTop={1} paddingBottom={0} paddingLeft={2} paddingRight={2}>
+      <Text color={theme.textMuted}>
+        {'SECBOT'.split('').map((char, i) => (
+          <Text key={i} color={theme.cyberRainbow[(i + rainbowPhase) % theme.cyberRainbow.length]} bold>
+            {char}
+          </Text>
+        ))}
+        <Text color={theme.textMuted}> · {mode} · {agent}</Text>
+      </Text>
+    </Box>
+  );
+}
 
 interface SessionViewProps {
   columns: number;
@@ -35,8 +64,6 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showScrollbar, setShowScrollbar] = useState(true);
   const [expandedBlockIds, setExpandedBlockIds] = useState<Set<string>>(new Set());
-  /** 彩虹流动动效相位（底部 Secbot 标识） */
-  const [rainbowPhase, setRainbowPhase] = useState(0);
   const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
   const scrollableHeightRef = useRef(1);
@@ -68,10 +95,9 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
     const ids: string[] = [];
     if (apiOutput != null) ids.push('api');
     if (streamState.content) ids.push('content');
-    if (streamState.report) ids.push('report');
     if (streamState.response) ids.push('response');
     return ids;
-  }, [apiOutput, streamState.content, streamState.report, streamState.response]);
+  }, [apiOutput, streamState.content, streamState.response]);
 
   const blocks = useMemo(
     () => streamStateToBlocks(streamState, streaming, apiOutput, undefined, expandedBlockIds),
@@ -96,11 +122,6 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
   useEffect(() => {
     setSlashSelectedIndex(0);
   }, [inputValue]);
-
-  useEffect(() => {
-    const id = setInterval(() => setRainbowPhase((p) => p + 1), RAINBOW_PHASE_MS);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     if (!pendingRootRequest) return;
@@ -437,25 +458,8 @@ export function SessionView({ columns, rows, initialPrompt }: SessionViewProps) 
         />
       </Box>
 
-      {/* 底部状态栏 — SECBOT 赛博朋克七彩 · mode · agent */}
-      <Box
-        flexShrink={0}
-        flexDirection="row"
-        justifyContent="space-between"
-        paddingTop={1}
-        paddingBottom={0}
-        paddingLeft={2}
-        paddingRight={2}
-      >
-        <Text color={theme.textMuted}>
-          {'SECBOT'.split('').map((char, i) => (
-            <Text key={i} color={theme.cyberRainbow[(i + rainbowPhase) % theme.cyberRainbow.length]} bold>
-              {char}
-            </Text>
-          ))}
-          <Text color={theme.textMuted}> · {mode} · {agent}</Text>
-        </Text>
-      </Box>
+      {/* 底部状态栏 — SECBOT 赛博朋克七彩 · mode · agent（相位隔离，减少全屏闪烁） */}
+      <SessionStatusBar mode={mode} agent={agent} theme={theme} />
 
       {/* 统计与快捷键 — 置于最底部 */}
       <Box flexShrink={0} paddingLeft={2} paddingRight={2} paddingTop={0} paddingBottom={1}>

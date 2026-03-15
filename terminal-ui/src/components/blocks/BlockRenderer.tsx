@@ -34,6 +34,7 @@ import { ExceptionBlock } from './ExceptionBlock.js';
 import { SuggestionBlock } from './SuggestionBlock.js';
 import { SuccessBlock } from './SuccessBlock.js';
 import { InfoBlock } from './InfoBlock.js';
+import { UserMessageBlock } from './UserMessageBlock.js';
 
 interface BlockRendererProps {
   block: ContentBlockType;
@@ -87,6 +88,14 @@ export function BlockRenderer({ block, noMargin }: BlockRendererProps) {
           body={block.body}
           noMargin={noMargin}
           isPlaceholder={placeholder}
+        />
+      );
+    case 'user_message':
+      return (
+        <UserMessageBlock
+          title={block.title}
+          body={block.body}
+          noMargin={noMargin}
         />
       );
     case 'warning':

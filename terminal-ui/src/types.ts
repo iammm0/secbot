@@ -47,7 +47,7 @@ export interface ActionItemData {
 /** 可渲染的块类型（扩展多种展示形态） */
 export type BlockRenderType =
   | 'api' | 'phase' | 'error' | 'planning' | 'thought' | 'actions'
-  | 'content' | 'report' | 'response' | 'warning' | 'summary' | 'code'
+  | 'content' | 'report' | 'response' | 'user_message' | 'warning' | 'summary' | 'code'
   | 'json' | 'table' | 'bullet' | 'numbered' | 'quote' | 'heading' | 'divider'
   | 'link' | 'key_value' | 'diff' | 'terminal' | 'security' | 'tool_result'
   | 'exception' | 'suggestion' | 'success' | 'info';

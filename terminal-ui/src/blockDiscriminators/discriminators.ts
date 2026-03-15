@@ -8,7 +8,7 @@ import type { BlockDiscriminator, BlockRenderType } from './types.js';
 export const byTypeDiscriminator: BlockDiscriminator = (block) => {
   const known: BlockRenderType[] = [
     'api', 'phase', 'error', 'planning', 'thought', 'actions',
-    'content', 'report', 'response', 'warning', 'summary', 'code',
+    'content', 'report', 'response', 'user_message', 'warning', 'summary', 'code',
     'json', 'table', 'bullet', 'numbered', 'quote', 'heading', 'divider',
     'link', 'key_value', 'diff', 'terminal', 'security', 'tool_result',
     'exception', 'suggestion', 'success', 'info',

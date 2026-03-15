@@ -135,6 +135,26 @@ export function streamStateToBlocks(
       blocks.push({ id: 'actions', type: 'actions', title: '执行', body, lineStart, lineEnd, actions: actionItems });
       lineStart = lineEnd;
     }
+    // Agent 终端结果以只读终端块展示（用户仅可查看，不可输入）
+    for (let i = 0; i < actions.length; i++) {
+      const a = actions[i];
+      if (a.tool !== 'terminal_session' || a.result == null || typeof a.result !== 'object') continue;
+      const r = a.result as Record<string, unknown>;
+      const output = r.output != null ? String(r.output) : null;
+      const message = r.message != null ? String(r.message) : null;
+      const bodyText = (output ?? message ?? '').trim();
+      if (!bodyText) continue;
+      const lineCount = blockLines('只读 · Agent 终端', bodyText);
+      blocks.push({
+        id: `terminal-session-${i}-${lineStart}`,
+        type: 'terminal',
+        title: '只读 · Agent 终端',
+        body: truncateBody(bodyText, MAX_RESULT_LINES),
+        lineStart,
+        lineEnd: lineStart + lineCount,
+      });
+      lineStart += lineCount;
+    }
   }
 
   if (content) {
@@ -145,10 +165,7 @@ export function streamStateToBlocks(
     }
   }
 
-  if (report) {
-    const body = truncateBody(report, MAX_RESULT_LINES);
-    addCollapsibleBlock('report', 'report', '报告', body);
-  }
+  /* 报告块已移除：与回复内容重复，仅保留回复块避免重复展示 */
 
   if (response) {
     const body = truncateBody(response, MAX_RESULT_LINES);

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { StreamState } from './types.js';
 import type { ContentBlock as ContentBlockType } from './types.js';
+import type { HistoryItem } from './useChat.js';
 import { streamStateToBlocks } from './contentBlocks.js';
 import { DiscriminatorPool } from './blockDiscriminators/index.js';
 import { ContentBlock } from './components/ContentBlock.js';
@@ -35,7 +36,7 @@ function sliceBlockForVisibleRange(
 }
 
 interface MainContentProps {
-  history: StreamState[];
+  history: HistoryItem[];
   streamState: StreamState;
   streaming: boolean;
   apiOutput: string | null;
@@ -82,8 +83,20 @@ export function MainContent({
     let lineOffset = 0;
     const allBlocks: ContentBlockType[] = [];
 
-    history.forEach((h, idx) => {
-      const histBlocks = streamStateToBlocks(h, false, null, dismissedTransientTools, expandedBlockIds).map(
+    history.forEach((item, idx) => {
+      const msg = item.userMessage.trim();
+      const userLineCount = Math.max(1, msg ? msg.split('\n').length + 1 : 1);
+      allBlocks.push({
+        id: `h${idx}-user`,
+        type: 'user_message',
+        title: '用户',
+        body: msg || '(空)',
+        lineStart: lineOffset,
+        lineEnd: lineOffset + userLineCount,
+      });
+      lineOffset += userLineCount;
+
+      const histBlocks = streamStateToBlocks(item.streamState, false, null, dismissedTransientTools, expandedBlockIds).map(
         (b) => ({
           ...b,
           id: `h${idx}-${b.id}`,
@@ -195,6 +208,8 @@ export function MainContent({
                     height={lineCount}
                     overflow="hidden"
                     minHeight={lineCount}
+                    marginBottom={1}
+                    paddingLeft={1}
                   >
                     <ContentBlock block={slicedBlock} noMargin />
                   </Box>

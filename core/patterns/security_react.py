@@ -55,7 +55,7 @@ def _create_llm(
     创建 LLM 实例，支持多厂商：
     - ollama: 本地 Ollama
     - groq / openrouter: 免费档云端（OpenAI 兼容）
-    - deepseek / openai / zhipu / qwen / moonshot / baichuan / yi / custom: OpenAI API 兼容
+    - openai 兼容: deepseek/openai/zhipu/qwen/moonshot/baichuan/yi/scnet/hunyuan/doubao/spark/wenxin/stepfun/minimax/langboat/mianbi/together/fireworks/mistral/cohere/xai/azure_openai/custom
     - anthropic: Anthropic Claude
     - google: Google Gemini
     """
@@ -72,7 +72,9 @@ def _create_llm(
     # --- 查找厂商配置 ---
     config = get_provider_config(p)
     if config is None:
-        raise ValueError(f"不支持的推理后端: {p}，可用: ollama / groq / openrouter / deepseek / openai / anthropic / google / zhipu / qwen / moonshot / baichuan / yi / custom")
+        raise ValueError(
+            f"不支持的推理后端: {p}，可用: ollama/groq/openrouter/deepseek/openai/anthropic/google/zhipu/qwen/moonshot/baichuan/yi/scnet/hunyuan/doubao/spark/wenxin/stepfun/minimax/langboat/mianbi/together/fireworks/mistral/cohere/xai/azure_openai/custom"
+        )
 
     provider_type = config.get("type", "openai_compatible")
 
@@ -337,44 +339,105 @@ class SecurityReActAgent(BaseAgent):
             return str(response.content)
         return str(response)
 
+    def _emit_full_response_as_chunk(self, full_response: str, on_event) -> None:
+        """将完整回复作为单次 thought_chunk 发送，兼容非流式 API 的交互逻辑。"""
+        if full_response and full_response.strip():
+            self._emit_event("thought_chunk", {"chunk": full_response}, on_event)
+
+    async def _call_llm_non_stream(self, messages: List, timeout: float = 60.0) -> str:
+        """非流式调用 LLM，返回完整文本。用于流式不可用或 API 仅返回整段内容时的回退。"""
+        import asyncio
+
+        response = await asyncio.wait_for(
+            self.llm.ainvoke(messages), timeout=timeout
+        )
+        if isinstance(response, str):
+            return response.strip()
+        if hasattr(response, "content") and response.content is not None:
+            return str(response.content).strip()
+        return str(response).strip()
+
     async def _call_llm_stream(self, messages: List, on_event=None) -> str:
-        """流式调用 LLM，触发事件。"""
+        """流式调用 LLM，触发事件；若 API 不返回流式 chunk 则自动回退到非流式。"""
         import asyncio
 
         try:
             full_response = ""
             if hasattr(self.llm, "astream"):
-                async for chunk in self.llm.astream(messages):
-                    content_chunk = None
-                    # 提取内容
-                    if hasattr(chunk, "content") and chunk.content is not None:
-                        content_chunk = str(chunk.content)
-                    elif hasattr(chunk, "text") and chunk.text is not None:
-                        content_chunk = str(chunk.text)
-                    elif hasattr(chunk, "message") and hasattr(
-                        chunk.message, "content"
-                    ):
-                        content_chunk = str(chunk.message.content)
+                try:
+                    async for chunk in self.llm.astream(messages):
+                        content_chunk = None
+                        if hasattr(chunk, "content") and chunk.content is not None:
+                            content_chunk = str(chunk.content)
+                        elif hasattr(chunk, "text") and chunk.text is not None:
+                            content_chunk = str(chunk.text)
+                        elif hasattr(chunk, "message") and hasattr(
+                            chunk.message, "content"
+                        ):
+                            content_chunk = str(chunk.message.content)
 
-                    if content_chunk and content_chunk.strip():
-                        full_response += content_chunk
-                        self._emit_event(
-                            "thought_chunk", {"chunk": content_chunk}, on_event
+                        if content_chunk and content_chunk.strip():
+                            full_response += content_chunk
+                            self._emit_event(
+                                "thought_chunk", {"chunk": content_chunk}, on_event
+                            )
+                except Exception as stream_err:
+                    err_str = str(stream_err).lower()
+                    if "generation chunks" in err_str or "no generation chunks" in err_str:
+                        logger.info(
+                            "流式未返回 chunk，回退到非流式: %s", stream_err
                         )
-                    # 忽略空的或纯元数据的 chunk
+                        full_response = await self._call_llm_non_stream(
+                            messages, timeout=60.0
+                        )
+                        self._emit_full_response_as_chunk(full_response, on_event)
+                        return full_response
+                    raise stream_err
+
+                # 流式迭代结束但没有任何 chunk（部分 API 直接返回整段内容而不走 stream）
+                if not full_response.strip():
+                    full_response = await self._call_llm_non_stream(
+                        messages, timeout=60.0
+                    )
+                    self._emit_full_response_as_chunk(full_response, on_event)
             else:
-                # 回退到非流式
-                response = await asyncio.wait_for(
-                    self.llm.ainvoke(messages), timeout=10.0
+                full_response = await self._call_llm_non_stream(
+                    messages, timeout=10.0
                 )
-                if hasattr(response, "content") and response.content:
-                    full_response = str(response.content)
-                else:
-                    full_response = str(response)
-                self._emit_event("thought_chunk", {"chunk": full_response}, on_event)
+                self._emit_full_response_as_chunk(full_response, on_event)
 
             return full_response
         except Exception as e:
+            err_str = str(e).lower()
+            if "generation chunks" in err_str or "no generation chunks" in err_str:
+                try:
+                    logger.info("流式报错「无 generation chunks」，回退到非流式: %s", e)
+                    full_response = await self._call_llm_non_stream(
+                        messages, timeout=60.0
+                    )
+                    self._emit_full_response_as_chunk(full_response, on_event)
+                    return full_response
+                except Exception as fallback_err:
+                    logger.error("非流式回退也失败: %s", fallback_err)
+                    e = fallback_err
+
+            if "model_dump" in str(e).lower():
+                try:
+                    from utils.llm_http_fallback import (
+                        chat_completions_request,
+                        langchain_messages_to_dicts,
+                    )
+                    logger.info("LLM 调用触发 model_dump，改用 HTTP 直连回退")
+                    payload = langchain_messages_to_dicts(messages)
+                    full_response = await chat_completions_request(
+                        payload, max_tokens=4096, timeout=60.0
+                    )
+                    self._emit_full_response_as_chunk(full_response, on_event)
+                    return full_response
+                except Exception as http_err:
+                    logger.error("HTTP 回退失败: %s", http_err)
+                    e = http_err
+
             from utils.model_selector import get_llm_connection_hint
 
             logger.error(f"LLM 流式调用失败: {e}")
@@ -1409,9 +1472,10 @@ Final Answer: <最终结论和报告>
 
         if not tool:
             if not tool_hint or (isinstance(tool_hint, str) and not tool_hint.strip()):
-                obs = f"该步骤未指定工具（tool_hint 为空），跳过: {content}"
-            else:
-                obs = f"无法找到工具 '{tool_hint}'，跳过步骤: {content}"
+                # 未指定工具的步骤视为可执行：无需调用工具即视为完成
+                obs = "该步骤无需工具，已视为完成。"
+                return {"success": True, "obs": obs, "result": None}
+            obs = f"无法找到工具 '{tool_hint}'，跳过步骤: {content}"
             return {"success": False, "obs": obs, "result": None}
 
         # 使用 LLM 提取参数

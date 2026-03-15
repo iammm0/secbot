@@ -28,10 +28,15 @@ function resetStreamState(): StreamState {
   };
 }
 
+export interface HistoryItem {
+  userMessage: string;
+  streamState: StreamState;
+}
+
 export function useChat() {
   const [streaming, setStreaming] = useState(false);
   const [streamState, setStreamState] = useState<StreamState>(initialStreamState);
-  const [history, setHistory] = useState<StreamState[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [apiOutput, setApiOutput] = useState<string | null>(null);
   const [pendingRootRequest, setPendingRootRequest] = useState<PendingRootRequest | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -65,7 +70,7 @@ export function useChat() {
        // 在开始新一轮对话前，将上一轮非空流状态快照到本地历史，便于在 TUI 中滚动查看完整上下文
       const prev = streamStateRef.current;
       if (hasContent(prev)) {
-        setHistory((h) => [...h, prev]);
+        setHistory((h) => [...h, { userMessage: message, streamState: prev }]);
       }
       setStreamState(resetStreamState());
       setApiOutput(null);

@@ -76,6 +76,8 @@ class PlanResult:
     todos: List[TodoItem] = field(default_factory=list)
     direct_response: Optional[str] = None
     plan_summary: str = ""
+    # 执行本计划需集成的工具（从 todos 中非空 tool_hint 去重），便于说明「要执行该计划需要哪些工具」
+    tools_required: List[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

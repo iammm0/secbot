@@ -1,10 +1,12 @@
 """
 Hackbot CLI 入口（包安装后通过 hackbot / secbot 命令调用）
-无参数即启动后端 + TS 全屏 TUI。支持 --backend / --tui 单独启动。
+无参数即启动后端 + TS 全屏 TUI。支持 --backend / --tui 单独启动，model 子命令切换推理后端。
 """
 import sys
 import traceback
 from pathlib import Path
+
+from rich.console import Console
 
 from hackbot.launch_tui import launch_tui, run_backend_only, run_tui_only
 
@@ -39,6 +41,7 @@ def app() -> None:
 
 用法:
   hackbot              启动后端 + 终端 TUI（推荐）
+  hackbot model        交互式选择推理后端与模型（与 TUI 内 /model 一致，写入 SQLite）
   hackbot --backend    仅启动后端 FastAPI 服务（默认端口 8000）
   hackbot --tui        仅启动终端 TUI（需后端已在运行）
 
@@ -72,6 +75,23 @@ def app() -> None:
             raise SystemExit(run_backend_only())
         if "--tui" in args:
             raise SystemExit(run_tui_only())
+
+        # 模型/推理后端选择（对接 utils.model_selector，与 TUI /model 共用 PROVIDER_REGISTRY）
+        if args and args[0] in ("model", "--model"):
+            from hackbot_config import get_llm_provider, save_llm_provider
+            from utils.model_selector import run_model_selector, get_provider_model
+
+            console = Console()
+            current = get_llm_provider()
+            current_model = get_provider_model(current)
+            provider, model = run_model_selector(console, current_provider=current, current_model=current_model)
+            if provider is not None:
+                save_llm_provider(provider)
+                model_info = model or "(默认模型)"
+                console.print(f"[green]已切换推理后端: {provider}，模型: {model_info}[/green]")
+                console.print("[dim]下次启动 hackbot 或后端将使用该配置。[/dim]")
+            raise SystemExit(0)
+
         raise SystemExit(launch_tui())
     except SystemExit:
         raise
