@@ -84,6 +84,8 @@ class SystemConfigResponse(BaseModel):
     ollama_base_url: str = Field(..., description="Ollama 服务地址")
     deepseek_model: Optional[str] = Field(None, description="DeepSeek 默认模型")
     deepseek_base_url: Optional[str] = Field(None, description="DeepSeek API 地址")
+    current_provider_model: Optional[str] = Field(None, description="当前后端生效的模型名（供「当前」详情页编辑）")
+    current_provider_base_url: Optional[str] = Field(None, description="当前后端生效的 Base URL（供「当前」详情页编辑）")
 
 
 class OllamaModelItem(BaseModel):
@@ -130,6 +132,25 @@ class SetApiKeyRequest(BaseModel):
 class SetApiKeyResponse(BaseModel):
     success: bool
     message: str
+
+
+class SetProviderRequest(BaseModel):
+    """设置当前默认推理后端"""
+    llm_provider: str = Field(..., description="厂商 id，如 ollama / deepseek / stepfun")
+
+
+class SetProviderSettingsRequest(BaseModel):
+    """更新某厂商的默认模型或 Base URL（不涉及 API Key）"""
+    provider: str = Field(..., description="厂商 id，如 ollama / deepseek")
+    model: Optional[str] = Field(None, description="默认模型名，不传则不修改")
+    base_url: Optional[str] = Field(None, description="Base URL，不传则不修改；空字符串表示清除自定义")
+
+
+class ProviderSettingsResponse(BaseModel):
+    """单个厂商的模型与 Base URL（供详情页展示与编辑）"""
+    provider: str = Field(..., description="厂商 id")
+    model: Optional[str] = Field(None, description="默认模型名")
+    base_url: Optional[str] = Field(None, description="Base URL")
 
 
 class CpuInfo(BaseModel):

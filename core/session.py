@@ -239,7 +239,7 @@ class SessionManager:
                         MessageRole.ASSISTANT, response
                     )
                 return response
-            # technical：继续走规划+执行
+            # technical：继续走规划+执行（仅技术类请求才进行规划）
 
         # 通知 UI：进入规划阶段（便于加载组件显示「规划中」）
         await self.event_bus.emit_simple_async(
@@ -252,6 +252,11 @@ class SessionManager:
             self.planner._current_plan = plan_result  # 便于执行时更新 todo 状态
             # 仍需要发射 PLAN_START 以便 TUI 展示
             if plan_result.todos:
+                tr = getattr(plan_result, "tools_required", None) or []
+                if not tr:
+                    tr = sorted(
+                        {t.tool_hint for t in plan_result.todos if t.tool_hint and str(t.tool_hint).strip()}
+                    )
                 await self.event_bus.emit_simple_async(
                     EventType.PLAN_START,
                     summary=plan_result.plan_summary,
@@ -268,6 +273,7 @@ class SessionManager:
                         }
                         for t in plan_result.todos
                     ],
+                    tools_required=tr,
                 )
         else:
             at = agent_type or self.get_current_agent_type()
@@ -298,6 +304,11 @@ class SessionManager:
                         f"- {t.content} ({t.status.value})" for t in plan_result.todos
                     ]
                     response = response + "\n\n**待办:**\n" + "\n".join(lines)
+                tools_required = getattr(plan_result, "tools_required", None) or []
+                if tools_required:
+                    response = response + "\n\n**执行本计划需集成的工具:** " + ", ".join(tools_required)
+                else:
+                    response = response + "\n\n**执行本计划:** 无需集成额外工具（或步骤均为无需工具的说明/推理）。"
                 if self.current_session:
                     self.current_session.add_message(MessageRole.ASSISTANT, response)
                 return response
@@ -440,7 +451,7 @@ class SessionManager:
         plan_result = await self.planner.plan(user_input, context=context)
 
         if plan_result.request_type == RequestType.TECHNICAL and plan_result.todos:
-            # 发射规划事件（标记来源为 planner）
+            # 发射规划事件（标记来源为 planner），含执行本计划需集成的工具说明
             await self.event_bus.emit_simple_async(
                 EventType.PLAN_START,
                 summary=plan_result.plan_summary,
@@ -458,6 +469,7 @@ class SessionManager:
                     }
                     for t in plan_result.todos
                 ],
+                tools_required=getattr(plan_result, "tools_required", None) or [],
             )
 
         return plan_result
@@ -813,8 +825,8 @@ class SessionManager:
         if self.current_session:
             self.current_session.add_message(MessageRole.USER, user_input)
 
-        # 调用 QAAgent 的上下文问答
-        response = await self.qa_agent.answer_with_context(
+        # 调用 QAAgent 的上下文问答（带通用工具：搜索、系统信息、CVE、文件分析，以更确切回答）
+        response = await self.qa_agent.answer_with_context_and_tools(
             user_input, conversation_history
         )
 

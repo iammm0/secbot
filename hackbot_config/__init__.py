@@ -10,6 +10,7 @@ import sys
 import sqlite3
 from pathlib import Path
 from typing import Optional
+from pydantic import computed_field
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -159,11 +160,35 @@ def get_provider_model(provider: str) -> Optional[str]:
     return None
 
 
+def get_llm_provider() -> str:
+    """当前推理后端（优先 SQLite 持久化，其次环境变量 LLM_PROVIDER）"""
+    val = _get_config_from_sqlite("llm_provider")
+    if val and val.strip():
+        return val.strip().lower()
+    return (os.getenv("LLM_PROVIDER") or "deepseek").strip().lower()
+
+
+def save_llm_provider(provider: str) -> bool:
+    """将当前推理后端持久化到 SQLite，CLI /model 或 TUI 切换后生效"""
+    if not provider or not provider.strip():
+        return False
+    return save_config_to_sqlite(
+        "llm_provider",
+        provider.strip().lower(),
+        category="user_preference",
+        description="当前推理后端（由 /model 或 hackbot model 设置）",
+    )
+
+
 class Settings(BaseSettings):
     """应用配置"""
 
-    # 推理模型后端：ollama / deepseek / openai / anthropic / google / zhipu / qwen / moonshot / baichuan / yi / custom
-    llm_provider: str = os.getenv("LLM_PROVIDER", "deepseek")
+    # 推理模型后端（由 get_llm_provider() 动态提供：SQLite > 环境变量）
+    # 支持: ollama/deepseek/openai/.../azure_openai/custom，见 utils.model_selector.PROVIDER_REGISTRY
+    @computed_field
+    @property
+    def llm_provider(self) -> str:
+        return get_llm_provider()
 
     # Ollama 配置（当 LLM_PROVIDER=ollama 时使用）
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

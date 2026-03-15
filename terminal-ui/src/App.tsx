@@ -33,14 +33,24 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
     };
   });
   useEffect(() => {
-    const stream = stdout as NodeJS.WriteStream & { on?(e: 'resize', fn: () => void): void; off?(e: 'resize', fn: () => void): void; columns?: number; rows?: number };
+    const stream = stdout as NodeJS.WriteStream & { on?(e: 'resize', fn: () => void): void; off?(e: 'resize', fn: () => void); columns?: number; rows?: number };
     if (!stream?.on) return;
-    const onResize = () => setDimensions({
-      columns: (stream.columns ?? DEFAULT_COLUMNS),
-      rows: (stream.rows ?? DEFAULT_ROWS),
-    });
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const onResize = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        setDimensions({
+          columns: (stream.columns ?? DEFAULT_COLUMNS),
+          rows: (stream.rows ?? DEFAULT_ROWS),
+        });
+      }, 150);
+    };
     stream.on('resize', onResize);
-    return () => { stream.off?.('resize', onResize); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      stream.off?.('resize', onResize);
+    };
   }, [stdout]);
 
   const { columns, rows } = dimensions;
