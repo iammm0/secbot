@@ -5,7 +5,7 @@
 **AI-Powered Automated Penetration Testing Agent**
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-1.0.1-brightgreen.svg)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/iammm0/secbot/releases)
 [![LangChain](https://img.shields.io/badge/LangChain-0.1%2B-blueviolet.svg)](https://github.com/langchain-ai/langchain)
