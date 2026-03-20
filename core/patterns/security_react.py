@@ -81,7 +81,8 @@ def _create_llm(
     # --- Anthropic (Claude) ---
     if provider_type == "anthropic":
         if ChatAnthropic is None:
-            raise ImportError("需安装 langchain-anthropic: pip install langchain-anthropic")
+            raise ImportError(
+                "需安装 langchain-anthropic: pip install langchain-anthropic")
         api_key = get_provider_api_key(p)
         if not api_key:
             raise ValueError(f"请先配置 {config['name']} API Key（使用 /model 命令）")
@@ -97,7 +98,8 @@ def _create_llm(
     # --- Google (Gemini) ---
     if provider_type == "google":
         if ChatGoogleGenerativeAI is None:
-            raise ImportError("需安装 langchain-google-genai: pip install langchain-google-genai")
+            raise ImportError(
+                "需安装 langchain-google-genai: pip install langchain-google-genai")
         api_key = get_provider_api_key(p)
         if not api_key:
             raise ValueError(f"请先配置 {config['name']} API Key（使用 /model 命令）")
@@ -129,7 +131,8 @@ def _create_llm(
         resolved_model = settings.deepseek_reasoner_model
 
     # deepseek-reasoner / o1 / o3 等推理模型不支持 temperature
-    is_reasoning_model = any(kw in resolved_model.lower() for kw in ("reasoner", "o1", "o3"))
+    is_reasoning_model = any(kw in resolved_model.lower()
+                             for kw in ("reasoner", "o1", "o3"))
 
     kwargs = dict(
         api_key=SecretStr(api_key),
@@ -163,7 +166,8 @@ class SecurityReActAgent(BaseAgent):
     ):
         super().__init__(name, system_prompt)
         self.security_tools = tools or []
-        self.tools_dict: Dict[str, BaseTool] = {t.name: t for t in self.security_tools}
+        self.tools_dict: Dict[str, BaseTool] = {
+            t.name: t for t in self.security_tools}
         self.auto_execute = auto_execute
         self.max_iterations = max_iterations
         self.audit = audit_trail
@@ -178,7 +182,8 @@ class SecurityReActAgent(BaseAgent):
         self.llm = _create_llm()
 
         # ReAct 状态
-        self._react_history: List[Dict[str, str]] = []  # 当前任务的 think/act/obs 历史
+        # 当前任务的 think/act/obs 历史
+        self._react_history: List[Dict[str, str]] = []
         self._waiting_for_confirm = False
         self._skip_report = (
             False  # 由 process(skip_report=True) 设置，供 handle_accept 使用
@@ -220,11 +225,11 @@ class SecurityReActAgent(BaseAgent):
         )
         if len(self._session_context_summary) > self._session_context_max_chars:
             self._session_context_summary = self._session_context_summary[
-                -self._session_context_max_chars :
+                -self._session_context_max_chars:
             ].strip()
             first_nl = self._session_context_summary.find("\n\n")
             if first_nl > 0:
-                self._session_context_summary = self._session_context_summary[first_nl + 2 :]
+                self._session_context_summary = self._session_context_summary[first_nl + 2:]
 
     def _emit_event(self, event_type: str, data: dict, on_event=None):
         """触发事件回调，同时发射到 EventBus（如果已配置）
@@ -236,7 +241,8 @@ class SecurityReActAgent(BaseAgent):
         # 确保不会就地修改上层传入的 data
         payload = dict(data or {})
         if "agent" not in payload:
-            agent_label = getattr(self, "agent_type", None) or getattr(self, "name", "")
+            agent_label = getattr(self, "agent_type",
+                                  None) or getattr(self, "name", "")
             if agent_label:
                 payload["agent"] = agent_label
 
@@ -342,7 +348,8 @@ class SecurityReActAgent(BaseAgent):
     def _emit_full_response_as_chunk(self, full_response: str, on_event) -> None:
         """将完整回复作为单次 thought_chunk 发送，兼容非流式 API 的交互逻辑。"""
         if full_response and full_response.strip():
-            self._emit_event("thought_chunk", {"chunk": full_response}, on_event)
+            self._emit_event("thought_chunk", {
+                             "chunk": full_response}, on_event)
 
     async def _call_llm_non_stream(self, messages: List, timeout: float = 60.0) -> str:
         """非流式调用 LLM，返回完整文本。用于流式不可用或 API 仅返回整段内容时的回退。"""
@@ -379,7 +386,8 @@ class SecurityReActAgent(BaseAgent):
                         if content_chunk and content_chunk.strip():
                             full_response += content_chunk
                             self._emit_event(
-                                "thought_chunk", {"chunk": content_chunk}, on_event
+                                "thought_chunk", {
+                                    "chunk": content_chunk}, on_event
                             )
                 except Exception as stream_err:
                     err_str = str(stream_err).lower()
@@ -390,7 +398,8 @@ class SecurityReActAgent(BaseAgent):
                         full_response = await self._call_llm_non_stream(
                             messages, timeout=60.0
                         )
-                        self._emit_full_response_as_chunk(full_response, on_event)
+                        self._emit_full_response_as_chunk(
+                            full_response, on_event)
                         return full_response
                     raise stream_err
 
@@ -506,7 +515,8 @@ class SecurityReActAgent(BaseAgent):
                 self.audit.record(self.name, "thought", thought)
             response_parts.append(f"💭 **Thought {iteration}**: {thought}\n")
             self._emit_event(
-                "thought", {"iteration": iteration, "content": thought}, on_event
+                "thought", {"iteration": iteration,
+                            "content": thought}, on_event
             )
 
             # ---- 解析 ACTION ----
@@ -534,7 +544,8 @@ class SecurityReActAgent(BaseAgent):
                     if self.audit:
                         self.audit.record(self.name, "result", conclusion)
                     response_parts.append(f"\n{conclusion}")
-                    self._emit_event("report", {"content": conclusion}, on_event)
+                    self._emit_event(
+                        "report", {"content": conclusion}, on_event)
                 break
 
             tool_name = action_info.get("tool", "")
@@ -544,13 +555,15 @@ class SecurityReActAgent(BaseAgent):
             tool = self.tools_dict.get(tool_name)
             if not tool:
                 obs = f"工具 '{tool_name}' 不存在。可用工具: {', '.join(self.tools_dict.keys())}"
-                self._react_history.append({"type": "observation", "content": obs})
+                self._react_history.append(
+                    {"type": "observation", "content": obs})
                 if self.audit:
                     self.audit.record(self.name, "observation", obs)
                 response_parts.append(
                     f"⚡ **Action {iteration}**: {tool_name}({tool_params})\n"
                 )
-                response_parts.append(f"👁️ **Observation {iteration}**: {obs}\n")
+                response_parts.append(
+                    f"👁️ **Observation {iteration}**: {obs}\n")
                 continue
 
             # ---- 若有计划步骤则严格按顺序执行：仅允许执行“下一步”对应工具 ----
@@ -560,13 +573,15 @@ class SecurityReActAgent(BaseAgent):
                 if hint and tool_name != hint:
                     content = next_todo.get("content", next_todo.get("id", ""))
                     obs = f"必须按计划顺序执行。当前应执行: {content}，建议工具: {hint}。请使用该工具后再继续。"
-                    self._react_history.append({"type": "observation", "content": obs})
+                    self._react_history.append(
+                        {"type": "observation", "content": obs})
                     if self.audit:
                         self.audit.record(self.name, "observation", obs)
                     response_parts.append(
                         f"⚡ **Action {iteration}**: {tool_name}({tool_params})\n"
                     )
-                    response_parts.append(f"👁️ **Observation {iteration}**: {obs}\n")
+                    response_parts.append(
+                        f"👁️ **Observation {iteration}**: {obs}\n")
                     continue
 
             # ---- 敏感操作确认（superhackbot）----
@@ -600,7 +615,8 @@ class SecurityReActAgent(BaseAgent):
             )
             if self.audit:
                 self.audit.record(
-                    self.name, "action", f"执行: {tool_name}", {"params": tool_params}
+                    self.name, "action", f"执行: {tool_name}", {
+                        "params": tool_params}
                 )
 
             # 触发工具开始事件
@@ -800,7 +816,8 @@ class SecurityReActAgent(BaseAgent):
                     if self.audit:
                         self.audit.record(self.name, "result", conclusion)
                     response_parts.append(f"\n{conclusion}")
-                    self._emit_event("report", {"content": conclusion}, on_event)
+                    self._emit_event(
+                        "report", {"content": conclusion}, on_event)
                 break
 
             t_name = action_info.get("tool", "")
@@ -809,11 +826,13 @@ class SecurityReActAgent(BaseAgent):
 
             if not t:
                 obs = f"工具 '{t_name}' 不存在。"
-                self._react_history.append({"type": "observation", "content": obs})
+                self._react_history.append(
+                    {"type": "observation", "content": obs})
                 response_parts.append(
                     f"⚡ **Action {iteration}**: {t_name}({t_params})\n"
                 )
-                response_parts.append(f"👁️ **Observation {iteration}**: {obs}\n")
+                response_parts.append(
+                    f"👁️ **Observation {iteration}**: {obs}\n")
                 iteration += 1
                 continue
 
@@ -840,7 +859,8 @@ class SecurityReActAgent(BaseAgent):
                     )
                 return "\n".join(response_parts) + "\n\n" + proposal
 
-            response_parts.append(f"⚡ **Action {iteration}**: {t_name}({t_params})\n")
+            response_parts.append(
+                f"⚡ **Action {iteration}**: {t_name}({t_params})\n")
             if self.audit:
                 self.audit.record(
                     self.name, "action", f"执行: {t_name}", {"params": t_params}
@@ -1016,12 +1036,14 @@ class SecurityReActAgent(BaseAgent):
             pass
         conversation_section = ""
         if conv_lines:
-            conversation_section = "\n## 本轮之前的对话（供理解上下文）\n" + "\n\n".join(conv_lines[-10:]) + "\n"
+            conversation_section = "\n## 本轮之前的对话（供理解上下文）\n" + \
+                "\n\n".join(conv_lines[-10:]) + "\n"
 
         # 当前会话的摘要式上下文（每轮任务后提取的要点，供连续任务参考）
         session_context_section = ""
         if getattr(self, "_session_context_summary", "").strip():
-            session_context_section = "\n## 当前会话上下文（摘要）\n" + self._session_context_summary.strip() + "\n"
+            session_context_section = "\n## 当前会话上下文（摘要）\n" + \
+                self._session_context_summary.strip() + "\n"
 
         tools_desc = self._get_tools_description()
 
@@ -1101,7 +1123,8 @@ Final Answer: <最终结论和报告>
         ]
 
         self._emit_event(
-            "thought_start", {"iteration": len(self._react_history) + 1}, on_event
+            "thought_start", {"iteration": len(
+                self._react_history) + 1}, on_event
         )
         if on_event:
             # 使用流式LLM调用
@@ -1136,7 +1159,7 @@ Final Answer: <最终结论和报告>
                     depth -= 1
                     if depth == 0:
                         try:
-                            return json.loads(thought[start : i + 1])
+                            return json.loads(thought[start: i + 1])
                         except json.JSONDecodeError:
                             break
             # 若括号匹配失败，继续尝试其他方式
@@ -1150,7 +1173,7 @@ Final Answer: <最终结论和报告>
                 elif thought[i] == "}":
                     depth -= 1
                     if depth == 0:
-                        snippet = thought[start : i + 1]
+                        snippet = thought[start: i + 1]
                         if '"tool"' in snippet or "'tool'" in snippet:
                             try:
                                 obj = json.loads(snippet)
@@ -1208,7 +1231,7 @@ Final Answer: <最终结论和报告>
                         )
                     if password:
                         # 使用 sudo -S 从 stdin 读密码，避免密码出现在命令行
-                        rest = command[len(root_cmd) :].strip()
+                        rest = command[len(root_cmd):].strip()
                         params = dict(params)
                         params["command"] = (
                             f"{root_cmd} -S -p '' -- {rest}"
@@ -1292,7 +1315,8 @@ Final Answer: <最终结论和报告>
             ) or "unknown_tool"
             file_path = debug_dir / f"{ts}_{safe_tool}.json"
 
-            agent_label = getattr(self, "agent_type", None) or getattr(self, "name", "")
+            agent_label = getattr(self, "agent_type",
+                                  None) or getattr(self, "name", "")
 
             payload: Dict[str, Any] = {
                 "timestamp": ts,
@@ -1304,10 +1328,12 @@ Final Answer: <最终结论和报告>
             }
             if result_obj is not None:
                 payload["result_preview"] = (
-                    str(result_obj)[:2000] if not isinstance(result_obj, (dict, list)) else result_obj
+                    str(result_obj)[:2000] if not isinstance(
+                        result_obj, (dict, list)) else result_obj
                 )
 
-            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            file_path.write_text(json.dumps(
+                payload, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception as log_err:
             # 不能影响主流程，只做告警
             logger.warning(f"写入工具 debug 日志失败: {log_err}")
@@ -1354,7 +1380,8 @@ Final Answer: <最终结论和报告>
             )
             if s == "completed":
                 completed_ids.add(
-                    td.get("id") if isinstance(td, dict) else getattr(td, "id", "")
+                    td.get("id") if isinstance(
+                        td, dict) else getattr(td, "id", "")
                 )
         for td in todos:
             if isinstance(td, dict):
@@ -1483,14 +1510,16 @@ Final Answer: <最终结论和报告>
         if context:
             for k, v in context.items():
                 if v is not None:
-                    preview = str(v)[:200] + "..." if len(str(v)) > 200 else str(v)
+                    preview = str(v)[:200] + \
+                        "..." if len(str(v)) > 200 else str(v)
                     context_str += f"\n- {k}: {preview}"
 
         schema = tool.get_schema()
         params_desc = schema.get("parameters", {})
         if isinstance(params_desc, dict):
             params_help = "\n".join(
-                f"  - {k}: {v.get('description', '')}" if isinstance(v, dict) else f"  - {k}"
+                f"  - {k}: {v.get('description', '')}" if isinstance(v,
+                                                                     dict) else f"  - {k}"
                 for k, v in params_desc.items()
             )
         else:
@@ -1507,13 +1536,15 @@ Final Answer: <最终结论和报告>
 只输出 JSON，不要其他文字。"""
 
         messages = [
-            SystemMessage(content="你是一个安全测试助手。根据用户请求和上下文，提取工具调用参数。只输出有效的 JSON。"),
+            SystemMessage(
+                content="你是一个安全测试助手。根据用户请求和上下文，提取工具调用参数。只输出有效的 JSON。"),
             HumanMessage(content=prompt),
         ]
         try:
             # 发送推理事件（与 _think 方法一致）
             if emit_events and on_event:
-                self._emit_event("thought_start", {"iteration": iteration}, on_event)
+                self._emit_event("thought_start", {
+                                 "iteration": iteration}, on_event)
 
             # 使用流式 LLM 调用，发送 thought_chunk 事件
             if emit_events and on_event:
@@ -1523,7 +1554,8 @@ Final Answer: <最终结论和报告>
 
             # 发送推理结束事件
             if emit_events and on_event:
-                self._emit_event("thought_end", {"thought": response}, on_event)
+                self._emit_event(
+                    "thought_end", {"thought": response}, on_event)
 
             action_info = self._parse_action(response, iteration)
             if not action_info or action_info.get("tool") != tool.name:
