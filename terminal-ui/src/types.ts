@@ -6,7 +6,7 @@ export interface SSEEvent {
   data: Record<string, unknown>;
 }
 
-export type ChatMode = 'ask' | 'agent';
+export type ChatMode = "ask" | "agent";
 
 export interface ChatRequest {
   message: string;
@@ -20,10 +20,19 @@ export interface ChatRequest {
 export interface StreamState {
   phase: string;
   detail: string;
-  planning: { content: string; todos: Array<{ content: string; status?: string }> } | null;
+  planning: {
+    content: string;
+    todos: Array<{ content: string; status?: string }>;
+  } | null;
   thought: { iteration: number; content: string } | null;
   thoughtChunks: Map<number, string>;
-  actions: Array<{ tool: string; params: Record<string, unknown>; result?: unknown; error?: string; success?: boolean }>;
+  actions: Array<{
+    tool: string;
+    params: Record<string, unknown>;
+    result?: unknown;
+    error?: string;
+    success?: boolean;
+  }>;
   content: string;
   report: string;
   error: string | null;
@@ -46,13 +55,45 @@ export interface ActionItemData {
 
 /** 可渲染的块类型（扩展多种展示形态） */
 export type BlockRenderType =
-  | 'api' | 'phase' | 'error' | 'planning' | 'thought' | 'actions'
-  | 'content' | 'report' | 'response' | 'user_message' | 'warning' | 'summary' | 'code'
-  | 'json' | 'table' | 'bullet' | 'numbered' | 'quote' | 'heading' | 'divider'
-  | 'link' | 'key_value' | 'diff' | 'terminal' | 'security' | 'tool_result'
-  | 'exception' | 'suggestion' | 'success' | 'info';
+  | "api"
+  | "phase"
+  | "error"
+  | "planning"
+  | "thought"
+  | "actions"
+  | "content"
+  | "report"
+  | "response"
+  | "user_message"
+  | "warning"
+  | "summary"
+  | "code"
+  | "json"
+  | "table"
+  | "bullet"
+  | "numbered"
+  | "quote"
+  | "heading"
+  | "divider"
+  | "link"
+  | "key_value"
+  | "diff"
+  | "terminal"
+  | "security"
+  | "tool_result"
+  | "exception"
+  | "suggestion"
+  | "success"
+  | "info";
 
-/** 内容块：用于分块 + Markdown 渲染 */
+/**
+ * 内容块：用于分块 + Markdown 渲染
+ *
+ * 元数据字段说明（可选，仅特定块类型使用）：
+ *  - sentAt      : user_message 块 — 用户发送该消息的时刻（Date.now()）
+ *  - completedAt : response 块    — Secbot 响应完成的时刻（Date.now()），0 表示尚未完成
+ *  - durationMs  : response 块    — 从发送到完成的耗时（毫秒），completedAt - sentAt
+ */
 export interface ContentBlock {
   id: string;
   type: BlockRenderType;
@@ -70,5 +111,13 @@ export interface ContentBlock {
   /** 块结束行（不含） */
   lineEnd: number;
   /** 经判别模块解析后的渲染类型（可选，无则运行时判别） */
-  resolvedType?: ContentBlock['type'];
+  resolvedType?: ContentBlock["type"];
+
+  // ── 时间戳元数据 ──────────────────────────────────────────────────────────────
+  /** user_message 块：用户发送该消息的时刻（Date.now()），未设置则不展示时间戳 */
+  sentAt?: number;
+  /** response 块：Secbot 响应完成的时刻（Date.now()），0 或未设置表示尚未完成 */
+  completedAt?: number;
+  /** response 块：从 sentAt 到 completedAt 的耗时（毫秒），由上层计算后注入 */
+  durationMs?: number;
 }

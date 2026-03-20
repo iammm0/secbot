@@ -1511,7 +1511,20 @@ Final Answer: <最终结论和报告>
             HumanMessage(content=prompt),
         ]
         try:
-            response = await self._call_llm(messages)
+            # 发送推理事件（与 _think 方法一致）
+            if emit_events and on_event:
+                self._emit_event("thought_start", {"iteration": iteration}, on_event)
+
+            # 使用流式 LLM 调用，发送 thought_chunk 事件
+            if emit_events and on_event:
+                response = await self._call_llm_stream(messages, on_event)
+            else:
+                response = await self._call_llm(messages)
+
+            # 发送推理结束事件
+            if emit_events and on_event:
+                self._emit_event("thought_end", {"thought": response}, on_event)
+
             action_info = self._parse_action(response, iteration)
             if not action_info or action_info.get("tool") != tool.name:
                 action_info = {"tool": tool.name, "params": {}}
