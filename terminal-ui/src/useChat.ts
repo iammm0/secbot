@@ -1,24 +1,34 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { connectSSE } from './sse.js';
-import type { ChatRequest, ChatMode, StreamState, SSEEvent } from './types.js';
+/**
+ * useChat — 核心聊天 Hook
+ *
+ * 修复说明：
+ *  1. HistoryItem 错位 Bug 修复：原代码在 sendMessage 时将「新消息」与「上一轮响应」一起存入历史，
+ *     导致显示时 userMessage 与 streamState 不匹配（msg2 配 response1）。
+ *     修复方式：用 currentUserMessageRef 保存当前轮次用户消息，下一轮开始时推入历史。
+ *  2. 时间戳：HistoryItem 新增 sentAt（发送时刻）与 completedAt（响应完成时刻）。
+ *  3. currentUserMessage / currentSentAt / currentCompletedAt 暴露给外层，
+ *     供 MainContent 在当前轮次渲染「用户消息气泡 + 完成时间」。
+ *  4. Typewriter 效果：response 事件到达后，以 ~50 字符/帧（@16ms）逐步揭示，
+ *     即便后端一次性返回全文，TUI 也能呈现流式打字感。
+ */
+import { useState, useCallback, useRef, useEffect } from "react";
+import { connectSSE } from "./sse.js";
+import type { ChatRequest, ChatMode, StreamState, SSEEvent } from "./types.js";
+
+// ─── 初始状态 ──────────────────────────────────────────────────────────────────
 
 const initialStreamState: StreamState = {
-  phase: '',
-  detail: '',
+  phase: "",
+  detail: "",
   planning: null,
   thought: null,
   thoughtChunks: new Map(),
   actions: [],
-  content: '',
-  report: '',
+  content: "",
+  report: "",
   error: null,
   response: null,
 };
-
-export interface PendingRootRequest {
-  requestId: string;
-  command: string;
-}
 
 function resetStreamState(): StreamState {
   return {
@@ -28,35 +38,76 @@ function resetStreamState(): StreamState {
   };
 }
 
-export interface HistoryItem {
-  userMessage: string;
-  streamState: StreamState;
+// ─── 类型 ──────────────────────────────────────────────────────────────────────
+
+export interface PendingRootRequest {
+  requestId: string;
+  command: string;
 }
+
+/** 已完成的一轮对话（用户消息 + 完整 Secbot 响应） */
+export interface HistoryItem {
+  /** 用户发送的消息文本 */
+  userMessage: string;
+  /** 用户发送时刻（Date.now()） */
+  sentAt: number;
+  /** Secbot 响应的完整流状态快照 */
+  streamState: StreamState;
+  /** 流式响应完成时刻（Date.now()），0 表示异常中断 */
+  completedAt: number;
+}
+
+// ─── Typewriter 配置 ───────────────────────────────────────────────────────────
+
+/** 每 16ms（≈60fps）揭示的字符数；越大打字越快 */
+const TYPEWRITER_CHARS_PER_TICK = 50;
+
+// ─── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useChat() {
   const [streaming, setStreaming] = useState(false);
-  const [streamState, setStreamState] = useState<StreamState>(initialStreamState);
+  const [streamState, setStreamState] =
+    useState<StreamState>(initialStreamState);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [apiOutput, setApiOutput] = useState<string | null>(null);
-  const [pendingRootRequest, setPendingRootRequest] = useState<PendingRootRequest | null>(null);
+  const [pendingRootRequest, setPendingRootRequest] =
+    useState<PendingRootRequest | null>(null);
+
+  // 当前轮次的用户消息与发送时刻（供外层渲染"当前正在进行的轮次"）
+  const [currentUserMessage, setCurrentUserMessage] = useState<string>("");
+  const [currentSentAt, setCurrentSentAt] = useState<number>(0);
+  // 当前轮次完成时刻（streaming 结束后更新）
+  const [currentCompletedAt, setCurrentCompletedAt] = useState<number>(0);
+
+  // 用于在异步回调中访问最新状态的 Ref
   const abortRef = useRef<AbortController | null>(null);
   const streamStateRef = useRef<StreamState>(initialStreamState);
+  /** 当前轮次用户消息（异步 onDone/onError 回调中使用） */
+  const currentUserMessageRef = useRef<string>("");
+  /** 当前轮次发送时刻 */
+  const currentSentAtRef = useRef<number>(0);
+  /** 当前轮次完成时刻（onDone 写入，sendMessage 读取推历史） */
+  const completedAtRef = useRef<number>(0);
+  /** Typewriter 定时器，新消息到来时需要清理上一个 */
+  const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     streamStateRef.current = streamState;
   }, [streamState]);
 
+  // ── 辅助 ─────────────────────────────────────────────────────────────────────
+
   const hasContent = useCallback((state: StreamState): boolean => {
     return Boolean(
       state.phase ||
-        state.detail ||
-        state.planning ||
-        state.thought ||
-        state.actions.length > 0 ||
-        state.content ||
-        state.report ||
-        state.error ||
-        state.response
+      state.detail ||
+      state.planning ||
+      state.thought ||
+      state.actions.length > 0 ||
+      state.content ||
+      state.report ||
+      state.error ||
+      state.response,
     );
   }, []);
 
@@ -64,79 +115,151 @@ export function useChat() {
     setStreamState((s) => ({ ...s, content: s.content + text }));
   }, []);
 
+  /** 清理 typewriter 定时器 */
+  const clearTypewriter = useCallback(() => {
+    if (typewriterRef.current !== null) {
+      clearInterval(typewriterRef.current);
+      typewriterRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Typewriter 动画：将 fullText 以每 16ms TYPEWRITER_CHARS_PER_TICK 个字符逐步揭示到
+   * streamState.response，给非流式 API 响应带来打字机视觉效果。
+   */
+  const startTypewriter = useCallback(
+    (fullText: string) => {
+      clearTypewriter();
+      let revealed = 0;
+      typewriterRef.current = setInterval(() => {
+        revealed = Math.min(
+          revealed + TYPEWRITER_CHARS_PER_TICK,
+          fullText.length,
+        );
+        setStreamState((s) => ({
+          ...s,
+          response: fullText.slice(0, revealed),
+        }));
+        if (revealed >= fullText.length) {
+          clearTypewriter();
+        }
+      }, 16);
+    },
+    [clearTypewriter],
+  );
+
+  // ── 发送消息 ──────────────────────────────────────────────────────────────────
+
   const sendMessage = useCallback(
-    (message: string, mode: ChatMode = 'agent', agent: string = 'hackbot') => {
+    (message: string, mode: ChatMode = "agent", agent: string = "hackbot") => {
+      // 取消正在进行的请求与 typewriter
       abortRef.current?.abort();
-       // 在开始新一轮对话前，将上一轮非空流状态快照到本地历史，便于在 TUI 中滚动查看完整上下文
+      clearTypewriter();
+
+      // ── 将上一轮已完成的对话推入历史 ──────────────────────────────────────────
+      // 使用 currentUserMessageRef（上一条用户消息）而不是 message（新消息），
+      // 修复原有的「userMessage 与 streamState 错位」bug。
       const prev = streamStateRef.current;
-      if (hasContent(prev)) {
-        setHistory((h) => [...h, { userMessage: message, streamState: prev }]);
+      if (hasContent(prev) && currentUserMessageRef.current) {
+        const historyItem: HistoryItem = {
+          userMessage: currentUserMessageRef.current,
+          sentAt: currentSentAtRef.current,
+          streamState: prev,
+          completedAt: completedAtRef.current,
+        };
+        setHistory((h) => [...h, historyItem]);
       }
+
+      // ── 初始化当前轮次 ─────────────────────────────────────────────────────────
+      const now = Date.now();
+      currentUserMessageRef.current = message;
+      currentSentAtRef.current = now;
+      completedAtRef.current = 0;
+
+      setCurrentUserMessage(message);
+      setCurrentSentAt(now);
+      setCurrentCompletedAt(0);
       setStreamState(resetStreamState());
       setApiOutput(null);
       setStreaming(true);
 
+      // ── 建立 SSE 连接 ─────────────────────────────────────────────────────────
       const controller = connectSSE(
-        '/api/chat',
+        "/api/chat",
         { message, mode, agent } as Record<string, unknown>,
         {
           onEvent(ev: SSEEvent) {
             const { event, data } = ev;
             switch (event) {
-              case 'connected':
+              case "connected":
                 break;
-              case 'planning':
+
+              case "planning":
                 setStreamState((s) => ({
                   ...s,
                   planning: {
-                    content: (data.content as string) ?? '',
-                    todos: (data.todos as Array<{ content: string; status?: string }>) ?? [],
+                    content: (data.content as string) ?? "",
+                    todos:
+                      (data.todos as Array<{
+                        content: string;
+                        status?: string;
+                      }>) ?? [],
                   },
                 }));
                 break;
-              case 'thought_start':
-                setStreamState((s) => ({
-                  ...s,
-                  thought: { iteration: (data.iteration as number) ?? 1, content: '' },
-                  thoughtChunks: new Map(s.thoughtChunks),
-                }));
-                break;
-              case 'thought_chunk': {
-                const it = (data.iteration as number) ?? 1;
-                const chunk = (data.chunk as string) ?? '';
-                setStreamState((s) => {
-                  const next = new Map(s.thoughtChunks);
-                  next.set(it, (next.get(it) ?? '') + chunk);
-                  return { ...s, thoughtChunks: next };
-                });
-                break;
-              }
-              case 'thought':
+
+              case "thought_start":
                 setStreamState((s) => ({
                   ...s,
                   thought: {
                     iteration: (data.iteration as number) ?? 1,
-                    content: (data.content as string) ?? '',
+                    content: "",
+                  },
+                  thoughtChunks: new Map(s.thoughtChunks),
+                }));
+                break;
+
+              case "thought_chunk": {
+                const it = (data.iteration as number) ?? 1;
+                const chunk = (data.chunk as string) ?? "";
+                setStreamState((s) => {
+                  const next = new Map(s.thoughtChunks);
+                  next.set(it, (next.get(it) ?? "") + chunk);
+                  return { ...s, thoughtChunks: next };
+                });
+                break;
+              }
+
+              case "thought":
+                setStreamState((s) => ({
+                  ...s,
+                  thought: {
+                    iteration: (data.iteration as number) ?? 1,
+                    content: (data.content as string) ?? "",
                   },
                 }));
                 break;
-              case 'action_start':
+
+              case "action_start":
                 setStreamState((s) => ({
                   ...s,
                   actions: [
                     ...s.actions,
                     {
-                      tool: (data.tool as string) ?? '',
+                      tool: (data.tool as string) ?? "",
                       params: (data.params as Record<string, unknown>) ?? {},
                     },
                   ],
                 }));
                 break;
-              case 'action_result': {
-                const last = (data.tool as string) ?? '';
+
+              case "action_result": {
+                const toolName = (data.tool as string) ?? "";
                 setStreamState((s) => {
                   const actions = [...s.actions];
-                  const idx = actions.findIndex((a) => a.tool === last && a.result === undefined);
+                  const idx = actions.findIndex(
+                    (a) => a.tool === toolName && a.result === undefined,
+                  );
                   if (idx >= 0) {
                     actions[idx] = {
                       ...actions[idx],
@@ -146,7 +269,7 @@ export function useChat() {
                     };
                   } else {
                     actions.push({
-                      tool: last,
+                      tool: toolName,
                       params: {},
                       success: data.success as boolean,
                       result: data.result,
@@ -157,62 +280,113 @@ export function useChat() {
                 });
                 break;
               }
-              case 'content':
-                appendContent((data.content as string) ?? '');
+
+              case "content":
+                appendContent((data.content as string) ?? "");
                 break;
-              case 'report':
-                setStreamState((s) => ({ ...s, report: (data.content as string) ?? '' }));
-                break;
-              case 'phase':
+
+              case "report":
                 setStreamState((s) => ({
                   ...s,
-                  phase: (data.phase as string) ?? '',
-                  detail: (data.detail as string) ?? '',
+                  report: (data.content as string) ?? "",
                 }));
                 break;
-              case 'root_required':
+
+              case "phase":
+                setStreamState((s) => ({
+                  ...s,
+                  phase: (data.phase as string) ?? "",
+                  detail: (data.detail as string) ?? "",
+                }));
+                break;
+
+              case "root_required":
                 setPendingRootRequest({
-                  requestId: (data.request_id as string) ?? '',
-                  command: (data.command as string) ?? '',
+                  requestId: (data.request_id as string) ?? "",
+                  command: (data.command as string) ?? "",
                 });
                 break;
-              case 'error':
-                setStreamState((s) => ({ ...s, error: (data.error as string) ?? 'Unknown error' }));
+
+              case "error":
+                setStreamState((s) => ({
+                  ...s,
+                  error: (data.error as string) ?? "Unknown error",
+                }));
                 break;
-              case 'response':
-                setStreamState((s) => ({ ...s, response: (data.content as string) ?? null }));
+
+              case "response": {
+                // Typewriter 效果：即使 API 一次性返回全文，也逐步揭示
+                const fullText = (data.content as string) ?? null;
+                if (fullText) {
+                  startTypewriter(fullText);
+                }
                 break;
-              case 'done':
+              }
+
+              case "done":
                 break;
+
               default:
                 break;
             }
           },
-          onDone: () => setStreaming(false),
-          onError: (err) => {
-            setStreamState((s) => ({ ...s, error: err.message }));
+
+          onDone: () => {
+            // 确保 typewriter 先完成（若已完成则立即结束；否则等 typewriter 自然结束后 streaming 仍为 true）
+            // 这里的策略：onDone 标记 completedAt 并立即停止 streaming，
+            // typewriter 会在下一次 setInterval tick 中继续揭示剩余字符但 streaming=false 时
+            // ResponseBlock 仍可继续渲染（它不依赖 streaming flag）。
+            const doneAt = Date.now();
+            completedAtRef.current = doneAt;
+            setCurrentCompletedAt(doneAt);
             setStreaming(false);
           },
-        }
+
+          onError: (err) => {
+            clearTypewriter();
+            setStreamState((s) => ({ ...s, error: err.message }));
+            completedAtRef.current = Date.now();
+            setCurrentCompletedAt(Date.now());
+            setStreaming(false);
+          },
+        },
       );
+
       abortRef.current = controller;
     },
-    [appendContent]
+    [appendContent, clearTypewriter, startTypewriter, hasContent],
   );
+
+  // ── 其他操作 ──────────────────────────────────────────────────────────────────
 
   const stopStream = useCallback(() => {
     abortRef.current?.abort();
+    clearTypewriter();
     setStreaming(false);
-  }, []);
+  }, [clearTypewriter]);
 
   const setRESTOutput = useCallback((text: string | null) => {
     setApiOutput(text);
   }, []);
 
+  // ── 清理 ──────────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    return () => {
+      clearTypewriter();
+    };
+  }, [clearTypewriter]);
+
   return {
     streaming,
     streamState,
     history,
+    /** 当前正在进行（或刚完成）的轮次：用户消息文本 */
+    currentUserMessage,
+    /** 当前轮次用户消息的发送时刻 */
+    currentSentAt,
+    /** 当前轮次 Secbot 响应的完成时刻（0 = 尚未完成） */
+    currentCompletedAt,
     apiOutput,
     pendingRootRequest,
     setPendingRootRequest,
