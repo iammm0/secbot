@@ -1,22 +1,62 @@
 <div align="center">
 
-# Secbot
+<h1 style="font-size: 3em; font-weight: bold; margin-bottom: 10px;">
+  Secbot
+</h1>
 
-**AI 驱动的自动化渗透测试智能体**
+<p style="font-size: 1.2em; color: #666; margin-bottom: 20px;">
+  <strong>AI 驱动的自动化渗透测试智能体</strong>
+</p>
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.0.1-brightgreen.svg)](pyproject.toml)
-[![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/iammm0/secbot/releases)
-[![LangChain](https://img.shields.io/badge/LangChain-0.1%2B-blueviolet.svg)](https://github.com/langchain-ai/langchain)
+<p>
+  <a href="https://www.python.org/downloads/">
+    <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
+  </a>
+  <a href="pyproject.toml">
+    <img src="https://img.shields.io/badge/version-1.1.0-brightgreen.svg" alt="Version">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-orange.svg" alt="License">
+  </a>
+  <a href="https://github.com/iammm0/secbot/releases">
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg" alt="Platform">
+  </a>
+</p>
 
-[English](README_EN.md) | 中文
+<p>
+  <a href="https://github.com/langchain-ai/langchain">
+    <img src="https://img.shields.io/badge/LangChain-0.1%2B-blueviolet.svg" alt="LangChain">
+  </a>
+  <a href="https://github.com/langchain-ai/langgraph">
+    <img src="https://img.shields.io/badge/LangGraph-0.2%2B-00BFFF.svg" alt="LangGraph">
+  </a>
+  <a href="https://fastapi.tiangolo.com/">
+    <img src="https://img.shields.io/badge/FastAPI-0.109%2B-009688.svg" alt="FastAPI">
+  </a>
+  <a href="https://www.sqlite.org/">
+    <img src="https://img.shields.io/badge/SQLite-3.x-003B57.svg" alt="SQLite">
+  </a>
+  <a href="https://github.com/astral-sh/uv">
+    <img src="https://img.shields.io/badge/uv-latest-2E86C1.svg" alt="uv">
+  </a>
+  <a href="https://github.com/vadimdemedes/ink">
+    <img src="https://img.shields.io/badge/Ink-4.4%2B-FF69B4.svg" alt="Ink">
+  </a>
+</p>
+
+<p>
+  <a href="README_EN.md">English</a> | 中文
+</p>
 
 </div>
 
 ---
 
 > **⚠️ 安全警告**：本工具**仅用于授权的安全测试**。未经授权使用本工具进行网络攻击是违法的。详见 [安全声明](docs/SECURITY_WARNING.md)。
+
+---
+
+![Secbot 主界面](assets/secbot-main.png)
 
 ---
 
@@ -181,7 +221,30 @@ flowchart LR
 
 ## ⚙️ 安装
 
-### 方式一：直接下载可执行文件（免 Python）
+### 方式一：通过 pip 安装（快速尝鲜）
+
+> 💡 **推荐**：这是最简单的快速体验方式
+
+```bash
+pip install secbot
+```
+
+安装后即可使用 Typer CLI 命令行界面：
+
+```bash
+secbot          # 启动交互模式
+secbot --help   # 查看帮助
+```
+
+配置 API Key（启动前必须）：创建 `.env` 文件或设置环境变量：
+
+```bash
+DEEPSEEK_API_KEY=sk-your-api-key-here
+```
+
+---
+
+### 方式二：直接下载可执行文件（免 Python）
 
 在 [Releases](https://github.com/iammm0/secbot/releases) 下载对应平台的压缩包，解压后即可运行：
 
@@ -203,7 +266,7 @@ DEEPSEEK_API_KEY=sk-your-api-key-here
 
 ---
 
-### 方式二：从源码安装
+### 方式三：从源码安装
 
 #### 1. 克隆仓库
 
