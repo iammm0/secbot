@@ -75,12 +75,29 @@ def run_server():
     """
     脚本入口 — hackbot-server 命令
     可通过 `hackbot-server` 或 `python -m router.main` 启动。
+
+    环境变量（可选）:
+    - SECBOT_DESKTOP=1: 桌面嵌入模式，默认 host=127.0.0.1、reload=False
+    - SECBOT_SERVER_HOST / SECBOT_SERVER_PORT: 覆盖监听地址与端口
+    - SECBOT_SERVER_RELOAD=true|false: 是否启用热重载（未设置则桌面模式关、否则开）
     """
+    import os
     import socket
     import sys
     import uvicorn
 
-    port = 8000
+    desktop = os.environ.get("SECBOT_DESKTOP", "").lower() in ("1", "true", "yes")
+    default_host = "127.0.0.1" if desktop else "0.0.0.0"
+    host = os.environ.get("SECBOT_SERVER_HOST", default_host)
+    port = int(os.environ.get("SECBOT_SERVER_PORT", "8000"))
+    reload_raw = os.environ.get("SECBOT_SERVER_RELOAD", "").lower()
+    if reload_raw in ("1", "true", "yes"):
+        reload = True
+    elif reload_raw in ("0", "false", "no"):
+        reload = False
+    else:
+        reload = not desktop
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if s.connect_ex(("127.0.0.1", port)) == 0:
             print(
@@ -91,9 +108,9 @@ def run_server():
             sys.exit(1)
     uvicorn.run(
         "router.main:app",
-        host="0.0.0.0",
+        host=host,
         port=port,
-        reload=True,
+        reload=reload,
     )
 
 
