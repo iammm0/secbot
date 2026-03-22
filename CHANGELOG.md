@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-03-22)
+
+### Features
+
+- **tui**: 底部 SECBOT 改为固定绿色，移除彩虹动画
+  ([`3df24e3`](https://github.com/iammm0/secbot/commit/3df24e3ee7c5ffe01abbadf2d43063620dfde697))
+
+
 ## v1.1.1 (2026-03-20)
 
 ### Bug Fixes
