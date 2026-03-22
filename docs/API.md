@@ -110,7 +110,7 @@ curl -X POST "http://localhost:8000/api/chat" \
 ```json
 {
   "response": "已完成内网扫描，发现 5 台主机...",
-  "agent": "hackbot"
+  "agent": "secbot-cli"
 }
 ```
 
@@ -127,7 +127,7 @@ curl -X POST "http://localhost:8000/api/chat" \
 {
   "agents": [
     {
-      "type": "hackbot",
+      "type": "secbot-cli",
       "name": "Hackbot",
       "description": "自动模式（ReAct，基础扫描，全自动）"
     },
@@ -154,7 +154,7 @@ curl -X POST "http://localhost:8000/api/chat" \
 ```json
 {
   "success": true,
-  "message": "已清空智能体 'hackbot' 的记忆"
+  "message": "已清空智能体 'secbot-cli' 的记忆"
 }
 ```
 
@@ -442,7 +442,7 @@ curl -X POST "http://localhost:8000/api/chat" \
   "conversations": [
     {
       "timestamp": "2024-01-01 12:00:00",
-      "agent_type": "hackbot",
+      "agent_type": "secbot-cli",
       "user_message": "扫描内网",
       "assistant_message": "已完成扫描..."
     }

@@ -347,7 +347,7 @@ uv run python -m build
 # 安装包（包名为 secbot，版本见 pyproject.toml）
 uv pip install dist/secbot-*.whl
 
-# 现在可直接使用 hackbot / secbot（无参数即交互模式）
+# 现在可直接使用 secbot-cli / secbot（无参数即交互模式）
 secbot
 ```
 
@@ -360,7 +360,7 @@ secbot
 python main.py
 # 或
 uv run secbot
-# 或（若已安装）hackbot / secbot
+# 或（若已安装）secbot-cli / secbot
 ```
 
 所有交互（对话、切换智能体、工具、斜杠命令）均在交互会话内完成。输入 `/` 后回车可列出命令；输入 `exit` 或 `quit` 退出。

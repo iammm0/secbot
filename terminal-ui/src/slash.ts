@@ -73,7 +73,7 @@ export function parseSlash(
   }
   if (cmd === '/agent') {
     const arg = parts[1]?.toLowerCase();
-    const agent = arg === 'super' || arg === 'superhackbot' ? 'superhackbot' : 'hackbot';
+    const agent = arg === 'super' || arg === 'superhackbot' ? 'superhackbot' : 'secbot-cli';
     return { handled: true };
   }
 
@@ -152,7 +152,7 @@ export function getAgentFromState(
   if (cmd !== '/agent') return currentAgent;
   const arg = parts[1]?.toLowerCase();
   if (arg === 'super' || arg === 'superhackbot') return 'superhackbot';
-  if (arg === 'hackbot' || arg === 'default') return 'hackbot';
+  if (arg === 'secbot-cli' || arg === 'default') return 'secbot-cli';
   return currentAgent;
 }
 

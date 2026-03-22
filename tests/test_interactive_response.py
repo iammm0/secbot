@@ -45,7 +45,7 @@ async def test_simple_reply():
     db = DatabaseManager()
     audit = AuditTrail(db, "test-session")
     agents = {
-        "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit),
+        "secbot-cli": HackbotAgent(name="Hackbot", audit_trail=audit),
         "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit),
     }
     planner = PlannerAgent()
@@ -56,7 +56,7 @@ async def test_simple_reply():
         planner=planner,
     )
 
-    response = await session_mgr.handle_message("你好", agent_type="hackbot")
+    response = await session_mgr.handle_message("你好", agent_type="secbot-cli")
     assert response is not None
     assert len(response.strip()) > 0
     assert "你好" in response or "哈" in response or "!" in response
@@ -81,7 +81,7 @@ async def test_technical_flow_no_llm():
     db = DatabaseManager()
     audit = AuditTrail(db, "test-session-2")
     agents = {
-        "hackbot": HackbotAgent(name="Hackbot", audit_trail=audit),
+        "secbot-cli": HackbotAgent(name="Hackbot", audit_trail=audit),
         "superhackbot": SuperHackbotAgent(name="SuperHackbot", audit_trail=audit),
     }
     planner = PlannerAgent()
@@ -100,7 +100,7 @@ async def test_technical_flow_no_llm():
     )
     try:
         response = await asyncio.wait_for(
-            session_mgr.handle_message("scan localhost for open ports", agent_type="hackbot"),
+            session_mgr.handle_message("scan localhost for open ports", agent_type="secbot-cli"),
             timeout=60.0,
         )
         assert response is not None

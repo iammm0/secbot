@@ -151,7 +151,7 @@ export function useChat() {
   // ── 发送消息 ──────────────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(
-    (message: string, mode: ChatMode = "agent", agent: string = "hackbot") => {
+    (message: string, mode: ChatMode = "agent", agent: string = "secbot-cli") => {
       // 取消正在进行的请求与 typewriter
       abortRef.current?.abort();
       clearTypewriter();

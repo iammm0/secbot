@@ -54,4 +54,4 @@ def generate_report(test_results_file, report_file):
         f.write(report)
 
 if __name__ == "__main__":
-    generate_report("test_results.txt", "TEST_REPORT.md")
+    generate_report("test_results.txt", "../TEST_REPORT.md")
