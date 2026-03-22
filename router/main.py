@@ -73,8 +73,8 @@ app = create_app()
 
 def run_server():
     """
-    脚本入口 — hackbot-server 命令
-    可通过 `hackbot-server` 或 `python -m router.main` 启动。
+    脚本入口 — secbot-cli-server 命令
+    可通过 `secbot-cli-server` 或 `python -m router.main` 启动。
 
     环境变量（可选）:
     - SECBOT_DESKTOP=1: 桌面嵌入模式，默认 host=127.0.0.1、reload=False

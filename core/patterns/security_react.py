@@ -1,6 +1,6 @@
 """
 SecurityReActAgent：LLM 驱动的安全测试 ReAct 引擎
-支持自动执行（hackbot）和用户确认（superhackbot）两种模式。
+支持自动执行（secbot-cli）和用户确认（superhackbot）两种模式。
 """
 
 import json
@@ -704,6 +704,8 @@ class SecurityReActAgent(BaseAgent):
 
         full_response = "\n".join(response_parts)
         self.add_message("assistant", full_response)
+        if hasattr(self, "db_memory") and self.db_memory:
+            await self.db_memory.save_conversation(user_input, full_response)
         return full_response
 
     async def handle_accept(self, choice: int = 1, on_event=None) -> str:
@@ -902,6 +904,8 @@ class SecurityReActAgent(BaseAgent):
 
         full_response = "\n".join(response_parts)
         self.add_message("assistant", full_response)
+        if hasattr(self, "db_memory") and self.db_memory:
+            await self.db_memory.save_conversation(user_input, full_response)
         return full_response
 
     async def handle_reject(self) -> str:

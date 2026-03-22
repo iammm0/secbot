@@ -23,12 +23,12 @@ class TestChatEndpoint(unittest.TestCase):
         
         mock_agent = AsyncMock()
         mock_agent.process.return_value = "Agent response"
-        mock_get_agents.return_value = {"hackbot": mock_agent}
+        mock_get_agents.return_value = {"secbot-cli": mock_agent}
         
         with TestClient(app) as client:
             response = client.post("/api/chat", json={
                 "message": "Hello",
-                "agent_type": "hackbot"
+                "agent_type": "secbot-cli"
             })
             
             self.assertEqual(response.status_code, 200)

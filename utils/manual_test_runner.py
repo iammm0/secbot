@@ -14,7 +14,7 @@ if __name__ == "__main__":
         suite = unittest.TestSuite()
 
         # Discover and load tests
-        for root, _, files in os.walk("tests"):
+        for root, _, files in os.walk("../tests"):
             for filename in files:
                 if filename.startswith("test_") and filename.endswith(".py"):
                     filepath = os.path.join(root, filename)

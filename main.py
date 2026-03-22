@@ -13,7 +13,7 @@ from pathlib import Path
 # 本次进程及子进程不写入 .pyc，确保每次运行都使用最新 .py 源码
 os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
 
-from hackbot.launch_tui import launch_tui, run_backend_only, run_tui_only
+from secbot_cli.launch_tui import launch_tui, run_backend_only, run_tui_only
 
 
 def _log_error_and_exit(exc: BaseException) -> None:

@@ -150,8 +150,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hackbot-${{ matrix.name }}
-          path: dist/hackbot-${{ matrix.name }}.zip
+          name: secbot-cli-${{ matrix.name }}
+          path: dist/secbot-cli-${{ matrix.name }}.zip
 
   upload-assets:
     needs: [release, build]

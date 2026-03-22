@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/agents", tags=["Agents"])
 async def list_agents():
     """列出所有可用的智能体类型及说明。"""
     agent_descriptions = {
-        "hackbot": ("Hackbot", "自动模式（ReAct，基础扫描，全自动）"),
+        "secbot-cli": ("Hackbot", "自动模式（ReAct，基础扫描，全自动）"),
         "superhackbot": ("SuperHackbot", "专家模式（ReAct，全工具，敏感操作需确认）"),
     }
 

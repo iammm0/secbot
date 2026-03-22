@@ -105,7 +105,7 @@ def _load_from_env(env_key: str) -> List[BaseTool]:
 
 def get_basic_tools() -> List[BaseTool]:
     """
-    获取基础工具列表（hackbot / superhackbot 均可用）。
+    获取基础工具列表（secbot-cli / superhackbot 均可用）。
     来源：entry point secbot.tools.basic + 环境变量 SECBOT_TOOL_MODULES
     """
     tools: List[BaseTool] = []

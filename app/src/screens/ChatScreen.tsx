@@ -36,7 +36,7 @@ const CHAT_MODES = [
   { id: 'agent', label: 'Agent' },
 ] as const;
 const AGENT_SUB = [
-  { id: 'hackbot', label: '自动' },
+  { id: 'secbot-cli', label: '自动' },
   { id: 'superhackbot', label: '专家' },
 ] as const;
 const MODELS = [
@@ -62,7 +62,7 @@ export default function ChatScreen() {
   const [blocks, setBlocks] = useState<RenderBlock[]>([]);
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'ask' | 'agent'>('agent');
-  const [agentSubType, setAgentSubType] = useState<'hackbot' | 'superhackbot'>('hackbot');
+  const [agentSubType, setAgentSubType] = useState<'secbot-cli' | 'superhackbot'>('secbot-cli');
   const [model, setModel] = useState('default');
   const [debugVisible, setDebugVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
@@ -407,7 +407,7 @@ export default function ChatScreen() {
     const body: Record<string, string> = {
       message: trimmed,
       mode,
-      agent: mode === 'agent' ? agentSubType : 'hackbot',
+      agent: mode === 'agent' ? agentSubType : 'secbot-cli',
     };
     if (model !== 'default') body.model = model;
     startStream(
