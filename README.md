@@ -353,6 +353,27 @@ npm install && npm run tui
 ./scripts/start-ts-tui.sh
 ```
 
+### 桌面端（Tauri 2）
+
+轻量桌面壳：核心为流式聊天（`POST /api/chat`）、Ask/Agent 模式与后端状态；需本机已安装 **Rust**、**Node.js**，且 Python 侧已安装本项目依赖（如 `uv sync` / `pip install -e .`）。
+
+```bash
+cd desktop
+npm install
+npm run tauri dev
+```
+
+首次启动时，若 `127.0.0.1:8000` 尚无服务，应用会在后台拉起 `python -m router.main`（环境变量 `SECBOT_DESKTOP=1`，无热重载、默认仅监听本机）。若端口已被占用则视为已有后端，直接连接。
+
+若无法自动找到仓库根目录（需包含 `pyproject.toml` 与 `router/main.py`），可设置环境变量 **`SECBOT_PROJECT_ROOT`** 指向该目录。解释器可通过 **`SECBOT_PYTHON`** 指定（可选）。
+
+生产构建前端资源并打安装包：
+
+```bash
+cd desktop
+npm run tauri build
+```
+
 ### 常用斜杠命令
 
 在交互模式内，输入 `/` 回车可查看全部命令，常用示例：
