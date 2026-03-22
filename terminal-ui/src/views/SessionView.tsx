@@ -32,10 +32,8 @@ import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
 
 const CONTENT_HEIGHT_OFFSET = 9;
-/** 彩虹流动动效间隔（不宜过短，避免全屏下底部区域闪烁） */
-const RAINBOW_PHASE_MS = 400;
 
-/** 底部 SECBOT 彩虹条：相位状态与定时器隔离在此，避免整页因相位更新而重绘导致全屏闪烁 */
+/** 底部状态栏：SECBOT 固定绿色，无定时器，避免全屏下周期性重绘底部区域 */
 function SessionStatusBar({
   mode,
   agent,
@@ -43,16 +41,8 @@ function SessionStatusBar({
 }: {
   mode: string;
   agent: string;
-  theme: { textMuted: string; cyberRainbow: string[] };
+  theme: { textMuted: string; success: string };
 }) {
-  const [rainbowPhase, setRainbowPhase] = useState(0);
-  useEffect(() => {
-    const id = setInterval(
-      () => setRainbowPhase((p) => p + 1),
-      RAINBOW_PHASE_MS,
-    );
-    return () => clearInterval(id);
-  }, []);
   return (
     <Box
       flexShrink={0}
@@ -63,18 +53,10 @@ function SessionStatusBar({
       paddingLeft={2}
       paddingRight={2}
     >
-      <Text color={theme.textMuted}>
-        {"SECBOT".split("").map((char, i) => (
-          <Text
-            key={i}
-            color={
-              theme.cyberRainbow[(i + rainbowPhase) % theme.cyberRainbow.length]
-            }
-            bold
-          >
-            {char}
-          </Text>
-        ))}
+      <Text>
+        <Text color={theme.success} bold>
+          SECBOT
+        </Text>
         <Text color={theme.textMuted}>
           {" "}
           · {mode} · {agent}
@@ -596,7 +578,7 @@ export function SessionView({
         />
       </Box>
 
-      {/* 底部状态栏 — SECBOT 赛博朋克七彩 · mode · agent（相位隔离，减少全屏闪烁） */}
+      {/* 底部状态栏 — SECBOT（固定绿色）· mode · agent */}
       <SessionStatusBar mode={mode} agent={agent} theme={theme} />
 
       {/* 统计与快捷键 — 置于最底部 */}
