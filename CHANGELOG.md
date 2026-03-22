@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-03-22)
+
+### Chores
+
+- 移除旧版 RELEASE 文档，更新 desktop Cargo 与 uv.lock
+  ([`9665019`](https://github.com/iammm0/secbot/commit/9665019627f4cc7775dbf30d84bfd1e57e3ced11))
+
+### Documentation
+
+- 更新 LICENSE 与 README
+  ([`3216c15`](https://github.com/iammm0/secbot/commit/3216c155916d56d387979d703c9ddc10843f0b0a))
+
+- 更新 repowiki（.qoder/repowiki/zh）
+  ([`e741adc`](https://github.com/iammm0/secbot/commit/e741adce980314d7adc5a520d5d9b4d59b9c8ffd))
+
+### Features
+
+- **desktop**: 新增 Tauri 2 桌面端（核心 SSE 聊天）并更新 README
+  ([`4b2d40f`](https://github.com/iammm0/secbot/commit/4b2d40fef468174101d79153c527ae08bf29701e))
+
+- **router**: 支持 SECBOT_DESKTOP 等环境变量控制监听与热重载
+  ([`60c0d0f`](https://github.com/iammm0/secbot/commit/60c0d0f44f4ad2e48e92da35a4531c4684aee9a9))
+
+
 ## v1.2.0 (2026-03-22)
 
 ### Features
