@@ -59,9 +59,9 @@ DEEPSEEK_API_KEY=sk-xxx
   ```
 - **Linux / macOS**：在终端中执行：
   ```bash
-  cd hackbot
-  chmod +x hackbot   # 首次可选
-  ./hackbot
+  cd secbot-cli
+  chmod +x secbot-cli   # 首次可选
+  ./secbot-cli
   ```
 
 未带子命令时，程序会直接进入**交互式安全测试界面**。若未配置 `DEEPSEEK_API_KEY`，启动时会提示并退出。

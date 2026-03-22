@@ -327,14 +327,14 @@ uv pip install dist/secbot-*.whl
 python main.py
 uv run secbot
 secbot          # 安装包后可用
-hackbot         # 兼容旧入口
+secbot-cli         # 兼容旧入口
 ```
 
 ### 启动 TUI 前端（推荐）
 
 ```bash
 # 终端 1：启动后端 API
-uv run hackbot-server
+uv run secbot-cli-server
 # 或
 python -m router.main
 

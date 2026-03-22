@@ -1,5 +1,5 @@
 """
-Hackbot CLI 入口（包安装后通过 hackbot / secbot 命令调用）
+Hackbot CLI 入口（包安装后通过 secbot-cli / secbot 命令调用）
 无参数即启动后端 + TS 全屏 TUI。支持 --backend / --tui 单独启动，model 子命令切换推理后端。
 """
 import sys
@@ -8,7 +8,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from hackbot.launch_tui import launch_tui, run_backend_only, run_tui_only
+from secbot_cli.launch_tui import launch_tui, run_backend_only, run_tui_only
 
 
 def _log_error_and_exit(exc: BaseException) -> None:
@@ -40,13 +40,13 @@ def app() -> None:
             help_text = """Hackbot / Secbot — 开源自动化安全测试助手（带终端 TUI）
 
 用法:
-  hackbot              启动后端 + 终端 TUI（推荐）
-  hackbot model        交互式选择推理后端与模型（与 TUI 内 /model 一致，写入 SQLite）
-  hackbot --backend    仅启动后端 FastAPI 服务（默认端口 8000）
-  hackbot --tui        仅启动终端 TUI（需后端已在运行）
+  secbot-cli              启动后端 + 终端 TUI（推荐）
+  secbot-cli model        交互式选择推理后端与模型（与 TUI 内 /model 一致，写入 SQLite）
+  secbot-cli --backend    仅启动后端 FastAPI 服务（默认端口 8000）
+  secbot-cli --tui        仅启动终端 TUI（需后端已在运行）
 
 核心智能体:
-  hackbot        自动模式：基于 ReAct 的自动化安全巡检与基础渗透测试，使用基础安全工具，全流程自动执行，无需每步确认。
+  secbot-cli        自动模式：基于 ReAct 的自动化安全巡检与基础渗透测试，使用基础安全工具，全流程自动执行，无需每步确认。
   superhackbot   专家模式：同样基于 ReAct，但可使用全部安全工具，对敏感/高风险操作会请求你确认后再执行。
 
 你可以让 Hackbot 做什么:
@@ -61,12 +61,12 @@ def app() -> None:
 后端 API 概览（默认 http://127.0.0.1:8000）:
   GET  /api/agents      列出可用智能体及说明
   GET  /api/tools       列出已集成的安全测试工具
-  POST /api/chat        流式聊天接口（SSE），用于与 hackbot/superhackbot 交互
+  POST /api/chat        流式聊天接口（SSE），用于与 secbot-cli/superhackbot 交互
   POST /api/chat/sync   同步聊天接口
 
 提示:
-  - 若只想排查后端问题或集成到其他前端，可以先运行: hackbot --backend
-  - 在任何前端里，你都可以询问「hackbot 的架构/设计是什么样的」，它会用高层次描述回答自己的设计与架构。
+  - 若只想排查后端问题或集成到其他前端，可以先运行: secbot-cli --backend
+  - 在任何前端里，你都可以询问「secbot-cli 的架构/设计是什么样的」，它会用高层次描述回答自己的设计与架构。
 """
             print(help_text)
             raise SystemExit(0)
@@ -89,7 +89,7 @@ def app() -> None:
                 save_llm_provider(provider)
                 model_info = model or "(默认模型)"
                 console.print(f"[green]已切换推理后端: {provider}，模型: {model_info}[/green]")
-                console.print("[dim]下次启动 hackbot 或后端将使用该配置。[/dim]")
+                console.print("[dim]下次启动 secbot-cli 或后端将使用该配置。[/dim]")
             raise SystemExit(0)
 
         raise SystemExit(launch_tui())

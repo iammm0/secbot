@@ -11,7 +11,7 @@ RootPolicyType = Literal["ask", "always_allow"]
 
 DEFAULT_ROOT_COMMAND = "sudo"
 DEFAULT_ROOT_POLICY: RootPolicyType = "ask"
-CONFIG_DIR = Path.home() / ".hackbot"
+CONFIG_DIR = Path.home() / ".secbot-cli"
 CONFIG_FILE = CONFIG_DIR / "root_policy.json"
 
 

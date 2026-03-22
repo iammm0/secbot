@@ -13,8 +13,8 @@ pip install pyinstaller -q
 # 清理旧产物
 rm -rf build dist
 
-# 单文件可执行程序（hackbot.spec）
-pyinstaller hackbot.spec
+# 单文件可执行程序（secbot-cli.spec）
+pyinstaller secbot-cli.spec
 
 echo "完成. 可执行文件: dist/hackbot (或 dist/hackbot.exe)"
 ls -la dist/

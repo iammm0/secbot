@@ -2,7 +2,7 @@
 CoordinatorAgent：Hackbot 多子 Agent 协调器（A2A 架构入口）。
 
 职责：
-- 对外作为「hackbot」智能体被 SessionManager / 路由调用；
+- 对外作为「secbot-cli」智能体被 SessionManager / 路由调用；
 - 在分层执行模式下（TaskExecutor），根据 Todo.agent_hint / resource
   将单步执行委托给对应的专职子 Agent：
     - network_recon      -> NetworkReconAgent
@@ -42,7 +42,7 @@ class CoordinatorAgent(BaseAgent):
     Hackbot 主协调 Agent。
 
     对外暴露：
-    - process(user_input): 兼容旧有 hackbot 行为（直接委托给 HackbotAgent）
+    - process(user_input): 兼容旧有 secbot-cli 行为（直接委托给 HackbotAgent）
     - execute_todo(...):   由 TaskExecutor 在分层执行时调用，用于将单个 Todo
                            路由到合适的子 Agent 执行。
     """
@@ -53,9 +53,9 @@ class CoordinatorAgent(BaseAgent):
         audit_trail: Optional[AuditTrail] = None,
         event_bus=None,
     ):
-        # 作为「hackbot」对外暴露
+        # 作为「secbot-cli」对外暴露
         super().__init__(name=name)
-        self.agent_type: str = "hackbot"
+        self.agent_type: str = "secbot-cli"
 
         # 全局并发锁：保持与原 HackbotAgent 一致的串行执行语义
         self._concurrency_lock: asyncio.Lock = asyncio.Lock()
@@ -94,7 +94,7 @@ class CoordinatorAgent(BaseAgent):
         # 按 agent 维度聚合的工具执行结果（供 SummaryAgent 使用）
         self._agent_results: Dict[str, List[Dict[str, Any]]] = {}
 
-        logger.info("初始化 CoordinatorAgent（hackbot 多子 Agent 协调器）")
+        logger.info("初始化 CoordinatorAgent（secbot-cli 多子 Agent 协调器）")
 
     @property
     def tools_dict(self):
@@ -118,7 +118,7 @@ class CoordinatorAgent(BaseAgent):
     async def process(self, user_input: str, **kwargs) -> str:  # type: ignore[override]
         """
         普通对话 / 同步接口：
-        - 保持与历史 hackbot 行为一致
+        - 保持与历史 secbot-cli 行为一致
         - 直接委托给内部 HackbotAgent
         """
         return await self._default_agent.process(user_input, **kwargs)
@@ -154,7 +154,7 @@ class CoordinatorAgent(BaseAgent):
         # 安全兜底：若无法选择专职 Agent，则回退到默认 Hackbot
         if sub_agent is None:
             sub_agent = self._default_agent
-            resolved_hint = getattr(sub_agent, "agent_type", None) or "hackbot"
+            resolved_hint = getattr(sub_agent, "agent_type", None) or "secbot-cli"
 
         # 将 get_root_password 透传给底层 SecurityReActAgent
         result = await sub_agent.execute_todo(  # type: ignore[attr-defined]

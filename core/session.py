@@ -1,6 +1,6 @@
 """
 SessionManager：会话编排管理器
-编排 路由 -> Q&A / Planner -> Core Agent (hackbot/superhackbot) -> Summary 的完整流程
+编排 路由 -> Q&A / Planner -> Core Agent (secbot-cli/superhackbot) -> Summary 的完整流程
 管理会话生命周期和事件分发
 """
 
@@ -78,7 +78,7 @@ class SessionManager:
     # 会话管理
     # ------------------------------------------------------------------
 
-    def new_session(self, agent_type: str = "hackbot", name: str = "") -> Session:
+    def new_session(self, agent_type: str = "secbot-cli", name: str = "") -> Session:
         """创建新会话"""
         session_id = str(uuid.uuid4())[:8]
         if not name:
@@ -118,7 +118,7 @@ class SessionManager:
         """获取当前会话使用的 agent 类型"""
         if self.current_session:
             return self.current_session.agent_type
-        return "hackbot"
+        return "secbot-cli"
 
     def get_agent(self, agent_type: Optional[str] = None):
         """获取 agent 实例；若未在 agents 中且提供了 resolve_agent，则延迟解析并缓存。"""
@@ -172,7 +172,7 @@ class SessionManager:
                 help_text = (
                     "我是 Hackbot / Secbot 内置的自动化安全测试助手。\n\n"
                     "【角色定位】\n"
-                    "- 核心身份：自动化渗透测试与主动安全巡检系统（hackbot 自动模式 / superhackbot 专家模式）。\n"
+                    "- 核心身份：自动化渗透测试与主动安全巡检系统（secbot-cli 自动模式 / superhackbot 专家模式）。\n"
                     "- 同时也是一个通用 AI 助手，可以回答和安全无关的各种问题。\n\n"
                     "【我能做什么】\n"
                     "- 安全/渗透测试相关：\n"
@@ -186,7 +186,7 @@ class SessionManager:
                     "【内部架构（高层次理解）】\n"
                     "- 前端 / TUI / App → 调用后端 FastAPI `/api/chat` 接口。\n"
                     "- 后端由 `SessionManager` 负责会话编排，决定是走 QA 简答、还是走 Planner + 核心 Agent 的技术链路。\n"
-                    "- 核心 Agent（hackbot / superhackbot）基于 ReAct 模式调用安全工具，并通过 EventBus 把思考过程/工具调用结果推送给前端。\n"
+                    "- 核心 Agent（secbot-cli / superhackbot）基于 ReAct 模式调用安全工具，并通过 EventBus 把思考过程/工具调用结果推送给前端。\n"
                     "- 最后由 SummaryAgent 汇总为一份可读的任务总结/安全报告。\n\n"
                     "【如何和我配合】\n"
                     "- 想做渗透测试/巡检时，可以直接告诉我目标和授权范围，比如：\n"
@@ -194,7 +194,7 @@ class SessionManager:
                     "  * “对 https://example.com 做一轮基础渗透测试，先信息收集再目录爆破。”\n"
                     "- 想了解具体能力/架构时，可以直接用自然语言继续问，比如：\n"
                     "  * “你现在集成了哪些安全工具？”\n"
-                    "  * “详细讲讲 hackbot 的工作流程和设计思路。”\n"
+                    "  * “详细讲讲 secbot-cli 的工作流程和设计思路。”\n"
                 )
                 if self.current_session:
                     self.current_session.add_message(MessageRole.ASSISTANT, help_text)

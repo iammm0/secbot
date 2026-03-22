@@ -18,7 +18,7 @@ ChatMode = Literal["ask", "agent"]
 class ChatRequest(BaseModel):
     message: str = Field(..., description="用户消息")
     mode: ChatMode = Field("agent", description="模式: ask=仅提问, agent=执行智能体（开源版自动化安全测试智能体）")
-    agent: str = Field("hackbot", description="智能体类型 (hackbot/superhackbot)，mode=agent 时有效")
+    agent: str = Field("secbot-cli", description="智能体类型 (secbot-cli/superhackbot)，mode=agent 时有效")
     prompt: Optional[str] = Field(None, description="自定义系统提示词")
     model: Optional[str] = Field(None, description="模型偏好（如 deepseek-reasoner / gpt-oss:20b），后端可选使用")
 

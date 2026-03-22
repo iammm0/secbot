@@ -89,7 +89,7 @@ class DirBruteforceTool(BaseTool):
                         try:
                             req = urllib.request.Request(full_url)
                             req.add_header(
-                                "User-Agent", "Mozilla/5.0 (compatible; hackbot/1.0)")
+                                "User-Agent", "Mozilla/5.0 (compatible; secbot-cli/1.0)")
                             resp = urllib.request.urlopen(req, timeout=8)
                             return resp.status, len(resp.read()), resp.headers.get("Content-Type", "")
                         except urllib.error.HTTPError as e:

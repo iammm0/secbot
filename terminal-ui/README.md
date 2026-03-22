@@ -51,7 +51,7 @@ node --import tsx scripts/check-connection.mts
    # 或
    uv run secbot-server
    # 或
-   uv run hackbot-server
+   uv run secbot-cli-server
    ```
    默认监听 `http://localhost:8000`。
 

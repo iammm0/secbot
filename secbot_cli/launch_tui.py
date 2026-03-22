@@ -1,6 +1,6 @@
 """
 启动后端（若未运行）并启动 TS 终端 TUI。
-供 main.py 与 hackbot/cli.py 调用，实现「一条命令进入全屏 TUI」。
+供 main.py 与 secbot-cli/cli.py 调用，实现「一条命令进入全屏 TUI」。
 pip 安装的 wheel 不包含 Node TUI，无 TUI 时会仅启动后端并提示。
 """
 import os

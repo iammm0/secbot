@@ -29,7 +29,7 @@ class AuditTrail:
         记录一步操作。
 
         Args:
-            agent: 智能体名称（hackbot / superhackbot）
+            agent: 智能体名称（secbot-cli / superhackbot）
             step_type: 步骤类型 (thought / action / observation / confirm / reject / result)
             content: 步骤内容描述
             metadata: 额外元数据（工具名、参数、结果等）

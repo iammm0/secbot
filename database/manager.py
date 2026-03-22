@@ -33,7 +33,7 @@ class DatabaseManager:
         Args:
             db_path: 数据库文件路径。如果为None，则从配置中读取：
                 - 优先使用 DATABASE_URL 环境变量（格式：sqlite:///path/to/db.db）
-                - 否则使用默认路径：data/hackbot.db
+                - 否则使用默认路径：data/secbot-cli.db
         """
         if db_path:
             self.db_path = Path(db_path)

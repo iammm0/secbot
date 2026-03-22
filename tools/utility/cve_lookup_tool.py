@@ -42,7 +42,7 @@ class CveLookupTool(BaseTool):
 
         def _fetch():
             req = urllib.request.Request(url)
-            req.add_header("User-Agent", "hackbot/1.0")
+            req.add_header("User-Agent", "secbot-cli/1.0")
             with urllib.request.urlopen(req, timeout=15) as resp:
                 return json.loads(resp.read().decode())
 
@@ -98,7 +98,7 @@ class CveLookupTool(BaseTool):
 
         def _fetch():
             req = urllib.request.Request(url)
-            req.add_header("User-Agent", "hackbot/1.0")
+            req.add_header("User-Agent", "secbot-cli/1.0")
             with urllib.request.urlopen(req, timeout=15) as resp:
                 return json.loads(resp.read().decode())
 

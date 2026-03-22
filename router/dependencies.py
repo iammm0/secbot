@@ -1,6 +1,6 @@
 """
 共享依赖 — 单例化核心服务实例，供所有路由共用。
-与 hackbot/cli.py 中的初始化逻辑保持一致。
+与 secbot-cli/cli.py 中的初始化逻辑保持一致。
 """
 
 import uuid
@@ -72,10 +72,10 @@ class _Singletons:
     def agents(cls) -> dict:
         if cls._agents is None:
             audit = cls.audit_trail()
-            # hackbot：使用 CoordinatorAgent 作为主入口，内部再协调专职子 Agent
+            # secbot-cli：使用 CoordinatorAgent 作为主入口，内部再协调专职子 Agent
             coordinator = CoordinatorAgent(name="Hackbot", audit_trail=audit)
             cls._agents = {
-                "hackbot": coordinator,
+                "secbot-cli": coordinator,
                 "superhackbot": SuperHackbotAgent(
                     name="SuperHackbot", audit_trail=audit
                 ),
@@ -86,6 +86,10 @@ class _Singletons:
                     cls.db_manager(), agent_type=agent_name, session_id=_session_id
                 )
                 agent_instance.db_memory = db_memory
+                # Coordinator 对外 process() 委托给内层 HackbotAgent，持久化逻辑在内层执行
+                inner = getattr(agent_instance, "_default_agent", None)
+                if inner is not None:
+                    inner.db_memory = db_memory
         return cls._agents
 
     @classmethod

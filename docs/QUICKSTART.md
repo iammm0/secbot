@@ -75,10 +75,10 @@ cp env.example .env
 # 方式一：从项目根目录运行
 python main.py
 
-# 方式二：使用 secbot / hackbot 命令（需先 uv sync 或安装包）
+# 方式二：使用 secbot / secbot-cli 命令（需先 uv sync 或安装包）
 uv run secbot
 # 或
-uv run hackbot
+uv run secbot-cli
 ```
 
 启动后界面示意：

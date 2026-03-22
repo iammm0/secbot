@@ -18,7 +18,7 @@ Hackbot 使用 [uv](https://github.com/astral-sh/uv) 作为包管理器。
 ```bash
 # 克隆仓库
 git clone https://github.com/iammm0/hackbot.git
-cd hackbot
+cd secbot-cli
 
 # 安装依赖 (使用 uv)
 uv sync
@@ -34,11 +34,11 @@ uv pip install -e .
 uv run python -m build
 
 # 构建结果在 dist/ 目录
-# - dist/hackbot-1.0.0.tar.gz (源码包)
-# - dist/hackbot-1.0.0-py3-none-any.whl (wheel 包)
+# - dist/secbot-cli-1.0.0.tar.gz (源码包)
+# - dist/secbot-cli-1.0.0-py3-none-any.whl (wheel 包)
 
 # 安装构建的包
-uv pip install dist/hackbot-*.whl
+uv pip install dist/secbot-cli-*.whl
 ```
 
 ### 使用安装后的命令
@@ -46,7 +46,7 @@ uv pip install dist/hackbot-*.whl
 安装后可直接使用 `hackbot` 或 `secbot`（无参数即进入交互模式，占据整个终端）：
 
 ```bash
-hackbot
+secbot-cli
 # 或 secbot
 ```
 
@@ -56,10 +56,10 @@ hackbot
 
 ```bash
 # 构建 Docker 镜像
-docker build -t hackbot:latest .
+docker build -t secbot-cli:latest .
 
 # 查看镜像
-docker images | grep hackbot
+docker images | grep secbot-cli
 ```
 
 ### 运行容器
@@ -70,12 +70,12 @@ docker-compose up -d
 
 # 或直接运行
 docker run -d \
-  --name hackbot \
+  --name secbot-cli \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/logs:/app/logs \
   -v $(pwd)/.env:/app/.env:ro \
   -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-  hackbot:latest
+  secbot-cli:latest
 ```
 
 ### 使用生产环境配置
@@ -85,7 +85,7 @@ docker run -d \
 docker-compose -f docker-compose.prod.yml up -d
 
 # 查看日志
-docker-compose -f docker-compose.prod.yml logs -f hackbot
+docker-compose -f docker-compose.prod.yml logs -f secbot-cli
 
 # 停止服务
 docker-compose -f docker-compose.prod.yml down
@@ -120,7 +120,7 @@ docker-compose -f docker-compose.prod.yml down
 ```bash
 # 1. 克隆或复制项目文件
 git clone https://github.com/iammm0/hackbot.git
-cd hackbot
+cd secbot-cli
 
 # 2. 配置环境变量
 cp env.example .env
@@ -174,9 +174,9 @@ WantedBy=multi-user.target
 启用服务：
 
 ```bash
-sudo systemctl enable hackbot
-sudo systemctl start hackbot
-sudo systemctl status hackbot
+sudo systemctl enable secbot-cli
+sudo systemctl start secbot-cli
+sudo systemctl status secbot-cli
 ```
 
 ## 配置说明
@@ -211,10 +211,10 @@ sudo systemctl status hackbot
 
 ```bash
 # 检查 Docker 容器
-docker ps | grep hackbot
+docker ps | grep secbot-cli
 
 # 检查日志
-docker logs hackbot
+docker logs secbot-cli
 
 # 测试 CLI
 uv run python main.py --help
@@ -260,13 +260,13 @@ uv run python tests/test_agents.py
 
 ```bash
 # Docker 日志
-docker logs -f hackbot
+docker logs -f secbot-cli
 
 # 应用日志
 tail -f logs/agent.log
 
 # 系统日志（systemd）
-journalctl -u hackbot -f
+journalctl -u secbot-cli -f
 ```
 
 ## 更新部署

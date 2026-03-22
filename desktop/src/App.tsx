@@ -90,7 +90,7 @@ export default function App() {
   const [blocks, setBlocks] = useState<RenderBlock[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<"ask" | "agent">("agent");
-  const [agentSubType, setAgentSubType] = useState<"hackbot" | "superhackbot">("hackbot");
+  const [agentSubType, setAgentSubType] = useState<"secbot-cli" | "superhackbot">("secbot-cli");
   const [sessionNote, setSessionNote] = useState<string>("加载中…");
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [hostInfo, setHostInfo] = useState<string>("");
@@ -408,7 +408,7 @@ export default function App() {
     const body: Record<string, string> = {
       message: trimmed,
       mode,
-      agent: mode === "agent" ? agentSubType : "hackbot",
+      agent: mode === "agent" ? agentSubType : "secbot-cli",
     };
 
     startStream(
@@ -474,8 +474,8 @@ export default function App() {
           <div className="mode-group">
             <button
               type="button"
-              className={agentSubType === "hackbot" ? "active" : ""}
-              onClick={() => setAgentSubType("hackbot")}
+              className={agentSubType === "secbot-cli" ? "active" : ""}
+              onClick={() => setAgentSubType("secbot-cli")}
             >
               自动
             </button>

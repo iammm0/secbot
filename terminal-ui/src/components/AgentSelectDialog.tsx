@@ -9,7 +9,7 @@ import { useLocal } from '../contexts/LocalContext.js';
 import { useToast } from '../contexts/ToastContext.js';
 
 const AGENTS = [
-  { id: 'hackbot', label: 'Hackbot', description: '开源版标准安全测试智能体' },
+  { id: 'secbot-cli', label: 'Hackbot', description: '开源版标准安全测试智能体' },
   { id: 'superhackbot', label: 'SuperHackbot', description: '开源版高级安全测试智能体' },
 ];
 

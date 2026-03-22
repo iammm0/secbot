@@ -38,7 +38,7 @@ def main():
     tests.append(
         (
             "版本检查",
-            "secbot --version 2>&1 || python -c 'from secbot import __version__; print(__version__)'",
+            "secbot --version 2>&1 || python -c 'from secbot_cli import __version__; print(__version__)'",
         )
     )
 
@@ -54,7 +54,7 @@ def main():
     tests.append(
         (
             "CLI 入口",
-            "python -c 'from hackbot.cli import app; print(\"CLI loaded OK\")'",
+            "python -c 'from secbot_cli.cli import app; print(\"CLI loaded OK\")'",
         )
     )
 
