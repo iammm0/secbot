@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-03-22)
+
+### Features
+
+- CLI 包更名为 secbot_cli 并完善数据库持久化链路
+  ([`83d6048`](https://github.com/iammm0/secbot/commit/83d60487af8cc08c0858c31522232f3a9f626504))
+
+
 ## v1.3.0 (2026-03-22)
 
 ### Chores
