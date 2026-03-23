@@ -20,8 +20,7 @@ export type KeybindId =
   | 'messages_half_page_down'
   | 'messages_previous'
   | 'messages_next'
-  | 'scrollbar_toggle'
-  | 'expand_block';
+  | 'scrollbar_toggle';
 
 /** 内置默认 keybinds；可从后端 config.keybinds 或本地配置覆盖 */
 export const DEFAULT_KEYBINDS: Record<KeybindId, { keys: ParsedKey[]; label: string }> = {
@@ -38,7 +37,6 @@ export const DEFAULT_KEYBINDS: Record<KeybindId, { keys: ParsedKey[]; label: str
   messages_previous: { keys: [], label: '上一条消息' },
   messages_next: { keys: [], label: '下一条消息' },
   scrollbar_toggle: { keys: [], label: '切换滚动条' },
-  expand_block: { keys: [{ name: 'e', ctrl: true }], label: 'Ctrl+E' },
 };
 
 /** 从配置合并 keybinds；若传入 partial 则覆盖默认值，否则用默认 */

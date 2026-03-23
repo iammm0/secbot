@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../contexts/ThemeContext.js';
+import { useDialog } from '../contexts/DialogContext.js';
 
 const MAX_VISIBLE_LINES = 28;
 
@@ -15,6 +16,7 @@ interface RestResultDialogProps {
 
 export function RestResultDialog({ title, fetchContent }: RestResultDialogProps) {
   const theme = useTheme();
+  const { pop } = useDialog();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [content, setContent] = useState('');
@@ -32,8 +34,10 @@ export function RestResultDialog({ title, fetchContent }: RestResultDialogProps)
   const maxScroll = Math.max(0, totalLines - MAX_VISIBLE_LINES);
 
   useInput((_input, key) => {
-    // Esc 不在此 pop()，由 App 统一 clear()，避免与 App 竞态导致 hasDialog 再次为 true
-    if (key.escape) return;
+    if (key.escape) {
+      pop();
+      return;
+    }
     if (!loading && !error && totalLines > MAX_VISIBLE_LINES) {
       if (key.upArrow) {
         setScrollOffset((s) => Math.max(0, s - 1));

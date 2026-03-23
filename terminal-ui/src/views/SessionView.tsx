@@ -31,8 +31,6 @@ import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
 
-const CONTENT_HEIGHT_OFFSET = 9;
-
 /** 底部状态栏：SECBOT 固定绿色，无定时器，避免全屏下周期性重绘底部区域 */
 function SessionStatusBar({
   mode,
@@ -84,9 +82,6 @@ export function SessionView({
   const [hasAppliedInitialPrompt, setHasAppliedInitialPrompt] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showScrollbar, setShowScrollbar] = useState(true);
-  const [expandedBlockIds, setExpandedBlockIds] = useState<Set<string>>(
-    new Set(),
-  );
   const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
   const scrollableHeightRef = useRef(1);
@@ -113,21 +108,6 @@ export function SessionView({
   } = sync;
   const { mode, agent, setMode, setAgent } = local;
 
-  const contentHeight = useMemo(
-    () => Math.max(8, rows - CONTENT_HEIGHT_OFFSET),
-    [rows],
-  );
-  const scrollableHeight = Math.max(1, contentHeight);
-  const maxScroll = Math.max(0, totalLines - scrollableHeight);
-
-  const collapsibleOrder = useMemo(() => {
-    const ids: string[] = [];
-    if (apiOutput != null) ids.push("api");
-    if (streamState.content) ids.push("content");
-    if (streamState.response) ids.push("response");
-    return ids;
-  }, [apiOutput, streamState.content, streamState.response]);
-
   const blocks = useMemo(
     () =>
       streamStateToBlocks(
@@ -135,7 +115,6 @@ export function SessionView({
         streaming,
         apiOutput,
         undefined,
-        expandedBlockIds,
         currentSentAt > 0 ? currentSentAt : undefined,
         currentCompletedAt > 0 ? currentCompletedAt : undefined,
       ),
@@ -143,16 +122,16 @@ export function SessionView({
       streamState,
       streaming,
       apiOutput,
-      expandedBlockIds,
       currentSentAt,
       currentCompletedAt,
     ],
   );
 
-  useEffect(() => {
-    totalLinesRef.current = totalLines;
-    scrollableHeightRef.current = scrollableHeight;
-  }, [totalLines, scrollableHeight]);
+  const actionProgress = useMemo(() => {
+    const total = streamState.actions.length;
+    const completed = streamState.actions.filter((a) => a.result !== undefined).length;
+    return { total, completed };
+  }, [streamState.actions]);
 
   const slashSuggestions = useMemo(() => {
     if (!inputValue.startsWith("/")) return [];
@@ -161,6 +140,23 @@ export function SessionView({
       .filter((c) => c.slash && c.slash.toLowerCase().startsWith(f))
       .slice(0, 12);
   }, [commands, inputValue]);
+
+  const contentHeight = useMemo(() => {
+    // 固定区：分隔线/加载状态条(执行中)/输入行/状态栏/统计栏，再按斜杠建议条目动态预留高度，避免内容区和交互区重叠。
+    const baseReserved = streaming ? 10 : 9;
+    const slashReserved = inputValue.startsWith("/")
+      ? Math.min(12, slashSuggestions.length) + 1
+      : 0;
+    return Math.max(6, rows - baseReserved - slashReserved);
+  }, [rows, streaming, inputValue, slashSuggestions.length]);
+
+  const scrollableHeight = Math.max(1, contentHeight);
+  const maxScroll = Math.max(0, totalLines - scrollableHeight);
+
+  useEffect(() => {
+    totalLinesRef.current = totalLines;
+    scrollableHeightRef.current = scrollableHeight;
+  }, [totalLines, scrollableHeight]);
 
   useEffect(() => {
     setScrollOffset((s) => Math.min(s, maxScroll));
@@ -347,11 +343,6 @@ export function SessionView({
       scrollToNextBlock("next");
       return;
     }
-    if (keybind.match("expand_block", evt)) {
-      const first = collapsibleOrder.find((id) => !expandedBlockIds.has(id));
-      if (first) setExpandedBlockIds((prev) => new Set([...prev, first]));
-      return;
-    }
     if (slashSuggestions.length > 0) {
       if (key.upArrow) {
         setSlashSelectedIndex((i) => Math.max(0, i - 1));
@@ -523,7 +514,6 @@ export function SessionView({
           setScrollOffset={setScrollOffset}
           onLinesChange={setTotalLines}
           showScrollbar={showScrollbar}
-          expandedBlockIds={expandedBlockIds}
           currentUserMessage={currentUserMessage}
           currentSentAt={currentSentAt}
           currentCompletedAt={currentCompletedAt}
@@ -535,7 +525,14 @@ export function SessionView({
         <Text color={theme.border}>{"━".repeat(Math.max(0, columns - 6))}</Text>
       </Box>
 
-      {/* 执行中加载条（根据需求已移除进度条展示，仅保留底部状态栏模式指示） */}
+      {/* 执行状态条：实时显示当前阶段与工具执行进度 */}
+      <LoadingBar
+        active={streaming}
+        phase={streamState.phase}
+        detail={streamState.detail}
+        actionTotal={actionProgress.total}
+        actionCompleted={actionProgress.completed}
+      />
 
       {/* 键入 / 后显示可选命令 */}
       {inputValue.startsWith("/") ? (
@@ -594,7 +591,6 @@ export function SessionView({
             ? ` ${Math.min(scrollOffset + 1, totalLines)}-${Math.min(scrollOffset + scrollableHeight, totalLines)}/${totalLines} 行 `
             : " "}
           ↑/↓ {keybind.print("page_up")}/{keybind.print("page_down")} Home/End
-          首/尾 {keybind.print("expand_block")} 展开
           {scrollOffset <= 0 ? "" : " ↑"}
           {totalLines <= scrollableHeight ||
           scrollOffset >= totalLines - scrollableHeight
