@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-03-23)
+
+### Chores
+
+- **logging**: 补充日志上下文与日志查看工具
+  ([`5cb5a7e`](https://github.com/iammm0/secbot/commit/5cb5a7ed5cd3e4997f917b12abd5573caaa50941))
+
+### Documentation
+
+- 更新 README 与 repowiki 文档
+  ([`d3b8b20`](https://github.com/iammm0/secbot/commit/d3b8b2060990e476c9ca2b2c9015d28f1ff06f57))
+
+### Features
+
+- **core**: 增强智能体路由、攻击链与会话能力
+  ([`8f4986b`](https://github.com/iammm0/secbot/commit/8f4986b60e5e658828ff422dcb1ba4783dab8841))
+
+- **terminal-ui**: 更新交互组件与会话展示
+  ([`6f9c25c`](https://github.com/iammm0/secbot/commit/6f9c25c2b26a896029e1a94ea0666312672cc908))
+
+
 ## v1.4.0 (2026-03-22)
 
 ### Features
