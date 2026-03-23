@@ -9,6 +9,7 @@ import { Toast } from './components/Toast.js';
 import { Dialog } from './components/Dialog.js';
 import { CommandPanel } from './components/CommandPanel.js';
 import { ModelConfigDialog } from './components/ModelConfigDialog.js';
+import { LogLevelDialog } from './components/LogLevelDialog.js';
 import { RestResultDialog } from './components/RestResultDialog.js';
 import { AgentSelectDialog } from './components/AgentSelectDialog.js';
 import { HELP_TOOLS_TEXT } from './slash.js';
@@ -33,7 +34,12 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
     };
   });
   useEffect(() => {
-    const stream = stdout as NodeJS.WriteStream & { on?(e: 'resize', fn: () => void): void; off?(e: 'resize', fn: () => void); columns?: number; rows?: number };
+    const stream = stdout as NodeJS.WriteStream & {
+      on?(e: 'resize', fn: () => void): void;
+      off?(e: 'resize', fn: () => void): void;
+      columns?: number;
+      rows?: number;
+    };
     if (!stream?.on) return;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const onResize = () => {
@@ -125,6 +131,16 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         },
       }),
       register({
+        title: '日志级别（INFO/DEBUG）',
+        value: '/log-level',
+        category: '系统',
+        slash: '/log-level',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(<LogLevelDialog />);
+        },
+      }),
+      register({
         title: '内置工具（数量与种类）',
         value: '/tools',
         category: 'REST',
@@ -165,15 +181,13 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
-    if (keybind.match('exit', evt) || keybind.match('escape', evt)) {
-      // #region agent log
-      fetch('http://127.0.0.1:7331/ingest/20b0ff39-6b05-4e73-951e-46c45fc901e8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'56b7f1'},body:JSON.stringify({sessionId:'56b7f1',location:'App.tsx:useInput',message:'App received escape',data:{stackLen:dialog.stack.length,willClear:dialog.stack.length>0},timestamp:Date.now(),hypothesisId:'H1',runId:'esc'})}).catch(()=>{});
-      // #endregion
+    if (keybind.match('exit', evt)) {
       if (dialog.stack.length > 0) {
         dialog.clear();
         return;
       }
     }
+    // 弹窗内 Esc 由各弹窗组件自行处理，避免统一 clear() 破坏多步骤返回流程。
     if (keybind.match('command_list', evt)) {
       dialog.replace(<CommandPanel />, () => dialog.clear());
       return;
@@ -185,9 +199,6 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   });
 
   const hasDialog = dialog.stack.length > 0;
-  // #region agent log
-  if (typeof fetch !== 'undefined') fetch('http://127.0.0.1:7331/ingest/20b0ff39-6b05-4e73-951e-46c45fc901e8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'56b7f1'},body:JSON.stringify({sessionId:'56b7f1',location:'App.tsx:render',message:'App render branch',data:{hasDialog,routeType:route.type,stackLen:dialog.stack.length},timestamp:Date.now(),hypothesisId:'H4',runId:'render'})}).catch(()=>{});
-  // #endregion
 
   return (
     <Box flexDirection="column" width={columns} height={rows} padding={1}>

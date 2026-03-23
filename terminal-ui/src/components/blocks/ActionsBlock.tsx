@@ -20,14 +20,14 @@ interface ActionsBlockProps {
 
 export function ActionsBlock({ block, noMargin }: ActionsBlockProps) {
   const theme = useTheme();
-  const title = block.title ?? "执行";
+  const title = block.title ?? "执行（原始）";
   const body = block.body || " ";
   const hasActions = block.actions && block.actions.length > 0;
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
       {/* 标题行：⚙ 执行 — primary/green，bold */}
-      <Text color={theme.primary} bold>
+      <Text color={theme.textMuted} dimColor>
         {"⚙ "}
         {title}
       </Text>
@@ -48,7 +48,9 @@ export function ActionsBlock({ block, noMargin }: ActionsBlockProps) {
       ) : (
         /* 无 actions：缩进显示 body 文本 */
         <Box paddingLeft={2}>
-          <Text color={theme.text}>{body}</Text>
+          <Text color={theme.textMuted} dimColor>
+            {body}
+          </Text>
         </Box>
       )}
     </Box>

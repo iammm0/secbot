@@ -1,11 +1,10 @@
 /**
  * 将 StreamState 转为分块结构，每块用 Markdown 渲染
- * 推理与执行链路：API → phase → error → 规划 → 推理 → 执行 → 内容 → 报告 → 回复
+ * 推理与执行链路：API → phase → error → 规划 → 推理 → 执行 → 内容 → 报告
  *
  * 更新说明：
- *  - streamStateToBlocks 新增 sentAt / completedAt 参数
- *  - response 块注入 completedAt 与 durationMs 元数据，供 ResponseBlock 渲染完成时间脚注
- *  - response 块行数在 completedAt 有效时额外 +1（脚注行）
+ *  - streamStateToBlocks 支持 sentAt / completedAt 参数
+ *  - 当前策略不再渲染独立 response 块，输出展示截止到“总结”阶段
  */
 import type { StreamState } from "./types.js";
 import type { ContentBlock } from "./types.js";
@@ -14,9 +13,6 @@ import type { ContentBlock } from "./types.js";
 
 /** 执行结果类块最大展示行数，超出省略，避免刷屏 */
 const MAX_RESULT_LINES = 24;
-
-/** 低于此行数不折叠，直接展示；超长内容才折叠 */
-const COLLAPSE_THRESHOLD_LINES = 15;
 
 /** 完成后仅标识"完成"并随后消失、且不渲染其输出内容的工具 */
 const TRANSIENT_TOOLS = new Set<string>(["system_info", "network_analyze"]);
@@ -63,6 +59,36 @@ function normalizeErrorMessage(error: string): string {
   return error;
 }
 
+/**
+ * 从混合文本中提取纯 Thought 内容，避免 Action/Observation/Final Answer 挤入推理块。
+ */
+function extractThoughtOnly(raw: string): string {
+  const text = (raw || "").replace(/\r\n/g, "\n").trim();
+  if (!text) return "";
+
+  // 常见格式：Thought: ... Action: {...}
+  const thoughtMatch = text.match(
+    /(?:Thought|思考|推理)\s*[:：]\s*/i,
+  );
+  const afterThought = thoughtMatch
+    ? text.slice((thoughtMatch.index ?? 0) + thoughtMatch[0].length)
+    : text;
+
+  const splitRegex =
+    /(?:^|\n)\s*(?:Action\s*[:：]|Observation\s*[:：]|\[OBSERVATION\]|\[ACTION\]|Final Answer\s*[:：]|执行\s*[:：]|观察\s*[:：]|最终回答\s*[:：]|最终结论\s*[:：])/i;
+  const m = splitRegex.exec(afterThought);
+  const thoughtOnly = m
+    ? afterThought.slice(0, m.index).trim()
+    : afterThought.trim();
+
+  if (thoughtOnly) return thoughtOnly;
+  const jsonActionStart = afterThought.search(/\{\s*"tool"\s*:/i);
+  if (jsonActionStart > 0) {
+    return afterThought.slice(0, jsonActionStart).trim();
+  }
+  return afterThought.trim() || text;
+}
+
 // ─── 主函数 ────────────────────────────────────────────────────────────────────
 
 /**
@@ -72,7 +98,6 @@ function normalizeErrorMessage(error: string): string {
  * @param streaming              是否仍在流式传输中
  * @param apiOutput              REST/斜杠命令的 API 输出（可为 null）
  * @param dismissedTransientTools 已"消失"的瞬时工具，不再展示
- * @param expandedBlockIds       已展开的块 id 集合
  * @param sentAt                 本轮用户消息的发送时刻（Date.now()），0 或未传则不注入
  * @param completedAt            本轮 Secbot 响应的完成时刻（Date.now()），0 或未传表示尚未完成
  */
@@ -81,7 +106,6 @@ export function streamStateToBlocks(
   streaming: boolean,
   apiOutput: string | null,
   dismissedTransientTools?: Set<string>,
-  expandedBlockIds?: Set<string>,
   sentAt?: number,
   completedAt?: number,
 ): ContentBlock[] {
@@ -92,17 +116,12 @@ export function streamStateToBlocks(
     phase,
     detail,
     planning,
-    thought,
-    thoughtChunks,
     actions,
-    content,
-    report,
     error,
-    response,
+    timeline,
   } = streamState;
 
   const dismissed = dismissedTransientTools ?? new Set<string>();
-  const expanded = expandedBlockIds ?? new Set<string>();
 
   // 有效的 completedAt（> 0 且非 NaN）
   const validCompletedAt =
@@ -113,53 +132,35 @@ export function streamStateToBlocks(
       ? validCompletedAt - sentAt
       : undefined;
 
-  // ── 内部辅助：添加可折叠块 ────────────────────────────────────────────────────
+  // ── 内部辅助：添加正文块 ───────────────────────────────────────────────────────
 
-  function addCollapsibleBlock(
+  function addBlock(
     id: string,
     type: ContentBlock["type"],
     title: string,
-    fullBody: string,
+    body: string,
     extra?: Partial<
       Pick<ContentBlock, "completedAt" | "durationMs" | "sentAt">
     >,
   ): void {
-    const lineCount = blockLines(title, fullBody);
-    const isExpanded = expanded.has(id);
-
-    if (isExpanded || lineCount <= COLLAPSE_THRESHOLD_LINES) {
-      blocks.push({
-        id,
-        type,
-        title,
-        body: fullBody,
-        lineStart,
-        lineEnd: lineStart + lineCount,
-        ...extra,
-      });
-      lineStart += lineCount;
-    } else {
-      const numLines = fullBody.split("\n").length;
-      const placeholder = `*(共 ${numLines} 行，${title}，按 Ctrl+E 展开)*`;
-      blocks.push({
-        id,
-        type,
-        title,
-        body: placeholder,
-        fullBody,
-        lineStart,
-        lineEnd: lineStart + 2,
-        ...extra,
-      });
-      lineStart += 2;
-    }
+    const lineCount = blockLines(title, body);
+    blocks.push({
+      id,
+      type,
+      title,
+      body,
+      lineStart,
+      lineEnd: lineStart + lineCount,
+      ...extra,
+    });
+    lineStart += lineCount;
   }
 
   // ── API 输出 ──────────────────────────────────────────────────────────────────
 
   if (apiOutput !== null) {
     const body = truncateBody(apiOutput, MAX_RESULT_LINES);
-    addCollapsibleBlock("api", "api", "API", body);
+    addBlock("api", "api", "API", body);
   }
 
   // ── 流式阶段指示（phase）────────────────────────────────────────────────────
@@ -207,146 +208,85 @@ export function streamStateToBlocks(
     lineStart = lineEnd;
   }
 
-  // ── 推理 ─────────────────────────────────────────────────────────────────────
-
-  if (thought) {
-    const chunk =
-      thoughtChunks.get(thought.iteration) ?? thought.content ?? "…";
-    const body = chunk;
-    const title = `推理 #${thought.iteration}`;
-    const lineEnd = lineStart + blockLines(title, body);
-    blocks.push({
-      id: `thought-${thought.iteration}`,
-      type: "thought",
-      title,
-      body,
-      lineStart,
-      lineEnd,
-    });
-    lineStart = lineEnd;
-  }
-
-  // ── 工具执行 ─────────────────────────────────────────────────────────────────
-
-  if (actions.length > 0) {
-    const filtered = actions.filter(
-      (a) => !TRANSIENT_TOOLS.has(a.tool) || !dismissed.has(a.tool),
-    );
-
-    const actionItems = filtered.map((a) => ({
-      tool: a.tool,
-      success: a.success,
-      result: a.result,
-      error: a.error,
-    }));
-
-    const body =
-      filtered.length > 0
-        ? filtered
-            .map((a) => {
-              const done = a.result !== undefined;
-              const status = done ? (a.success ? "✓" : "✗") : "~";
-              const label =
-                TRANSIENT_TOOLS.has(a.tool) && done ? "完成" : status;
-              let line = `- **${a.tool}** ${label}`;
-              if (a.error) line += `\n  ${a.error}`;
-              return line;
-            })
-            .join("\n")
-        : "";
-
-    if (body) {
-      const lineEnd = lineStart + blockLines("执行", body);
-      blocks.push({
-        id: "actions",
-        type: "actions",
-        title: "执行",
-        body,
-        lineStart,
-        lineEnd,
-        actions: actionItems,
-      });
-      lineStart = lineEnd;
-    }
-
-    // Agent 终端结果以只读终端块展示
-    for (let i = 0; i < actions.length; i++) {
-      const a = actions[i];
-      if (
-        a.tool !== "terminal_session" ||
-        a.result == null ||
-        typeof a.result !== "object"
-      )
+  // ── 时间线渲染（按事件发生顺序）───────────────────────────────────────────────
+  if (timeline.length > 0) {
+    for (const item of timeline) {
+      if (item.type === "thought") {
+        addBlock(
+          item.id,
+          "thought",
+          item.title || "推理",
+          truncateBody(extractThoughtOnly(item.body || "…"), MAX_RESULT_LINES),
+        );
         continue;
-      const r = a.result as Record<string, unknown>;
-      const output = r.output != null ? String(r.output) : null;
-      const message = r.message != null ? String(r.message) : null;
-      const bodyText = (output ?? message ?? "").trim();
-      if (!bodyText) continue;
+      }
 
-      const lineCount = blockLines("只读 · Agent 终端", bodyText);
-      blocks.push({
-        id: `terminal-session-${i}-${lineStart}`,
-        type: "terminal",
-        title: "只读 · Agent 终端",
-        body: truncateBody(bodyText, MAX_RESULT_LINES),
-        lineStart,
-        lineEnd: lineStart + lineCount,
-      });
-      lineStart += lineCount;
+      if (item.type === "action") {
+        if (item.tool && TRANSIENT_TOOLS.has(item.tool) && item.status === "done") {
+          if (dismissed.has(item.tool)) continue;
+        }
+        const statusLine =
+          item.status === "done"
+            ? item.success === false
+              ? "状态: 失败"
+              : "状态: 完成"
+            : "状态: 执行中";
+        const errorLine = item.error ? `\n错误: ${item.error}` : "";
+        addBlock(
+          item.id,
+          "actions",
+          item.title || "工具调用",
+          `${statusLine}${errorLine}`,
+        );
+        continue;
+      }
+
+      if (item.type === "observation") {
+        const obsLabel = item.title
+          || (item.tool
+            ? `观察 · ${item.tool}${item.iteration ? ` #${item.iteration}` : ""}`
+            : "总结观察");
+        addBlock(
+          item.id,
+          "content",
+          obsLabel,
+          truncateBody(item.body || "…", MAX_RESULT_LINES),
+        );
+        continue;
+      }
+
+      if (item.type === "final") {
+        addBlock(
+          item.id,
+          "summary",
+          item.title || "最终总结",
+          truncateBody(item.body || "…", MAX_RESULT_LINES),
+          {
+            completedAt: validCompletedAt,
+            durationMs,
+            sentAt: sentAt && sentAt > 0 ? sentAt : undefined,
+          },
+        );
+      }
     }
-  }
-
-  // ── 内容 ─────────────────────────────────────────────────────────────────────
-
-  if (content) {
-    const lastAction = actions.length > 0 ? actions[actions.length - 1] : null;
-    if (!lastAction || !TRANSIENT_TOOLS.has(lastAction.tool)) {
-      const body = truncateBody(content, MAX_RESULT_LINES);
-      addCollapsibleBlock("content", "content", "内容", body);
-    }
-  }
-
-  // ── 最终回复 ──────────────────────────────────────────────────────────────────
-  // response 块注入 completedAt 与 durationMs，供 ResponseBlock 渲染完成时间脚注。
-  // 当 completedAt 有效时，额外 +1 行用于脚注行（避免虚拟滚动裁剪脚注）。
-
-  if (response) {
-    const body = truncateBody(response, MAX_RESULT_LINES);
-    const footerLines = validCompletedAt ? 1 : 0;
-    const lineCount = blockLines("回复", body, footerLines);
-    const isExpanded = expanded.has("response");
-
-    if (isExpanded || lineCount <= COLLAPSE_THRESHOLD_LINES + footerLines) {
-      blocks.push({
-        id: "response",
-        type: "response",
-        title: "回复",
-        body,
-        lineStart,
-        lineEnd: lineStart + lineCount,
-        completedAt: validCompletedAt,
-        durationMs,
-        sentAt: sentAt && sentAt > 0 ? sentAt : undefined,
-      });
-      lineStart += lineCount;
-    } else {
-      const numLines = body.split("\n").length;
-      const placeholder = `*(共 ${numLines} 行，回复，按 Ctrl+E 展开)*`;
-      const placeholderLines = 2 + footerLines;
-      blocks.push({
-        id: "response",
-        type: "response",
-        title: "回复",
-        body: placeholder,
-        fullBody: body,
-        lineStart,
-        lineEnd: lineStart + placeholderLines,
-        completedAt: validCompletedAt,
-        durationMs,
-        sentAt: sentAt && sentAt > 0 ? sentAt : undefined,
-      });
-      lineStart += placeholderLines;
+  } else {
+    // 兼容旧结构：无 timeline 时退回到 content。
+    if (actions.length > 0) {
+      const filtered = actions.filter(
+        (a) => !TRANSIENT_TOOLS.has(a.tool) || !dismissed.has(a.tool),
+      );
+      for (let i = 0; i < filtered.length; i++) {
+        const a = filtered[i];
+        const done = a.result !== undefined;
+        const status = done ? (a.success ? "完成" : "失败") : "执行中";
+        const err = a.error ? `\n错误: ${a.error}` : "";
+        addBlock(
+          `legacy-action-${i}`,
+          "actions",
+          `工具调用 · ${a.tool}`,
+          `状态: ${status}${err}`,
+        );
+      }
     }
   }
 

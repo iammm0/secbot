@@ -16,13 +16,13 @@ export function ToolResultBlock({ title = '工具结果', body, noMargin, isPlac
   const theme = useTheme();
   return (
     <BlockCommon
-      title={title}
-      titleColor={theme.secondary}
+      title={`${title}（原始）`}
+      titleColor={theme.textMuted}
       body={body}
       bodyColor={isPlaceholder ? theme.textMuted : theme.text}
       noMargin={noMargin}
-      accentBar={!isPlaceholder}
-      accentColor={theme.secondary}
+      accentBar={false}
+      accentColor={theme.textMuted}
     />
   );
 }

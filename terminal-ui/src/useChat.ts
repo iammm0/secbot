@@ -13,7 +13,13 @@
  */
 import { useState, useCallback, useRef, useEffect } from "react";
 import { connectSSE } from "./sse.js";
-import type { ChatRequest, ChatMode, StreamState, SSEEvent } from "./types.js";
+import type {
+  ChatRequest,
+  ChatMode,
+  StreamState,
+  SSEEvent,
+  StreamTimelineItem,
+} from "./types.js";
 
 // ─── 初始状态 ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +34,7 @@ const initialStreamState: StreamState = {
   report: "",
   error: null,
   response: null,
+  timeline: [],
 };
 
 function resetStreamState(): StreamState {
@@ -35,6 +42,7 @@ function resetStreamState(): StreamState {
     ...initialStreamState,
     thoughtChunks: new Map(),
     actions: [],
+    timeline: [],
   };
 }
 
@@ -99,6 +107,7 @@ export function useChat() {
 
   const hasContent = useCallback((state: StreamState): boolean => {
     return Boolean(
+      state.timeline.length > 0 ||
       state.phase ||
       state.detail ||
       state.planning ||
@@ -111,8 +120,26 @@ export function useChat() {
     );
   }, []);
 
+  const upsertTimelineItem = useCallback(
+    (
+      timeline: StreamTimelineItem[],
+      id: string,
+      build: (prev?: StreamTimelineItem) => StreamTimelineItem,
+    ) => {
+      const idx = timeline.findIndex((item) => item.id === id);
+      if (idx === -1) return [...timeline, build(undefined)];
+      const next = [...timeline];
+      next[idx] = build(next[idx]);
+      return next;
+    },
+    [],
+  );
+
   const appendContent = useCallback((text: string) => {
-    setStreamState((s) => ({ ...s, content: s.content + text }));
+    setStreamState((s) => ({
+      ...s,
+      content: s.content ? `${s.content}\n\n${text}` : text,
+    }));
   }, []);
 
   /** 清理 typewriter 定时器 */
@@ -139,13 +166,21 @@ export function useChat() {
         setStreamState((s) => ({
           ...s,
           response: fullText.slice(0, revealed),
+          timeline: upsertTimelineItem(s.timeline, "final-summary", (prev) => ({
+            ...prev,
+            id: "final-summary",
+            type: "final",
+            title: "最终总结",
+            body: fullText.slice(0, revealed),
+            status: revealed >= fullText.length ? "done" : "running",
+          })),
         }));
         if (revealed >= fullText.length) {
           clearTypewriter();
         }
       }, 16);
     },
-    [clearTypewriter],
+    [clearTypewriter, upsertTimelineItem],
   );
 
   // ── 发送消息 ──────────────────────────────────────────────────────────────────
@@ -216,6 +251,18 @@ export function useChat() {
                     content: "",
                   },
                   thoughtChunks: new Map(s.thoughtChunks),
+                  timeline: upsertTimelineItem(
+                    s.timeline,
+                    `thought-${(data.iteration as number) ?? 1}`,
+                    (prev) => ({
+                      id: `thought-${(data.iteration as number) ?? 1}`,
+                      type: "thought",
+                      title: `推理 #${(data.iteration as number) ?? 1}`,
+                      body: prev?.body ?? "",
+                      iteration: (data.iteration as number) ?? 1,
+                      status: "running",
+                    }),
+                  ),
                 }));
                 break;
 
@@ -225,20 +272,59 @@ export function useChat() {
                 setStreamState((s) => {
                   const next = new Map(s.thoughtChunks);
                   next.set(it, (next.get(it) ?? "") + chunk);
-                  return { ...s, thoughtChunks: next };
+                  const thoughtBody = next.get(it) ?? "";
+                  return {
+                    ...s,
+                    thoughtChunks: next,
+                    timeline: upsertTimelineItem(
+                      s.timeline,
+                      `thought-${it}`,
+                      (prev) => ({
+                        id: `thought-${it}`,
+                        type: "thought",
+                        title: `推理 #${it}`,
+                        body: thoughtBody,
+                        iteration: it,
+                        status: prev?.status ?? "running",
+                      }),
+                    ),
+                  };
                 });
                 break;
               }
 
-              case "thought":
-                setStreamState((s) => ({
-                  ...s,
-                  thought: {
-                    iteration: (data.iteration as number) ?? 1,
-                    content: (data.content as string) ?? "",
-                  },
-                }));
+              case "thought": {
+                const tIt = (data.iteration as number) ?? 1;
+                const tId = `thought-${tIt}`;
+                setStreamState((s) => {
+                  const existing = s.timeline.find((t) => t.id === tId);
+                  if (existing?.status === "done") return s;
+                  return {
+                    ...s,
+                    thought: {
+                      iteration: tIt,
+                      content: (data.content as string) ?? "",
+                    },
+                    timeline: upsertTimelineItem(
+                      s.timeline,
+                      tId,
+                      (prev) => ({
+                        id: tId,
+                        type: "thought",
+                        title: `推理 #${tIt}`,
+                        body:
+                          (data.content as string) ??
+                          prev?.body ??
+                          s.thoughtChunks.get(tIt) ??
+                          "",
+                        iteration: tIt,
+                        status: "done",
+                      }),
+                    ),
+                  };
+                });
                 break;
+              }
 
               case "action_start":
                 setStreamState((s) => ({
@@ -248,6 +334,20 @@ export function useChat() {
                     {
                       tool: (data.tool as string) ?? "",
                       params: (data.params as Record<string, unknown>) ?? {},
+                      viewType: ((data.view_type as string) ?? "raw") as
+                        | "raw"
+                        | "summary",
+                    },
+                  ],
+                  timeline: [
+                    ...s.timeline,
+                    {
+                      id: `action-${s.actions.length}-${(data.tool as string) ?? "tool"}`,
+                      type: "action",
+                      title: `工具调用 · ${(data.tool as string) ?? "unknown"}`,
+                      body: `状态: 执行中`,
+                      tool: (data.tool as string) ?? "",
+                      status: "running",
                     },
                   ],
                 }));
@@ -266,6 +366,9 @@ export function useChat() {
                       success: data.success as boolean,
                       result: data.result,
                       error: data.error as string,
+                      viewType: ((data.view_type as string) ?? "raw") as
+                        | "raw"
+                        | "summary",
                     };
                   } else {
                     actions.push({
@@ -274,16 +377,68 @@ export function useChat() {
                       success: data.success as boolean,
                       result: data.result,
                       error: data.error as string,
+                      viewType: ((data.view_type as string) ?? "raw") as
+                        | "raw"
+                        | "summary",
                     });
                   }
-                  return { ...s, actions };
+                  const timeline = [...s.timeline];
+                  const timelineIdx = [...timeline]
+                    .reverse()
+                    .findIndex(
+                      (item) =>
+                        item.type === "action" &&
+                        item.tool === toolName &&
+                        item.status !== "done",
+                    );
+                  if (timelineIdx >= 0) {
+                    const realIdx = timeline.length - 1 - timelineIdx;
+                    const ok = Boolean(data.success);
+                    const line = `状态: ${ok ? "完成" : "失败"}${
+                      data.error ? `\n错误: ${String(data.error)}` : ""
+                    }`;
+                    timeline[realIdx] = {
+                      ...timeline[realIdx],
+                      body: line,
+                      success: ok,
+                      error:
+                        data.error !== undefined ? String(data.error) : undefined,
+                      result: data.result,
+                      status: "done",
+                    };
+                  }
+                  return { ...s, actions, timeline };
                 });
                 break;
               }
 
-              case "content":
-                appendContent((data.content as string) ?? "");
+              case "content": {
+                if (((data.view_type as string) ?? "summary") !== "raw") {
+                  const obs = (data.content as string) ?? "";
+                  const obsTool = (data.tool as string) ?? "";
+                  const obsIteration = (data.iteration as number) ?? 0;
+                  const obsTitle = obsTool
+                    ? `观察 · ${obsTool}${obsIteration ? ` #${obsIteration}` : ""}`
+                    : "总结观察";
+                  appendContent(obs);
+                  setStreamState((s) => ({
+                    ...s,
+                    timeline: [
+                      ...s.timeline,
+                      {
+                        id: `observation-${s.timeline.length}`,
+                        type: "observation",
+                        title: obsTitle,
+                        body: obs,
+                        tool: obsTool || undefined,
+                        iteration: obsIteration || undefined,
+                        status: "done",
+                      },
+                    ],
+                  }));
+                }
                 break;
+              }
 
               case "report":
                 setStreamState((s) => ({
@@ -318,6 +473,16 @@ export function useChat() {
                 // Typewriter 效果：即使 API 一次性返回全文，也逐步揭示
                 const fullText = (data.content as string) ?? null;
                 if (fullText) {
+                  setStreamState((s) => ({
+                    ...s,
+                    timeline: upsertTimelineItem(s.timeline, "final-summary", () => ({
+                      id: "final-summary",
+                      type: "final",
+                      title: "最终总结",
+                      body: "",
+                      status: "running",
+                    })),
+                  }));
                   startTypewriter(fullText);
                 }
                 break;
@@ -354,7 +519,7 @@ export function useChat() {
 
       abortRef.current = controller;
     },
-    [appendContent, clearTypewriter, startTypewriter, hasContent],
+    [appendContent, clearTypewriter, startTypewriter, hasContent, upsertTimelineItem],
   );
 
   // ── 其他操作 ──────────────────────────────────────────────────────────────────

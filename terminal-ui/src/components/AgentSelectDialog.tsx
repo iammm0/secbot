@@ -24,8 +24,10 @@ export function AgentSelectDialog() {
   });
 
   useInput((_input, key) => {
-    // Esc 不在此 pop()，由 App 统一 clear()
-    if (key.escape) return;
+    if (key.escape) {
+      pop();
+      return;
+    }
     if (key.upArrow) {
       setSelectedIndex((i) => Math.max(0, i - 1));
       return;

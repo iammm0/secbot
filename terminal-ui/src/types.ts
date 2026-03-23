@@ -16,6 +16,22 @@ export interface ChatRequest {
   model?: string | null;
 }
 
+export type TimelineItemType = "thought" | "action" | "observation" | "final";
+
+/** 按事件发生顺序记录的时间线项，用于 TUI 顺序渲染 */
+export interface StreamTimelineItem {
+  id: string;
+  type: TimelineItemType;
+  title: string;
+  body: string;
+  iteration?: number;
+  tool?: string;
+  success?: boolean;
+  error?: string;
+  result?: unknown;
+  status?: "running" | "done";
+}
+
 /** 流式状态：用于 UI 展示 */
 export interface StreamState {
   phase: string;
@@ -32,11 +48,13 @@ export interface StreamState {
     result?: unknown;
     error?: string;
     success?: boolean;
+    viewType?: "raw" | "summary";
   }>;
   content: string;
   report: string;
   error: string | null;
   response: string | null;
+  timeline: StreamTimelineItem[];
 }
 
 /** 规划待办项（供 TodoList 渲染） */
@@ -98,10 +116,8 @@ export interface ContentBlock {
   id: string;
   type: BlockRenderType;
   title?: string;
-  /** Markdown 正文，由 MD 渲染组件渲染；折叠时为占位文案 */
+  /** Markdown 正文，由 MD 渲染组件渲染 */
   body: string;
-  /** 折叠时的完整正文，展开后由 body 展示 */
-  fullBody?: string;
   /** 规划块专用：待办列表，有则用 TodoList 渲染 */
   todos?: TodoItemData[];
   /** 执行块专用：工具列表，有则用 ActionItem 渲染 */

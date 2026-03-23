@@ -1,9 +1,9 @@
 /**
- * 回复块 — 最终回复/总结（Layer 6，最醒目）
+ * 回复块 — 最终回复/总结（与“观察”同色）
  *
  * 重构说明：
- *  - 标题行：`╔ 回复`（success/greenBright，bold）
- *  - 正文：每行前缀 `║ `（success 色）+ 内容（theme.text）
+ *  - 标题行：`┌ 回复`（border/gray）
+ *  - 正文：每行前缀 `│ `（border/gray）+ 内容（theme.text）
  *  - isPlaceholder 时退化为普通 dim 样式（无边框装饰）
  *  - 新增 completedAt / durationMs：
  *      当 completedAt 有效（> 0）时，在正文末尾渲染一行完成时间脚注：
@@ -100,16 +100,16 @@ export function ResponseBlock({
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
-      {/* ── 标题行：╔ 回复 ── */}
-      <Text color={theme.success} bold>
-        {"╔ "}
+      {/* ── 标题行：┌ 回复（与观察同色） ── */}
+      <Text color={theme.border}>
+        {"┌ "}
         {title}
       </Text>
 
-      {/* ── 正文：每行 ║ 前缀 ── */}
+      {/* ── 正文：每行 │ 前缀（与观察同色） ── */}
       {lines.map((line, i) => (
         <Box key={i} flexDirection="row">
-          <Text color={theme.success}>{"║ "}</Text>
+          <Text color={theme.border}>{"│ "}</Text>
           <Text color={theme.text}>{line || " "}</Text>
         </Box>
       ))}
@@ -117,7 +117,7 @@ export function ResponseBlock({
       {/* ── 完成时间脚注（仅 completedAt 有效时渲染） ── */}
       {footerTimeStr ? (
         <Box flexDirection="row" paddingLeft={2} marginTop={0}>
-          {/* ✓ 完成 */}
+          {/* ✓ 完成（状态仍保持成功色） */}
           <Text color={theme.success} bold>
             {"✓ 完成"}
           </Text>

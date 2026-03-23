@@ -77,8 +77,6 @@ interface MainContentProps {
   onLinesChange: (totalLines: number) => void;
   /** 是否显示右侧滚动条 */
   showScrollbar?: boolean;
-  /** 已展开的块 id（工具/API 结果等默认折叠，展开后加入此集合） */
-  expandedBlockIds?: Set<string>;
 
   // ── 当前轮次信息（来自 useChat / SyncContext） ────────────────────────────────
   /** 当前正在进行（或刚完成）的轮次：用户消息文本，空字符串表示尚无当前轮次 */
@@ -101,7 +99,6 @@ export function MainContent({
   setScrollOffset,
   onLinesChange,
   showScrollbar = true,
-  expandedBlockIds = new Set(),
   currentUserMessage = "",
   currentSentAt = 0,
   currentCompletedAt = 0,
@@ -159,7 +156,6 @@ export function MainContent({
         false,
         null,
         dismissedTransientTools,
-        expandedBlockIds,
         item.sentAt > 0 ? item.sentAt : undefined,
         item.completedAt > 0 ? item.completedAt : undefined,
       ).map((b) => ({
@@ -198,7 +194,6 @@ export function MainContent({
       streaming,
       apiOutput,
       dismissedTransientTools,
-      expandedBlockIds,
       currentSentAt > 0 ? currentSentAt : undefined,
       currentCompletedAt > 0 ? currentCompletedAt : undefined,
     ).map((b) => ({
@@ -216,7 +211,6 @@ export function MainContent({
     streaming,
     apiOutput,
     dismissedTransientTools,
-    expandedBlockIds,
     currentUserMessage,
     currentSentAt,
     currentCompletedAt,

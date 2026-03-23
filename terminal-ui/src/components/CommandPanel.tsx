@@ -30,8 +30,10 @@ export function CommandPanel() {
   const safeIndex = Math.min(selectedIndex, Math.max(0, filtered.length - 1));
 
   useInput((input, key) => {
-    // Esc 不在此 close()，由 App 统一 clear()，避免竞态
-    if (key.escape) return;
+    if (key.escape) {
+      close();
+      return;
+    }
     if (key.upArrow) {
       setSelectedIndex((i) => Math.max(0, i - 1));
       return;
