@@ -143,9 +143,9 @@ export function SessionView({
 
   const contentHeight = useMemo(() => {
     // 固定区：分隔线/加载状态条(执行中)/输入行/状态栏/统计栏，再按斜杠建议条目动态预留高度，避免内容区和交互区重叠。
-    const baseReserved = streaming ? 10 : 9;
+    const baseReserved = streaming ? 11 : 10;
     const slashReserved = inputValue.startsWith("/")
-      ? Math.min(12, slashSuggestions.length) + 1
+      ? Math.min(12, slashSuggestions.length) + 2
       : 0;
     return Math.max(6, rows - baseReserved - slashReserved);
   }, [rows, streaming, inputValue, slashSuggestions.length]);

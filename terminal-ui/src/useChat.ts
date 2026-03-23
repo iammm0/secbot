@@ -98,6 +98,8 @@ export function useChat() {
   const completedAtRef = useRef<number>(0);
   /** Typewriter 定时器，新消息到来时需要清理上一个 */
   const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const thoughtSeqRef = useRef<number>(0);
+  const activeThoughtIdByIterationRef = useRef<Map<number, string>>(new Map());
 
   useEffect(() => {
     streamStateRef.current = streamState;
@@ -210,6 +212,8 @@ export function useChat() {
       currentUserMessageRef.current = message;
       currentSentAtRef.current = now;
       completedAtRef.current = 0;
+      thoughtSeqRef.current = 0;
+      activeThoughtIdByIterationRef.current = new Map();
 
       setCurrentUserMessage(message);
       setCurrentSentAt(now);
@@ -224,7 +228,11 @@ export function useChat() {
         { message, mode, agent } as Record<string, unknown>,
         {
           onEvent(ev: SSEEvent) {
-            const { event, data } = ev;
+            let { event, data } = ev;
+            // 兼容旧/异构后端命名，统一映射到 thought 事件链路。
+            if (event === "reasoning_start") event = "thought_start";
+            else if (event === "reasoning_chunk") event = "thought_chunk";
+            else if (event === "reasoning") event = "thought";
             switch (event) {
               case "connected":
                 break;
@@ -245,30 +253,39 @@ export function useChat() {
 
               case "thought_start":
                 setStreamState((s) => ({
-                  ...s,
-                  thought: {
-                    iteration: (data.iteration as number) ?? 1,
-                    content: "",
-                  },
-                  thoughtChunks: new Map(s.thoughtChunks),
-                  timeline: upsertTimelineItem(
-                    s.timeline,
-                    `thought-${(data.iteration as number) ?? 1}`,
-                    (prev) => ({
-                      id: `thought-${(data.iteration as number) ?? 1}`,
-                      type: "thought",
-                      title: `推理 #${(data.iteration as number) ?? 1}`,
-                      body: prev?.body ?? "",
-                      iteration: (data.iteration as number) ?? 1,
-                      status: "running",
-                    }),
-                  ),
+                  ...(function () {
+                    const it = (data.iteration as number) ?? 1;
+                    thoughtSeqRef.current += 1;
+                    const thoughtId = `thought-${it}-${thoughtSeqRef.current}`;
+                    activeThoughtIdByIterationRef.current.set(it, thoughtId);
+                    const nextThoughtChunks = new Map(s.thoughtChunks);
+                    // 新一轮相同 iteration 的推理开始时，重置该 iteration 的分片缓存，避免串台
+                    nextThoughtChunks.set(it, "");
+                    return {
+                      ...s,
+                      thought: {
+                        iteration: it,
+                        content: "",
+                      },
+                      thoughtChunks: nextThoughtChunks,
+                      timeline: [...s.timeline, {
+                        id: thoughtId,
+                        type: "thought",
+                        title: "推理",
+                        body: "",
+                        iteration: it,
+                        status: "running",
+                      }],
+                    };
+                  })(),
                 }));
                 break;
 
               case "thought_chunk": {
                 const it = (data.iteration as number) ?? 1;
                 const chunk = (data.chunk as string) ?? "";
+                const thoughtId =
+                  activeThoughtIdByIterationRef.current.get(it) ?? `thought-${it}`;
                 setStreamState((s) => {
                   const next = new Map(s.thoughtChunks);
                   next.set(it, (next.get(it) ?? "") + chunk);
@@ -278,11 +295,11 @@ export function useChat() {
                     thoughtChunks: next,
                     timeline: upsertTimelineItem(
                       s.timeline,
-                      `thought-${it}`,
+                      thoughtId,
                       (prev) => ({
-                        id: `thought-${it}`,
+                        id: thoughtId,
                         type: "thought",
-                        title: `推理 #${it}`,
+                        title: "推理",
                         body: thoughtBody,
                         iteration: it,
                         status: prev?.status ?? "running",
@@ -295,7 +312,9 @@ export function useChat() {
 
               case "thought": {
                 const tIt = (data.iteration as number) ?? 1;
-                const tId = `thought-${tIt}`;
+                const tId =
+                  activeThoughtIdByIterationRef.current.get(tIt) ??
+                  `thought-${tIt}`;
                 setStreamState((s) => {
                   const existing = s.timeline.find((t) => t.id === tId);
                   if (existing?.status === "done") return s;
@@ -311,7 +330,7 @@ export function useChat() {
                       (prev) => ({
                         id: tId,
                         type: "thought",
-                        title: `推理 #${tIt}`,
+                        title: "推理",
                         body:
                           (data.content as string) ??
                           prev?.body ??
@@ -323,6 +342,7 @@ export function useChat() {
                     ),
                   };
                 });
+                activeThoughtIdByIterationRef.current.delete(tIt);
                 break;
               }
 
