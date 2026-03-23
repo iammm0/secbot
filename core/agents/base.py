@@ -29,8 +29,8 @@ class BaseAgent(ABC):
             self.messages.append(
                 AgentMessage(role="system", content=self.system_prompt)
             )
-        
-        logger.info(f"初始化智能体: {self.name}")
+        self.log = logger.bind(agent=self.name, attempt=1)
+        self.log.bind(event="stage_start").info(f"初始化智能体: {self.name}")
     
     def _default_system_prompt(self) -> str:
         """默认系统提示词"""
@@ -106,7 +106,7 @@ class BaseAgent(ABC):
         if hasattr(self.memory, "clear_all") and callable(self.memory.clear_all):
             # MemoryManager.clear_all 为 async，此处仅清空对话列表；持久记忆由调用方按需清空
             pass
-        logger.info(f"智能体 {self.name} 的记忆已清空")
+        self.log.bind(event="stage_end").info(f"智能体 {self.name} 的记忆已清空")
     
     def update_system_prompt(self, new_prompt: str):
         """更新系统提示词"""
@@ -120,5 +120,5 @@ class BaseAgent(ABC):
             # 如果没有system消息，添加一个
             self.messages.insert(0, AgentMessage(role="system", content=new_prompt))
         
-        logger.info(f"智能体 {self.name} 的系统提示词已更新")
+        self.log.bind(event="stage_end").info(f"智能体 {self.name} 的系统提示词已更新")
 

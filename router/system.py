@@ -23,7 +23,10 @@ from router.schemas import (
     CpuInfo,
     MemoryInfo,
     DiskInfo,
+    LogLevelResponse,
+    SetLogLevelRequest,
 )
+from utils.logger import set_log_level, get_runtime_log_level, logger
 
 router = APIRouter(prefix="/api/system", tags=["System"])
 _ollama_pulling: set = set()  # 正在后台拉取的 Ollama 模型名，避免重复触发
@@ -337,3 +340,30 @@ async def system_status():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取系统状态失败: {e}")
+
+
+@router.get("/log-level", response_model=LogLevelResponse, summary="获取日志级别")
+async def get_log_level_config():
+    try:
+        return LogLevelResponse(level=get_runtime_log_level())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取日志级别失败: {e}")
+
+
+@router.post("/log-level", response_model=SetApiKeyResponse, summary="设置日志级别")
+async def set_log_level_config(body: SetLogLevelRequest):
+    try:
+        from hackbot_config import save_log_level
+
+        target = (body.level or "").strip().upper()
+        if target not in {"DEBUG", "INFO"}:
+            return SetApiKeyResponse(success=False, message="仅支持 DEBUG 或 INFO")
+
+        if not save_log_level(target):
+            return SetApiKeyResponse(success=False, message="持久化日志级别失败")
+
+        applied = set_log_level(target, console_verbose=True)
+        logger.bind(event="log_level").info(f"日志级别已切换为 {applied}")
+        return SetApiKeyResponse(success=True, message=f"日志级别已切换为 {applied}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"设置日志级别失败: {e}")

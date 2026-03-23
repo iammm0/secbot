@@ -7,6 +7,7 @@ TaskExecutor：分层任务执行器
 """
 
 import asyncio
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 from core.models import PlanResult, TodoItem
@@ -87,13 +88,27 @@ class TaskExecutor:
                         result_summary=result.get("obs"),
                     )
             else:
-                # 并行层：并发执行，收集结果后按 plan 顺序发送事件（保证线性渲染）
+                # 并行层：并发执行，每个任务独立采集事件，完成后按 plan 顺序回放
+                # 这样既保留并行执行效率，又保证 TUI 从上到下线性渲染每一步完整链路。
                 tasks = []
+                event_buffers: Dict[str, List[tuple[str, dict]]] = {}
                 for i, todo in enumerate(todos_in_layer):
                     it = iteration + i + 1
+                    buf: List[tuple[str, dict]] = []
+                    event_buffers[todo.id] = buf
+
+                    def _make_capture(target: List[tuple[str, dict]]):
+                        def _capture(event_type: str, data: dict):
+                            target.append((event_type, dict(data or {})))
+                        return _capture
+
                     tasks.append(
                         self._execute_single_todo(
-                            todo, user_input, it, None, emit_events=False
+                            todo,
+                            user_input,
+                            it,
+                            _make_capture(buf),
+                            emit_events=True,
                         )
                     )
                 results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -112,31 +127,37 @@ class TaskExecutor:
                         self._layer_results[todo.id] = res
                         if res.get("obs"):
                             response_parts.append(res["obs"])
-                # 按 plan 顺序向队列推送事件，保证从上至下线性渲染
+                # 按 plan 顺序回放事件，保证从上至下线性渲染
                 for i, todo in enumerate(todos_in_layer):
                     res = self._layer_results.get(todo.id, {})
                     it = iteration + i + 1
                     if on_event:
-                        on_event(
-                            "action_start",
-                            {
-                                "iteration": it,
-                                "tool": res.get("tool", ""),
-                                "params": res.get("params", {}),
-                            },
-                        )
-                        on_event(
-                            "action_result",
-                            {
-                                "iteration": it,
-                                "tool": res.get("tool", ""),
-                                "success": res.get("success", False),
-                                "result": res.get("result") if res.get("success") else None,
-                                "error": res.get("error", res.get("obs", ""))
-                                if not res.get("success")
-                                else "",
-                            },
-                        )
+                        replayed = False
+                        for ev_type, ev_data in event_buffers.get(todo.id, []):
+                            on_event(ev_type, ev_data)
+                            replayed = True
+                        # 极端兜底：如果任务未产生日志事件，至少补 action 起止
+                        if not replayed:
+                            on_event(
+                                "action_start",
+                                {
+                                    "iteration": it,
+                                    "tool": res.get("tool", ""),
+                                    "params": res.get("params", {}),
+                                },
+                            )
+                            on_event(
+                                "action_result",
+                                {
+                                    "iteration": it,
+                                    "tool": res.get("tool", ""),
+                                    "success": res.get("success", False),
+                                    "result": res.get("result") if res.get("success") else None,
+                                    "error": res.get("error", res.get("obs", ""))
+                                    if not res.get("success")
+                                    else "",
+                                },
+                            )
                     # 未指定工具的步骤：由执行器标记为已完成并通知 UI
                     if res.get("success") and not (getattr(todo, "tool_hint", None) or "").strip():
                         self.planner.update_todo(todo.id, "completed", res.get("obs"))
@@ -159,7 +180,16 @@ class TaskExecutor:
         emit_events: bool = True,
     ) -> Dict[str, Any]:
         """执行单个 todo，返回 {success, obs, result, tool, params}"""
+        started = time.perf_counter()
+        base_logger = logger.bind(
+            todo_id=getattr(todo, "id", "-"),
+            agent=getattr(self.agent, "agent_type", getattr(self.agent, "name", "-")),
+            event="todo_start",
+            tool=getattr(todo, "tool_hint", "-") or "-",
+            attempt=1,
+        )
         if not hasattr(self.agent, "execute_todo"):
+            base_logger.error("agent 不支持 execute_todo 接口")
             return {
                 "success": False,
                 "obs": "Agent 不支持 execute_todo 接口",
@@ -184,13 +214,23 @@ class TaskExecutor:
         if by_resource:
             context["_by_resource_"] = by_resource
 
-        result = await self.agent.execute_todo(
-            todo=todo,
-            user_input=user_input,
-            context=context,
-            on_event=on_event,
-            iteration=iteration,
-            get_root_password=self.get_root_password,
-            emit_events=emit_events,
-        )
-        return result
+        try:
+            result = await self.agent.execute_todo(
+                todo=todo,
+                user_input=user_input,
+                context=context,
+                on_event=on_event,
+                iteration=iteration,
+                get_root_password=self.get_root_password,
+                emit_events=emit_events,
+            )
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            if result.get("success"):
+                base_logger.bind(event="todo_end", duration_ms=duration_ms).info("todo 执行完成")
+            else:
+                base_logger.bind(event="todo_error", duration_ms=duration_ms).error(f"todo 执行失败: {result.get('error') or result.get('obs')}")
+            return result
+        except Exception:
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            base_logger.bind(event="todo_error", duration_ms=duration_ms).exception("todo 执行异常")
+            raise

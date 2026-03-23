@@ -92,7 +92,7 @@ class ToolCallingAgent(BaseAgent):
             provider=self._provider_override or settings.llm_provider,
             model=self._model_override,
         )
-        logger.info(
+        logger.bind(agent=self.name, event="stage_start", attempt=1).info(
             f"推理后端: {self._provider_override or settings.llm_provider}, 模型: {self.model}"
         )
 
@@ -112,16 +112,16 @@ class ToolCallingAgent(BaseAgent):
             if not supports_tools:
                 self.llm_with_tools = self.llm
                 self.use_bind_tools = False
-                logger.info("LLM_TOOLS_SUPPORTED=false，使用纯对话模式（不绑定工具）")
+                logger.bind(agent=self.name, event="stage_start", attempt=1).info("LLM_TOOLS_SUPPORTED=false，使用纯对话模式（不绑定工具）")
             else:
                 try:
                     self.llm_with_tools = self.llm.bind_tools(langchain_tools)
                     self.use_bind_tools = True
-                    logger.info("使用 bind_tools 进行工具绑定")
+                    logger.bind(agent=self.name, event="stage_start", attempt=1).info("使用 bind_tools 进行工具绑定")
                 except (NotImplementedError, AttributeError) as e:
                     self.llm_with_tools = self.llm
                     self.use_bind_tools = False
-                    logger.warning(
+                    logger.bind(agent=self.name, event="agent_error", attempt=1).warning(
                         f"当前模型不支持 bind_tools ({e})，将使用提示词方式处理工具调用"
                     )
 
@@ -137,7 +137,7 @@ class ToolCallingAgent(BaseAgent):
             self.llm_with_tools = self.llm
             self.tools_dict = {}
             self.use_bind_tools = False
-            logger.warning("没有提供工具，工具调用智能体将无法使用工具调用功能")
+            logger.bind(agent=self.name, event="agent_error", attempt=1).warning("没有提供工具，工具调用智能体将无法使用工具调用功能")
 
     def _sync_base_url_and_model(self) -> None:
         """根据当前 provider/model 覆盖更新 base_url 和 model（用于显示）。"""
@@ -180,7 +180,7 @@ class ToolCallingAgent(BaseAgent):
                     self.use_bind_tools = False
         else:
             self.llm_with_tools = self.llm
-        logger.info(f"已切换推理模型: {p} / {self.model}")
+        logger.bind(agent=self.name, event="stage_end", attempt=1).info(f"已切换推理模型: {p} / {self.model}")
 
     def switch_model(
         self, provider: Optional[str] = None, model: Optional[str] = None
@@ -417,18 +417,18 @@ class ToolCallingAgent(BaseAgent):
                                         final_kwargs["command"] = tool_args["args"][0]
                                     tool_args = final_kwargs
 
-                                logger.info(f"执行工具: {tool_name}, 参数: {tool_args}")
+                                logger.bind(agent=self.name, event="tool_call_start", tool=tool_name, attempt=1).info(f"执行工具: {tool_name}, 参数: {tool_args}")
                                 result = await tool._arun(**tool_args)
                                 tool_results.append(
                                     f"工具 {tool_name} 执行结果: {result}"
                                 )
                             except Exception as e:
-                                logger.error(f"工具 {tool_name} 执行失败: {e}")
+                                logger.bind(agent=self.name, event="tool_error", tool=tool_name, attempt=1).error(f"工具 {tool_name} 执行失败: {e}")
                                 tool_results.append(
                                     f"工具 {tool_name} 执行失败: {str(e)}"
                                 )
                         else:
-                            logger.warning(
+                            logger.bind(agent=self.name, event="agent_error", attempt=1).warning(
                                 f"未找到工具: {tool_name}, 可用工具: {list(self.tools_dict.keys())}"
                             )
                             tool_results.append(f"错误: 未找到工具 '{tool_name}'")
@@ -470,14 +470,14 @@ class ToolCallingAgent(BaseAgent):
             if not assistant_response or (
                 isinstance(assistant_response, str) and not assistant_response.strip()
             ):
-                logger.warning(
+                logger.bind(agent=self.name, event="agent_error", attempt=1).warning(
                     f"LLM 返回空响应。响应对象: {response}, 类型: {type(response)}"
                 )
                 # 尝试从响应对象中提取更多信息
                 if hasattr(response, "__dict__"):
-                    logger.warning(f"响应对象属性: {response.__dict__}")
+                    logger.bind(agent=self.name, event="agent_error", attempt=1).warning(f"响应对象属性: {response.__dict__}")
                 if hasattr(response, "response_metadata"):
-                    logger.warning(f"响应元数据: {response.response_metadata}")
+                    logger.bind(agent=self.name, event="agent_error", attempt=1).warning(f"响应元数据: {response.response_metadata}")
                 # 返回友好的错误消息
                 provider = (settings.llm_provider or "ollama").strip().lower()
                 hint = (
@@ -494,11 +494,11 @@ class ToolCallingAgent(BaseAgent):
             if hasattr(self, "db_memory") and self.db_memory:
                 await self.db_memory.save_conversation(user_input, assistant_response)
 
-            logger.info(f"智能体 {self.name} 处理完成")
+            logger.bind(agent=self.name, event="stage_end", attempt=1).info(f"智能体 {self.name} 处理完成")
             return assistant_response
 
         except Exception as e:
-            logger.error(f"工具调用智能体处理错误: {e}")
+            logger.bind(agent=self.name, event="agent_error", attempt=1).error(f"工具调用智能体处理错误: {e}")
             import traceback
 
             traceback.print_exc()

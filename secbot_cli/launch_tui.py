@@ -24,6 +24,12 @@ def _backend_cwd() -> Path:
     return Path.cwd()
 
 
+def _runtime_log_paths(root: Path) -> tuple[Path, Path]:
+    logs_dir = root / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    return logs_dir / "backend-runtime.log", logs_dir / "tui-runtime.log"
+
+
 def _check_tui_readiness(root: Path) -> tuple[bool, list[str]]:
     """检查 TUI 启动条件是否就绪。返回 (是否就绪, 缺失项列表)。"""
     missing: list[str] = []
@@ -140,27 +146,52 @@ def _wait_port_free(port: int, timeout: float = 10.0) -> bool:
     return False
 
 
-def _start_backend(root: Path, port: int = 8000) -> subprocess.Popen | None:
+def _start_backend(root: Path, port: int = 8000, runtime_log: Path | None = None) -> subprocess.Popen | None:
     """后台启动 Python 后端（优先 uv run python -m router.main）。root 为工作目录。返回 Popen 或 None。"""
     env = os.environ.copy()
     env["PYTHONDONTWRITEBYTECODE"] = "1"  # 确保后端加载最新 .py 源码
+    # 从 TUI 启动后端时禁用 reload，避免 Windows 下文件句柄过多
+    env.setdefault("SECBOT_DESKTOP", "1")
+    env.setdefault("SECBOT_SERVER_RELOAD", "false")
+    stdout_target = subprocess.DEVNULL
+    stderr_target = subprocess.DEVNULL
+    log_fp = None
+    if runtime_log is not None:
+        runtime_log.parent.mkdir(parents=True, exist_ok=True)
+        log_fp = open(runtime_log, "a", encoding="utf-8", buffering=1)
+        stdout_target = log_fp
+        stderr_target = log_fp
     for cmd in (
-        ["uv", "run", "python", "-m", "router.main"],
-        [sys.executable, "-m", "router.main"],
+        ["uv", "run", "python", "-B", "-m", "router.main"],
+        [sys.executable, "-B", "-m", "router.main"],
     ):
         try:
             proc = subprocess.Popen(
                 cmd,
                 cwd=root,
                 env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=stdout_target,
+                stderr=stderr_target,
                 stdin=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
             )
+            if log_fp is not None:
+                proc._secbot_log_fp = log_fp  # type: ignore[attr-defined]
             return proc
         except FileNotFoundError:
             continue
+        except Exception:
+            if log_fp is not None:
+                try:
+                    log_fp.close()
+                except Exception:
+                    pass
+            raise
+    if log_fp is not None:
+        try:
+            log_fp.close()
+        except Exception:
+            pass
     return None
 
 
@@ -208,9 +239,15 @@ def _terminate_backend_proc(proc: subprocess.Popen | None, port: int = 8000, wai
     deadline = time.monotonic() + wait_timeout
     while time.monotonic() < deadline and _pids_listening_on_port(port):
         time.sleep(0.2)
+    log_fp = getattr(proc, "_secbot_log_fp", None)
+    if log_fp:
+        try:
+            log_fp.close()
+        except Exception:
+            pass
 
 
-def _run_tui(root: Path) -> int:
+def _run_tui(root: Path, runtime_log: Path | None = None) -> int:
     """运行 TS TUI。Windows 下在新控制台窗口运行；非 Windows 用 npm run tui。"""
     tui_dir = root / "terminal-ui"
     env = os.environ.copy()
@@ -218,17 +255,29 @@ def _run_tui(root: Path) -> int:
     try:
         if sys.platform == "win32":
             proc = subprocess.Popen(
-                ["cmd", "/k", "node --import tsx src/cli.tsx"],
+                ["cmd", "/k", "chcp 65001 >nul && node --import tsx src/cli.tsx"],
                 cwd=tui_dir,
                 env=env,
                 creationflags=subprocess.CREATE_NEW_CONSOLE,
             )
             return proc.wait() or 0
+        stdout_target = None
+        stderr_target = None
+        log_fp = None
+        if runtime_log is not None:
+            runtime_log.parent.mkdir(parents=True, exist_ok=True)
+            log_fp = open(runtime_log, "a", encoding="utf-8", buffering=1)
+            stdout_target = log_fp
+            stderr_target = log_fp
         proc = subprocess.run(
             ["npm", "run", "tui"],
             cwd=tui_dir,
             env=env,
+            stdout=stdout_target,
+            stderr=stderr_target,
         )
+        if log_fp is not None:
+            log_fp.close()
         return proc.returncode or 0
     except FileNotFoundError as e:
         print(f"未找到 node/npm。请安装 Node.js 18+ 并在 terminal-ui 目录执行: npm install\n{e}", file=sys.stderr)
@@ -236,6 +285,33 @@ def _run_tui(root: Path) -> int:
     except Exception as e:
         print(f"启动 TUI 失败: {e}", file=sys.stderr)
         return 1
+
+
+def _start_log_viewer(root: Path, backend_log: Path, tui_log: Path) -> subprocess.Popen | None:
+    """启动日志观察终端，聚合后端与 TUI 日志。"""
+    try:
+        cmd_list = [
+            sys.executable,
+            "-m",
+            "secbot_cli.log_viewer",
+            "--file",
+            str(backend_log),
+            "--file",
+            str(tui_log),
+        ]
+        if sys.platform == "win32":
+            env = os.environ.copy()
+            env.setdefault("PYTHONUTF8", "1")
+            env.setdefault("PYTHONIOENCODING", "utf-8")
+            return subprocess.Popen(
+                cmd_list,
+                cwd=root,
+                env=env,
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+        return subprocess.Popen(cmd_list, cwd=root)
+    except Exception:
+        return None
 
 
 def run_backend_only(port: int = 8000) -> int:
@@ -292,6 +368,7 @@ def launch_tui(port: int = 8000) -> int:
     """先启动后端（若未运行），再启动 TUI。无 TUI（如 pip 安装）时仅启动后端并提示。"""
     root = _project_root()
     backend_cwd = root if root is not None else _backend_cwd()
+    backend_log, tui_log = _runtime_log_paths(backend_cwd)
     backend_proc = None
 
     if _backend_running(port):
@@ -300,7 +377,7 @@ def launch_tui(port: int = 8000) -> int:
             print("未能释放端口。请手动关闭占用 8000 端口的进程后重试。", file=sys.stderr)
             return 1
     print("[1/2] 启动后端…", flush=True)
-    backend_proc = _start_backend(backend_cwd, port)
+    backend_proc = _start_backend(backend_cwd, port, runtime_log=backend_log)
     if backend_proc is None:
         print("启动后端失败。请手动运行: secbot --backend 或 uv run python main.py --backend", file=sys.stderr)
         return 1
@@ -336,7 +413,8 @@ def launch_tui(port: int = 8000) -> int:
         _terminate_backend_proc(backend_proc, port)
         return 1
 
-    print("[2/2] 启动 TUI…", flush=True)
-    code = _run_tui(root)
+    _start_log_viewer(backend_cwd, backend_log, tui_log)
+    print("[2/2] 启动 TUI（日志窗口已打开）…", flush=True)
+    code = _run_tui(root, runtime_log=tui_log)
     _terminate_backend_proc(backend_proc, port)
     return code

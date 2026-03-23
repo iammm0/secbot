@@ -5,6 +5,7 @@ SessionManager：会话编排管理器
 """
 
 import uuid
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable, Dict, List, Optional, Any
@@ -27,6 +28,7 @@ from core.models import (
 )
 from utils.event_bus import EventBus, EventType, Event
 from utils.logger import logger
+from hackbot_config import settings
 
 
 class SessionManager:
@@ -70,6 +72,9 @@ class SessionManager:
 
         # 当前轮次工具执行结果（含成功/失败），供摘要阶段使用
         self._current_tool_results: List[Dict] = []
+        self._event_timers: Dict[str, float] = {}
+        # 已发射 THINK_END 的迭代号集合，用于去重 thought/thought_end 双发
+        self._thought_done_iterations: set = set()
 
         # 创建默认会话
         self.new_session()
@@ -144,6 +149,7 @@ class SessionManager:
         force_qa: bool = False,
         plan_only: bool = False,
         force_agent_flow: bool = False,
+        request_id: Optional[str] = None,
     ) -> str:
         """
         处理单条消息的完整编排流程（Interaction）：
@@ -204,7 +210,7 @@ class SessionManager:
             self.current_session.add_message(MessageRole.USER, user_input)
 
         self._current_tool_results = []
-
+        self._thought_done_iterations = set()
         # ---- 强制 Q&A 或 路由（含 LLM 分类）-> Q&A / 人格回复 / 技术流 ----
         if force_qa:
             await self.event_bus.emit_simple_async(
@@ -450,8 +456,9 @@ class SessionManager:
             context["tools"] = tool_names
         plan_result = await self.planner.plan(user_input, context=context)
 
-        if plan_result.request_type == RequestType.TECHNICAL and plan_result.todos:
-            # 发射规划事件（标记来源为 planner），含执行本计划需集成的工具说明
+        if plan_result.request_type == RequestType.TECHNICAL:
+            # 发射规划事件（标记来源为 planner）
+            # 即使 todos 为空也发射，确保前端有「规划」块和规划摘要。
             await self.event_bus.emit_simple_async(
                 EventType.PLAN_START,
                 summary=plan_result.plan_summary,
@@ -534,7 +541,7 @@ class SessionManager:
 
             return summary
         except Exception as e:
-            logger.error(f"摘要阶段错误: {e}")
+            logger.bind(event="summary").exception("摘要阶段错误")
             return None
 
     # ------------------------------------------------------------------
@@ -552,10 +559,21 @@ class SessionManager:
         同时自动根据工具名更新 todo 状态。
         """
         iteration = data.get("iteration", 0)
-
         agent = data.get("agent")
+        session_id = self.current_session.id if self.current_session else "-"
+        event_logger = logger.bind(
+            session_id=session_id,
+            agent=agent or "-",
+            event=event_type,
+            tool=data.get("tool", "-"),
+            todo_id=data.get("todo_id", "-"),
+            attempt=data.get("attempt", 1),
+        )
+
+        timer_key = f"{session_id}:{agent}:{iteration}:{data.get('tool', '')}"
 
         if event_type == "planning":
+            event_logger.info("agent planning event")
             self.event_bus.emit_simple(
                 EventType.CONTENT,
                 content=data.get("content", ""),
@@ -565,6 +583,8 @@ class SessionManager:
             )
 
         elif event_type == "thought_start":
+            self._event_timers[f"thought:{timer_key}"] = time.perf_counter()
+            event_logger.info("thought started")
             self.event_bus.emit_simple(
                 EventType.TASK_PHASE,
                 phase="thinking",
@@ -578,6 +598,9 @@ class SessionManager:
             )
 
         elif event_type == "thought_chunk":
+            every_n = max(int(getattr(settings, "thought_chunk_log_every_n", 10)), 0)
+            if every_n > 0 and iteration % every_n == 0:
+                    event_logger.info("thought chunk sampled")
             self.event_bus.emit_simple(
                 EventType.THINK_CHUNK,
                 iteration=iteration,
@@ -586,19 +609,33 @@ class SessionManager:
             )
 
         elif event_type == "thought_end":
-            pass  # thought 事件会发送完整内容
-
-        elif event_type == "thought":
+            started = self._event_timers.pop(f"thought:{timer_key}", None)
+            if started is not None:
+                event_logger.bind(duration_ms=int((time.perf_counter() - started) * 1000)).info("thought finished")
+            else:
+                event_logger.info("thought finished")
             self.event_bus.emit_simple(
                 EventType.THINK_END,
                 iteration=iteration,
-                thought=data.get("content", ""),
+                thought=data.get("thought", ""),
                 agent=agent,
             )
+            self._thought_done_iterations.add(iteration)
+
+        elif event_type == "thought":
+            if iteration not in self._thought_done_iterations:
+                self.event_bus.emit_simple(
+                    EventType.THINK_END,
+                    iteration=iteration,
+                    thought=data.get("content", ""),
+                    agent=agent,
+                )
 
         elif event_type == "action_start":
             tool = data.get("tool", "")
             params = data.get("params", {})
+            self._event_timers[f"action:{timer_key}"] = time.perf_counter()
+            event_logger.bind(tool=tool or "-").info(f"action started: {tool}")
 
             # 发射执行阶段，供 UI 状态指示器显示
             tool_label = self._tool_to_phase_label(tool)
@@ -632,6 +669,14 @@ class SessionManager:
             tool = data.get("tool", "")
             success = data.get("success", False)
 
+            started = self._event_timers.pop(f"action:{timer_key}", None)
+            duration_ms = int((time.perf_counter() - started) * 1000) if started is not None else "-"
+            result_logger = event_logger.bind(duration_ms=duration_ms, tool=tool or "-")
+            if success:
+                result_logger.info("action finished")
+            else:
+                result_logger.error(f"action failed: {data.get('error', '')}")
+
             # 记录本轮工具执行结果（含失败），供摘要 Agent 输出
             self._current_tool_results.append(
                 {
@@ -655,6 +700,7 @@ class SessionManager:
                         "success": success,
                         "result": data.get("result", "") if success else None,
                         "error": data.get("error", "") if not success else None,
+                        "view_type": data.get("view_type", "raw"),
                         "agent": agent,
                     },
                     iteration=iteration,
@@ -667,6 +713,9 @@ class SessionManager:
                 content=data.get("content", ""),
                 type="text",
                 title="[bold blue]观察[/bold blue]",
+                view_type=data.get("view_type", "raw"),
+                tool=data.get("tool", ""),
+                iteration=iteration,
                 agent=agent,
             )
 
@@ -675,6 +724,9 @@ class SessionManager:
                 EventType.CONTENT,
                 content=data.get("content", ""),
                 type="text",
+                view_type=data.get("view_type", "summary"),
+                tool=data.get("tool", ""),
+                iteration=iteration,
                 agent=agent,
             )
 
@@ -682,10 +734,12 @@ class SessionManager:
             self.event_bus.emit_simple(
                 EventType.REPORT_END,
                 report=data.get("content", ""),
+                view_type=data.get("view_type", "summary"),
                 agent=agent,
             )
 
         elif event_type == "error":
+            event_logger.error(data.get("error", "unknown error"))
             self.event_bus.emit_simple(
                 EventType.ERROR,
                 error=data.get("error", ""),

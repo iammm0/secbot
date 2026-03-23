@@ -79,7 +79,7 @@ class PlannerAgent(BaseAgent):
         self._current_plan: Optional[PlanResult] = None
         # 单个任务层内允许的最大并行 Todo 数量（逻辑上限，真正并行度还受执行器限制）
         self.max_parallel_per_layer: int = 3
-        logger.info("初始化 PlannerAgent v2")
+        logger.bind(agent=self.name, event="stage_start", attempt=1).info("初始化 PlannerAgent v2")
 
     # ------------------------------------------------------------------
     # 新接口：plan（返回结构化 PlanResult）
@@ -433,8 +433,8 @@ class PlannerAgent(BaseAgent):
                     if not out.startswith("[LLM 回退失败:"):
                         return out
                 except Exception as fb:
-                    logger.warning("PlannerAgent HTTP 回退失败: %s", fb)
-            logger.warning(f"PlannerAgent _reply_via_llm 错误: {e}")
+                    logger.bind(agent=self.name, event="llm_error", attempt=1).warning(f"PlannerAgent HTTP 回退失败: {fb}")
+            logger.bind(agent=self.name, event="llm_error", attempt=1).warning(f"PlannerAgent _reply_via_llm 错误: {e}")
             return "你好！有什么可以帮你的吗？"
 
     def _get_llm(self):
@@ -514,7 +514,7 @@ class PlannerAgent(BaseAgent):
 
             provider = (settings.llm_provider or "deepseek").strip().lower()
             hint = get_llm_connection_hint(e, provider=provider)
-            logger.error(f"规划 LLM 调用失败: {e}")
+            logger.bind(agent=self.name, event="llm_error", attempt=1).error(f"规划 LLM 调用失败: {e}")
             plan = self._fallback_plan(user_input)
             plan.plan_summary += f"\n[!] {hint}"
             return plan
