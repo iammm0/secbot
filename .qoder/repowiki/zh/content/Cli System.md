@@ -2,9 +2,9 @@
 
 <cite>
 **本文档引用的文件**
-- [hackbot/cli.py](file://hackbot/cli.py)
+- [secbot_cli/cli.py](file://secbot_cli/cli.py)
 - [main.py](file://main.py)
-- [hackbot/launch_tui.py](file://hackbot/launch_tui.py)
+- [secbot_cli/launch_tui.py](file://secbot_cli/launch_tui.py)
 - [terminal-ui/src/cli.tsx](file://terminal-ui/src/cli.tsx)
 - [terminal-ui/src/config.ts](file://terminal-ui/src/config.ts)
 - [terminal-ui/package.json](file://terminal-ui/package.json)
@@ -12,7 +12,16 @@
 - [scripts/start-cli.ps1](file://scripts/start-cli.ps1)
 - [scripts/start-cli.bat](file://scripts/start-cli.bat)
 - [router/main.py](file://router/main.py)
+- [hackbot_config/__init__.py](file://hackbot_config/__init__.py)
 </cite>
+
+## 更新摘要
+**所做更改**
+- 更新了CLI包重命名：从hackbot包重命名为secbot_cli
+- 添加了多个命令别名支持：secbot、hackbot、secbot-cli
+- 更新了入口点配置和命令行参数处理
+- 修正了错误日志文件命名（从hackbot_error.log改为secbot_error.log）
+- 更新了项目结构图和组件分析
 
 ## 目录
 1. [简介](#简介)
@@ -29,12 +38,15 @@
 
 Secbot CLI 系统是一个集成了 Python 后端和 TypeScript 终端用户界面的完整安全测试自动化平台。该系统提供了多种启动方式，包括一键启动全屏 TUI、单独启动后端或单独启动前端界面。
 
+**更新** 系统现已重命名为 secbot_cli 包，并支持多个命令别名（secbot、hackbot、secbot-cli），提供了更加灵活的用户交互体验。
+
 系统的核心特点包括：
 - 支持多种启动模式：全屏 TUI、后端单独启动、前端单独启动
 - 自动化的后端进程管理和端口冲突处理
 - 跨平台兼容性（Windows、macOS、Linux）
 - 完整的错误处理和日志记录机制
 - 丰富的命令行选项和帮助信息
+- 多命令别名支持，提升用户体验
 
 ## 项目结构
 
@@ -43,9 +55,9 @@ CLI 系统采用模块化架构，主要分为以下几个核心部分：
 ```mermaid
 graph TB
 subgraph "CLI 系统架构"
-A[hackbot/cli.py] --> B[Python 主入口]
+A[secbot_cli/cli.py] --> B[Python 主入口]
 C[main.py] --> D[主应用入口]
-E[hackbot/launch_tui.py] --> F[启动协调器]
+E[secbot_cli/launch_tui.py] --> F[启动协调器]
 subgraph "终端界面"
 G[terminal-ui/src/cli.tsx] --> H[TUI 入口]
 I[terminal-ui/src/config.ts] --> J[配置管理]
@@ -58,29 +70,33 @@ subgraph "启动脚本"
 O[scripts/start-cli.ps1] --> P[PowerShell 启动]
 Q[scripts/start-cli.bat] --> R[BAT 启动]
 end
+subgraph "配置管理"
+S[hackbot_config/__init__.py] --> T[配置存储]
+end
 end
 ```
 
 **图表来源**
-- [hackbot/cli.py:1-100](file://hackbot/cli.py#L1-L100)
+- [secbot_cli/cli.py:1-100](file://secbot_cli/cli.py#L1-L100)
 - [main.py:1-62](file://main.py#L1-L62)
-- [hackbot/launch_tui.py:1-343](file://hackbot/launch_tui.py#L1-L343)
+- [secbot_cli/launch_tui.py:1-343](file://secbot_cli/launch_tui.py#L1-L343)
 
 **章节来源**
-- [hackbot/cli.py:1-100](file://hackbot/cli.py#L1-L100)
+- [secbot_cli/cli.py:1-100](file://secbot_cli/cli.py#L1-L100)
 - [main.py:1-62](file://main.py#L1-L62)
-- [hackbot/launch_tui.py:1-343](file://hackbot/launch_tui.py#L1-L343)
+- [secbot_cli/launch_tui.py:1-343](file://secbot_cli/launch_tui.py#L1-L343)
 
 ## 核心组件
 
 ### CLI 入口组件
 
-CLI 系统提供了两个主要入口点，分别针对不同的使用场景：
+CLI 系统提供了三个主要入口点，分别针对不同的使用场景：
 
 #### Python CLI 入口
-- 文件路径：`hackbot/cli.py`
+- 文件路径：`secbot_cli/cli.py`
 - 功能：提供命令行界面入口，支持多种启动模式
 - 特性：错误处理、日志记录、帮助信息显示
+- **更新**：现在支持 secbot、hackbot、secbot-cli 多个命令别名
 
 #### 主应用入口
 - 文件路径：`main.py`
@@ -88,18 +104,18 @@ CLI 系统提供了两个主要入口点，分别针对不同的使用场景：
 - 特性：环境变量设置、错误处理、进程管理
 
 **章节来源**
-- [hackbot/cli.py:34-100](file://hackbot/cli.py#L34-L100)
+- [secbot_cli/cli.py:34-100](file://secbot_cli/cli.py#L34-L100)
 - [main.py:44-62](file://main.py#L44-L62)
 
 ### 启动协调器
 
 #### 启动协调器组件
-- 文件路径：`hackbot/launch_tui.py`
+- 文件路径：`secbot_cli/launch_tui.py`
 - 功能：协调后端和前端的启动过程
 - 特性：进程管理、端口检测、跨平台支持
 
 **章节来源**
-- [hackbot/launch_tui.py:291-343](file://hackbot/launch_tui.py#L291-L343)
+- [secbot_cli/launch_tui.py:291-343](file://secbot_cli/launch_tui.py#L291-L343)
 
 ### 终端用户界面
 
@@ -128,7 +144,7 @@ participant CLI as CLI 入口
 participant Launcher as 启动协调器
 participant Backend as 后端服务
 participant TUI as 终端界面
-User->>CLI : 执行 secbot 命令
+User->>CLI : 执行 secbot/hackbot/secbot-cli 命令
 CLI->>Launcher : 调用启动函数
 Launcher->>Backend : 检查并启动后端
 Backend-->>Launcher : 后端就绪
@@ -144,12 +160,12 @@ CLI->>TUI : 仅启动 TUI
 ```
 
 **图表来源**
-- [hackbot/cli.py:34-95](file://hackbot/cli.py#L34-L95)
-- [hackbot/launch_tui.py:291-343](file://hackbot/launch_tui.py#L291-L343)
+- [secbot_cli/cli.py:34-95](file://secbot_cli/cli.py#L34-L95)
+- [secbot_cli/launch_tui.py:291-343](file://secbot_cli/launch_tui.py#L291-L343)
 
 系统架构的关键特性包括：
 
-1. **多入口支持**：同时支持 `secbot` 和 `hackbot` 命令
+1. **多入口支持**：同时支持 `secbot`、`hackbot`、`secbot-cli` 命令别名
 2. **灵活启动模式**：支持一键启动、单独启动后端或前端
 3. **进程隔离**：后端和前端作为独立进程运行
 4. **错误恢复**：自动检测和处理各种启动错误
@@ -180,7 +196,7 @@ LaunchFull --> Exit
 ```
 
 **图表来源**
-- [hackbot/cli.py:34-95](file://hackbot/cli.py#L34-L95)
+- [secbot_cli/cli.py:34-95](file://secbot_cli/cli.py#L34-L95)
 
 #### 命令行参数处理
 
@@ -193,8 +209,13 @@ LaunchFull --> Exit
 | `--tui` | 仅启动终端界面 | 需要后端运行 |
 | `model` 或 `--model` | 交互式模型选择 | 切换推理后端 |
 
+**更新** 现在支持多个命令别名：
+- `secbot` - 主要命令
+- `hackbot` - 兼容性支持
+- `secbot-cli` - CLI 版本标识
+
 **章节来源**
-- [hackbot/cli.py:39-95](file://hackbot/cli.py#L39-L95)
+- [secbot_cli/cli.py:39-95](file://secbot_cli/cli.py#L39-L95)
 
 ### 启动协调器详细分析
 
@@ -230,7 +251,7 @@ LaunchTUI --> TUIManager : "使用"
 ```
 
 **图表来源**
-- [hackbot/launch_tui.py:14-343](file://hackbot/launch_tui.py#L14-L343)
+- [secbot_cli/launch_tui.py:14-343](file://secbot_cli/launch_tui.py#L14-L343)
 
 #### 后端管理功能
 
@@ -242,7 +263,7 @@ LaunchTUI --> TUIManager : "使用"
 4. **超时处理**：合理的启动超时和等待机制
 
 **章节来源**
-- [hackbot/launch_tui.py:47-211](file://hackbot/launch_tui.py#L47-L211)
+- [secbot_cli/launch_tui.py:47-211](file://secbot_cli/launch_tui.py#L47-L211)
 
 ### 终端用户界面分析
 
@@ -320,15 +341,16 @@ C[fastapi] --> D[Web 框架]
 E[uvicorn] --> F[ASGI 服务器]
 G[rich] --> H[终端美化]
 I[pydantic] --> J[数据验证]
+K[keyring] --> L[密钥管理]
 end
 subgraph "Node.js 依赖"
-K[ink] --> L[React 终端渲染]
-M[react] --> N[组件框架]
-O[tsx] --> P[TypeScript 运行]
+M[ink] --> N[React 终端渲染]
+O[react] --> P[组件框架]
+Q[tsx] --> R[TypeScript 运行]
 end
 subgraph "系统依赖"
-Q[Python >= 3.10] --> R[运行时]
-S[Node.js >= 18] --> T[前端运行时]
+S[Python >= 3.10] --> T[运行时]
+U[Node.js >= 18] --> V[前端运行时]
 end
 ```
 
@@ -343,6 +365,7 @@ end
 - **Web 框架**：FastAPI + Uvicorn
 - **终端界面**：Rich 库
 - **数据处理**：Pydantic 数据验证
+- **密钥管理**：Keyring 库
 
 ### Node.js 依赖配置
 
@@ -388,7 +411,9 @@ CLI 系统在设计时充分考虑了性能优化：
 **解决方案**：
 1. 检查端口 8000 是否被其他程序占用
 2. 确认 Python 环境配置正确
-3. 查看错误日志文件 `hackbot_error.log`
+3. 查看错误日志文件 `secbot_error.log`
+
+**更新** 错误日志文件现在命名为 `secbot_error.log` 而不是 `hackbot_error.log`
 
 #### TUI 启动失败
 
@@ -421,18 +446,18 @@ ShowError --> CheckLog[检查日志文件]
 CheckLog --> FixIssue[修复问题]
 FixIssue --> Retry[重试启动]
 subgraph "日志文件"
-A[hackbot_error.log] --> B[Python 错误日志]
+A[secbot_error.log] --> B[Python 错误日志]
 C[tui-error.log] --> D[TUI 错误日志]
 E[tui-launch.log] --> F[启动日志]
 end
 ```
 
 **图表来源**
-- [hackbot/cli.py:14-31](file://hackbot/cli.py#L14-L31)
+- [secbot_cli/cli.py:14-31](file://secbot_cli/cli.py#L14-L31)
 - [terminal-ui/src/cli.tsx:28-46](file://terminal-ui/src/cli.tsx#L28-L46)
 
 **章节来源**
-- [hackbot/cli.py:14-31](file://hackbot/cli.py#L14-L31)
+- [secbot_cli/cli.py:14-31](file://secbot_cli/cli.py#L14-L31)
 - [terminal-ui/src/cli.tsx:28-46](file://terminal-ui/src/cli.tsx#L28-L46)
 
 ## 结论
@@ -445,6 +470,7 @@ Secbot CLI 系统是一个设计精良的现代化安全测试工具，具有以
 2. **跨平台支持**：Windows、macOS、Linux 完美兼容
 3. **用户体验**：全屏 TUI 提供优秀的终端体验
 4. **错误处理**：完善的错误检测和恢复机制
+5. **多命令支持**：支持 secbot、hackbot、secbot-cli 多个命令别名
 
 ### 功能特性
 
@@ -452,6 +478,7 @@ Secbot CLI 系统是一个设计精良的现代化安全测试工具，具有以
 2. **进程管理**：自动化的进程生命周期管理
 3. **环境适配**：智能的环境检测和配置
 4. **开发友好**：便于开发者调试和扩展
+5. **向后兼容**：保持与旧版本的兼容性
 
 ### 发展前景
 
@@ -460,5 +487,7 @@ Secbot CLI 系统是一个设计精良的现代化安全测试工具，具有以
 - 扩展工具集成生态
 - 优化性能和资源使用
 - 增加更多自定义选项
+
+**更新** 重命名后的 secbot_cli 包提供了更好的包管理体验和更清晰的项目结构，为用户提供了更加专业和一致的使用体验。
 
 总体而言，这是一个高质量的 CLI 系统实现，为安全测试自动化提供了强大的工具基础。
