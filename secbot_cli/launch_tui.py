@@ -11,6 +11,18 @@ import shutil
 from pathlib import Path
 
 
+def _decode_subprocess_bytes(data: bytes | None) -> str:
+    """安全解码子进程输出，避免 Windows 默认编码导致 UnicodeDecodeError。"""
+    if not data:
+        return ""
+    for enc in ("utf-8", "gbk", "cp936", "latin-1"):
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def _project_root() -> Path | None:
     """项目根目录（含 terminal-ui 的目录）；若不存在（如 pip 安装后）则返回 None。"""
     root = Path(__file__).resolve().parent.parent
@@ -72,11 +84,11 @@ def _pids_listening_on_port(port: int) -> list[int]:
             out = subprocess.run(
                 ["netstat", "-ano"],
                 capture_output=True,
-                text=True,
+                text=False,
                 timeout=5,
                 creationflags=subprocess.CREATE_NO_WINDOW if getattr(subprocess, "CREATE_NO_WINDOW", 0) else 0,
             )
-            for line in (out.stdout or "").splitlines():
+            for line in _decode_subprocess_bytes(out.stdout).splitlines():
                 if f":{port}" in line and "LISTENING" in line:
                     parts = line.split()
                     if parts:
@@ -91,10 +103,10 @@ def _pids_listening_on_port(port: int) -> list[int]:
             out = subprocess.run(
                 ["lsof", "-i", f":{port}", "-t"],
                 capture_output=True,
-                text=True,
+                text=False,
                 timeout=5,
             )
-            for s in (out.stdout or "").strip().split():
+            for s in _decode_subprocess_bytes(out.stdout).strip().split():
                 try:
                     pids.append(int(s))
                 except ValueError:
@@ -413,8 +425,7 @@ def launch_tui(port: int = 8000) -> int:
         _terminate_backend_proc(backend_proc, port)
         return 1
 
-    _start_log_viewer(backend_cwd, backend_log, tui_log)
-    print("[2/2] 启动 TUI（日志窗口已打开）…", flush=True)
+    print("[2/2] 启动 TUI（可在会话内使用 /logs 查看运行日志）…", flush=True)
     code = _run_tui(root, runtime_log=tui_log)
     _terminate_backend_proc(backend_proc, port)
     return code
