@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { useTheme } from '../contexts/ThemeContext.js';
+import { useDialog } from '../contexts/DialogContext.js';
 import { api } from '../api.js';
 
 interface Config {
@@ -38,6 +39,7 @@ const PROVIDERS: { id: ProviderId; label: string }[] = [
 
 export function ModelConfigDialog() {
   const theme = useTheme();
+  const { pop } = useDialog();
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +161,9 @@ export function ModelConfigDialog() {
           setDetailProvider(null);
         }
       }
-      // 顶层 list 的 Esc 不在此 pop()，由 App 统一 clear()，避免竞态
+      if (view === 'list') {
+        pop();
+      }
       return;
     }
     if (view === 'confirm_switch') {
@@ -364,9 +368,11 @@ export function ModelConfigDialog() {
           {isBaseUrlStep ? '— 输入 Base URL（必填，留空则清除已保存的 Base URL）' : '— 输入 API Key（留空删除）'}
         </Text>
         {!isBaseUrlStep && needsBaseUrl && (
-          <Text color={theme.textMuted} marginTop={0}>
-            该厂商需配置 Base URL，保存 Key 后下一步会要求输入 Base URL（如 https://xxx.openai.azure.com/openai/v1）。
-          </Text>
+          <Box marginTop={0}>
+            <Text color={theme.textMuted}>
+              该厂商需配置 Base URL，保存 Key 后下一步会要求输入 Base URL（如 https://xxx.openai.azure.com/openai/v1）。
+            </Text>
+          </Box>
         )}
         <Box flexDirection="row" marginTop={1}>
           <Text color={theme.text}>{isBaseUrlStep ? 'Base URL: ' : 'API Key: '}</Text>
@@ -382,8 +388,14 @@ export function ModelConfigDialog() {
             showCursor
           />
         </Box>
-        {apiKeyMessage && <Text color={theme.textMuted} marginTop={1}>{apiKeyMessage}</Text>}
-        <Text color={theme.textMuted} marginTop={1}>Esc 返回</Text>
+        {apiKeyMessage && (
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>{apiKeyMessage}</Text>
+          </Box>
+        )}
+        <Box marginTop={1}>
+          <Text color={theme.textMuted}>Esc 返回</Text>
+        </Box>
       </Box>
     );
   }
@@ -395,9 +407,11 @@ export function ModelConfigDialog() {
       <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
         <Text bold color={theme.primary}>配置 API Key — 选择厂商</Text>
         <Text color={theme.textMuted}>↑↓ 选择 · Enter 配置 · Esc 返回</Text>
-        <Text color={theme.textMuted} marginTop={0}>
-          提示：部分厂商（如 Azure OpenAI、xAI、澜舟、面壁、自定义中转）需先填 API Key，保存后会再提示输入 Base URL。
-        </Text>
+        <Box marginTop={0}>
+          <Text color={theme.textMuted}>
+            提示：部分厂商（如 Azure OpenAI、xAI、澜舟、面壁、自定义中转）需先填 API Key，保存后会再提示输入 Base URL。
+          </Text>
+        </Box>
         <Box flexDirection="column" marginTop={1}>
           {list.length === 0 ? (
             <Text color={theme.textMuted}>加载中…</Text>
@@ -463,9 +477,9 @@ export function ModelConfigDialog() {
         <Text bold color={theme.primary}>
           是否将默认推理后端切换为「{confirmSwitchProvider.name}」？
         </Text>
-        <Text color={theme.textMuted} marginTop={1}>
-          Enter / Y 确认 · N / Esc 取消
-        </Text>
+        <Box marginTop={1}>
+          <Text color={theme.textMuted}>Enter / Y 确认 · N / Esc 取消</Text>
+        </Box>
       </Box>
     );
   }
@@ -479,7 +493,9 @@ export function ModelConfigDialog() {
         <Text bold color={theme.primary}>切换推理后端</Text>
         <Text color={theme.textMuted}>↑↓ 选择 · Enter 确认切换 · Esc 返回</Text>
         {switchSuccessMessage && (
-          <Text color={theme.primary} marginTop={0}>{switchSuccessMessage}</Text>
+          <Box marginTop={0}>
+            <Text color={theme.primary}>{switchSuccessMessage}</Text>
+          </Box>
         )}
         <Box flexDirection="column" marginTop={1}>
           {list.length === 0 ? (
@@ -565,8 +581,14 @@ export function ModelConfigDialog() {
               showCursor
             />
           </Box>
-          {detailEditMessage && <Text color={theme.textMuted} marginTop={1}>{detailEditMessage}</Text>}
-          <Text color={theme.textMuted} marginTop={1}>Enter 保存 · Esc 取消</Text>
+          {detailEditMessage && (
+            <Box marginTop={1}>
+              <Text color={theme.textMuted}>{detailEditMessage}</Text>
+            </Box>
+          )}
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>Enter 保存 · Esc 取消</Text>
+          </Box>
         </Box>
       );
     }
@@ -656,14 +678,14 @@ export function ModelConfigDialog() {
           ))}
         </Box>
         {pid && (
-          <Text color={theme.textMuted} marginTop={1}>
-            M 修改默认模型 · B 修改 API 地址 · Esc 返回
-          </Text>
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>M 修改默认模型 · B 修改 API 地址 · Esc 返回</Text>
+          </Box>
         )}
         {!pid && (
-          <Text color={theme.textMuted} marginTop={1}>
-            Esc 返回
-          </Text>
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>Esc 返回</Text>
+          </Box>
         )}
       </Box>
     );
