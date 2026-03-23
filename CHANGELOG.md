@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v1.6.0 (2026-03-23)
+
+### Chores
+
+- 更新依赖并清理仓库文件（uv.lock、.dockerignore）
+  ([`5462ab2`](https://github.com/iammm0/secbot/commit/5462ab28a5f03f3b190b4ef8f636e181ea2f09a7))
+
+### Documentation
+
+- 更新 README 说明
+  ([`3cf7423`](https://github.com/iammm0/secbot/commit/3cf7423cf6f43245570bff0b43ac907175cae414))
+
+### Features
+
+- 优化会话启动流程（secbot_cli/launch_tui）
+  ([`3fba898`](https://github.com/iammm0/secbot/commit/3fba8987eb658b1a299c4dc0bdc678d771d61c8b))
+
+- **terminal-ui**: 更新前端交互与内容渲染
+  ([`6e66a7b`](https://github.com/iammm0/secbot/commit/6e66a7bfa8af95b2fafa012956b7553f14275634))
+
+
 ## v1.5.0 (2026-03-23)
 
 ### Chores
