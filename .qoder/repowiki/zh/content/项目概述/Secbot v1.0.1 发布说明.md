@@ -579,7 +579,7 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
 ```bash
 # 方法1：使用 uv
-uv run secbot-cli
+uv run hackbot
 
 # 方法2：直接运行
 python main.py
@@ -589,7 +589,7 @@ python main.py
 
 ```bash
 # 方法1：使用 uv
-uv run secbot-cli-server
+uv run hackbot-server
 
 # 方法2：直接运行
 python -m router.main

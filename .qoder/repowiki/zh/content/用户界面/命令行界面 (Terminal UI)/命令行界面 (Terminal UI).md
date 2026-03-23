@@ -22,10 +22,13 @@
 - [contentBlocks.ts](file://terminal-ui/src/contentBlocks.ts)
 - [UserMessageBlock.tsx](file://terminal-ui/src/components/blocks/UserMessageBlock.tsx)
 - [BlockRenderer.tsx](file://terminal-ui/src/components/blocks/BlockRenderer.tsx)
+- [LoadingBar.tsx](file://terminal-ui/src/components/LoadingBar.tsx)
+- [StatusBadge.tsx](file://terminal-ui/src/components/blocks/StatusBadge.tsx)
 </cite>
 
 ## 更新摘要
 **变更内容**
+- **状态栏动画改进**：彩虹动画状态栏已替换为固定绿色'SECBOT'指示器，消除性能问题和全屏闪烁
 - 新增 UserMessageBlock 组件，专门用于展示用户消息，提供视觉区分和更好的用户体验
 - 更新块渲染系统，支持 user_message 类型的消息块
 - 增强会话历史功能，能够正确渲染用户发送的消息历史
@@ -39,11 +42,12 @@
 5. [组件详解](#组件详解)
 6. [会话历史跟踪功能](#会话历史跟踪功能)
 7. [用户消息块（UserMessageBlock）](#用户消息块usermessageblock)
-8. [依赖关系分析](#依赖关系分析)
-9. [性能考量](#性能考量)
-10. [故障排查指南](#故障排查指南)
-11. [结论](#结论)
-12. [附录](#附录)
+8. [状态栏与性能优化](#状态栏与性能优化)
+9. [依赖关系分析](#依赖关系分析)
+10. [性能考量](#性能考量)
+11. [故障排查指南](#故障排查指南)
+12. [结论](#结论)
+13. [附录](#附录)
 
 ## 简介
 本文件面向Secbot命令行界面（Terminal UI）的技术文档，围绕基于Ink的终端UI架构进行系统化说明。重点涵盖：
@@ -54,6 +58,7 @@
 - 上下文系统（命令上下文、对话框上下文、主题上下文等）
 - **会话历史跟踪功能**（完整对话历史查看与滚动浏览）
 - **用户消息块组件**（UserMessageBlock）- 新增功能
+- **状态栏性能优化**（固定绿色'SECBOT'指示器，消除动画闪烁）
 - 交互设计原则与用户体验优化
 - 键盘快捷键、命令历史与错误处理
 
@@ -71,11 +76,13 @@ App --> CommandPanel["CommandPanel.tsx<br/>命令面板"]
 App --> Contexts["contexts/*<br/>命令/对话框/主题/键盘绑定等"]
 App --> Blocks["blocks/*<br/>消息块组件"]
 SessionView --> MainContent["MainContent.tsx<br/>主内容渲染与滚动"]
+SessionView --> SessionStatusBar["SessionStatusBar.tsx<br/>固定绿色状态栏"]
 Contexts --> CommandContext["CommandContext.tsx"]
 Contexts --> DialogContext["DialogContext.tsx"]
 Contexts --> ThemeContext["ThemeContext.tsx"]
 Contexts --> KeybindContext["KeybindContext.tsx"]
 Blocks --> UserMessageBlock["UserMessageBlock.tsx<br/>用户消息块"]
+Blocks --> LoadingBar["LoadingBar.tsx<br/>执行中进度条"]
 ```
 
 **图表来源**
@@ -87,6 +94,8 @@ Blocks --> UserMessageBlock["UserMessageBlock.tsx<br/>用户消息块"]
 - [Dialog.tsx:12-43](file://terminal-ui/src/components/Dialog.tsx#L12-L43)
 - [CommandPanel.tsx:11-91](file://terminal-ui/src/components/CommandPanel.tsx#L11-L91)
 - [UserMessageBlock.tsx:1-26](file://terminal-ui/src/components/blocks/UserMessageBlock.tsx#L1-L26)
+- [LoadingBar.tsx:1-74](file://terminal-ui/src/components/LoadingBar.tsx#L1-L74)
+- [SessionView.tsx:36-67](file://terminal-ui/src/views/SessionView.tsx#L36-L67)
 
 **章节来源**
 - [cli.tsx:1-143](file://terminal-ui/src/cli.tsx#L1-L143)
@@ -101,6 +110,7 @@ Blocks --> UserMessageBlock["UserMessageBlock.tsx<br/>用户消息块"]
 - 主内容渲染：MainContent负责流式内容块的分段、可见范围裁剪、并行判别与滚动条绘制。
 - **会话历史管理：useChat钩子提供完整的会话历史跟踪与管理功能**。
 - **用户消息块：UserMessageBlock专门用于展示用户发送的消息，提供视觉区分**。
+- **状态栏优化：SessionStatusBar使用固定绿色'SECBOT'指示器，消除动画闪烁和性能问题**。
 
 **章节来源**
 - [App.tsx:26-201](file://terminal-ui/src/App.tsx#L26-L201)
@@ -115,6 +125,7 @@ Blocks --> UserMessageBlock["UserMessageBlock.tsx<br/>用户消息块"]
 - [ThemeContext.tsx:41-58](file://terminal-ui/src/contexts/ThemeContext.tsx#L41-L58)
 - [KeybindContext.tsx:102-136](file://terminal-ui/src/contexts/KeybindContext.tsx#L102-L136)
 - [UserMessageBlock.tsx:1-26](file://terminal-ui/src/components/blocks/UserMessageBlock.tsx#L1-L26)
+- [SessionView.tsx:36-67](file://terminal-ui/src/views/SessionView.tsx#L36-L67)
 
 ## 架构总览
 Ink驱动的终端UI采用"入口脚本 + Provider树 + 根组件 + 视图层 + 对话框"的分层架构。入口脚本确保TTY与alternate screen，根组件统一处理键盘输入、命令注册与对话框栈，视图层负责具体交互与渲染，上下文提供跨组件共享的状态与能力。
@@ -178,7 +189,7 @@ RenderDialog --> End
 
 ### 视图层（HomeView 与 SessionView）
 - HomeView：ASCII艺术标题、输入框、斜杠命令建议、快捷键提示与底部状态栏；支持/ask与/agent等命令直达。
-- SessionView：主内容区（MainContent）、斜杠建议、输入行、底部状态栏（模式/智能体）与统计/快捷键提示；支持滚动、块展开、权限确认对话框等。
+- SessionView：主内容区（MainContent）、斜杠建议、输入行、**固定绿色状态栏**（模式/智能体）与统计/快捷键提示；支持滚动、块展开、权限确认对话框等。
 
 ```mermaid
 sequenceDiagram
@@ -488,6 +499,55 @@ Border --> Output["输出最终组件"]
 - [BlockRenderer.tsx:93-100](file://terminal-ui/src/components/blocks/BlockRenderer.tsx#L93-L100)
 - [types.ts:48-53](file://terminal-ui/src/types.ts#L48-L53)
 
+## 状态栏与性能优化
+
+### 状态栏架构
+**更新** 状态栏已从复杂的彩虹动画系统迁移至简化的固定绿色指示器，显著提升了性能和用户体验。
+
+#### 固定绿色状态栏（SessionStatusBar）
+- **简化设计**：使用固定绿色'SECBOT'文本标识，消除动画效果
+- **性能优化**：避免全屏下周期性重绘底部区域，减少CPU占用
+- **信息完整性**：仍显示当前模式和智能体状态，保持功能完整性
+- **主题集成**：完全集成到主题系统，使用success颜色变量
+
+```mermaid
+flowchart TD
+Start(["渲染状态栏"]) --> FixedLogo["固定绿色 'SECBOT' 文本"]
+FixedLogo --> ModeInfo["显示当前模式"]
+ModeInfo --> AgentInfo["显示当前智能体"]
+AgentInfo --> ThemeIntegrate["主题颜色集成"]
+ThemeIntegrate --> End(["渲染完成"])
+```
+
+**图表来源**
+- [SessionView.tsx:36-67](file://terminal-ui/src/views/SessionView.tsx#L36-L67)
+
+#### 彩虹动画的性能问题
+- **动画闪烁**：频繁的颜色变化导致全屏闪烁，影响用户体验
+- **CPU占用**：持续的动画循环增加系统负载
+- **渲染开销**：每次重绘都需要重新计算彩虹渐变效果
+- **内存消耗**：动画状态管理增加了内存使用
+
+#### 优化后的优势
+- **零动画开销**：固定状态栏不需要任何动画计算
+- **稳定渲染**：底部区域保持稳定，避免闪烁
+- **资源节约**：大幅降低CPU和内存使用
+- **兼容性提升**：在各种终端环境下表现更加稳定
+
+### 执行中状态指示
+**更新** 执行中状态已从复杂的进度条系统简化为更直观的状态指示。
+
+#### 简化后的执行状态
+- **移除复杂进度条**：不再显示详细的执行进度条
+- **保留基本状态**：通过状态栏的固定标识显示系统活跃状态
+- **加载条优化**：LoadingBar组件仍保留，但仅在需要时显示
+- **性能优先**：所有状态指示都以性能为首要考虑因素
+
+**章节来源**
+- [SessionView.tsx:36-67](file://terminal-ui/src/views/SessionView.tsx#L36-L67)
+- [LoadingBar.tsx:1-74](file://terminal-ui/src/components/LoadingBar.tsx#L1-L74)
+- [ThemeContext.tsx:18-37](file://terminal-ui/src/contexts/ThemeContext.tsx#L18-L37)
+
 ## 依赖关系分析
 - 入口依赖：cli.tsx依赖config与checkBackend，确保TTY与后端可用；渲染App并开启alternate screen。
 - 根组件依赖：App依赖contexts（命令、对话框、主题、键盘绑定）、views（HomeView/SessionView）、components（Dialog/CommandPanel）。
@@ -496,6 +556,7 @@ Border --> Output["输出最终组件"]
 - 主内容依赖：MainContent依赖contentBlocks与判别器池，以及ThemeContext。
 - **会话历史依赖**：MainContent依赖useChat提供的history状态，useChat依赖SSE连接和StreamState类型。
 - **用户消息依赖**：UserMessageBlock依赖ThemeContext，BlockRenderer依赖UserMessageBlock组件。
+- **状态栏依赖**：SessionStatusBar依赖ThemeContext的success颜色变量。
 
 ```mermaid
 graph TB
@@ -515,6 +576,8 @@ useChat --> StreamState["StreamState类型"]
 MainContent --> BlockRenderer["BlockRenderer.tsx"]
 BlockRenderer --> UserMessageBlock["UserMessageBlock.tsx"]
 UserMessageBlock --> ThemeCtx
+Views --> SessionStatusBar["SessionStatusBar.tsx"]
+SessionStatusBar --> ThemeCtx
 ```
 
 **图表来源**
@@ -528,6 +591,7 @@ UserMessageBlock --> ThemeCtx
 - [useChat.ts:1-219](file://terminal-ui/src/useChat.ts#L1-L219)
 - [BlockRenderer.tsx:37-37](file://terminal-ui/src/components/blocks/BlockRenderer.tsx#L37-L37)
 - [UserMessageBlock.tsx:6-6](file://terminal-ui/src/components/blocks/UserMessageBlock.tsx#L6-L6)
+- [SessionView.tsx:36-67](file://terminal-ui/src/views/SessionView.tsx#L36-L67)
 
 **章节来源**
 - [cli.tsx:1-143](file://terminal-ui/src/cli.tsx#L1-L143)
@@ -547,11 +611,14 @@ UserMessageBlock --> ThemeCtx
 - 临时工具块：系统信息、网络分析等工具完成后短暂显示后自动消失。
 - **历史渲染优化**：历史块使用固定的行号偏移计算，避免重复计算开销。
 - **用户消息渲染优化**：UserMessageBlock组件经过优化，支持高效的多行文本渲染。
+- **状态栏性能优化**：固定绿色状态栏消除动画开销，避免全屏闪烁，显著降低CPU和内存使用。
+- **执行状态简化**：移除复杂的进度条系统，仅在必要时显示简单的状态指示。
 
 **章节来源**
 - [MainContent.tsx:10-14](file://terminal-ui/src/MainContent.tsx#L10-L14)
 - [MainContent.tsx:81-115](file://terminal-ui/src/MainContent.tsx#L81-L115)
 - [UserMessageBlock.tsx:14-25](file://terminal-ui/src/components/blocks/UserMessageBlock.tsx#L14-L25)
+- [SessionView.tsx:36-67](file://terminal-ui/src/views/SessionView.tsx#L36-L67)
 
 ## 故障排查指南
 - TTY与alternate screen
@@ -569,6 +636,9 @@ UserMessageBlock --> ThemeCtx
 - **用户消息显示问题**
   - 现象：用户消息不显示或显示格式错误。
   - 排查：检查BlockRenderer是否正确识别'user_message'类型；验证UserMessageBlock组件的参数传递；确认主题系统正常工作。
+- **状态栏性能问题**
+  - 现象：状态栏闪烁或CPU占用过高。
+  - 排查：确认SessionStatusBar使用固定绿色指示器；检查是否有其他动画组件仍在运行；验证主题颜色配置正确。
 
 **章节来源**
 - [cli.tsx:27-46](file://terminal-ui/src/cli.tsx#L27-L46)
@@ -582,6 +652,8 @@ UserMessageBlock --> ThemeCtx
 **重大更新** 最新的会话历史跟踪功能显著增强了用户体验，使用户能够在终端环境中享受类似现代聊天应用的完整对话历史浏览体验。通过useChat钩子的自动历史快照和MainContent的连续渲染机制，用户可以轻松回顾之前的对话内容，同时保持对当前对话的实时响应能力。
 
 **新增功能** UserMessageBlock组件的引入进一步提升了用户体验，通过专门的视觉区分让用户消息与AI回复形成清晰的对比，改善了对话的可读性和交互体验。该组件完全集成到主题系统，确保在不同主题下都能提供一致的视觉效果。
+
+**性能优化** 状态栏动画的移除是本次更新的重要改进。固定绿色'SECBOT'指示器替代了复杂的彩虹动画，消除了全屏闪烁和性能问题，显著降低了系统资源占用。这一改变体现了性能优先的设计理念，在保证功能完整性的同时大幅提升了用户体验。
 
 未来可在命令历史、多语言支持与更丰富的块类型方面进一步增强，同时考虑添加历史记录的持久化存储功能。
 
@@ -603,6 +675,7 @@ UserMessageBlock --> ThemeCtx
   - 可访问性：ASCII滚动条与纯色主题在不同终端兼容性良好。
   - **历史可访问性**：完整的对话历史支持随时回看，增强用户体验。
   - **视觉区分**：用户消息与AI回复的清晰视觉区分，提升对话可读性。
+  - **性能优先**：固定状态栏设计消除动画开销，提升整体流畅度。
 
 **章节来源**
 - [KeybindContext.tsx:27-42](file://terminal-ui/src/contexts/KeybindContext.tsx#L27-L42)
@@ -610,3 +683,4 @@ UserMessageBlock --> ThemeCtx
 - [SessionView.tsx:460-470](file://terminal-ui/src/views/SessionView.tsx#L460-L470)
 - [SessionView.tsx:228-295](file://terminal-ui/src/views/SessionView.tsx#L228-L295)
 - [UserMessageBlock.tsx:14-25](file://terminal-ui/src/components/blocks/UserMessageBlock.tsx#L14-L25)
+- [SessionView.tsx:36-67](file://terminal-ui/src/views/SessionView.tsx#L36-L67)

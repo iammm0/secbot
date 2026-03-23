@@ -257,10 +257,10 @@ Edit `.env` file:
 uv run python -m build
 
 # Install package
-uv pip install dist/secbot-cli-1.0.0-py3-none-any.whl
+uv pip install dist/hackbot-1.0.0-py3-none-any.whl
 
-# Now you can use 'secbot-cli' or 'secbot' (no args = interactive mode)
-secbot-cli
+# Now you can use 'hackbot' or 'secbot' (no args = interactive mode)
+hackbot
 ```
 
 ## Quick Start
@@ -272,7 +272,7 @@ secbot-cli
 python main.py
 # or
 uv run secbot
-# or (if installed) secbot-cli / secbot
+# or (if installed) hackbot / secbot
 ```
 
 All interaction (chat, agent switch, tools, slash commands) happens inside the interactive session. Type `/` then Enter to list commands; `exit` or `quit` to leave.
