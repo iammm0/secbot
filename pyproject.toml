@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secbot"
-version = "1.5.0"
+version = "1.6.0"
 description = "Hackbot: AI-powered automated penetration testing robot"
 readme = "README.md"
 requires-python = ">=3.10"
