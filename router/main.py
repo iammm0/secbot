@@ -2,7 +2,12 @@
 Hackbot FastAPI 服务入口 — 组装所有路由、CORS、uvicorn 入口
 """
 
-from fastapi import FastAPI
+import time
+import uuid
+import shutil
+from pathlib import Path
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from router.chat import router as chat_router
@@ -14,6 +19,8 @@ from router.network import router as network_router
 from router.database import router as database_router
 from router.tools import router as tools_router
 from router.dependencies import get_db_manager
+from utils.logger import logger
+from utils.log_context import log_context
 
 
 def create_app() -> FastAPI:
@@ -37,6 +44,35 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @application.middleware("http")
+    async def request_logging_middleware(request: Request, call_next):
+        request_id = str(uuid.uuid4())[:8]
+        start = time.perf_counter()
+        with log_context(request_id=request_id, event="http_request", attempt=1):
+            req_logger = logger.bind(event="stage_start")
+            req_logger.info(f"{request.method} {request.url.path} started")
+            try:
+                response = await call_next(request)
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                logger.bind(
+                    event="stage_end", duration_ms=duration_ms
+                ).info(f"{request.method} {request.url.path} -> {response.status_code}")
+                response.headers["X-Request-Id"] = request_id
+                return response
+            except Exception:
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                logger.bind(
+                    event="system_error", duration_ms=duration_ms
+                ).exception(f"{request.method} {request.url.path} unhandled exception")
+                return JSONResponse(
+                    status_code=500,
+                    content={
+                        "detail": "内部服务异常，请查看日志",
+                        "request_id": request_id,
+                    },
+                    headers={"X-Request-Id": request_id},
+                )
 
     # ------------------------------------------------------------------
     # 注册路由
@@ -71,6 +107,16 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
+def _purge_pycache(project_root: Path) -> None:
+    """启动前清理 __pycache__，减少旧字节码干扰。"""
+    for p in project_root.rglob("__pycache__"):
+        try:
+            shutil.rmtree(p, ignore_errors=True)
+        except Exception:
+            # 不影响启动，仅忽略个别目录权限问题
+            pass
+
+
 def run_server():
     """
     脚本入口 — secbot-cli-server 命令
@@ -85,6 +131,11 @@ def run_server():
     import socket
     import sys
     import uvicorn
+
+    # 启动前强制使用最新源码：忽略 pyc + 清理 __pycache__
+    sys.dont_write_bytecode = True
+    root = Path(__file__).resolve().parent.parent
+    _purge_pycache(root)
 
     desktop = os.environ.get("SECBOT_DESKTOP", "").lower() in ("1", "true", "yes")
     default_host = "127.0.0.1" if desktop else "0.0.0.0"

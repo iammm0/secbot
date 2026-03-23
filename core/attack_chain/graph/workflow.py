@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from loguru import logger
+import time
+from utils.logger import logger
 
 from .state import AttackChainResult, AttackChainState, AttackStep
 from . import nodes as N
@@ -22,7 +23,7 @@ try:
     from langgraph.graph import StateGraph, END  # type: ignore
     _HAS_LANGGRAPH = True
 except ImportError:
-    logger.info("langgraph 未安装，攻击链推理将使用内置回退执行器")
+    logger.bind(event="attack_chain_fallback", attempt=1).info("langgraph 未安装，攻击链推理将使用内置回退执行器")
 
 
 class AttackChainGraphAgent:
@@ -79,6 +80,9 @@ class AttackChainGraphAgent:
             "llm_reasoning": "",
         }
 
+        started = time.perf_counter()
+        chain_logger = logger.bind(event="stage_start", attempt=1, tool="attack_chain_graph")
+        chain_logger.info("attack chain graph started")
         if self._graph is not None:
             final = await self._run_langgraph(initial_state)
         else:
@@ -92,7 +96,12 @@ class AttackChainGraphAgent:
                 summary="攻击链推理未能生成有效结果",
             )
 
-        logger.info(f"[攻击链] {result.summary}")
+        logger.bind(
+            event="stage_end",
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            attempt=1,
+            tool="attack_chain_graph",
+        ).info(f"[攻击链] {result.summary}")
         return result
 
     # ------------------------------------------------------------------
@@ -153,7 +162,7 @@ class AttackChainGraphAgent:
             result = await self._graph.ainvoke(state)
             return result
         except Exception as exc:
-            logger.error(f"LangGraph 执行失败，回退: {exc}")
+            logger.bind(event="attack_chain_error", attempt=1).error(f"LangGraph 执行失败，回退: {exc}")
             return await self._run_fallback(state)
 
     # ------------------------------------------------------------------
@@ -166,6 +175,7 @@ class AttackChainGraphAgent:
 
         for _ in range(self._max_steps * 3):
             action = state.get("next_action", "select")
+            logger.bind(event="attack_chain_stage_transition", attempt=1).debug(f"fallback action={action}")
 
             if action == "select":
                 state = {**state, **N.select_next_node(state)}
@@ -180,6 +190,7 @@ class AttackChainGraphAgent:
                     state = {**state, **N.finish(state)}
                 break
             else:
+                logger.bind(event="attack_chain_error", attempt=1).warning(f"未知 fallback action: {action}")
                 break
 
         if not state.get("finished"):

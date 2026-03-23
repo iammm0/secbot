@@ -7,7 +7,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict
 
-from loguru import logger
+import time
+from utils.logger import logger
 
 from .state import (
     AttackChainResult,
@@ -200,7 +201,8 @@ async def execute_exploit(state: Dict[str, Any]) -> Dict[str, Any]:
     step = current_path[-1]
     step.status = StepStatus.RUNNING
 
-    logger.info(
+    started = time.perf_counter()
+    logger.bind(event="tool_call_start", tool=step.exploit_tool, attempt=step.alternatives_tried + 1).info(
         f"[攻击链] 步骤 {step.step_id}: "
         f"exploit {step.vuln_id} @ {step.target} via {step.exploit_tool}"
     )
@@ -222,9 +224,16 @@ async def execute_exploit(state: Dict[str, Any]) -> Dict[str, Any]:
             step.permission_gained = "user"
 
     except Exception as exc:
-        logger.error(f"[攻击链] exploit 执行异常: {exc}")
+        logger.bind(event="tool_error", tool=step.exploit_tool, attempt=step.alternatives_tried + 1).error(f"[攻击链] exploit 执行异常: {exc}")
         step.status = StepStatus.FAILED
         step.error = str(exc)
+    finally:
+        logger.bind(
+            event="tool_call_end",
+            tool=step.exploit_tool,
+            attempt=step.alternatives_tried + 1,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+        ).info(f"[攻击链] exploit finished status={step.status.value}")
 
     current_path[-1] = step
     return {
@@ -246,13 +255,13 @@ def verify_step(state: Dict[str, Any]) -> Dict[str, Any]:
     last_step = current_path[-1]
 
     if last_step.status == StepStatus.SUCCESS:
-        logger.info(f"[攻击链] 步骤 {last_step.step_id} 验证成功")
+        logger.bind(event="attack_chain_verify", attempt=last_step.alternatives_tried + 1).info(f"[攻击链] 步骤 {last_step.step_id} 验证成功")
         return {
             "next_action": "select",
             "llm_reasoning": f"步骤 {last_step.step_id} 成功，继续推进",
         }
     else:
-        logger.warning(
+        logger.bind(event="attack_chain_verify", attempt=last_step.alternatives_tried + 1).warning(
             f"[攻击链] 步骤 {last_step.step_id} 验证失败: {last_step.error}"
         )
         return {
@@ -291,6 +300,10 @@ def rollback_or_alternative(state: Dict[str, Any]) -> Dict[str, Any]:
 
     if alternatives and failed_step.alternatives_tried < 3:
         alt = alternatives[0]
+        next_attempt = failed_step.alternatives_tried + 1
+        logger.bind(event="tool_retry", tool=alt.tool, attempt=next_attempt).info(
+            f"[攻击链] 使用替代 exploit: {alt.exploit_id}"
+        )
         new_step = AttackStep(
             step_id=failed_step.step_id,
             target=failed_step.target,
@@ -312,6 +325,9 @@ def rollback_or_alternative(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     # 无替代方案，移除失败步骤，继续选择下一个漏洞
+    logger.bind(event="attack_chain_stage_transition", attempt=failed_step.alternatives_tried + 1).warning(
+        f"[攻击链] 漏洞 {failed_step.vuln_id} 无更多替代 exploit，跳过"
+    )
     current_path.pop()
     return {
         "current_path": current_path,

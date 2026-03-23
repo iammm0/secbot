@@ -180,6 +180,14 @@ class SystemStatusResponse(BaseModel):
     disks: list[DiskInfo] = []
 
 
+class LogLevelResponse(BaseModel):
+    level: str = Field(..., description="当前日志级别（DEBUG/INFO）")
+
+
+class SetLogLevelRequest(BaseModel):
+    level: str = Field(..., description="目标日志级别（DEBUG/INFO）")
+
+
 # ===================================================================
 # Defense
 # ===================================================================

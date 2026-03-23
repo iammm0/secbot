@@ -89,28 +89,28 @@ def route(user_input: str) -> RouteType:
     # 问候类：短句或明显问候开头
     for g in GREETING_KEYWORDS:
         if lower == g or (len(lower) < 25 and lower.startswith(g)):
-            logger.debug(f"Router: greeting -> qa (keyword={g})")
+            logger.bind(agent="router", event="stage_end", attempt=1).debug(f"Router: greeting -> qa (keyword={g})")
             return "qa"
 
     # 明确问答类
     for q in QA_KEYWORDS:
         if q in lower:
-            logger.debug(f"Router: qa keyword -> qa (keyword={q})")
+            logger.bind(agent="router", event="stage_end", attempt=1).debug(f"Router: qa keyword -> qa (keyword={q})")
             return "qa"
 
     # 短句且无操作关键词 → 倾向 qa（避免误判为技术请求）
     if len(user_input.strip()) < 15:
         if not any(kw in lower for kw in ACTION_KEYWORDS):
-            logger.debug("Router: short message without action -> qa")
+            logger.bind(agent="router", event="stage_end", attempt=1).debug("Router: short message without action -> qa")
             return "qa"
 
     # 含操作意图或较长描述 → technical
     if any(kw in lower for kw in ACTION_KEYWORDS):
-        logger.debug("Router: action keyword -> technical")
+        logger.bind(agent="router", event="stage_end", attempt=1).debug("Router: action keyword -> technical")
         return "technical"
 
     # 默认：无法明确判为简单问则走技术流程（由 Planner 再细分）
-    logger.debug("Router: default -> technical")
+    logger.bind(agent="router", event="stage_end", attempt=1).debug("Router: default -> technical")
     return "technical"
 
 
@@ -169,14 +169,14 @@ async def route_with_llm(user_input: str) -> Tuple[RouteType, Optional[str]]:
         route_type, reply = _parse_router_llm_output(content)
         if route_type is not None:
             if route_type == "other":
-                logger.debug("Router(LLM): intent=other, 使用人格回复")
+                logger.bind(agent="router", event="stage_end", attempt=1).debug("Router(LLM): intent=other, 使用人格回复")
             else:
-                logger.debug(f"Router(LLM): intent -> {route_type}")
+                logger.bind(agent="router", event="stage_end", attempt=1).debug(f"Router(LLM): intent -> {route_type}")
             return route_type, reply if route_type == "other" else None
     except asyncio.TimeoutError:
-        logger.warning("Router(LLM): 分类超时，回退规则路由")
+        logger.bind(agent="router", event="llm_error", attempt=1).warning("Router(LLM): 分类超时，回退规则路由")
     except Exception as e:
-        logger.warning("Router(LLM): 分类失败，回退规则路由: %s", e)
+        logger.bind(agent="router", event="llm_error", attempt=1).warning(f"Router(LLM): 分类失败，回退规则路由: {e}")
 
     fallback = route(user_input)
     return fallback, None

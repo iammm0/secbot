@@ -101,7 +101,7 @@ class WebResearchAgent(BaseAgent):
         try:
             response = await asyncio.wait_for(self.llm.ainvoke(messages), timeout=60.0)
         except Exception as e:
-            logger.error(f"WebResearchAgent LLM 调用失败: {e}")
+            logger.bind(agent=self.name, event="llm_error", attempt=1).error(f"WebResearchAgent LLM 调用失败: {e}")
             return f"[LLM 调用失败: {e}]"
         if hasattr(response, "content") and response.content:
             return str(response.content)
@@ -137,7 +137,7 @@ class WebResearchAgent(BaseAgent):
             # ---- THINK ----
             thought = await self._think(user_input)
             self._react_history.append({"type": "thought", "content": thought})
-            logger.info(f"[WebResearch] Thought {iteration}: {thought[:120]}...")
+            logger.bind(agent=self.name, event="thought_end", attempt=1).info(f"[WebResearch] Thought {iteration}: {thought[:120]}...")
 
             # ---- 解析 ACTION ----
             action_info = self._parse_action(thought)
@@ -159,7 +159,7 @@ class WebResearchAgent(BaseAgent):
                 continue
 
             # ---- 执行工具 ----
-            logger.info(f"[WebResearch] Action {iteration}: {tool_name}({tool_params})")
+            logger.bind(agent=self.name, event="tool_call_start", tool=tool_name, attempt=1).info(f"[WebResearch] Action {iteration}: {tool_name}({tool_params})")
             try:
                 result = await tool.execute(**tool_params)
             except Exception as e:
@@ -167,7 +167,7 @@ class WebResearchAgent(BaseAgent):
 
             obs = self._format_observation(result)
             self._react_history.append({"type": "observation", "content": obs})
-            logger.info(f"[WebResearch] Observation {iteration}: {obs[:120]}...")
+            logger.bind(agent=self.name, event="tool_call_end", tool=tool_name, attempt=1).info(f"[WebResearch] Observation {iteration}: {obs[:120]}...")
 
         else:
             # 达到最大迭代

@@ -45,22 +45,22 @@ def get_ask_tools() -> List[Any]:
         from tools.web_search import WebSearchTool
         tools.append(WebSearchTool())
     except Exception as e:
-        logger.debug("Ask 工具 web_search 未加载: %s", e)
+        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"Ask 工具 web_search 未加载: {e}")
     try:
         from tools.defense.system_info_tool import SystemInfoTool
         tools.append(SystemInfoTool())
     except Exception as e:
-        logger.debug("Ask 工具 system_info 未加载: %s", e)
+        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"Ask 工具 system_info 未加载: {e}")
     try:
         from tools.utility.cve_lookup_tool import CveLookupTool
         tools.append(CveLookupTool())
     except Exception as e:
-        logger.debug("Ask 工具 cve_lookup 未加载: %s", e)
+        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"Ask 工具 cve_lookup 未加载: {e}")
     try:
         from tools.utility.file_analyze_tool import FileAnalyzeTool
         tools.append(FileAnalyzeTool())
     except Exception as e:
-        logger.debug("Ask 工具 file_analyze 未加载: %s", e)
+        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"Ask 工具 file_analyze 未加载: {e}")
     return tools
 
 
@@ -82,7 +82,7 @@ class QAAgent(BaseAgent):
         super().__init__(name=name, system_prompt=system_prompt)
         self._llm = None  # 延迟初始化
         self._ask_tools: Optional[List[Any]] = None  # Ask 模式通用工具，延迟加载
-        logger.info("初始化 QAAgent")
+        logger.bind(agent=self.name, event="stage_start", attempt=1).info("初始化 QAAgent")
 
     def _ensure_llm(self):
         """延迟创建 LLM 实例（仅 ask 模式需要）"""
@@ -91,9 +91,9 @@ class QAAgent(BaseAgent):
                 from core.patterns.security_react import _create_llm
 
                 self._llm = _create_llm()
-                logger.info("QAAgent: LLM 实例已创建（用于 Ask 模式）")
+                logger.bind(agent=self.name, event="stage_start", attempt=1).info("QAAgent: LLM 实例已创建（用于 Ask 模式）")
             except Exception as e:
-                logger.error(f"QAAgent: 创建 LLM 实例失败: {e}")
+                logger.bind(agent=self.name, event="llm_error", attempt=1).error(f"QAAgent: 创建 LLM 实例失败: {e}")
                 raise
 
     def _get_ask_tools_langchain(self):

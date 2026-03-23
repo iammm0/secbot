@@ -5,6 +5,7 @@
 import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+import time
 from utils.logger import logger
 
 
@@ -17,7 +18,8 @@ class AttackChain:
 
     async def execute_full_chain(self, target: str, options: Optional[Dict] = None) -> Dict[str, Any]:
         """执行完整的攻击链"""
-        logger.info(f"开始执行完整攻击链: {target}")
+        started = time.perf_counter()
+        logger.bind(event="stage_start", tool="attack_chain", attempt=1).info(f"开始执行完整攻击链: {target}")
 
         start_time = datetime.now()
 
@@ -50,6 +52,7 @@ class AttackChain:
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
+        logger.bind(event="stage_end", tool="attack_chain", attempt=1, duration_ms=int((time.perf_counter() - started) * 1000)).info("完整攻击链执行完成")
 
         return {
             "success": True,
@@ -127,14 +130,14 @@ class AttackChain:
                             "references": mv.references[:5],
                         })
                 except Exception as exc:
-                    logger.debug(f"漏洞库检索跳过: {exc}")
+                    logger.bind(event="tool_error", tool="vuln_db_search", attempt=1).debug(f"漏洞库检索跳过: {exc}")
 
             service.close()
-            logger.info(f"漏洞库 enrichment 完成: {len(enriched)} 条")
+            logger.bind(event="stage_end", tool="vuln_db_enrichment", attempt=1).info(f"漏洞库 enrichment 完成: {len(enriched)} 条")
             return enriched
 
         except Exception as exc:
-            logger.warning(f"漏洞库检索失败，降级跳过: {exc}")
+            logger.bind(event="tool_error", tool="vuln_db_enrichment", attempt=1).warning(f"漏洞库检索失败，降级跳过: {exc}")
             return []
 
     async def _exploitation(
@@ -178,7 +181,7 @@ class AttackChain:
             }
 
         except Exception as exc:
-            logger.warning(f"LangGraph 攻击链推理失败，回退到传统模式: {exc}")
+            logger.bind(event="llm_fallback", tool="attack_chain_graph", attempt=1).warning(f"LangGraph 攻击链推理失败，回退到传统模式: {exc}")
             return await self._exploitation_fallback(target, scan_result, options)
 
     async def _exploitation_fallback(self, target: str, scan_result: Dict, options: Optional[Dict]) -> Dict:
