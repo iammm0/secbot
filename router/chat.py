@@ -22,6 +22,8 @@ from router.dependencies import (
 from router.schemas import ChatRequest, ChatResponse, RootResponseRequest
 from core.session import SessionManager
 from utils.event_bus import EventBus, EventType, Event
+from utils.logger import logger
+from utils.log_context import log_context
 from utils.root_policy import save_root_policy
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
@@ -87,22 +89,27 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
                 "result": d.get("result"),
                 "error": d.get("error", ""),
                 "iteration": d.get("iteration", 1),
+                "view_type": d.get("view_type", "raw"),
                 "agent": d.get("agent"),
             },
         )
     if t == EventType.CONTENT:
-        return (
-            "content",
-            {
-                "content": d.get("content", ""),
-                "agent": d.get("agent"),
-            },
-        )
+        payload: dict[str, Any] = {
+            "content": d.get("content", ""),
+            "view_type": d.get("view_type", "summary"),
+            "agent": d.get("agent"),
+        }
+        if d.get("tool"):
+            payload["tool"] = d["tool"]
+        if d.get("iteration"):
+            payload["iteration"] = d["iteration"]
+        return ("content", payload)
     if t == EventType.REPORT_END:
         return (
             "report",
             {
                 "content": d.get("report", ""),
+                "view_type": d.get("view_type", "summary"),
                 "agent": d.get("agent"),
             },
         )
@@ -145,6 +152,7 @@ async def _interaction_event_generator(
     }
 
     queue: asyncio.Queue = asyncio.Queue()
+    interaction_request_id = str(uuid.uuid4())[:8]
     event_bus = EventBus()
     console = Console(force_terminal=False)
 
@@ -205,18 +213,21 @@ async def _interaction_event_generator(
         agent_instance.update_system_prompt(request.prompt)
 
     final_response: list[str] = []
+    event_counts: dict[str, int] = {}
 
     async def _run_interaction():
         try:
-            response = await session_manager.handle_message(
-                request.message,
-                agent_type=agent_type,
-                plan_override=None,
-                force_qa=force_qa,
-                plan_only=plan_only,
-                force_agent_flow=force_agent_flow,
-            )
-            final_response.append(response)
+            with log_context(request_id=interaction_request_id, event="stage_start", attempt=1):
+                response = await session_manager.handle_message(
+                    request.message,
+                    agent_type=agent_type,
+                    plan_override=None,
+                    force_qa=force_qa,
+                    plan_only=plan_only,
+                    force_agent_flow=force_agent_flow,
+                    request_id=interaction_request_id,
+                )
+                final_response.append(response)
         except Exception as e:
             queue.put_nowait(
                 {
@@ -231,6 +242,7 @@ async def _interaction_event_generator(
                         "event": "response",
                         "data": {
                             "content": final_response[0],
+                            "view_type": "summary",
                             "agent": agent_type
                             or (
                                 "qa"
@@ -247,13 +259,19 @@ async def _interaction_event_generator(
     try:
         while True:
             item = await queue.get()
+            name = item["event"]
+            event_counts[name] = event_counts.get(name, 0) + 1
             yield {
-                "event": item["event"],
+                "event": name,
                 "data": json.dumps(item["data"], ensure_ascii=False),
             }
-            if item["event"] == "done":
+            if name == "done":
                 break
     finally:
+        logger.bind(
+            request_id=interaction_request_id,
+            event="stage_end",
+        ).info("chat sse event distribution: " + ", ".join(f"{k}={v}" for k, v in sorted(event_counts.items())))
         if not task.done():
             task.cancel()
             try:

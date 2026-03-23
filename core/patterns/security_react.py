@@ -6,6 +6,7 @@ SecurityReActAgent：LLM 驱动的安全测试 ReAct 引擎
 import json
 import re
 import asyncio
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -329,10 +330,23 @@ class SecurityReActAgent(BaseAgent):
         import asyncio
         from utils.model_selector import get_llm_connection_hint
 
+        llm_logger = logger.bind(
+            agent=getattr(self, "agent_type", getattr(self, "name", "-")),
+            event="llm_call_start",
+            attempt=1,
+        )
+        started = time.perf_counter()
+        llm_logger.info("llm non-stream invoke started")
         try:
             response = await asyncio.wait_for(self.llm.ainvoke(messages), timeout=30.0)
         except Exception as e:
-            logger.error(f"LLM 调用失败: {e}")
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            logger.bind(
+                agent=getattr(self, "agent_type", getattr(self, "name", "-")),
+                event="llm_error",
+                duration_ms=duration_ms,
+                attempt=1,
+            ).error(f"LLM 调用失败: {e}")
             provider = (
                 self._provider_override
                 or getattr(settings, "llm_provider", None)
@@ -341,15 +355,29 @@ class SecurityReActAgent(BaseAgent):
             hint = get_llm_connection_hint(e, provider=provider)
             return f"[LLM 调用失败: {hint}]"
 
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        logger.bind(
+            agent=getattr(self, "agent_type", getattr(self, "name", "-")),
+            event="llm_call_end",
+            duration_ms=duration_ms,
+            attempt=1,
+        ).info("llm non-stream invoke finished")
         if hasattr(response, "content") and response.content:
             return str(response.content)
         return str(response)
 
-    def _emit_full_response_as_chunk(self, full_response: str, on_event) -> None:
+    def _emit_full_response_as_chunk(
+        self,
+        full_response: str,
+        on_event,
+        iteration: Optional[int] = None,
+    ) -> None:
         """将完整回复作为单次 thought_chunk 发送，兼容非流式 API 的交互逻辑。"""
         if full_response and full_response.strip():
-            self._emit_event("thought_chunk", {
-                             "chunk": full_response}, on_event)
+            payload = {"chunk": full_response}
+            if iteration is not None:
+                payload["iteration"] = iteration
+            self._emit_event("thought_chunk", payload, on_event)
 
     async def _call_llm_non_stream(self, messages: List, timeout: float = 60.0) -> str:
         """非流式调用 LLM，返回完整文本。用于流式不可用或 API 仅返回整段内容时的回退。"""
@@ -364,12 +392,19 @@ class SecurityReActAgent(BaseAgent):
             return str(response.content).strip()
         return str(response).strip()
 
-    async def _call_llm_stream(self, messages: List, on_event=None) -> str:
+    async def _call_llm_stream(
+        self,
+        messages: List,
+        on_event=None,
+        iteration: Optional[int] = None,
+    ) -> str:
         """流式调用 LLM，触发事件；若 API 不返回流式 chunk 则自动回退到非流式。"""
         import asyncio
 
         try:
             full_response = ""
+            chunk_count = 0
+            stream_started = time.perf_counter()
             if hasattr(self.llm, "astream"):
                 try:
                     async for chunk in self.llm.astream(messages):
@@ -385,21 +420,34 @@ class SecurityReActAgent(BaseAgent):
 
                         if content_chunk and content_chunk.strip():
                             full_response += content_chunk
-                            self._emit_event(
-                                "thought_chunk", {
-                                    "chunk": content_chunk}, on_event
+                            chunk_count += 1
+                            should_emit = (
+                                len(content_chunk) >= int(getattr(settings, "thought_chunk_min_chars", 80))
+                                or chunk_count % max(int(getattr(settings, "thought_chunk_log_every_n", 10)), 1) == 0
                             )
+                            if should_emit:
+                                payload = {"chunk": content_chunk}
+                                if iteration is not None:
+                                    payload["iteration"] = iteration
+                                self._emit_event("thought_chunk", payload, on_event)
                 except Exception as stream_err:
                     err_str = str(stream_err).lower()
                     if "generation chunks" in err_str or "no generation chunks" in err_str:
-                        logger.info(
-                            "流式未返回 chunk，回退到非流式: %s", stream_err
+                        logger.bind(
+                            event="llm_fallback",
+                            agent=getattr(self, "agent_type", getattr(self, "name", "-")),
+                            attempt=1,
+                        ).info(
+                            f"流式未返回 chunk，回退到非流式: {stream_err}"
                         )
                         full_response = await self._call_llm_non_stream(
                             messages, timeout=60.0
                         )
                         self._emit_full_response_as_chunk(
-                            full_response, on_event)
+                            full_response,
+                            on_event,
+                            iteration=iteration,
+                        )
                         return full_response
                     raise stream_err
 
@@ -408,26 +456,43 @@ class SecurityReActAgent(BaseAgent):
                     full_response = await self._call_llm_non_stream(
                         messages, timeout=60.0
                     )
-                    self._emit_full_response_as_chunk(full_response, on_event)
+                    self._emit_full_response_as_chunk(
+                        full_response,
+                        on_event,
+                        iteration=iteration,
+                    )
             else:
                 full_response = await self._call_llm_non_stream(
                     messages, timeout=10.0
                 )
-                self._emit_full_response_as_chunk(full_response, on_event)
-
+                self._emit_full_response_as_chunk(
+                    full_response,
+                    on_event,
+                    iteration=iteration,
+                )
+            logger.bind(
+                event="llm_call_end",
+                agent=getattr(self, "agent_type", getattr(self, "name", "-")),
+                duration_ms=int((time.perf_counter() - stream_started) * 1000),
+                attempt=1,
+            ).info("llm stream invoke finished")
             return full_response
         except Exception as e:
             err_str = str(e).lower()
             if "generation chunks" in err_str or "no generation chunks" in err_str:
                 try:
-                    logger.info("流式报错「无 generation chunks」，回退到非流式: %s", e)
+                    logger.bind(event="llm_fallback", attempt=1).info(f"流式报错「无 generation chunks」，回退到非流式: {e}")
                     full_response = await self._call_llm_non_stream(
                         messages, timeout=60.0
                     )
-                    self._emit_full_response_as_chunk(full_response, on_event)
+                    self._emit_full_response_as_chunk(
+                        full_response,
+                        on_event,
+                        iteration=iteration,
+                    )
                     return full_response
                 except Exception as fallback_err:
-                    logger.error("非流式回退也失败: %s", fallback_err)
+                    logger.bind(event="llm_error", attempt=1).error(f"非流式回退也失败: {fallback_err}")
                     e = fallback_err
 
             if "model_dump" in str(e).lower():
@@ -436,20 +501,24 @@ class SecurityReActAgent(BaseAgent):
                         chat_completions_request,
                         langchain_messages_to_dicts,
                     )
-                    logger.info("LLM 调用触发 model_dump，改用 HTTP 直连回退")
+                    logger.bind(event="llm_fallback", attempt=1).info("LLM 调用触发 model_dump，改用 HTTP 直连回退")
                     payload = langchain_messages_to_dicts(messages)
                     full_response = await chat_completions_request(
                         payload, max_tokens=4096, timeout=60.0
                     )
-                    self._emit_full_response_as_chunk(full_response, on_event)
+                    self._emit_full_response_as_chunk(
+                        full_response,
+                        on_event,
+                        iteration=iteration,
+                    )
                     return full_response
                 except Exception as http_err:
-                    logger.error("HTTP 回退失败: %s", http_err)
+                    logger.bind(event="llm_error", attempt=1).error(f"HTTP 回退失败: {http_err}")
                     e = http_err
 
             from utils.model_selector import get_llm_connection_hint
 
-            logger.error(f"LLM 流式调用失败: {e}")
+            logger.bind(event="llm_error", attempt=1).error(f"LLM 流式调用失败: {e}")
             provider = (
                 self._provider_override
                 or getattr(settings, "llm_provider", None)
@@ -514,10 +583,6 @@ class SecurityReActAgent(BaseAgent):
             if self.audit:
                 self.audit.record(self.name, "thought", thought)
             response_parts.append(f"💭 **Thought {iteration}**: {thought}\n")
-            self._emit_event(
-                "thought", {"iteration": iteration,
-                            "content": thought}, on_event
-            )
 
             # ---- 解析 ACTION ----
             action_info = self._parse_action(thought, iteration)
@@ -639,6 +704,25 @@ class SecurityReActAgent(BaseAgent):
                     "success": result.success,
                     "result": result.result if result.success else None,
                     "error": result.error if not result.success else None,
+                    "view_type": "raw",
+                },
+                on_event,
+            )
+
+            summary_text = await self._summarize_tool_result_for_user(
+                user_input=user_input,
+                tool_name=tool_name,
+                tool_params=tool_params,
+                result=result,
+                iteration=iteration,
+            )
+            self._emit_event(
+                "content",
+                {
+                    "iteration": iteration,
+                    "content": summary_text,
+                    "tool": tool_name,
+                    "view_type": "summary",
                 },
                 on_event,
             )
@@ -1130,13 +1214,22 @@ Final Answer: <最终结论和报告>
             "thought_start", {"iteration": len(
                 self._react_history) + 1}, on_event
         )
+        iteration = len(self._react_history) + 1
         if on_event:
             # 使用流式LLM调用
-            thought = await self._call_llm_stream(messages, on_event)
+            thought = await self._call_llm_stream(
+                messages,
+                on_event,
+                iteration=iteration,
+            )
         else:
             # 非流式调用
             thought = await self._call_llm(messages)
-        self._emit_event("thought_end", {"thought": thought}, on_event)
+        self._emit_event(
+            "thought_end",
+            {"thought": thought, "iteration": iteration},
+            on_event,
+        )
 
         return thought
 
@@ -1246,12 +1339,20 @@ Final Answer: <最终结论和报告>
                 # policy == "always_allow" 时直接执行原命令，不注入密码
 
         log_params = {k: v for k, v in params.items() if k != "stdin_data"}
-        logger.info(f"执行工具: {tool.name}, 参数: {log_params}")
+        started = time.perf_counter()
+        tool_logger = logger.bind(
+            agent=getattr(self, "agent_type", getattr(self, "name", "-")),
+            tool=tool.name,
+            event="tool_call_start",
+            attempt=1,
+        )
+        tool_logger.info(f"执行工具: {tool.name}, 参数: {log_params}")
         try:
             result = await tool.execute(**params)
-            logger.info(f"工具 {tool.name} 执行成功: {result.success}")
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            tool_logger.bind(event="tool_call_end", duration_ms=duration_ms).info(f"工具 {tool.name} 执行完成: {result.success}")
             if not result.success:
-                logger.error(f"工具 {tool.name} 执行失败: {result.error}")
+                tool_logger.bind(event="tool_error", duration_ms=duration_ms).error(f"工具 {tool.name} 执行失败: {result.error}")
                 # 失败时写入专用 debug 日志，便于后续精确排查与优化
                 self._write_tool_debug_log(
                     tool_name=tool.name,
@@ -1279,7 +1380,8 @@ Final Answer: <最终结论和报告>
                     result.error = f"{error_msg}\n\n{hint_msg}"
             return result
         except Exception as e:
-            logger.error(f"工具 {tool.name} 执行失败: {e}")
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            tool_logger.bind(event="tool_error", duration_ms=duration_ms).exception(f"工具 {tool.name} 执行异常")
             error_msg = str(e)
             # 异常时同样写入 debug 日志
             self._write_tool_debug_log(
@@ -1464,6 +1566,64 @@ Final Answer: <最终结论和报告>
                 return f"结果: {tool_output}"
         return f"❌ 执行失败: {result.error}"
 
+    async def _summarize_tool_result_for_user(
+        self,
+        user_input: str,
+        tool_name: str,
+        tool_params: Dict[str, Any],
+        result: "ToolResult",
+        iteration: int,
+    ) -> str:
+        """
+        将工具执行结果转换为面向用户的可读摘要。
+        优先使用 LLM，总结失败时回退到模板化摘要。
+        """
+        raw_result = result.result if result.success else result.error
+        raw_text = str(raw_result) if raw_result is not None else ""
+        if len(raw_text) > 2000:
+            raw_text = raw_text[:2000] + "...(截断)"
+
+        prompt = f"""你是安全测试结果解读助手。请将一次工具执行结果总结为用户可读内容，使用简洁中文，严格按以下 4 行格式输出：
+进展: <本次做了什么>
+发现: <关键发现，没有则写“暂无关键发现”>
+风险: <高/中/低 + 理由，没有风险写“低（未发现明显风险）”>
+下一步: <建议下一步动作>
+
+任务: {user_input}
+轮次: {iteration}
+工具: {tool_name}
+参数: {json.dumps(tool_params, ensure_ascii=False)}
+是否成功: {result.success}
+原始结果:
+{raw_text or "(空)"}
+"""
+        try:
+            messages = [
+                SystemMessage(
+                    content="你负责把工具输出转换成面向用户的可读安全分析摘要。"
+                ),
+                HumanMessage(content=prompt),
+            ]
+            summary = await self._call_llm_non_stream(messages, timeout=20.0)
+            if summary and summary.strip():
+                return summary.strip()
+        except Exception as e:
+            logger.warning(f"工具结果总结失败，回退模板摘要: {e}")
+
+        if result.success:
+            return (
+                f"进展: 已执行工具 `{tool_name}` 并获得结果。\n"
+                f"发现: {self._format_observation(result)[:240]}\n"
+                "风险: 低（仅工具原始输出，需结合后续证据判断）\n"
+                "下一步: 继续执行后续检测并汇总最终结论。"
+            )
+        return (
+            f"进展: 已尝试执行工具 `{tool_name}`，执行失败。\n"
+            f"发现: {result.error or '工具返回失败但未提供详细错误'}\n"
+            "风险: 中（关键步骤失败可能影响结论完整性）\n"
+            "下一步: 修复错误后重试该步骤，或切换替代工具验证。"
+        )
+
     async def execute_todo(
         self,
         todo,
@@ -1552,14 +1712,21 @@ Final Answer: <最终结论和报告>
 
             # 使用流式 LLM 调用，发送 thought_chunk 事件
             if emit_events and on_event:
-                response = await self._call_llm_stream(messages, on_event)
+                response = await self._call_llm_stream(
+                    messages,
+                    on_event,
+                    iteration=iteration,
+                )
             else:
                 response = await self._call_llm(messages)
 
             # 发送推理结束事件
             if emit_events and on_event:
                 self._emit_event(
-                    "thought_end", {"thought": response}, on_event)
+                    "thought_end",
+                    {"thought": response, "iteration": iteration},
+                    on_event,
+                )
 
             action_info = self._parse_action(response, iteration)
             if not action_info or action_info.get("tool") != tool.name:
@@ -1589,6 +1756,24 @@ Final Answer: <最终结论和报告>
                     "success": result.success,
                     "result": result.result if result.success else None,
                     "error": result.error if not result.success else None,
+                    "view_type": "raw",
+                },
+                on_event,
+            )
+            summary_text = await self._summarize_tool_result_for_user(
+                user_input=user_input,
+                tool_name=tool.name,
+                tool_params=tool_params,
+                result=result,
+                iteration=iteration,
+            )
+            self._emit_event(
+                "content",
+                {
+                    "iteration": iteration,
+                    "content": summary_text,
+                    "tool": tool.name,
+                    "view_type": "summary",
                 },
                 on_event,
             )
