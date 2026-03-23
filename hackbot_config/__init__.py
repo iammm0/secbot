@@ -180,6 +180,33 @@ def save_llm_provider(provider: str) -> bool:
     )
 
 
+def get_log_level() -> str:
+    """当前日志级别（优先 SQLite 持久化，其次环境变量 LOG_LEVEL）"""
+    val = _get_config_from_sqlite("log_level")
+    if val and val.strip():
+        normalized = val.strip().upper()
+        if normalized in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            return normalized
+    env_val = (os.getenv("LOG_LEVEL") or "INFO").strip().upper()
+    return env_val if env_val in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"} else "INFO"
+
+
+def save_log_level(level: str) -> bool:
+    """持久化日志级别到 SQLite（供 TUI 切换后重启生效）"""
+    normalized = (level or "").strip().upper()
+    if normalized not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        return False
+    ok = save_config_to_sqlite(
+        "log_level",
+        normalized,
+        category="user_preference",
+        description="日志级别（TUI 日志设置）",
+    )
+    if ok:
+        os.environ["LOG_LEVEL"] = normalized
+    return ok
+
+
 class Settings(BaseSettings):
     """应用配置"""
 
@@ -250,8 +277,21 @@ class Settings(BaseSettings):
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/secbot.db")
 
     # 日志配置
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    @computed_field
+    @property
+    def log_level(self) -> str:
+        return get_log_level()
     log_file: str = os.getenv("LOG_FILE", "logs/agent.log")
+    # 统一日志策略
+    log_max_message_chars: int = int(os.getenv("LOG_MAX_MESSAGE_CHARS", "2000"))
+    log_max_field_chars: int = int(os.getenv("LOG_MAX_FIELD_CHARS", "1000"))
+    log_max_list_items: int = int(os.getenv("LOG_MAX_LIST_ITEMS", "20"))
+    log_sensitive_keys: str = os.getenv(
+        "LOG_SENSITIVE_KEYS",
+        "password,passwd,token,api_key,authorization,cookie,set-cookie,secret,stdin_data,auth_value",
+    )
+    thought_chunk_log_every_n: int = int(os.getenv("THOUGHT_CHUNK_LOG_EVERY_N", "10"))
+    thought_chunk_min_chars: int = int(os.getenv("THOUGHT_CHUNK_MIN_CHARS", "80"))
     verbose_init: bool = os.getenv("VERBOSE_INIT", "false").lower() in (
         "1",
         "true",
