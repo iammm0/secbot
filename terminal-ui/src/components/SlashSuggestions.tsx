@@ -32,7 +32,7 @@ export function SlashSuggestions({ commands, selectedIndex, filter }: SlashSugge
   const safeIndex = Math.min(Math.max(0, selectedIndex), filtered.length - 1);
 
   return (
-    <Box flexDirection="column" marginBottom={1} paddingLeft={0} paddingRight={0}>
+    <Box flexDirection="column" marginBottom={0} paddingLeft={0} paddingRight={0}>
       {filtered.map((cmd, i) => {
         const selected = i === safeIndex;
         const slash = cmd.slash ?? cmd.value;

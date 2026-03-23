@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, useInput } from 'ink';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { useCommand, useToast, useRoute, useSync, useLocal, useKeybind } from './contexts/index.js';
 import { inkKeyToParsedKey } from './contexts/KeybindContext.js';
 import { useDialog } from './contexts/DialogContext.js';
@@ -23,6 +25,27 @@ interface AppProps {
 
 const DEFAULT_COLUMNS = 100;
 const DEFAULT_ROWS = 32;
+const LOG_TAIL_LINES = 120;
+
+async function readRecentRuntimeLogs(): Promise<string> {
+  const cwd = process.cwd();
+  const targets = [
+    { title: 'BACKEND-RUNTIME', file: path.join(cwd, '..', 'logs', 'backend-runtime.log') },
+    { title: 'TUI-RUNTIME', file: path.join(cwd, '..', 'logs', 'tui-runtime.log') },
+  ];
+  const sections: string[] = [];
+  for (const item of targets) {
+    try {
+      const text = await fs.readFile(item.file, 'utf8');
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      const tail = lines.slice(-LOG_TAIL_LINES);
+      sections.push(`## ${item.title}\n${tail.join('\n') || '(empty)'}`);
+    } catch {
+      sections.push(`## ${item.title}\n(log file not found)`);
+    }
+  }
+  return sections.join('\n\n');
+}
 
 export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   const stdout = typeof process !== 'undefined' && process.stdout;
@@ -138,6 +161,21 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         onSelect: ({ close }) => {
           close();
           dialog.replace(<LogLevelDialog />);
+        },
+      }),
+      register({
+        title: '运行日志（最近 120 行）',
+        value: '/logs',
+        category: '系统',
+        slash: '/logs',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="运行日志（最近 120 行）"
+              fetchContent={readRecentRuntimeLogs}
+            />
+          );
         },
       }),
       register({

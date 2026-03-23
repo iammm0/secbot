@@ -212,11 +212,12 @@ export function streamStateToBlocks(
   if (timeline.length > 0) {
     for (const item of timeline) {
       if (item.type === "thought") {
+        const extracted = extractThoughtOnly(item.body || "…");
         addBlock(
           item.id,
           "thought",
           item.title || "推理",
-          truncateBody(extractThoughtOnly(item.body || "…"), MAX_RESULT_LINES),
+          truncateBody(extracted, MAX_RESULT_LINES),
         );
         continue;
       }
