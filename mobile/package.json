@@ -29,5 +29,8 @@
   "overrides": {
     "markdown-it": ">=12.3.2"
   },
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  }
 }
