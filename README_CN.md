@@ -198,6 +198,56 @@ $env:SECBOT_MCP_ENABLED = "true"
 }
 ```
 
+### Browser 子进程工具库（可选）
+
+仓库提供了独立 JS 子包：`packages/secbot-browser-tools`，用于承载浏览器自动化能力并由 Python 侧调用。
+
+```bash
+cd packages/secbot-browser-tools
+npm install
+npm run build
+```
+
+可选：指定 Python 侧使用的子进程启动命令：
+
+```powershell
+$env:SECBOT_BROWSER_TOOLS_CMD = "node packages/secbot-browser-tools/dist/server.js"
+```
+
+### agent-browser CLI（可选）
+
+如需执行浏览器自动化流程，建议安装 `agent-browser`：
+
+```powershell
+npm install -g agent-browser
+agent-browser install
+```
+
+若 `agent-browser install` 因网络失败，可直接使用本机 Chrome（Windows）：
+
+```powershell
+$env:AGENT_BROWSER_EXECUTABLE_PATH = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+```
+
+### 多浏览器工具后端（新增）
+
+`packages/secbot-browser-tools` 现在支持多后端：
+
+- `agent-browser`（默认，适合已有 agent-browser 工作流）
+- `playwright`（无需安装 agent-browser，直接走 Playwright）
+
+通过环境变量切换：
+
+```powershell
+$env:SECBOT_BROWSER_PROVIDER = "playwright"
+```
+
+或显式指定 agent-browser：
+
+```powershell
+$env:SECBOT_BROWSER_PROVIDER = "agent-browser"
+```
+
 ---
 
 ## 使用方式

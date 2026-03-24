@@ -1,160 +1,165 @@
-# Secbot
-
 <div align="center">
 
-![Secbot main interface](assets/secbot-main.png)
+<h1>Secbot</h1>
 
-**AI-native security automation platform** — multi-agent orchestration with **ACP**, **MCP**, and **Skills**, plus plan/edit workflows inspired by opencode-style semantics.
+<p><strong>AI 驱动的安全自动化平台</strong> — 多智能体编排，集成 <strong>ACP</strong>、<strong>MCP</strong> 与 <strong>Skills</strong>，并支持类 opencode 的计划与编辑语义。</p>
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.6.0-brightgreen.svg)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
+<p>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-1.6.0-brightgreen.svg" alt="Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-orange.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg" alt="Platform">
+</p>
 
-[中文说明](README_CN.md)
+<p>
+  <a href="README.md">English (主 README)</a> · 中文
+</p>
+
+![Secbot 主界面](assets/secbot-main.png)
 
 </div>
 
 ---
 
-> **Security & legal notice**  
-> This software is intended **only for authorized security testing, red-team exercises, and defensive research**. Using it against systems without explicit permission may violate law. Read [docs/SECURITY_WARNING.md](docs/SECURITY_WARNING.md) before use.
+> **安全与法律声明**  
+> 本软件**仅用于经授权的安全测试、攻防演练与防御向研究**。对未授权目标使用可能违法。使用前请阅读 [docs/SECURITY_WARNING.md](docs/SECURITY_WARNING.md)。
 
 ---
 
-## Table of contents
+## 目录
 
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [Optional extras](#optional-extras)
-- [Testing](#testing)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [License](#license)
-
----
-
-## Overview
-
-Secbot is an **AI agent platform for security automation**, shipped as a **Python monorepo**. It combines:
-
-- **ACP (Agent Client Protocol)** — session lifecycle and streaming events for external clients; see `apps/opencode-gateway/`.
-- **MCP (Model Context Protocol)** — discover and call local or remote MCP tool servers.
-- **Skills** — unified discovery and injection for native Secbot skills and opencode-style skill directories.
-- **Planner + executors** — multi-agent flows with modes such as full agent, plan-only, and ask.
-
-The default experience is a **terminal UI (TUI)** backed by a **FastAPI** server; you can also run the API or the ACP gateway on their own.
+- [项目简介](#项目简介)
+- [功能特性](#功能特性)
+- [架构说明](#架构说明)
+- [环境要求](#环境要求)
+- [安装](#安装)
+- [配置](#配置)
+- [使用方式](#使用方式)
+- [可选扩展](#可选扩展)
+- [测试](#测试)
+- [文档索引](#文档索引)
+- [参与贡献](#参与贡献)
+- [许可证](#许可证)
+- [致谢](#致谢)
 
 ---
 
-## Features
+## 项目简介
 
-- **Multi-agent orchestration** — planner plus layered executors (`agent` / `plan` / `ask`).
-- **ACP gateway** — ND-JSON over stdio for compatible clients (`secbot-acp`).
-- **MCP integration** — `local` and `remote` servers, dynamic tool wrapping (via `opencode.json`).
-- **Unified skills** — Secbot-native skills plus external/opencode-style paths under feature flags.
-- **Permission model** — `allow` / `ask` / `deny` for high-risk operations when enabled.
-- **Gradual rollout** — feature toggles via environment variables (ACP, MCP, skills, edit tools, plan mode, permissions).
-- **Broad LLM support** — Ollama locally and many cloud providers; see [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md).
+Secbot 是一个面向**安全自动化**的 **AI Agent 平台**，以 **Python Monorepo** 交付，整合：
+
+- **ACP（Agent Client Protocol）** — 对外部客户端暴露会话生命周期与流式事件；实现见 `apps/opencode-gateway/`。
+- **MCP（Model Context Protocol）** — 发现并调用本地或远程 MCP 工具服务。
+- **Skills** — 原生 Secbot 技能与 opencode 风格技能目录的统一发现与注入。
+- **规划与执行** — Planner + 分层执行器，支持 `agent` / `plan` / `ask` 等模式。
+
+默认体验为 **终端全屏 TUI**（Ink + TypeScript）+ **FastAPI** 后端；也可单独启动 API 或 ACP 网关。
 
 ---
 
-## Architecture
+## 功能特性
+
+- **多智能体编排**：Planner + 分层执行器。
+- **ACP 网关**：stdio 上的 ND-JSON，兼容 ACP 客户端（`secbot-acp`）。
+- **MCP**：通过根目录 `opencode.json` 注册 `local` / `remote` 服务并动态封装为工具。
+- **统一 Skills**：在特性开关下合并 Secbot 原生与外部/opencode 风格技能路径。
+- **权限模型**：高风险操作支持 `allow` / `ask` / `deny`（需启用相关开关）。
+- **特性开关**：通过环境变量灰度启用 ACP、MCP、统一技能、编辑工具、计划模式与权限等。
+- **多推理后端**：本地 Ollama 与多家云端 API；列表见 [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)。
+
+---
+
+## 架构说明
 
 ```text
 apps/
-  secbot-api/          # FastAPI routes and HTTP/SSE surface
-  secbot-cli/          # CLI / TUI launcher and interactive entry
-  opencode-gateway/    # ACP gateway (stdio ND-JSON)
+  secbot-api/          # FastAPI 路由与 HTTP/SSE
+  secbot-cli/          # CLI / TUI 启动与交互入口
+  opencode-gateway/    # ACP 网关（stdio ND-JSON）
 
 packages/
-  secbot-core/         # Sessions, planning, execution graph
-  secbot-tools/        # Built-in tools and system actions
-  secbot-skills/       # Native skill implementations
-  shared-config/       # Shared settings, feature flags, MCP config loader
-  opencode-adapters/   # MCP, skills, edit, and permission adapters
+  secbot-core/         # 会话、规划、执行图
+  secbot-tools/        # 内置工具与系统能力
+  secbot-skills/       # 原生技能实现
+  shared-config/       # 共享配置、特性开关、MCP 配置加载
+  opencode-adapters/   # MCP / 技能 / 编辑 / 权限适配层
 
-terminal-ui/           # TypeScript + Ink TUI (Node.js 22+)
-desktop/               # Tauri + Vite desktop shell (optional)
-mobile/                # Mobile client workspace (optional)
+terminal-ui/           # TypeScript + Ink TUI（需 Node.js 22+）
+desktop/               # Tauri + Vite 桌面壳（可选）
+mobile/                # 移动端工程（可选）
 ```
 
-For migration history and deeper design notes, see [docs/MONOREPO_MIGRATION.md](docs/MONOREPO_MIGRATION.md).
+迁移与整体设计见 [docs/MONOREPO_MIGRATION.md](docs/MONOREPO_MIGRATION.md)。
 
 ---
 
-## Requirements
+## 环境要求
 
-| Component | Notes |
-|-----------|--------|
-| **Python** | 3.11+ (`requires-python` in [pyproject.toml](pyproject.toml)) |
-| **OS** | Windows, Linux, macOS (some optional deps, e.g. certain SQLite vector extensions, are **not** installed on Windows per `pyproject.toml` markers) |
-| **Node.js** | **22+** if you run the Ink TUI from `terminal-ui/` (see [docs/NODE_SETUP.md](docs/NODE_SETUP.md)) |
-| **LLM backend** | e.g. [Ollama](https://ollama.ai) locally, or API keys for cloud providers ([docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)) |
+| 组件 | 说明 |
+|------|------|
+| **Python** | 3.11 及以上（与 [pyproject.toml](pyproject.toml) 中 `requires-python` 一致） |
+| **操作系统** | Windows、Linux、macOS（部分可选依赖如部分 SQLite 向量扩展在 Windows 上按标记**不安装**，以 `pyproject.toml` 为准） |
+| **Node.js** | **22+**（若从 `terminal-ui/` 运行 Ink TUI；见 [docs/NODE_SETUP.md](docs/NODE_SETUP.md)） |
+| **大模型** | 例如本地 [Ollama](https://ollama.ai)，或配置云端 API Key（[docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)） |
 
-Playwright/Selenium and other automation dependencies are pulled in as Python packages; follow vendor docs for browser drivers where applicable.
+Playwright、Selenium 等随 Python 依赖安装；浏览器驱动请遵循各厂商文档。
 
 ---
 
-## Installation
+## 安装
 
-### Editable install (recommended for development)
+### 可编辑安装（开发推荐）
 
-From the repository root:
+在仓库根目录：
 
 ```bash
 python -m pip install -e .
 ```
 
-### Using uv
+### 使用 uv
 
 ```bash
 uv pip install -e .
 ```
 
-### Optional dependency groups
+### 可选依赖组
 
 ```bash
-# development tooling
+# 开发工具
 python -m pip install -e ".[dev]"
 
-# extra LLM providers (see pyproject.toml)
+# 额外 LLM 厂商（见 pyproject.toml）
 python -m pip install -e ".[anthropic]"
 python -m pip install -e ".[google]"
 python -m pip install -e ".[all-providers]"
 
-# optional exploit-related integrations
+# 可选漏洞利用相关集成
 python -m pip install -e ".[exploit-tools]"
 ```
 
-Console entry points (from [pyproject.toml](pyproject.toml)) include **`secbot`**, **`secbot-cli`**, **`hackbot`** (CLI), **`secbot-server`** / **`hackbot-server`** (API), and **`secbot-acp`** (ACP gateway).
+安装后的控制台入口（见 [pyproject.toml](pyproject.toml)）：**`secbot`**、**`secbot-cli`**、**`hackbot`**（CLI）、**`secbot-server`** / **`hackbot-server`**（API）、**`secbot-acp`**（ACP 网关）。
 
 ---
 
-## Configuration
+## 配置
 
-### Environment variables
+### 环境变量
 
-- Copy or create a **`.env`** file in the project root as needed. Project docs refer to an `env.example` template when present; see [docs/QUICKSTART.md](docs/QUICKSTART.md) and [docs/design-paradigms/config-and-env.md](docs/design-paradigms/config-and-env.md) for conventions.
-- **LLM**: set `LLM_PROVIDER` and provider-specific keys (details in [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)). Ollama defaults are documented in [docs/OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md).
+- 在项目根目录按需创建 **`.env`**。文档中若提到 `env.example`，请以仓库内实际文件为准；约定见 [docs/QUICKSTART.md](docs/QUICKSTART.md) 与 [docs/design-paradigms/config-and-env.md](docs/design-paradigms/config-and-env.md)。
+- **LLM**：设置 `LLM_PROVIDER` 及各厂商 Key，详见 [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)。Ollama 见 [docs/OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md)。
 
-### Feature flags (gradual rollout)
+### 功能灰度开关
 
-| Variable | Purpose |
-|----------|---------|
-| `SECBOT_ACP_ENABLED` | ACP-related behavior |
-| `SECBOT_MCP_ENABLED` | MCP integration |
-| `SECBOT_UNIFIED_SKILLS` | Unified skill loading |
-| `SECBOT_EDIT_TOOLS` | File edit–style tools |
-| `SECBOT_PLAN_MODE` | Plan mode |
-| `SECBOT_PERMISSIONS` | Permission prompts / policy |
+| 变量 | 说明 |
+|------|------|
+| `SECBOT_ACP_ENABLED` | ACP 相关能力 |
+| `SECBOT_MCP_ENABLED` | MCP 集成 |
+| `SECBOT_UNIFIED_SKILLS` | 统一技能加载 |
+| `SECBOT_EDIT_TOOLS` | 编辑类工具 |
+| `SECBOT_PLAN_MODE` | 计划模式 |
+| `SECBOT_PERMISSIONS` | 权限策略 |
 
-Example (Unix-like shells):
+**Linux / macOS** 示例：
 
 ```bash
 export SECBOT_ACP_ENABLED=true
@@ -165,11 +170,15 @@ export SECBOT_PLAN_MODE=true
 export SECBOT_PERMISSIONS=true
 ```
 
-On Windows PowerShell, use `$env:SECBOT_MCP_ENABLED = "true"` (and similarly for other variables).
+**Windows PowerShell** 示例：
 
-### MCP: `opencode.json`
+```powershell
+$env:SECBOT_MCP_ENABLED = "true"
+```
 
-Place **`opencode.json`** in the project root to register MCP servers:
+### MCP（`opencode.json`）
+
+在**项目根目录**创建 `opencode.json`：
 
 ```json
 {
@@ -189,38 +198,86 @@ Place **`opencode.json`** in the project root to register MCP servers:
 }
 ```
 
+### Browser 子进程工具库（可选）
+
+仓库提供了独立 JS 子包：`packages/secbot-browser-tools`，用于承载浏览器自动化能力并由 Python 侧调用。
+
+```bash
+cd packages/secbot-browser-tools
+npm install
+npm run build
+```
+
+可选：指定 Python 侧使用的子进程启动命令：
+
+```powershell
+$env:SECBOT_BROWSER_TOOLS_CMD = "node packages/secbot-browser-tools/dist/server.js"
+```
+
+### agent-browser CLI（可选）
+
+如需执行浏览器自动化流程，建议安装 `agent-browser`：
+
+```powershell
+npm install -g agent-browser
+agent-browser install
+```
+
+若 `agent-browser install` 因网络失败，可直接使用本机 Chrome（Windows）：
+
+```powershell
+$env:AGENT_BROWSER_EXECUTABLE_PATH = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+```
+
+### 多浏览器工具后端（新增）
+
+`packages/secbot-browser-tools` 现在支持多后端：
+
+- `agent-browser`（默认，适合已有 agent-browser 工作流）
+- `playwright`（无需安装 agent-browser，直接走 Playwright）
+
+通过环境变量切换：
+
+```powershell
+$env:SECBOT_BROWSER_PROVIDER = "playwright"
+```
+
+或显式指定 agent-browser：
+
+```powershell
+$env:SECBOT_BROWSER_PROVIDER = "agent-browser"
+```
+
 ---
 
-## Usage
+## 使用方式
 
-### Root launcher (`main.py`)
+### 根目录 `main.py`
 
-The repository root [main.py](main.py) starts the **backend** and the **TypeScript TUI** by default:
+仓库根目录 [main.py](main.py) 默认先启**后端**再启 **TypeScript TUI**：
 
 ```bash
-python main.py              # backend + TUI (full-screen terminal UI)
-python main.py --backend    # API server only
-python main.py --tui        # TUI only (backend must already be running)
+python main.py              # 后端 + 全屏 TUI
+python main.py --backend    # 仅 API
+python main.py --tui        # 仅 TUI（需后端已运行）
 ```
 
-### Installed commands
+### 已安装命令
 
 ```bash
-secbot-server               # or: python main.py --backend
-secbot-cli                  # default: backend + full-screen TUI (same as secbot / hackbot)
-secbot-cli --backend        # API only (default http://127.0.0.1:8000)
-secbot-cli --tui            # TUI only (start backend separately first)
-secbot-cli model            # interactive LLM provider + model selection (persisted to SQLite)
+secbot-server               # 或: python main.py --backend
+secbot-cli                  # 默认：后端 + 全屏 TUI（与 secbot / hackbot 相同）
+secbot-cli --backend        # 仅 API（默认 http://127.0.0.1:8000）
+secbot-cli --tui            # 仅 TUI（需先启动后端）
+secbot-cli model            # 交互选择推理后端与模型（写入 SQLite）
 secbot-cli --help
-secbot / hackbot            # same entry module as secbot-cli
+secbot / hackbot            # 与 secbot-cli 同一入口模块
 
-python -m opencode_gateway.main   # ACP gateway
-secbot-acp                  # same, after install
+python -m opencode_gateway.main
+secbot-acp                  # 安装后的 ACP 网关入口
 ```
 
-### TUI (Ink)
-
-From `terminal-ui/`:
+### TUI（Ink）
 
 ```bash
 cd terminal-ui
@@ -228,29 +285,29 @@ npm install
 npm run tui
 ```
 
-See [terminal-ui/README.md](terminal-ui/README.md) and [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md).
+详见 [terminal-ui/README.md](terminal-ui/README.md) 与 [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md)。
 
-### Docker & deployment
+### Docker 与部署
 
-See [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
-
----
-
-## Optional extras
-
-- **Tool extensions**: third-party packages can register tools via setuptools entry points — [docs/TOOL_EXTENSION.md](docs/TOOL_EXTENSION.md).
-- **Desktop app**: `desktop/` (Tauri + Vite) — see package scripts in `desktop/package.json`.
-- **Database / SQLite**: [docs/DATABASE_GUIDE.md](docs/DATABASE_GUIDE.md), [docs/SQLITE_SETUP.md](docs/SQLITE_SETUP.md).
+[docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md)、[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
 ---
 
-## Testing
+## 可选扩展
+
+- **工具扩展**：第三方包可通过 setuptools entry point 注册工具 — [docs/TOOL_EXTENSION.md](docs/TOOL_EXTENSION.md)。
+- **桌面端**：`desktop/`（Tauri + Vite），脚本见 `desktop/package.json`。
+- **数据库 / SQLite**：[docs/DATABASE_GUIDE.md](docs/DATABASE_GUIDE.md)、[docs/SQLITE_SETUP.md](docs/SQLITE_SETUP.md)。
+
+---
+
+## 测试
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-Focused smoke test for monorepo wiring:
+Monorepo 集成冒烟：
 
 ```bash
 python -m pytest tests/test_monorepo_integration.py -v
@@ -258,43 +315,42 @@ python -m pytest tests/test_monorepo_integration.py -v
 
 ---
 
-## Documentation
+## 文档索引
 
-| Document | Description |
-|----------|-------------|
-| [docs/QUICKSTART.md](docs/QUICKSTART.md) | Step-by-step getting started |
-| [docs/API.md](docs/API.md) | HTTP API overview |
-| [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md) | Supported LLM backends |
-| [docs/SKILLS_AND_MEMORY.md](docs/SKILLS_AND_MEMORY.md) | Skills and memory |
-| [docs/MONOREPO_MIGRATION.md](docs/MONOREPO_MIGRATION.md) | Monorepo layout and migration |
-| [docs/SECURITY_WARNING.md](docs/SECURITY_WARNING.md) | Legal and safe-use notice |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release notes |
-
-Design deep-dives live under [docs/design-paradigms/](docs/design-paradigms/).
-
----
-
-## Contributing
-
-Contributions are welcome via **issues** and **pull requests**.
-
-1. Use the project only in **authorized** contexts; do not submit changes aimed at bypassing safety or policy without discussion.
-2. Match existing code style ([Black](https://github.com/psf/black) line length 120 per `pyproject.toml`).
-3. Run tests for areas you touch (`pytest`).
-4. Describe **motivation** and **impact** in your PR.
-
-For commit message conventions, see [docs/design-paradigms/commit-conventions.md](docs/design-paradigms/commit-conventions.md).
-
-**Links** (from package metadata): [Repository](https://github.com/iammm0/hackbot) · [Issues](https://github.com/iammm0/hackbot/issues)
+| 文档 | 说明 |
+|------|------|
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | 分步快速上手 |
+| [docs/API.md](docs/API.md) | HTTP API 概览 |
+| [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md) | 已支持推理后端 |
+| [docs/SKILLS_AND_MEMORY.md](docs/SKILLS_AND_MEMORY.md) | 技能与记忆 |
+| [docs/MONOREPO_MIGRATION.md](docs/MONOREPO_MIGRATION.md) | Monorepo 与迁移 |
+| [docs/SECURITY_WARNING.md](docs/SECURITY_WARNING.md) | 安全与法律声明 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 变更记录 |
+| [docs/design-paradigms/](docs/design-paradigms/) | 设计范式与深度说明 |
 
 ---
 
-## License
+## 参与贡献
 
-This project is licensed under the [MIT License](LICENSE).
+欢迎通过 **Issue** 与 **Pull Request** 参与。
+
+1. 仅在**合法授权**场景下使用与验证本仓库能力。
+2. 代码风格与 [pyproject.toml](pyproject.toml) 中的 Black 配置一致（行宽 120）。
+3. 对修改范围运行 `pytest`。
+4. PR 中说明**动机**与**影响面**。
+
+提交信息约定见 [docs/design-paradigms/commit-conventions.md](docs/design-paradigms/commit-conventions.md)。
+
+**仓库链接**（与包元数据一致）：[源码](https://github.com/iammm0/hackbot) · [Issues](https://github.com/iammm0/hackbot/issues)
 
 ---
 
-## Acknowledgments
+## 许可证
 
-Built with [LangChain](https://github.com/langchain-ai/langchain), [LangGraph](https://github.com/langchain-ai/langgraph), [FastAPI](https://fastapi.tiangolo.com/), and other libraries listed in [pyproject.toml](pyproject.toml).
+本项目采用 [MIT License](LICENSE) 授权。
+
+---
+
+## 致谢
+
+构建基于 [LangChain](https://github.com/langchain-ai/langchain)、[LangGraph](https://github.com/langchain-ai/langgraph)、[FastAPI](https://fastapi.tiangolo.com/) 等，完整依赖见 [pyproject.toml](pyproject.toml)。
