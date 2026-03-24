@@ -94,6 +94,7 @@ secbot = "secbot_cli.cli:app"
 secbot-server = "router.main:run_server"
 secbot-cli = "secbot_cli.cli:app"
 secbot-cli-server = "router.main:run_server"
+secbot-acp = "opencode_gateway.main:main"
 
 # 工具扩展 entry point：第三方包在其 pyproject.toml 中声明即可注册
 # 文档见 tools/registry.py 或 docs/TOOL_EXTENSION.md
@@ -123,44 +124,16 @@ match = "^(beta)$"
 prerelease = true
 prerelease_token = "beta"
 
-[tool.setuptools]
-packages = [
-    "secbot_cli",
-    "core",
-    "core.agents",
-    "core.patterns",
-    "core.attack_chain",
-    "core.attack_chain.graph",
-    "core.memory",
-    "core.vuln_db",
-    "core.vuln_db.adapters",
-    "skills",
-    "hackbot_config",
-    "controller",
-    "crawler",
-    "database",
-    "defense",
-    "payloads",
-    "prompts",
-    "system",
-    "tools",
-    "tools.cloud",
-    "tools.defense",
-    "tools.osint",
-    "tools.protocol",
-    "tools.reporting",
-    "tools.pentest",
-    "tools.pentest.security",
-    "tools.pentest.network",
-    "tools.offense",
-    "tools.offense.exploit",
-    "tools.offense.payload",
-    "tools.offense.control",
-    "tools.utility",
-    "tools.web",
-    "tools.web_research",
-    "utils",
-    "router",
+[tool.setuptools.packages.find]
+where = [
+    "packages/secbot-core",
+    "packages/secbot-tools",
+    "packages/secbot-skills",
+    "packages/shared-config",
+    "packages/opencode-adapters",
+    "apps/secbot-api",
+    "apps/secbot-cli",
+    "apps/opencode-gateway",
 ]
 
 [tool.setuptools.package-data]
