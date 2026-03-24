@@ -1,5 +1,7 @@
 # Node 环境与依赖说明
 
+**Secbot 要求 Node.js 22 及以上**（`terminal-ui/`、`desktop/`、`mobile/` 的 `package.json` 中 `engines.node` 与此一致）。
+
 ## 当前状态
 
 - **项目依赖**：已更新，并通过 `overrides` 修复了 `markdown-it` 安全漏洞，`npm audit` 显示 0 个漏洞。

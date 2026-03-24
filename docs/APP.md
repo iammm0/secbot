@@ -68,7 +68,7 @@ cd app && npm install && npx expo start
 
 ### 前置要求
 
-- Node.js 18+
+- Node.js 22+
 - npm 或 yarn
 - Expo CLI
 - iOS: macOS + Xcode (真机调试)

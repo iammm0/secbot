@@ -247,7 +247,7 @@ uv run python tests/test_agents.py
    - 验证 `DATABASE_URL` 指向的路径与文件权限
 
 3. **依赖安装失败**
-   - 使用 Python 3.10+
+   - 使用 Python 3.11+
    - 使用 uv 更新: `uv pip install --upgrade uv`
    - 确保 uv 已正确安装
 
