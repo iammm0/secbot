@@ -13,6 +13,22 @@ from pathlib import Path
 # 本次进程及子进程不写入 .pyc，确保每次运行都使用最新 .py 源码
 os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
 
+# --- monorepo workspace path setup (for direct `python main.py` execution) ---
+_ROOT = Path(__file__).resolve().parent
+for _ws_dir in [
+    _ROOT / "packages" / "secbot-core",
+    _ROOT / "packages" / "secbot-tools",
+    _ROOT / "packages" / "secbot-skills",
+    _ROOT / "packages" / "shared-config",
+    _ROOT / "packages" / "opencode-adapters",
+    _ROOT / "apps" / "secbot-api",
+    _ROOT / "apps" / "secbot-cli",
+    _ROOT / "apps" / "opencode-gateway",
+]:
+    _ws_str = str(_ws_dir)
+    if _ws_str not in sys.path:
+        sys.path.insert(0, _ws_str)
+
 from secbot_cli.launch_tui import launch_tui, run_backend_only, run_tui_only
 
 
