@@ -489,6 +489,56 @@ export function useChat() {
                 }));
                 break;
 
+              case "plan_exit_request":
+                setStreamState((s) => ({
+                  ...s,
+                  phase: "plan_complete",
+                  detail: "计划已就绪，使用 /accept 批准执行",
+                }));
+                break;
+
+              case "plan_approved":
+                setStreamState((s) => ({
+                  ...s,
+                  phase: "executing",
+                  detail: "计划已批准，切换到执行模式",
+                }));
+                break;
+
+              case "subagent_start":
+                setStreamState((s) => ({
+                  ...s,
+                  timeline: upsertTimelineItem(
+                    s.timeline,
+                    `subagent-${data.task_id}`,
+                    () => ({
+                      id: `subagent-${data.task_id}`,
+                      type: "action" as const,
+                      title: `[${data.agent_type}] ${data.description ?? ""}`,
+                      body: "",
+                      tool: data.agent_type as string,
+                      status: "running" as const,
+                    })
+                  ),
+                }));
+                break;
+
+              case "subagent_result":
+                setStreamState((s) => ({
+                  ...s,
+                  timeline: upsertTimelineItem(
+                    s.timeline,
+                    `subagent-${data.task_id}`,
+                    (prev) => ({
+                      ...prev!,
+                      body: (data.result as string) ?? "",
+                      success: data.success as boolean,
+                      status: "done" as const,
+                    })
+                  ),
+                }));
+                break;
+
               case "response": {
                 // Typewriter 效果：即使 API 一次性返回全文，也逐步揭示
                 const fullText = (data.content as string) ?? null;

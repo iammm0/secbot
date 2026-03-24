@@ -35,7 +35,7 @@ export function HomeView() {
   const exit = useExit();
   const [inputValue, setInputValue] = useState('');
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-  /** 刚从斜杠列表中选中的完整命令（如 '/agent'）；若下一次 handleSubmit 收到的是不完整斜杠（如 '/ag'）则忽略，避免 TextInput 的 Enter 覆盖跳转 */
+  /** 刚从斜杠列表中选中的完整命令；若下一次 handleSubmit 收到不完整斜杠则忽略，避免 TextInput 的 Enter 覆盖跳转 */
   const justSubmittedSlashRef = useRef<string | null>(null);
 
   const slashSuggestions = useMemo(() => {
@@ -51,7 +51,7 @@ export function HomeView() {
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
     if (keybind.match('agent_switch', evt)) {
-      trigger('/agent');
+      trigger('/task');
       return;
     }
     if (slashSuggestions.length === 0) return;
@@ -130,8 +130,8 @@ export function HomeView() {
                   if (sel) {
                     setInputValue(sel.slash ?? sel.value);
                     justSubmittedSlashRef.current = sel.value;
-                    // 仅打开弹窗的命令（REST/agent）不跳转 session，留在首页，关弹窗后能回到首页
-                    if (sel.category === 'REST' || sel.slash === '/agent') {
+                    // 仅打开弹窗的命令（REST）不跳转 session，留在首页，关弹窗后能回到首页
+                    if (sel.category === 'REST') {
                       trigger(sel.value);
                       setInputValue('');
                       return;
@@ -161,10 +161,11 @@ export function HomeView() {
         </Box>
       ) : null}
 
-      {/* 建议行 — 首项高亮（绿色），其余灰色；仅 Ask / Agent */}
+      {/* 建议行 — 模式提示 */}
       <Box flexShrink={0} alignItems="center" justifyContent="center" width="100%" marginTop={1}>
         <Box flexDirection="row" gap={1}>
           <Text color={theme.primary}>Ask</Text>
+          <Text color={theme.textMuted}>Plan</Text>
           <Text color={theme.textMuted}>Agent</Text>
         </Box>
       </Box>
@@ -176,7 +177,7 @@ export function HomeView() {
         <Text color={theme.text}>
           <Text color={theme.warning}>• </Text>
           <Text color={theme.text}>
-            Tip 输入 /ask 问答、直接输入任务执行安全测试
+            Tip 输入 /plan 先规划，再 /accept 执行；也可直接输入任务
           </Text>
         </Text>
       </Box>

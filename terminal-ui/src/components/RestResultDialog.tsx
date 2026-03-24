@@ -33,8 +33,9 @@ export function RestResultDialog({ title, fetchContent }: RestResultDialogProps)
   const totalLines = lines.length;
   const maxScroll = Math.max(0, totalLines - MAX_VISIBLE_LINES);
 
-  useInput((_input, key) => {
-    if (key.escape) {
+  useInput((input, key) => {
+    // 兼容不同终端下 Esc 事件形态（key.escape 或原始 ESC 字符）
+    if (key.escape || input === '\u001b') {
       pop();
       return;
     }

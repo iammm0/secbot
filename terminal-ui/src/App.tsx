@@ -13,7 +13,6 @@ import { CommandPanel } from './components/CommandPanel.js';
 import { ModelConfigDialog } from './components/ModelConfigDialog.js';
 import { LogLevelDialog } from './components/LogLevelDialog.js';
 import { RestResultDialog } from './components/RestResultDialog.js';
-import { AgentSelectDialog } from './components/AgentSelectDialog.js';
 import { HELP_TOOLS_TEXT } from './slash.js';
 import { HomeView } from './views/HomeView.js';
 import { SessionView } from './views/SessionView.js';
@@ -106,9 +105,11 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
 
   useEffect(() => {
     const unregs = [
-      register({ title: 'Ask 模式', value: '/ask', category: '会话', slash: '/ask', onSelect: ({ close }) => { setMode('ask'); toast.show({ message: '已切换到问答模式', variant: 'success' }); close(); } }),
-      register({ title: '任务模式', value: '/task', category: '会话', slash: '/task', onSelect: ({ close }) => { setMode('agent'); toast.show({ message: '已切换到任务模式', variant: 'success' }); close(); } }),
-      register({ title: '切换智能体', value: '/agent', category: '会话', slash: '/agent', onSelect: ({ close }) => { close(); dialog.replace(<AgentSelectDialog />); } }),
+      register({ title: 'Ask 模式（仅问答）', value: '/ask', category: '会话', slash: '/ask', onSelect: ({ close }) => { setMode('ask'); toast.show({ message: '已切换到 ask 模式', variant: 'success' }); close(); } }),
+      register({ title: 'Plan 模式（仅规划）', value: '/plan', category: '会话', slash: '/plan', onSelect: ({ close }) => { setMode('plan'); toast.show({ message: '已切换到 plan 模式', variant: 'success' }); close(); } }),
+      register({ title: 'Agent 执行模式（/task 与 /agent 等价）', value: '/task', category: '会话', slash: '/task', onSelect: ({ close }) => { setMode('agent'); toast.show({ message: '已切换到 agent 执行模式', variant: 'success' }); close(); } }),
+      register({ title: '采纳上一份计划并执行', value: '/accept', category: '会话', slash: '/accept', onSelect: ({ close }) => { close(); } }),
+      register({ title: '丢弃上一份计划', value: '/reject', category: '会话', slash: '/reject', onSelect: ({ close }) => { close(); } }),
       register({
         title: '帮助（集成安全工具）',
         value: '/help',
@@ -120,25 +121,6 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
             <RestResultDialog
               title="SECBOT 帮助"
               fetchContent={() => Promise.resolve(HELP_TOOLS_TEXT)}
-            />
-          );
-        },
-      }),
-      register({
-        title: '列出智能体（详情）',
-        value: '/list-agents',
-        category: 'REST',
-        slash: '/list-agents',
-        onSelect: ({ close }) => {
-          close();
-          dialog.replace(
-            <RestResultDialog
-              title="智能体列表"
-              fetchContent={() =>
-                api.get<{ agents: Array<{ type: string; name: string; description: string }> }>('/api/agents').then((r) =>
-                  (r.agents ?? []).map((a) => `${a.type}: ${a.name} — ${a.description}`).join('\n')
-                )
-              }
             />
           );
         },
@@ -213,12 +195,160 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
           );
         },
       }),
+      register({
+        title: '兼容能力总览',
+        value: '/opencode',
+        category: 'REST',
+        slash: '/opencode',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="SECBOT 兼容能力"
+              fetchContent={() =>
+                api.get<{
+                  capabilities: Record<string, boolean>;
+                  feature_flags: Record<string, string>;
+                  tui_switchable_modes: string[];
+                  acp_modes: string[];
+                  acp_gateway_entry: string;
+                }>('/api/system/opencode/capabilities').then((r) => {
+                  const lines: string[] = ['SECBOT 兼容能力', ''];
+                  lines.push('能力:');
+                  for (const [k, v] of Object.entries(r.capabilities ?? {})) {
+                    lines.push(`  ${k.padEnd(24)} : ${v ? 'enabled' : 'disabled'}`);
+                  }
+                  lines.push('', 'Feature Flags:');
+                  for (const [k, v] of Object.entries(r.feature_flags ?? {})) {
+                    lines.push(`  ${k.padEnd(24)} : ${v}`);
+                  }
+                  lines.push('', `TUI 可切换模式: ${(r.tui_switchable_modes ?? []).join(', ')}`);
+                  lines.push(`ACP 支持模式: ${(r.acp_modes ?? []).join(', ')}`);
+                  lines.push(`ACP 启动命令: ${r.acp_gateway_entry}`);
+                  return lines.join('\n');
+                })
+              }
+            />
+          );
+        },
+      }),
+      register({
+        title: 'ACP 网关能力',
+        value: '/acp-status',
+        category: 'REST',
+        slash: '/acp-status',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="ACP 网关能力"
+              fetchContent={() =>
+                api.get<{ gateway_module: string; transport: string; methods: string[] }>('/api/system/opencode/acp').then((r) =>
+                  [`ACP 网关模块: ${r.gateway_module}`, `传输: ${r.transport}`, '', '方法:', ...(r.methods ?? []).map((m) => `  - ${m}`)].join('\n')
+                )
+              }
+            />
+          );
+        },
+      }),
+      register({
+        title: 'MCP 服务状态',
+        value: '/mcp-status',
+        category: 'REST',
+        slash: '/mcp-status',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="MCP 服务状态"
+              fetchContent={() =>
+                api.get<{ count: number; servers: Array<{ name: string; type: string; enabled: boolean; timeout: number; has_command: boolean; url?: string }> }>('/api/system/opencode/mcp').then((r) => {
+                  const lines: string[] = [`MCP 服务: ${r.count}`, ''];
+                  for (const s of r.servers ?? []) {
+                    lines.push(
+                      `- ${s.name} [${s.type}] enabled=${s.enabled ? 'yes' : 'no'} timeout=${s.timeout}s` +
+                        (s.url ? ` url=${s.url}` : '') +
+                        (!s.url ? ` has_command=${s.has_command ? 'yes' : 'no'}` : '')
+                    );
+                  }
+                  if (!r.servers?.length) lines.push('(未发现 MCP 服务配置)');
+                  return lines.join('\n');
+                })
+              }
+            />
+          );
+        },
+      }),
+      register({
+        title: '统一技能列表',
+        value: '/skills',
+        category: 'REST',
+        slash: '/skills',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="统一技能列表"
+              fetchContent={() =>
+                api.get<{ count: number; truncated: boolean; skills: Array<{ name: string; description?: string }> }>('/api/system/opencode/skills').then((r) => {
+                  const lines = [`发现技能: ${r.count}`, ''];
+                  for (const s of r.skills ?? []) lines.push(`- ${s.name}: ${s.description ?? ''}`);
+                  if (r.truncated) lines.push('', '(仅展示前 30 条)');
+                  return lines.join('\n');
+                })
+              }
+            />
+          );
+        },
+      }),
+      register({
+        title: '权限策略状态',
+        value: '/permissions',
+        category: 'REST',
+        slash: '/permissions',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="权限策略状态"
+              fetchContent={() =>
+                api.get<{ policies: Record<string, { default: string }> }>('/api/system/opencode/permissions').then((r) =>
+                  ['权限策略:', ...Object.entries(r.policies ?? {}).map(([cat, p]) => `- ${cat}: ${p.default}`)].join('\n')
+                )
+              }
+            />
+          );
+        },
+      }),
+      register({
+        title: '模式说明',
+        value: '/mode',
+        category: '会话',
+        slash: '/mode',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="模式说明"
+              fetchContent={() =>
+                Promise.resolve(
+                  ['当前 TUI 支持切换: /ask, /plan, /task（/agent 与 /task 等价）', '/plan 生成计划后可用 /accept 执行，或 /reject 丢弃', '执行模式沿用当前 Agent 角色', 'ACP 网关支持: agent / plan / ask'].join('\n')
+                )
+              }
+            />
+          );
+        },
+      }),
     ];
     return () => { unregs.forEach((u) => u()); };
   }, [register, setRESTOutput, setMode, dialog, toast]);
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
+    if (hasDialog && (keybind.match('escape', evt) || input === '\u001b')) {
+      dialog.pop();
+      return;
+    }
     if (keybind.match('exit', evt)) {
       if (dialog.stack.length > 0) {
         dialog.clear();
@@ -231,7 +361,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
       return;
     }
     if (!hasDialog && keybind.match('agent_switch', evt)) {
-      trigger('/agent');
+      trigger('/task');
       return;
     }
   });

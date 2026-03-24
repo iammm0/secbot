@@ -10,7 +10,7 @@
 import React from "react";
 import { createSimpleContext } from "./helper.js";
 import { useChat } from "../useChat.js";
-import type { StreamState } from "../types.js";
+import type { ChatMode, StreamState } from "../types.js";
 import type { PendingRootRequest, HistoryItem } from "../useChat.js";
 
 export interface SyncContextValue {
@@ -28,7 +28,7 @@ export interface SyncContextValue {
   setPendingRootRequest: React.Dispatch<
     React.SetStateAction<PendingRootRequest | null>
   >;
-  sendMessage: (message: string, mode: "ask" | "agent", agent: string) => void;
+  sendMessage: (message: string, mode: ChatMode, agent: string) => void;
   setRESTOutput: (text: string | null) => void;
 }
 

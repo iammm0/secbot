@@ -1,5 +1,5 @@
 /**
- * 智能体选择对话框 — /agent 命令弹出，↑↓ 选择，Enter 确认切换
+ * Agent 执行角色选择对话框 — 由命令面板或快捷键进入，↑↓ 选择，Enter 确认切换
  */
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
@@ -48,9 +48,7 @@ export function AgentSelectDialog() {
 
   return (
     <Box flexDirection="column">
-      <Text bold color={theme.primary}>
-        切换智能体
-      </Text>
+      <Text bold color={theme.primary}>切换 Agent 执行角色</Text>
       <Text color={theme.textMuted}>↑↓ 选择 · Enter 确认 · Esc 关闭</Text>
       <Box flexDirection="column" marginTop={1}>
         {AGENTS.map((a, i) => {

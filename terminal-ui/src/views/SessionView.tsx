@@ -31,6 +31,12 @@ import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
 
+const MODE_LABELS: Record<string, { label: string; color: string }> = {
+  ask: { label: "问答", color: "cyan" },
+  plan: { label: "规划", color: "yellow" },
+  agent: { label: "执行", color: "green" },
+};
+
 /** 底部状态栏：SECBOT 固定绿色，无定时器，避免全屏下周期性重绘底部区域 */
 function SessionStatusBar({
   mode,
@@ -41,24 +47,16 @@ function SessionStatusBar({
   agent: string;
   theme: { textMuted: string; success: string };
 }) {
+  const modeInfo = MODE_LABELS[mode] ?? { label: mode, color: theme.textMuted };
   return (
-    <Box
-      flexShrink={0}
-      flexDirection="row"
-      justifyContent="space-between"
-      paddingTop={1}
-      paddingBottom={0}
-      paddingLeft={2}
-      paddingRight={2}
-    >
+    <Box flexShrink={0} flexDirection="row" justifyContent="space-between">
       <Text>
         <Text color={theme.success} bold>
           SECBOT
         </Text>
-        <Text color={theme.textMuted}>
-          {" "}
-          · {mode} · {agent}
-        </Text>
+        <Text color={theme.textMuted}> · </Text>
+        <Text color={modeInfo.color} bold>{modeInfo.label}</Text>
+        <Text color={theme.textMuted}> · {agent}</Text>
       </Text>
     </Box>
   );
@@ -76,12 +74,14 @@ export function SessionView({
   rows,
   initialPrompt,
 }: SessionViewProps) {
+  const PANEL_BASE_LINES = 5; // 分隔线/状态条/输入行/状态栏/统计栏
   const [scrollOffset, setScrollOffset] = useState(0);
   const [totalLines, setTotalLines] = useState(0);
   const [inputValue, setInputValue] = useState("");
   const [hasAppliedInitialPrompt, setHasAppliedInitialPrompt] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showScrollbar, setShowScrollbar] = useState(true);
+  const pendingPlanPromptRef = useRef<string>("");
   const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
   const scrollableHeightRef = useRef(1);
@@ -142,13 +142,13 @@ export function SessionView({
   }, [commands, inputValue]);
 
   const contentHeight = useMemo(() => {
-    // 固定区：分隔线/加载状态条(执行中)/输入行/状态栏/统计栏，再按斜杠建议条目动态预留高度，避免内容区和交互区重叠。
-    const baseReserved = streaming ? 11 : 10;
+    // 底部面板固定占位，避免推理/执行块进入输入区
     const slashReserved = inputValue.startsWith("/")
-      ? Math.min(12, slashSuggestions.length) + 2
+      ? Math.min(12, slashSuggestions.length)
       : 0;
-    return Math.max(6, rows - baseReserved - slashReserved);
-  }, [rows, streaming, inputValue, slashSuggestions.length]);
+    const panelHeight = PANEL_BASE_LINES + slashReserved;
+    return Math.max(6, rows - panelHeight);
+  }, [rows, inputValue, slashSuggestions.length]);
 
   const scrollableHeight = Math.max(1, contentHeight);
   const maxScroll = Math.max(0, totalLines - scrollableHeight);
@@ -304,7 +304,7 @@ export function SessionView({
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
     if (keybind.match("agent_switch", evt)) {
-      trigger("/agent");
+      trigger("/task");
       return;
     }
     if (keybind.match("page_up", evt)) {
@@ -391,15 +391,56 @@ export function SessionView({
         const exact = commands.find(
           (c) => c.slash && c.slash.toLowerCase() === cmd,
         );
-        const chatOnlySlash = ["/ask", "/task"];
-        const restSlashUseParseSlash = ["/help", "/list-agents", "/tools"];
+        const chatOnlySlash = ["/ask", "/plan", "/task", "/agent", "/accept", "/reject"];
+        const restSlashUseParseSlash = [
+          "/help",
+          "/tools",
+          "/mode",
+          "/opencode",
+          "/acp-status",
+          "/mcp-status",
+          "/mcp-add",
+          "/skills",
+          "/permissions",
+        ];
         if (
           exact &&
           !chatOnlySlash.includes(cmd) &&
-          (cmd !== "/agent" || parts.length <= 1) &&
           !restSlashUseParseSlash.includes(cmd)
         ) {
           trigger(exact.value);
+          setInputValue("");
+          return;
+        }
+
+        // ClaudeCode/OpenCode 风格：先 /plan，再 /accept 或 /reject
+        if (cmd === "/accept") {
+          const planned = pendingPlanPromptRef.current.trim();
+          if (!planned) {
+            toast.show({
+              message: "没有可采纳的计划，请先用 /plan 生成任务计划",
+              variant: "info",
+            });
+            setInputValue("");
+            return;
+          }
+          setMode("agent");
+          sendMessage(planned, "agent", "secbot-cli");
+          pendingPlanPromptRef.current = "";
+          toast.show({
+            message: "已采纳计划，开始执行",
+            variant: "success",
+          });
+          setInputValue("");
+          toBottom();
+          return;
+        }
+        if (cmd === "/reject") {
+          pendingPlanPromptRef.current = "";
+          toast.show({
+            message: "已丢弃上一份计划",
+            variant: "success",
+          });
           setInputValue("");
           return;
         }
@@ -409,6 +450,11 @@ export function SessionView({
           setAgent(getAgentFromState(trimmed, agent));
           if (result.chat && result.chat.message) {
             setMode(result.chat.mode);
+            if (result.chat.mode === "plan") {
+              pendingPlanPromptRef.current = result.chat.message;
+            } else if (result.chat.mode === "agent") {
+              pendingPlanPromptRef.current = "";
+            }
             sendMessage(
               result.chat.message,
               result.chat.mode,
@@ -420,8 +466,12 @@ export function SessionView({
           }
           if (result.chat && !result.chat.message) {
             setMode(result.chat.mode);
+            if (result.chat.mode === "agent") {
+              pendingPlanPromptRef.current = "";
+            }
             const modeLabels: Record<string, string> = {
               ask: "问答",
+              plan: "规划",
               agent: "执行",
             };
             toast.show({
@@ -439,8 +489,14 @@ export function SessionView({
             }
             const restTitles: Record<string, string> = {
               "/help": "SECBOT 帮助",
-              "/list-agents": "智能体列表",
               "/tools": "SECBOT 内置工具",
+              "/mode": "模式说明",
+              "/opencode": "SECBOT 兼容能力",
+              "/acp-status": "ACP 网关能力",
+              "/mcp-status": "MCP 服务状态",
+              "/mcp-add": "MCP 服务接入",
+              "/skills": "统一技能列表",
+              "/permissions": "权限策略状态",
             };
             const title = restTitles[cmd] ?? "API 结果";
             dialog.replace(
@@ -520,83 +576,75 @@ export function SessionView({
         />
       </Box>
 
-      {/* 交互区与内容区之间的可视分隔线 */}
-      <Box flexShrink={0} paddingLeft={2} paddingRight={2} paddingTop={1}>
+      {/* 底部控制+输入面板（非透明，且主内容区不可进入） */}
+      <Box
+        flexShrink={0}
+        flexDirection="column"
+        paddingLeft={2}
+        paddingRight={2}
+      >
         <Text color={theme.border}>{"━".repeat(Math.max(0, columns - 6))}</Text>
-      </Box>
 
-      {/* 执行状态条：实时显示当前阶段与工具执行进度 */}
-      <LoadingBar
-        active={streaming}
-        phase={streamState.phase}
-        detail={streamState.detail}
-        actionTotal={actionProgress.total}
-        actionCompleted={actionProgress.completed}
-      />
+        {streaming ? (
+          <LoadingBar
+            active={streaming}
+            phase={streamState.phase}
+            detail={streamState.detail}
+            actionTotal={actionProgress.total}
+            actionCompleted={actionProgress.completed}
+          />
+        ) : (
+          <Box>
+            <Text color={theme.textMuted}>[IDLE]</Text>
+          </Box>
+        )}
 
-      {/* 键入 / 后显示可选命令 */}
-      {inputValue.startsWith("/") ? (
-        <Box flexShrink={0} paddingLeft={2} paddingRight={2} paddingBottom={0}>
+        {inputValue.startsWith("/") ? (
           <SlashSuggestions
             commands={commands}
             selectedIndex={slashSelectedIndex}
             filter={inputValue}
           />
-        </Box>
-      ) : null}
+        ) : null}
 
-      {/* 输入行 */}
-      <Box
-        flexShrink={0}
-        paddingLeft={2}
-        paddingRight={2}
-        paddingTop={0}
-        paddingBottom={0}
-      >
-        <Text color={theme.success}>{"> "}</Text>
-        <TextInput
-          value={inputValue}
-          onChange={setInputValue}
-          onSubmit={() => {
-            if (slashSuggestions.length > 0) {
-              const sel =
-                slashSuggestions[
-                  Math.min(slashSelectedIndex, slashSuggestions.length - 1)
-                ];
-              if (sel) {
-                setInputValue(sel.slash ?? sel.value);
-                handleSubmit(sel.value);
-                return;
+        <Box>
+          <Text color={theme.success}>{"> "}</Text>
+          <TextInput
+            value={inputValue}
+            onChange={setInputValue}
+            onSubmit={() => {
+              if (slashSuggestions.length > 0) {
+                const sel =
+                  slashSuggestions[
+                    Math.min(slashSelectedIndex, slashSuggestions.length - 1)
+                  ];
+                if (sel) {
+                  setInputValue(sel.slash ?? sel.value);
+                  handleSubmit(sel.value);
+                  return;
+                }
               }
-            }
-            handleSubmit();
-          }}
-          placeholder="Ask anything..."
-        />
-      </Box>
+              handleSubmit();
+            }}
+            placeholder="Ask anything..."
+          />
+        </Box>
 
-      {/* 底部状态栏 — SECBOT（固定绿色）· mode · agent */}
-      <SessionStatusBar mode={mode} agent={agent} theme={theme} />
+        <SessionStatusBar mode={mode} agent={agent} theme={theme} />
 
-      {/* 统计与快捷键 — 置于最底部 */}
-      <Box
-        flexShrink={0}
-        paddingLeft={2}
-        paddingRight={2}
-        paddingTop={0}
-        paddingBottom={1}
-      >
-        <Text color={theme.textMuted}>
-          {totalLines > 0
-            ? ` ${Math.min(scrollOffset + 1, totalLines)}-${Math.min(scrollOffset + scrollableHeight, totalLines)}/${totalLines} 行 `
-            : " "}
-          ↑/↓ {keybind.print("page_up")}/{keybind.print("page_down")} Home/End
-          {scrollOffset <= 0 ? "" : " ↑"}
-          {totalLines <= scrollableHeight ||
-          scrollOffset >= totalLines - scrollableHeight
-            ? ""
-            : " ↓"}
-        </Text>
+        <Box>
+          <Text color={theme.textMuted}>
+            {totalLines > 0
+              ? ` ${Math.min(scrollOffset + 1, totalLines)}-${Math.min(scrollOffset + scrollableHeight, totalLines)}/${totalLines} 行 `
+              : " "}
+            ↑/↓ {keybind.print("page_up")}/{keybind.print("page_down")} Home/End
+            {scrollOffset <= 0 ? "" : " ↑"}
+            {totalLines <= scrollableHeight ||
+            scrollOffset >= totalLines - scrollableHeight
+              ? ""
+              : " ↓"}
+          </Text>
+        </Box>
       </Box>
     </Box>
   );

@@ -1,10 +1,11 @@
-# 斜杠命令触发逻辑对比
+# 斜杠命令触发逻辑（当前）
 
 ## SessionView 中的分支逻辑
 
 1. **是否走 trigger（App 里注册的 onSelect）**
-   - 条件：`exact` 匹配到注册命令，且不在 `chatOnlySlash`，且（不是 `/agent` 或仅无参），且**不在** `restSlashUseParseSlash`。
-   - `restSlashUseParseSlash = ['/help', '/list-agents']`，所以这两个**不会**走 trigger，会继续往下走 `parseSlash`。
+   - 仅非聊天命令才走 trigger；聊天命令统一走 `parseSlash`。
+   - 当前 `chatOnlySlash = ['/ask', '/plan', '/task', '/agent', '/accept', '/reject']`。
+   - 当前 `restSlashUseParseSlash` 覆盖 `/help`、`/help-opencode`、`/list-agents`、`/tools`、`/mode`、`/opencode`、`/acp-status`、`/mcp-status`、`/mcp-add`、`/skills`、`/permissions`。
 
 2. **parseSlash 之后**
    - 若有 `result.chat` → 发消息或切模式。
@@ -12,17 +13,19 @@
      - **若 cmd === '/model'** → 直接 `dialog.replace(<ModelConfigDialog />)`，不调 fetch。
      - **否则** → 弹窗 `RestResultDialog`，`fetchContent` 由 parseSlash 提供（/help 为静态文案，/list-agents 为请求 API）。
 
-## 命令对比
+## 关键命令对比
 
-| 命令          | 是否调 API | 是否 trigger | 实际效果 |
-|---------------|------------|-------------|----------|
-| **/model**    | ❌ 否      | ✅ 是       | 打开 ModelConfigDialog 弹窗 |
-| **/help**     | ❌ 否（静态） | ❌ 否     | 弹窗展示 Secbot 集成的安全工具说明 |
-| **/list-agents** | ✅ GET /api/agents | ❌ 否 | 弹窗展示智能体列表 |
+| 命令 | 是否调 API | 处理路径 | 实际效果 |
+|---|---|---|---|
+| **/plan `<task>`** | ❌ 否 | parseSlash(chat) | 仅规划，不执行 |
+| **/accept** | ❌ 否 | SessionView 特判 | 采纳上一份计划并转 agent 执行 |
+| **/reject** | ❌ 否 | SessionView 特判 | 丢弃上一份计划 |
+| **/model** | ❌ 否 | trigger | 打开 `ModelConfigDialog` |
+| **/help** | ❌ 否（静态） | parseSlash(fetchThen) | 展示安全工具帮助 |
+| **/list-agents** | ✅ `GET /api/agents` | parseSlash(fetchThen) | 展示智能体列表 |
 
 - **/help**：不请求后端，仅展示前端静态文案（集成安全工具概览）。
-
-**说明**：会话类斜杠命令保留 `/ask`（问答模式）、`/task`（任务模式）与 `/agent`（切换智能体）；已移除 `/plan`、`/start`，多步任务请直接输入任务描述。
+- **当前模式模型**：`ask / plan / agent`；`/agent` 为统一执行模式入口，不再用于切换双角色。
 
 ## /model 与 Ollama 配置
 
