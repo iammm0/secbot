@@ -7,6 +7,9 @@ import json
 import re
 import asyncio
 import time
+import os
+import shlex
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -45,6 +48,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import SecretStr
 from hackbot_config import settings, get_provider_api_key
 from utils.model_selector import get_provider_config, get_default_model_for_provider, get_base_url_for_provider
+from opencode_adapters.mcp_client import MCPConnection, MCPServerConfig, MCPServerType
 
 
 def _create_llm(
@@ -195,6 +199,10 @@ class SecurityReActAgent(BaseAgent):
 
         # 并发控制：同一智能体同一时间只处理一个核心任务，请求自动排队
         self._concurrency_lock: asyncio.Lock = asyncio.Lock()
+        self._tools_exec_mode: str = (os.getenv("SECBOT_TOOLS_EXEC_MODE", "mcp") or "mcp").strip().lower()
+        self._mcp_server_name: str = "secbot_tools"
+        self._mcp_connection: Optional[MCPConnection] = None
+        self._mcp_connected: bool = False
 
     def append_turn_to_session_context(
         self,
@@ -1348,7 +1356,10 @@ Final Answer: <最终结论和报告>
         )
         tool_logger.info(f"执行工具: {tool.name}, 参数: {log_params}")
         try:
-            result = await tool.execute(**params)
+            if self._tools_exec_mode == "mcp":
+                result = await self._execute_tool_via_mcp(tool, params)
+            else:
+                result = await tool.execute(**params)
             duration_ms = int((time.perf_counter() - started) * 1000)
             tool_logger.bind(event="tool_call_end", duration_ms=duration_ms).info(f"工具 {tool.name} 执行完成: {result.success}")
             if not result.success:
@@ -1394,6 +1405,69 @@ Final Answer: <最终结论和报告>
             hint = self._get_permission_hint(tool.name, error_msg)
             enhanced_error = f"{error_msg}\n\n{hint}" if hint else error_msg
             return ToolResult(success=False, result=None, error=enhanced_error)
+
+    def _get_default_mcp_command(self) -> List[str]:
+        """
+        Build command for local secbot-tools MCP server.
+        """
+        raw = (os.getenv("SECBOT_TOOLS_MCP_COMMAND") or "").strip()
+        if raw:
+            return shlex.split(raw)
+        profile = (os.getenv("SECBOT_TOOLS_MCP_PROFILE") or "all").strip()
+        return [
+            sys.executable,
+            "-m",
+            "tools.mcp.server",
+            "--transport",
+            "stdio",
+            "--profile",
+            profile,
+        ]
+
+    async def _ensure_mcp_connection(self) -> None:
+        if self._mcp_connected and self._mcp_connection:
+            return
+        cmd = self._get_default_mcp_command()
+        cfg = MCPServerConfig(
+            name=self._mcp_server_name,
+            type=MCPServerType.LOCAL,
+            command=cmd,
+            timeout=int(os.getenv("SECBOT_TOOLS_MCP_TIMEOUT", "60")),
+            enabled=True,
+        )
+        self._mcp_connection = MCPConnection(cfg)
+        await self._mcp_connection.connect()
+        if self._mcp_connection.status.value != "connected":
+            raise RuntimeError("secbot-tools MCP server connect failed")
+        self._mcp_connected = True
+
+    async def _execute_tool_via_mcp(self, tool: BaseTool, params: Dict[str, Any]) -> ToolResult:
+        await self._ensure_mcp_connection()
+        if not self._mcp_connection:
+            return ToolResult(success=False, result=None, error="MCP connection unavailable")
+        try:
+            result = await self._mcp_connection.call_tool(tool.name, params)
+        except Exception as exc:
+            return ToolResult(success=False, result=None, error=f"MCP 调用失败: {exc}")
+
+        is_error = bool(result.get("isError")) if isinstance(result, dict) else False
+        content = None
+        if isinstance(result, dict):
+            blocks = result.get("content") or []
+            if isinstance(blocks, list):
+                texts = []
+                for item in blocks:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        texts.append(str(item.get("text", "")))
+                content = "\n".join([x for x in texts if x.strip()]).strip()
+            if not content:
+                content = result
+        else:
+            content = result
+
+        if is_error:
+            return ToolResult(success=False, result=None, error=str(content or "tool execution failed"))
+        return ToolResult(success=True, result=content)
 
     def _write_tool_debug_log(
         self,

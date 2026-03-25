@@ -6,6 +6,9 @@ WebResearchAgent：独立 ReAct 循环的 Web 研究子 Agent
 
 import json
 import re
+import os
+import shlex
+import sys
 from typing import Optional, List, Dict, Any
 
 from core.agents.base import BaseAgent
@@ -16,6 +19,7 @@ from utils.logger import logger
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from hackbot_config import settings
+from opencode_adapters.mcp_client import MCPConnection, MCPServerConfig, MCPServerType
 
 
 # -----------------------------------------------------------------
@@ -74,6 +78,10 @@ class WebResearchAgent(BaseAgent):
         ]
         self.tools_dict: Dict[str, BaseTool] = {t.name: t for t in self.research_tools}
         self.max_iterations = max_iterations
+        self._tools_exec_mode: str = (os.getenv("SECBOT_TOOLS_EXEC_MODE", "mcp") or "mcp").strip().lower()
+        self._mcp_server_name: str = "secbot_tools"
+        self._mcp_connection: Optional[MCPConnection] = None
+        self._mcp_connected: bool = False
 
         # LLM
         self.llm = _create_llm()
@@ -161,7 +169,7 @@ class WebResearchAgent(BaseAgent):
             # ---- 执行工具 ----
             logger.bind(agent=self.name, event="tool_call_start", tool=tool_name, attempt=1).info(f"[WebResearch] Action {iteration}: {tool_name}({tool_params})")
             try:
-                result = await tool.execute(**tool_params)
+                result = await self._execute_tool(tool, tool_params)
             except Exception as e:
                 result = ToolResult(success=False, result=None, error=str(e))
 
@@ -369,3 +377,62 @@ Final Answer: <完整的研究报告>
             HumanMessage(content=prompt),
         ]
         return await self._call_llm(messages)
+
+    def _get_default_mcp_command(self) -> List[str]:
+        raw = (os.getenv("SECBOT_TOOLS_MCP_COMMAND") or "").strip()
+        if raw:
+            return shlex.split(raw)
+        profile = (os.getenv("SECBOT_TOOLS_MCP_PROFILE") or "all").strip()
+        return [
+            sys.executable,
+            "-m",
+            "tools.mcp.server",
+            "--transport",
+            "stdio",
+            "--profile",
+            profile,
+        ]
+
+    async def _ensure_mcp_connection(self) -> None:
+        if self._mcp_connected and self._mcp_connection:
+            return
+        cfg = MCPServerConfig(
+            name=self._mcp_server_name,
+            type=MCPServerType.LOCAL,
+            command=self._get_default_mcp_command(),
+            timeout=int(os.getenv("SECBOT_TOOLS_MCP_TIMEOUT", "60")),
+            enabled=True,
+        )
+        self._mcp_connection = MCPConnection(cfg)
+        await self._mcp_connection.connect()
+        if self._mcp_connection.status.value != "connected":
+            raise RuntimeError("secbot-tools MCP server connect failed")
+        self._mcp_connected = True
+
+    async def _execute_tool(self, tool: BaseTool, params: Dict[str, Any]) -> ToolResult:
+        if self._tools_exec_mode != "mcp":
+            return await tool.execute(**params)
+
+        await self._ensure_mcp_connection()
+        if not self._mcp_connection:
+            return ToolResult(success=False, result=None, error="MCP connection unavailable")
+        try:
+            result = await self._mcp_connection.call_tool(tool.name, params)
+        except Exception as exc:
+            return ToolResult(success=False, result=None, error=f"MCP 调用失败: {exc}")
+
+        is_error = bool(result.get("isError")) if isinstance(result, dict) else False
+        if isinstance(result, dict):
+            blocks = result.get("content") or []
+            texts = []
+            if isinstance(blocks, list):
+                for item in blocks:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        texts.append(str(item.get("text", "")))
+            content = "\n".join([x for x in texts if x.strip()]).strip() or result
+        else:
+            content = result
+
+        if is_error:
+            return ToolResult(success=False, result=None, error=str(content or "tool execution failed"))
+        return ToolResult(success=True, result=content)

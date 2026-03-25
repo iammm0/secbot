@@ -322,6 +322,29 @@ class MCPManager:
     def get_tool_names(self) -> List[str]:
         return [t.name for t in self.get_all_tools()]
 
+    def get_tool_defs(self, server_name: Optional[str] = None) -> List[MCPToolDef]:
+        """
+        Return raw MCP tool definitions (without secbot wrapper rename).
+        """
+        defs: List[MCPToolDef] = []
+        for name, conn in self._connections.items():
+            if server_name and name != server_name:
+                continue
+            if conn.status == MCPServerStatus.CONNECTED:
+                defs.extend(conn.tools)
+        return defs
+
+    async def call_tool(self, server_name: str, tool_name: str, arguments: Dict[str, Any]) -> Any:
+        """
+        Call a tool on a specific server by original MCP tool name.
+        """
+        conn = self._connections.get(server_name)
+        if not conn:
+            raise RuntimeError(f"MCP server not found: {server_name}")
+        if conn.status != MCPServerStatus.CONNECTED:
+            raise RuntimeError(f"MCP server not connected: {server_name}")
+        return await conn.call_tool(tool_name, arguments)
+
     async def shutdown(self):
         for conn in list(self._connections.values()):
             await conn.disconnect()
