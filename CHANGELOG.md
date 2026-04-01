@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.7.0 (2026-04-01)
+
+### Features
+
+- 更新多端交互并发布 1.6.1
+  ([`75de423`](https://github.com/iammm0/secbot/commit/75de4230adcddbcc42c6463a1d33a2d6110ae4be))
+
+
 ## v1.6.0 (2026-03-23)
 
 ### Chores
