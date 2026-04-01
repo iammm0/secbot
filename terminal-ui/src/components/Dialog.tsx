@@ -20,29 +20,33 @@ export function Dialog({ width, height }: DialogProps) {
   const contentWidth = Math.min(96, width - 4);
   const contentHeight = Math.min(36, height - 4);
   // Ink 类型定义在当前项目里没有把 backgroundColor 暴露给 Box props，
-  // 但运行时是被支持的；这里用 as any 仅用于通过编译。
-  const overlayProps = {
+  // 但运行时是被支持的；这里仅在显式提供主题背景时设置，默认继承终端主题。
+  const overlayProps: Record<string, unknown> = {
     position: 'absolute',
     width,
     height,
-    backgroundColor: theme.background,
     justifyContent: 'center',
     alignItems: 'center',
-  } as any;
+  };
+  if (theme.background) {
+    overlayProps.backgroundColor = theme.background;
+  }
 
-  const panelProps = {
+  const panelProps: Record<string, unknown> = {
     width: contentWidth,
     minHeight: contentHeight,
     paddingX: 2,
     paddingY: 1,
     flexDirection: 'column',
-    backgroundColor: theme.backgroundPanel,
     borderStyle: 'round',
     borderColor: theme.border,
-  } as any;
+  };
+  if (theme.backgroundPanel) {
+    panelProps.backgroundColor = theme.backgroundPanel;
+  }
   return (
-    <Box {...overlayProps}>
-      <Box {...panelProps}>
+    <Box {...(overlayProps as any)}>
+      <Box {...(panelProps as any)}>
         {top.element}
       </Box>
     </Box>
