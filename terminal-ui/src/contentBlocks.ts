@@ -185,17 +185,21 @@ export function streamStateToBlocks(
   // ── 规划 ─────────────────────────────────────────────────────────────────────
 
   if (planning) {
-    let body = planning.content ? planning.content + "\n\n" : "";
     const todos =
       planning.todos?.map((t) => ({ content: t.content, status: t.status })) ??
       [];
-    if (todos.length) {
-      body += todos
-        .map((t) => `- ${t.content}${t.status ? ` *(${t.status})*` : ""}`)
-        .join("\n");
-    }
-    body = body || "规划中…";
-    const lineEnd = lineStart + blockLines("规划", body);
+    const planningText = planning.content?.trim() ?? "";
+    const hasPlanningText = planningText.length > 0;
+    const body = hasPlanningText
+      ? planningText
+      : todos.length === 0
+        ? "规划中…"
+        : "";
+    const planningLineCount =
+      1 +
+      (body ? Math.max(1, body.split("\n").length) : 0) +
+      todos.length;
+    const lineEnd = lineStart + planningLineCount;
     blocks.push({
       id: "planning",
       type: "planning",
@@ -261,7 +265,7 @@ export function streamStateToBlocks(
           item.id,
           "summary",
           item.title || "最终总结",
-          truncateBody(item.body || "…", MAX_RESULT_LINES),
+          item.body || "…",
           {
             completedAt: validCompletedAt,
             durationMs,
