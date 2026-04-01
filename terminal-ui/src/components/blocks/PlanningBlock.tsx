@@ -21,9 +21,11 @@ interface PlanningBlockProps {
 export function PlanningBlock({ block, noMargin }: PlanningBlockProps) {
   const theme = useTheme();
   const title = block.title ?? "规划";
-  const body = block.body || " ";
+  const body = block.body || "";
   const hasTodos = block.todos && block.todos.length > 0;
-  const isStreaming = body === "规划中…";
+  const trimmedBody = body.trim();
+  const hasBody = trimmedBody.length > 0;
+  const isStreaming = trimmedBody === "规划中…";
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
@@ -33,20 +35,21 @@ export function PlanningBlock({ block, noMargin }: PlanningBlockProps) {
         {title}
       </Text>
 
-      {hasTodos ? (
-        /* 有 todos：交给 TodoList 渲染 */
-        <TodoList items={block.todos!} noMargin title={undefined} />
-      ) : (
-        /* 无 todos：缩进显示文本，规划中时 dim */
+      {hasBody ? (
         <Box paddingLeft={2}>
           <Text
             color={isStreaming ? theme.textMuted : theme.text}
             dimColor={isStreaming}
           >
-            {body}
+            {trimmedBody}
           </Text>
         </Box>
-      )}
+      ) : null}
+
+      {hasTodos ? (
+        /* 有 todos：在说明文本后继续渲染待办列表 */
+        <TodoList items={block.todos!} noMargin title={undefined} />
+      ) : null}
     </Box>
   );
 }
