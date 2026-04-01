@@ -295,6 +295,8 @@ export function MainContent({
     return lines;
   }, [totalLines, scrollableHeight, scrollOffset]);
 
+  const shouldShowScrollbar = showScrollbar && totalLines > scrollableHeight;
+
   // ── 渲染 ──────────────────────────────────────────────────────────────────────
 
   if (contentHeight <= 0) return null;
@@ -315,6 +317,7 @@ export function MainContent({
           minWidth={0}
           overflow="hidden"
           height={scrollableHeight}
+          paddingRight={shouldShowScrollbar ? 1 : 0}
         >
           {blocks.length === 0 ? (
             <Text color="dim">暂无输出，输入消息或斜杠命令开始</Text>
@@ -349,7 +352,6 @@ export function MainContent({
                     height={lineCount}
                     overflow="hidden"
                     minHeight={lineCount}
-                    marginBottom={1}
                     paddingLeft={1}
                   >
                     <ContentBlock block={slicedBlock} noMargin />
@@ -361,7 +363,7 @@ export function MainContent({
         </Box>
 
         {/* 滚动条 */}
-        {showScrollbar && (
+        {shouldShowScrollbar && (
           <Box
             flexDirection="column"
             width={1}
