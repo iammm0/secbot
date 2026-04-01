@@ -24,6 +24,7 @@ import {
   useToast,
   useExit,
 } from "../contexts/index.js";
+import type { ThemeColors } from "../contexts/index.js";
 import { inkKeyToParsedKey } from "../contexts/KeybindContext.js";
 import { streamStateToBlocks } from "../contentBlocks.js";
 import { ModelConfigDialog } from "../components/ModelConfigDialog.js";
@@ -39,7 +40,7 @@ function SessionStatusBar({
 }: {
   mode: string;
   agent: string;
-  theme: { textMuted: string; success: string };
+  theme: Pick<ThemeColors, "textMuted" | "success">;
 }) {
   return (
     <Box

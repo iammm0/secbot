@@ -42,6 +42,25 @@ def _runtime_log_paths(root: Path) -> tuple[Path, Path]:
     return logs_dir / "backend-runtime.log", logs_dir / "tui-runtime.log"
 
 
+def _has_interactive_tty() -> bool:
+    """当前进程是否连接到了可用于全屏 Ink TUI 的交互式终端。"""
+    streams = (sys.stdin, sys.stdout, sys.stderr)
+    try:
+        return all(getattr(stream, "isatty", lambda: False)() for stream in streams)
+    except Exception:
+        return False
+
+
+def _append_runtime_note(runtime_log: Path, line: str) -> None:
+    """向 TUI 运行日志追加一行说明，便于在继承当前终端时保留排查线索。"""
+    try:
+        runtime_log.parent.mkdir(parents=True, exist_ok=True)
+        with open(runtime_log, "a", encoding="utf-8") as fp:
+            fp.write(f"{line}\n")
+    except Exception:
+        pass
+
+
 def _check_tui_readiness(root: Path) -> tuple[bool, list[str]]:
     """检查 TUI 启动条件是否就绪。返回 (是否就绪, 缺失项列表)。"""
     missing: list[str] = []
@@ -264,6 +283,9 @@ def _run_tui(root: Path, runtime_log: Path | None = None) -> int:
     tui_dir = root / "terminal-ui"
     env = os.environ.copy()
     env.setdefault("SECBOT_API_URL", "http://localhost:8000")
+    interactive_tty = _has_interactive_tty()
+    if runtime_log is not None:
+        env.setdefault("SECBOT_TUI_RUNTIME_LOG", str(runtime_log))
     try:
         if sys.platform == "win32":
             proc = subprocess.Popen(
@@ -276,11 +298,13 @@ def _run_tui(root: Path, runtime_log: Path | None = None) -> int:
         stdout_target = None
         stderr_target = None
         log_fp = None
-        if runtime_log is not None:
+        if runtime_log is not None and not interactive_tty:
             runtime_log.parent.mkdir(parents=True, exist_ok=True)
             log_fp = open(runtime_log, "a", encoding="utf-8", buffering=1)
             stdout_target = log_fp
             stderr_target = log_fp
+        elif runtime_log is not None:
+            _append_runtime_note(runtime_log, "[launcher] interactive TUI attached to current terminal; stdout/stderr are not redirected.")
         proc = subprocess.run(
             ["npm", "run", "tui"],
             cwd=tui_dir,

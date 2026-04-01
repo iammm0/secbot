@@ -13,11 +13,25 @@ import { App } from './App.js';
 
 const ALTERNATE_SCREEN_ON = '\x1b[?1049h';
 const ALTERNATE_SCREEN_OFF = '\x1b[?1049l';
+const ANSI_RESET = '\x1b[0m';
 
 const TUI_ERROR_LOG = 'tui-error.log';
+const TUI_LAUNCH_LOG = 'tui-launch.log';
+const TUI_RUNTIME_LOG = process.env.SECBOT_TUI_RUNTIME_LOG;
+
+function appendLogLine(target: string | undefined, line: string) {
+  if (!target) return;
+  try {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.appendFileSync(target, `${new Date().toISOString()} ${line}\n`);
+  } catch {
+    // ignore
+  }
+}
 
 function leaveAlternateScreen() {
   try {
+    process.stdout.write(ANSI_RESET);
     process.stdout.write(ALTERNATE_SCREEN_OFF);
   } catch {
     // ignore
@@ -28,8 +42,9 @@ function leaveAlternateScreen() {
 function writeErrorLog(message: string, detail?: unknown) {
   try {
     const logPath = path.join(process.cwd(), TUI_ERROR_LOG);
-    const line = `${new Date().toISOString()} ${message}${detail != null ? ` ${String(detail)}` : ''}\n`;
-    fs.appendFileSync(logPath, line);
+    const line = `${message}${detail != null ? ` ${String(detail)}` : ''}`;
+    appendLogLine(logPath, line);
+    appendLogLine(TUI_RUNTIME_LOG, `[error] ${line}`);
   } catch {
     // ignore
   }
@@ -38,8 +53,9 @@ function writeErrorLog(message: string, detail?: unknown) {
 /** 写启动日志到临时文件，便于排查 TTY/环境问题 */
 function writeLaunchLog(line: string) {
   try {
-    const logPath = path.join(process.cwd(), 'tui-launch.log');
-    fs.appendFileSync(logPath, `${new Date().toISOString()} ${line}\n`);
+    const logPath = path.join(process.cwd(), TUI_LAUNCH_LOG);
+    appendLogLine(logPath, line);
+    appendLogLine(TUI_RUNTIME_LOG, `[launch] ${line}`);
   } catch {
     // ignore
   }
@@ -90,6 +106,7 @@ async function main() {
   }
 
   process.stdout.write(ALTERNATE_SCREEN_ON);
+  writeLaunchLog(`alternate-screen enabled columns=${process.stdout.columns ?? 'unknown'} rows=${process.stdout.rows ?? 'unknown'}`);
   process.on('exit', leaveAlternateScreen);
 
   const columns = (process.stdout as NodeJS.WriteStream & { columns?: number }).columns ?? 100;

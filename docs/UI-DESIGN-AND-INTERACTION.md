@@ -1,6 +1,12 @@
-# hackbot / secbot UI 设计与交互总结
+# Secbot UI 设计与交互总结
 
-本文档总结本项目的 UI 架构、交互模式与设计决策。**终端 UI 采用 TypeScript 生态**，见 [terminal-ui](../terminal-ui/)（Ink + React），通过 HTTP/SSE 与 Python 后端通信；设计思路可在其他终端 TUI 或桌面应用中复用。下文中部分细节（如布局原语、钩子 API）来自或适用于其他技术栈（如 @opentui/solid），可作为扩展或迁移参考；本仓库当前实现以 `terminal-ui` 为准。
+本文档总结当前仓库的 UI 架构、交互模式与设计决策。仓库现在同时包含：
+
+- [terminal-ui](../terminal-ui/)：Ink + React 终端前端
+- [app](../app/)：Expo / React Native 移动端
+- [desktop](../desktop/)：Tauri + React 桌面端
+
+其中本文的主体仍以 **`terminal-ui` 的交互与上下文架构** 为主，因为它是当前最完整、最成熟的实时流式前端；移动端与桌面端主要复用同一套 HTTP / SSE 后端接口与事件语义。
 
 ---
 
@@ -8,10 +14,12 @@
 
 | 层级 | 技术 | 用途 |
 |------|------|------|
-| **TUI（终端 UI）** | TypeScript：Ink + React（见 `terminal-ui/`） | 终端内组件、布局、键盘/鼠标事件，通过 HTTP/SSE 连接后端 |
-| **CLI 输出** | Python Rich / 或自定义 `UI` 命名空间 | ANSI 样式、打印、简单 readline 输入 |
-| **状态** | React state / 或 Solid.js（signals、store、context） | 响应式状态与依赖追踪 |
-| **事件** | 应用内事件 + 服务端 SSE | 类型安全的事件（命令、Toast、路由等）与实时推送 |
+| **TUI（终端 UI）** | TypeScript：Ink + React（`terminal-ui/`） | 全屏终端交互、键盘优先操作、SSE 流式渲染 |
+| **移动端** | Expo + React Native（`app/`） | iOS / Android / Web 调试端，共用后端 API |
+| **桌面端** | Tauri + Vite + React（`desktop/`） | 本地桌面工作台，与本机 FastAPI 后端协同 |
+| **CLI 输出** | Python Rich / 自定义 UI 输出 | 非 TUI 模式下的提示、日志与错误信息 |
+| **状态** | React state / context | 响应式状态与依赖追踪 |
+| **事件** | 应用内事件 + 服务端 SSE | 命令、Toast、路由与实时推送 |
 
 ---
 
