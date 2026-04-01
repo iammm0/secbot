@@ -1,13 +1,55 @@
 # Docker 相关说明
 
-## 当前策略
+## 当前状态
 
-**本项目仅使用 SQLite 作为数据库**，不再依赖 ChromaDB、Redis 或其他外部数据库服务。运行 secbot / hackbot 时无需启动任何额外数据库容器。
+截至当前仓库版本，**Secbot 没有维护中的官方 Dockerfile / docker-compose 部署方案**。
 
-## 使用 Docker 部署应用
+这意味着：
 
-若需使用 Docker 构建并运行 Hackbot 应用本身，请参阅 [部署指南 (DEPLOYMENT)](DEPLOYMENT.md)，其中包含镜像构建、数据卷挂载（如 `data/`、`logs/`）及环境变量配置说明。
+- 仓库里没有可直接拿来构建应用镜像的正式 Dockerfile
+- 也没有与当前代码同步维护的 `docker-compose.yml` / `docker-compose.prod.yml`
+- 文档中若提到历史上的容器化方案，均不应再视作现成可用
 
-## 关于仓库中的 docker-compose 文件
+## 当前推荐做法
 
-仓库中 `deploy/` 目录下可能仍存在曾用于 ChromaDB、Redis 的 docker-compose 配置，仅为历史保留。**日常使用与部署 secbot 时无需执行这些服务**，仅需保证应用可写目录（如 `data/`、`logs/`）及 SQLite 数据库可用即可。
+如果你的目标是稳定运行后端，请优先使用：
+
+- `uv run secbot --backend`
+- `python -m router.main`
+- systemd / supervisor / pm2 等宿主机进程管理方案
+
+具体见 [DEPLOYMENT.md](DEPLOYMENT.md)。
+
+## SQLite 说明
+
+当前项目只依赖 **SQLite**，不需要额外启动：
+
+- Redis
+- ChromaDB
+- PostgreSQL
+
+因此多数部署场景下，宿主机能提供：
+
+- 一个可写的数据目录
+- 一个可写的日志目录
+
+就已经足够。
+
+## 如果你必须自行容器化
+
+建议把容器化范围限制在**后端 API**，并显式配置：
+
+- Python 运行时
+- `uv sync` 安装依赖
+- `.env` 注入
+- `DATABASE_URL` 绝对路径
+- 挂载 SQLite 数据目录与日志目录
+
+同时请注意：
+
+- `terminal-ui` 依赖 Node 与真实 TTY，更适合作为本地交互界面，而不是容器内常驻前端
+- 移动端与桌面端本质上都是调用后端 API，不要求它们和后端打进同一个镜像
+
+## 文档边界
+
+为了避免误导，本文档不再提供未经验证的 `docker build`、`docker-compose up` 示例命令。若后续仓库重新引入并维护容器化产物，再补充正式说明。

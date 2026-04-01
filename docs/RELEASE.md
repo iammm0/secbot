@@ -1,85 +1,125 @@
 # 发布版使用说明
 
-Hackbot 通过 **GitHub Release** 发布各平台打包好的安装包（zip），用户下载解压后即可在终端中运行，无需安装 Python。
+本文档分两部分：
 
-**启动前唯一必须条件：配置 DeepSeek API Key。**
+- **普通使用者**：如何使用 GitHub Release 下载的打包产物
+- **维护者**：如何基于当前仓库结构生成发布包
 
-## 发布新版本（维护者）
+## 一、普通使用者
 
-1. 在 `pyproject.toml` 和 `hackbot/__init__.py` 中将版本号改为目标版本（如 `1.2.0`）。
-2. 更新 `CHANGELOG.md` 中对应版本的变更说明。
-3. 提交并推送后，打 tag 触发 GitHub Actions 构建并创建 Release（`.github/workflows/release.yml`）：
-   ```bash
-   git tag v1.2.0
-   git push origin v1.2.0
-   ```
-4. 在 [Releases](https://github.com/iammm0/hackbot/releases) 中可编辑该 Release 的说明或附件。
+### 1. 从哪里下载
 
-## 下载
+请前往：
 
-- **GitHub Release**：在 [Releases](https://github.com/iammm0/hackbot/releases) 中下载对应平台 **zip**，解压后得到 `hackbot` 目录：
-  - `hackbot-linux-amd64.zip` — Linux x86_64
-  - `hackbot-windows-amd64.zip` — Windows
-  - `hackbot-darwin-arm64.zip` — macOS（Apple 芯片）
-  - `hackbot-darwin-amd64.zip` — macOS（Intel 处理器）
+[https://github.com/iammm0/secbot/releases](https://github.com/iammm0/secbot/releases)
 
-## 配置 DeepSeek API Key
+下载与你平台匹配的 zip 包。
 
-任选一种方式即可。
+说明：
 
-### 方式一：环境变量
+- 当前 GitHub Actions / PyInstaller 产物仍沿用历史命名，压缩包和可执行文件可能仍以 `hackbot` 命名
+- 这不影响运行，但文档中会统一说明这一点，避免解压后找不到可执行文件
 
-- **Linux / macOS**（当前终端）：
-  ```bash
-  export DEEPSEEK_API_KEY=sk-xxx
-  ```
-- **Windows**：在「系统属性 → 环境变量」中新建 `DEEPSEEK_API_KEY`，或在该终端中：
-  ```cmd
-  set DEEPSEEK_API_KEY=sk-xxx
-  ```
+### 2. 解压后会看到什么
 
-### 方式二：.env 文件
+解压后通常会得到一个目录，当前可执行文件一般为：
 
-在解压得到的 **`hackbot` 目录内**（或你启动程序时的当前工作目录）创建 `.env` 文件，内容：
+- Windows：`hackbot.exe`
+- Linux / macOS：`hackbot`
+
+### 3. 运行前配置 `.env`
+
+在可执行文件同目录创建 `.env` 文件。最常见的最小配置如下：
+
+使用 DeepSeek：
 
 ```env
-DEEPSEEK_API_KEY=sk-xxx
-```
-
-获取 API Key：<https://platform.deepseek.com>
-
-## 运行
-
-解压 zip 后进入 **`hackbot`** 目录：
-
-- **Windows**：双击 `hackbot.exe`，或在终端中执行：
-  ```cmd
-  cd hackbot
-  hackbot.exe
-  ```
-- **Linux / macOS**：在终端中执行：
-  ```bash
-  cd secbot-cli
-  chmod +x secbot-cli   # 首次可选
-  ./secbot-cli
-  ```
-
-未带子命令时，程序会直接进入**交互式安全测试界面**。若未配置 `DEEPSEEK_API_KEY`，启动时会提示并退出。
-
-## 可选配置
-
-如需修改模型或其它选项，可在同目录的 `.env` 中增加（参考项目根目录的 `env.example`），例如：
-
-```env
-DEEPSEEK_API_KEY=sk-xxx
-DEEPSEEK_MODEL=deepseek-reasoner
 LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-your-api-key
+DEEPSEEK_MODEL=deepseek-reasoner
 ```
 
-## 自行从源码打包
+使用 Ollama：
 
-- 安装依赖与 PyInstaller：`pip install -r requirements.txt pyinstaller` 或使用 `uv sync` 后 `uv pip install pyinstaller`。
-- **Linux / macOS**：`bash scripts/build_release.sh`
-- **Windows**：`scripts\build_release.bat`
+```env
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gemma3:1b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+```
 
-产物在 `dist/hackbot/` 目录，内含 `hackbot`（或 `hackbot.exe`）及依赖库；进入该目录后运行即可。
+### 4. 运行方式
+
+- Windows：双击 `hackbot.exe`，或在终端中执行
+- Linux / macOS：先 `chmod +x hackbot`，再执行 `./hackbot`
+
+说明：
+
+- 打包产物默认进入交互式终端界面
+- 如果未满足完整 TUI 条件，程序会尽量给出明确提示
+
+## 二、维护者：如何生成发布包
+
+### 1. 版本与变更记录
+
+当前版本号来源于 `pyproject.toml` 中的 `project.version`。发布前请确认：
+
+- `pyproject.toml` 版本号正确
+- `docs/CHANGELOG.md` 已同步主要变更
+
+仓库当前使用 `python-semantic-release` 维护版本与 release 流程，配置位于 `pyproject.toml`。
+
+### 2. GitHub Actions 发布
+
+工作流文件：
+
+`/.github/workflows/release.yml`
+
+当前流程会：
+
+- 在 `main` / `beta` 分支 push 时尝试发布
+- 使用 PyInstaller 基于 `hackbot.spec` 生成多平台 onedir 产物
+- 上传 zip 到 GitHub Release
+
+### 3. 本地手动打包
+
+先安装依赖：
+
+```bash
+uv sync
+uv pip install pyinstaller
+```
+
+再执行：
+
+```bash
+uv run python -m PyInstaller hackbot.spec
+```
+
+当前打包产物目录为：
+
+```text
+dist/hackbot/
+```
+
+其中包含：
+
+- `hackbot` 或 `hackbot.exe`
+- 依赖库
+- 发布说明文件（若由 CI 注入）
+
+### 4. 当前命名约定
+
+虽然仓库与包名已经是 `secbot` / `secbot_cli`，但 PyInstaller 相关构建链路仍保留历史命名：
+
+- spec：`hackbot.spec`
+- 产物目录：`dist/hackbot/`
+- 可执行文件名：`hackbot`
+
+因此在发布说明、下载页面与使用文档中，应优先以**实际可执行文件名**为准。
+
+## 三、已知注意事项
+
+- 仓库当前没有根目录 `.env.example`，发布说明应直接给出可复制的 `.env` 示例
+- wheel / pip 安装与 GitHub Release 打包产物并不完全等价，完整 TUI 体验以源码运行或 Release 包为准
+- 如果你在 macOS / Linux 上下载的是裸可执行文件，首次运行前通常需要 `chmod +x`

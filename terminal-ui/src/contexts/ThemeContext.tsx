@@ -1,21 +1,23 @@
 import React, { createContext, useContext } from 'react';
 
-/** 语义 token，对齐 UI-DESIGN-AND-INTERACTION 6.2 — 赛博朋克风：主色绿 + 霓虹七彩 */
+export type ThemeColor = string | undefined;
+
+/** 语义 token：强调色保持品牌风格，基础文字/背景默认继承终端主题。 */
 export interface ThemeColors {
-  primary: string;
-  secondary: string;
-  accent: string;
-  error: string;
-  warning: string;
-  success: string;
-  info: string;
-  text: string;
-  textMuted: string;
-  background: string;
-  backgroundPanel: string;
-  border: string;
-  borderActive: string;
-  /** 赛博彩虹色板（用于 Logo/标识）：绿主色 + 霓虹七彩 */
+  primary: ThemeColor;
+  secondary: ThemeColor;
+  accent: ThemeColor;
+  error: ThemeColor;
+  warning: ThemeColor;
+  success: ThemeColor;
+  info: ThemeColor;
+  text: ThemeColor;
+  textMuted: ThemeColor;
+  background: ThemeColor;
+  backgroundPanel: ThemeColor;
+  border: ThemeColor;
+  borderActive: ThemeColor;
+  /** 品牌强调色板（用于 Logo/标识） */
   cyberRainbow: string[];
 }
 
@@ -27,10 +29,11 @@ const defaultTheme: ThemeColors = {
   warning: 'yellow',
   success: 'greenBright',
   info: 'cyan',
-  text: 'white',
+  // 基础文字与背景默认跟随终端主题，避免黑底/白底被应用强制覆盖。
+  text: undefined,
   textMuted: 'gray',
-  background: 'black',
-  backgroundPanel: 'gray',
+  background: undefined,
+  backgroundPanel: undefined,
   border: 'gray',
   borderActive: 'green',
   cyberRainbow: ['green', 'cyan', 'magenta', 'yellow', 'greenBright', 'blue', 'cyanBright', 'magentaBright'],

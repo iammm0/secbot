@@ -1,45 +1,103 @@
 # Node 环境与依赖说明
 
-## 当前状态
+Secbot 仓库里有三个需要 Node.js 的前端工程：
 
-- **项目依赖**：已更新，并通过 `overrides` 修复了 `markdown-it` 安全漏洞，`npm audit` 显示 0 个漏洞。
-- **弃用警告**：`inflight`、`rimraf@3`、`glob@7` 等来自 React Native/Expo 的传递依赖，上游更新后会自动消失，无需在本项目中修改。
+- `terminal-ui/`：Ink 终端界面
+- `app/`：Expo / React Native 移动端
+- `desktop/`：Tauri + Vite 桌面端
 
-## 在 PyCharm 中切换到最新 Node（如 24 LTS）
+本文档只保留与当前仓库相关的通用说明，不再记录某台开发机上的 IDE 路径。
 
-你当前使用的 Node 来自：
+## 推荐版本
 
-`C:\Users\Mingjun Zhao\AppData\Roaming\JetBrains\PyCharm2024.3\node\versions\`
+- **最低要求**：Node.js `18+`
+- **推荐**：Node.js `20` 或 `22` LTS
 
-该目录下已有：`20.15.0`、`22.13.0`、`22.15.0`（当前在用）。若要使用**最新 LTS（如 Node 24.x）**，可任选其一：
+原因：
 
-### 方式一：在 PyCharm 中让 IDE 下载新版本（推荐）
+- `terminal-ui/package.json` 明确要求 `node >= 18`
+- Expo、Vite、Tauri 在 `20/22 LTS` 上通常更稳定
 
-1. 打开 **File → Settings**（Windows/Linux）或 **PyCharm → Preferences**（macOS）。
-2. 进入 **Languages & Frameworks → Node.js**。
-3. 在 **Node interpreter** 处点击下拉或 **Add…**。
-4. 若列表中有 **Download Node.js** 或 **Download…**，选择 **v24.x (LTS)**，由 PyCharm 下载并安装到上述 `node\versions` 目录。
-5. 选择刚下载的 24.x 作为解释器，确认保存。
+## 安装依赖
 
-### 方式二：使用本机已安装的 Node 24
-
-1. 从 [https://nodejs.org](https://nodejs.org) 下载并安装 **Node.js 24.x (LTS)**（Windows 安装包会安装到例如 `C:\Program Files\nodejs\`）。
-2. 在 PyCharm 中：**File → Settings → Languages & Frameworks → Node.js**。
-3. **Node interpreter** 选 **Add…** → **Local…**，指向本机 Node 24 的 `node.exe`（例如 `C:\Program Files\nodejs\node.exe`）。
-4. 确认后，PyCharm 的 npm/Node 将使用该版本。
-
-### 切换后建议
-
-在项目目录（即本 `app` 目录）下执行一次：
+### `terminal-ui`
 
 ```bash
+cd terminal-ui
 npm install
 ```
 
-即可用新 Node 环境重新安装/校验依赖。
+### `app`
 
-## 依赖更新记录
+```bash
+cd app
+npm install
+```
 
-- 已执行 `npm audit fix`，修复了可自动修复的漏洞（如 minimatch、tar）。
-- 已在 `package.json` 中加入 `overrides`，将 `markdown-it` 固定为 `>=12.3.2`，消除 `react-native-markdown-display` 带来的中危漏洞。
-- 当前 `npm audit` 结果为 **0 vulnerabilities**。
+### `desktop`
+
+```bash
+cd desktop
+npm install
+```
+
+## 常用启动命令
+
+### 终端 TUI
+
+```bash
+cd terminal-ui
+npm run tui
+```
+
+### 移动端
+
+```bash
+cd app
+npm start
+```
+
+### 桌面端
+
+```bash
+cd desktop
+npm run tauri dev
+```
+
+## IDE 配置建议
+
+无论你使用 PyCharm、VS Code 还是其它 IDE，建议做法都是：
+
+1. 选择一个全局可用的 Node `20/22 LTS`
+2. 让三个前端工程都复用这个解释器
+3. 各目录分别执行 `npm install`
+
+## 关于依赖告警
+
+当前仓库里若出现下列情况，通常不代表项目代码本身有问题：
+
+- Expo / React Native 生态的传递依赖弃用告警
+- `npm audit` 中来自上游依赖链的历史问题
+
+其中 `app/package.json` 已通过 `overrides` 固定 `markdown-it` 版本，用于降低已知风险。
+
+## 排障建议
+
+### 1. `npm install` 失败
+
+优先检查：
+
+- `node -v`
+- `npm -v`
+- 当前是否在正确目录下执行
+
+### 2. Tauri 启动失败
+
+除了 Node 之外，Tauri 还依赖本机 Rust / 系统 GUI 工具链。若 `npm run tauri dev` 失败，请优先检查 Tauri 官方环境要求。
+
+### 3. Expo 无法连接后端
+
+这通常是后端地址问题，而不是 Node 版本问题。请同时检查：
+
+- 后端是否启动在 `8000`
+- `app/src/api/config.ts` 是否指向正确地址

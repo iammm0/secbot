@@ -43,3 +43,46 @@ export interface SessionsResponse {
   sessions: unknown[];
   note?: string;
 }
+
+export interface AgentInfo {
+  type: string;
+  name: string;
+  description: string;
+}
+
+export interface AgentListResponse {
+  agents: AgentInfo[];
+}
+
+export interface ToolInfo {
+  name: string;
+  description: string;
+  category?: string;
+}
+
+export interface ToolCategory {
+  id: string;
+  name: string;
+  count: number;
+  tools: ToolInfo[];
+}
+
+export interface ToolsResponse {
+  total: number;
+  basic_count: number;
+  advanced_count: number;
+  categories: ToolCategory[];
+  tools: ToolInfo[];
+}
+
+export interface SystemConfigResponse {
+  llm_provider: string;
+  ollama_model: string;
+  ollama_base_url: string;
+  deepseek_model?: string | null;
+  deepseek_base_url?: string | null;
+  current_provider_model?: string | null;
+  current_provider_base_url?: string | null;
+}
+
+export type RootAction = "run_once" | "always_allow" | "deny";

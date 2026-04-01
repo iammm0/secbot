@@ -7,6 +7,7 @@ import type {
   ChatRequest,
   ChatResponse,
   AgentListResponse,
+  RootAction,
   SystemInfoResponse,
   SystemStatusResponse,
   DefenseScanResponse,
@@ -23,6 +24,12 @@ import type {
 // -- Chat --
 export const chatSync = (req: ChatRequest) =>
   api.post<ChatResponse>('/api/chat/sync', req);
+
+export const submitRootResponse = (data: {
+  request_id: string;
+  action: RootAction;
+  password?: string;
+}) => api.post('/api/chat/root-response', data);
 
 // -- Agents --
 export const listAgents = () =>

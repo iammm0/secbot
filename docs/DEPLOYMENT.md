@@ -1,301 +1,207 @@
-# Hackbot 部署指南
+# Secbot 部署指南
 
-本文档介绍如何打包和部署 Hackbot 应用。
+本文档聚焦当前仓库已存在且可维护的部署方式：**Python 后端服务**。`terminal-ui` 适合本地交互使用，移动端和桌面端可独立连接这个后端。
 
-## 目录
+## 当前部署建议
 
-- [Python 包安装](#python-包安装)
-- [Docker 部署](#docker-部署)
-- [生产环境部署](#生产环境部署)
-- [配置说明](#配置说明)
+- **本地交互**：使用 `python main.py` 或 `uv run secbot`
+- **长期运行后端**：使用 `uv run secbot --backend`、`python -m router.main`，再由移动端、桌面端或自定义客户端调用 API
+- **二进制分发**：优先使用 GitHub Release 中的现成 zip 包
 
-## Python 包安装
+当前仓库**没有维护中的 Dockerfile / docker-compose 产物**。如果你需要容器化部署，请先阅读 [DOCKER_SETUP.md](DOCKER_SETUP.md)。
 
-Hackbot 使用 [uv](https://github.com/astral-sh/uv) 作为包管理器。
+## 一、从源码部署后端
 
-### 方式一：从源码安装
+### 1. 安装依赖
 
 ```bash
-# 克隆仓库
-git clone https://github.com/iammm0/hackbot.git
-cd secbot-cli
-
-# 安装依赖 (使用 uv)
+git clone https://github.com/iammm0/secbot.git
+cd secbot
 uv sync
+```
 
-# 安装包（开发模式）
+如果希望本地注册命令入口，也可以额外执行：
+
+```bash
 uv pip install -e .
 ```
 
-### 方式二：构建分发包
+### 2. 配置 `.env`
 
-```bash
-# 构建分发包 (使用 uv)
-uv run python -m build
+仓库根目录没有 `.env.example`，请手动创建 `.env`。最小示例：
 
-# 构建结果在 dist/ 目录
-# - dist/secbot-cli-1.0.0.tar.gz (源码包)
-# - dist/secbot-cli-1.0.0-py3-none-any.whl (wheel 包)
-
-# 安装构建的包
-uv pip install dist/secbot-cli-*.whl
+```env
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-your-api-key
+DEEPSEEK_MODEL=deepseek-reasoner
+LOG_LEVEL=INFO
 ```
 
-### 使用安装后的命令
+使用 Ollama 时可改为：
 
-安装后可直接使用 `hackbot` 或 `secbot`（无参数即进入交互模式，占据整个终端）：
-
-```bash
-secbot-cli
-# 或 secbot
+```env
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gemma3:1b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-## Docker 部署
-
-### 构建镜像
+### 3. 启动后端
 
 ```bash
-# 构建 Docker 镜像
-docker build -t secbot-cli:latest .
-
-# 查看镜像
-docker images | grep secbot-cli
+uv run secbot --backend
 ```
 
-### 运行容器
+或：
 
 ```bash
-# 使用 docker-compose（推荐）
-docker-compose up -d
-
-# 或直接运行
-docker run -d \
-  --name secbot-cli \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/logs:/app/logs \
-  -v $(pwd)/.env:/app/.env:ro \
-  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-  secbot-cli:latest
+python -m router.main
 ```
 
-### 使用生产环境配置
+默认情况下：
 
-```bash
-# 使用生产环境 docker-compose
-docker-compose -f docker-compose.prod.yml up -d
+- 普通模式监听 `0.0.0.0:8000`
+- 桌面嵌入模式可通过 `SECBOT_DESKTOP=1` 切换到 `127.0.0.1:8000`
 
-# 查看日志
-docker-compose -f docker-compose.prod.yml logs -f secbot-cli
+## 二、环境变量说明
 
-# 停止服务
-docker-compose -f docker-compose.prod.yml down
+常用配置如下：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `LLM_PROVIDER` | 当前推理后端 | `deepseek` |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key | 无 |
+| `DEEPSEEK_BASE_URL` | DeepSeek Base URL | `https://api.deepseek.com` |
+| `DEEPSEEK_MODEL` | DeepSeek 默认模型 | `deepseek-reasoner` |
+| `OLLAMA_BASE_URL` | Ollama 地址 | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Ollama 默认模型 | `gemma3:1b` |
+| `OLLAMA_EMBEDDING_MODEL` | Ollama 嵌入模型 | `nomic-embed-text` |
+| `DATABASE_URL` | SQLite 连接串 | `sqlite:///./data/secbot.db` |
+| `LOG_LEVEL` | 日志级别 | `INFO` |
+| `SECBOT_SERVER_HOST` | 覆盖监听地址 | 自动推导 |
+| `SECBOT_SERVER_PORT` | 覆盖监听端口 | `8000` |
+| `SECBOT_SERVER_RELOAD` | 是否启用热重载 | 桌面模式默认关，其它默认开 |
+
+## 三、数据与日志
+
+### SQLite 数据库
+
+默认 `DATABASE_URL` 为：
+
+```text
+sqlite:///./data/secbot.db
 ```
 
-## 生产环境部署
+需要注意的是，当前实现会把相对路径解析到 `hackbot_config/` 包目录下。因此生产环境更建议显式指定**绝对路径**，例如：
 
-### 前置要求
-
-1. **Ollama 服务**：确保 Ollama 服务正在运行
-   ```bash
-   # 检查 Ollama 是否运行
-   curl http://localhost:11434/api/tags
-   ```
-
-2. **环境变量**：创建 `.env` 文件
-   ```bash
-   cp env.example .env
-   # 编辑 .env 文件，配置必要的参数
-   ```
-
-3. **数据目录**：确保数据目录有写权限（SQLite 数据库与日志存放于此）
-   ```bash
-   mkdir -p data logs
-   chmod -R 755 data logs
-   ```
-
-### 部署步骤
-
-#### 1. 使用 Docker Compose（推荐）
-
-```bash
-# 1. 克隆或复制项目文件
-git clone https://github.com/iammm0/hackbot.git
-cd secbot-cli
-
-# 2. 配置环境变量
-cp env.example .env
-nano .env  # 编辑配置
-
-# 3. 启动服务
-docker-compose -f docker-compose.prod.yml up -d
-
-# 4. 查看服务状态
-docker-compose -f docker-compose.prod.yml ps
-
-# 5. 查看日志
-docker-compose -f docker-compose.prod.yml logs -f
+```env
+DATABASE_URL=sqlite:////srv/secbot/data/secbot.db
 ```
 
-#### 2. 直接使用 Python
+### 日志
 
-```bash
-# 1. 安装依赖 (使用 uv)
-uv sync
+默认日志文件：
 
-# 2. 配置环境变量
-cp env.example .env
-nano .env
-
-# 3. 运行应用（无参数即进入交互模式，项目仅使用 SQLite，无需额外数据库服务）
-uv run python main.py
+```text
+logs/agent.log
 ```
 
-### 系统服务（systemd）
+TUI / 启动器在源码模式下还可能写入：
 
-创建 systemd 服务文件 `/etc/systemd/system/hackbot.service`：
+- `logs/backend-runtime.log`
+- `logs/tui-runtime.log`
+
+## 四、systemd 示例
+
+适合把后端作为 Linux 服务长期运行。
+
+示例文件：`/etc/systemd/system/secbot.service`
 
 ```ini
 [Unit]
-Description=Hackbot Security Agent
+Description=Secbot FastAPI Backend
 After=network.target
 
 [Service]
 Type=simple
-User=your-user
-WorkingDirectory=/path/to/hackbot
-ExecStart=/path/to/hackbot/.venv/bin/python main.py
+User=secbot
+WorkingDirectory=/srv/secbot
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/env uv run secbot --backend
 Restart=always
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-启用服务：
+启用与查看状态：
 
 ```bash
-sudo systemctl enable secbot-cli
-sudo systemctl start secbot-cli
-sudo systemctl status secbot-cli
+sudo systemctl daemon-reload
+sudo systemctl enable secbot
+sudo systemctl start secbot
+sudo systemctl status secbot
 ```
 
-## 配置说明
-
-### 环境变量
-
-主要环境变量配置（详见 `env.example`）：
-
-- `OLLAMA_BASE_URL`: Ollama 服务地址（默认: http://localhost:11434）
-- `OLLAMA_MODEL`: 使用的模型名称（默认: gemma3:1b，本地没有时会自动拉取）
-- `DATABASE_URL`: SQLite 数据库连接字符串（默认: sqlite:///./data/agents.db 或项目内约定路径）
-- `STT_MODEL`: 语音识别模型（默认: base）
-- `TTS_ENGINE`: 语音合成引擎（默认: gtts）
-
-### 数据持久化
-
-本项目仅使用 SQLite。确保以下目录有写权限并定期备份：
-
-- `data/`: SQLite 数据库文件（如 `agents.db`、`m_bot.db` 等，以项目实际为准）
-- `logs/`: 日志文件
-
-### 网络配置
-
-如果使用 Docker 部署应用，确保：
-
-1. **Ollama 访问**：若 Ollama 在宿主机运行，使用 `host.docker.internal`（Mac/Windows）或 `172.17.0.1`（Linux）
-2. **防火墙**：根据需要开放应用所需端口
-
-## 验证部署
-
-### 检查服务状态
+查看日志：
 
 ```bash
-# 检查 Docker 容器
-docker ps | grep secbot-cli
-
-# 检查日志
-docker logs secbot-cli
-
-# 测试 CLI
-uv run python main.py --help
+journalctl -u secbot -f
 ```
 
-### 运行测试
+## 五、部署后验证
 
 ```bash
-# 运行单元测试
-uv run pytest tests/
-
-# 测试数据库连接
-uv run python tests/test_db_connection.py
-
-# 测试智能体
-uv run python tests/test_agents.py
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/api/system/info
 ```
 
-## 故障排查
+也可以直接打开：
 
-### 常见问题
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/redoc`
 
-1. **Ollama 连接失败**
-   - 检查 Ollama 服务是否运行
-   - 验证 `OLLAMA_BASE_URL` 配置
-   - 检查网络连接和防火墙
-
-2. **数据库（SQLite）异常**
-   - 检查 `data/` 目录是否存在且可写
-   - 验证 `DATABASE_URL` 指向的路径与文件权限
-
-3. **依赖安装失败**
-   - 使用 Python 3.10+
-   - 使用 uv 更新: `uv pip install --upgrade uv`
-   - 确保 uv 已正确安装
-
-4. **Docker 构建失败**
-   - 检查 Dockerfile 语法
-   - 清理构建缓存: `docker builder prune`
-   - 检查网络连接（下载依赖）
-
-### 日志查看
+## 六、更新流程
 
 ```bash
-# Docker 日志
-docker logs -f secbot-cli
-
-# 应用日志
-tail -f logs/agent.log
-
-# 系统日志（systemd）
-journalctl -u secbot-cli -f
-```
-
-## 更新部署
-
-```bash
-# 拉取最新代码
+cd /srv/secbot
 git pull
-
-# 重新构建（Docker）
-docker-compose -f docker-compose.prod.yml build --no-cache
-docker-compose -f docker-compose.prod.yml up -d
-
-# 或更新 Python 包
 uv sync
-uv pip install -e . --upgrade
+sudo systemctl restart secbot
 ```
 
-## 安全建议
+若你使用的是安装式部署：
 
-1. **环境变量**：不要在代码中硬编码敏感信息
-2. **文件权限**：限制数据目录和日志文件的访问权限
-3. **网络安全**：在生产环境中使用 HTTPS 和认证
-4. **定期备份**：备份数据库和配置文件
-5. **监控**：设置日志监控和告警
+```bash
+uv pip install -e .
+sudo systemctl restart secbot
+```
 
-## 支持
+## 七、排障
 
-如有问题，请查看：
-- [README.md](../README.md) - 项目说明
-- [docs/](docs/) - 详细文档
-- [Issues](https://github.com/iammm0/hackbot/issues) - 问题反馈
+### 1. 端口 8000 被占用
 
+`router.main` 启动前会主动检查端口占用。若报错，请先结束占用进程，再重启服务。
+
+### 2. 前端能打开但接口失败
+
+优先检查：
+
+- 后端是否真的监听在前端使用的地址与端口
+- CORS 是否为默认配置
+- 桌面端是否误用了 `SECBOT_DESKTOP=1` 之外的 host
+
+### 3. Ollama 无法列出模型
+
+`/api/system/ollama-models` 会先检测 Ollama 是否在线。若返回 `error` 字段，请先确认：
+
+- `ollama serve` 或桌面应用已启动
+- `OLLAMA_BASE_URL` 指向正确地址
+
+## 八、相关文档
+
+- [API.md](API.md)
+- [DOCKER_SETUP.md](DOCKER_SETUP.md)
+- [RELEASE.md](RELEASE.md)
+- [OLLAMA_SETUP.md](OLLAMA_SETUP.md)

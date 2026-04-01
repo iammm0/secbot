@@ -28,7 +28,9 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
 import { useSSE } from '../hooks/useSSE';
 import BlockRenderer from '../components/BlockRenderer';
 import ChatDebugPanel from '../components/ChatDebugPanel';
-import type { RenderBlock, SSEEvent } from '../types';
+import RootPermissionModal from '../components/RootPermissionModal';
+import { submitRootResponse } from '../api/endpoints';
+import type { RenderBlock, RootAction, SSEEvent } from '../types';
 
 // 模式：ask=仅提问, agent=执行智能体（可选自动/专家）
 const CHAT_MODES = [
@@ -53,6 +55,41 @@ const PHASE_LABELS: Record<string, string> = {
   done: '完成',
 };
 
+const BLOCK_FILTERS = [
+  { id: 'all', label: 'Timeline' },
+  { id: 'plan', label: 'Plan' },
+  { id: 'tools', label: 'Tools' },
+  { id: 'report', label: 'Report' },
+] as const;
+
+const QUICK_TASKS = [
+  {
+    id: 'network-discover',
+    label: '内网发现',
+    prompt: '扫描当前局域网并列出在线主机与开放端口。',
+  },
+  {
+    id: 'defense-scan',
+    label: '防御扫描',
+    prompt: '执行一次完整安全扫描，并总结关键风险。',
+  },
+  {
+    id: 'system-check',
+    label: '系统体检',
+    prompt: '检查当前系统状态，并指出值得关注的异常指标。',
+  },
+  {
+    id: 'tool-overview',
+    label: '工具盘点',
+    prompt: '列出当前可用的安全工具分类，并给出适用场景。',
+  },
+] as const;
+
+interface RootPromptState {
+  requestId: string;
+  command: string;
+}
+
 // 使用时间戳 + 自增 + 随机后缀，避免热重载/多实例时重复 key
 let blockIdCounter = 0;
 const nextBlockId = () =>
@@ -64,7 +101,11 @@ export default function ChatScreen() {
   const [mode, setMode] = useState<'ask' | 'agent'>('agent');
   const [agentSubType, setAgentSubType] = useState<'secbot-cli' | 'superhackbot'>('secbot-cli');
   const [model, setModel] = useState('default');
+  const [blockFilter, setBlockFilter] = useState<(typeof BLOCK_FILTERS)[number]['id']>('all');
   const [debugVisible, setDebugVisible] = useState(false);
+  const [pendingRootRequest, setPendingRootRequest] = useState<RootPromptState | null>(null);
+  const [rootSubmitting, setRootSubmitting] = useState(false);
+  const [rootError, setRootError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const { streaming, startStream, stopStream } = useSSE();
   const eventLogRef = useRef<SSEEvent[]>([]);
@@ -92,6 +133,29 @@ export default function ChatScreen() {
     const phase = (last as RenderBlock & { phase?: string })?.phase ?? 'idle';
     return phase;
   }, [blocks]);
+
+  const filteredBlocks = useMemo(() => {
+    if (blockFilter === 'all') return blocks;
+    if (blockFilter === 'plan') {
+      return blocks.filter((block) =>
+        block.type === 'planning' ||
+        block.type === 'task_phase' ||
+        block.type === 'thinking',
+      );
+    }
+    if (blockFilter === 'tools') {
+      return blocks.filter((block) =>
+        block.type === 'execution' ||
+        block.type === 'exec_result' ||
+        block.type === 'observation',
+      );
+    }
+    return blocks.filter((block) =>
+      block.type === 'report' ||
+      block.type === 'response' ||
+      block.type === 'error',
+    );
+  }, [blockFilter, blocks]);
 
   // -- 辅助: 追加新块 --
   const appendBlock = useCallback((block: RenderBlock) => {
@@ -349,6 +413,21 @@ export default function ChatScreen() {
           break;
         }
 
+        // ---- 需要 root / 管理员权限 ----
+        case 'root_required': {
+          const requestId = String(data.request_id || '');
+          const command = String(data.command || '');
+          setPendingRootRequest({ requestId, command });
+          setRootError(null);
+          appendBlock({
+            id: nextBlockId(),
+            type: 'observation',
+            timestamp: new Date(),
+            content: `需要管理员权限才能继续执行：\n\n${command}\n\n请在弹层中选择执行策略。`,
+          });
+          break;
+        }
+
         // ---- 流结束 ----
         case 'done': {
           setPhase('done');
@@ -458,6 +537,40 @@ export default function ChatScreen() {
     [mode, agentSubType, model, currentPhase, streaming, blocks.length],
   );
 
+  const handleQuickTask = useCallback((prompt: string) => {
+    setInput(prompt);
+    setTimeout(() => {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }, 0);
+  }, []);
+
+  const handleRootResponse = useCallback(
+    async (action: RootAction, password?: string) => {
+      if (!pendingRootRequest) return;
+      setRootSubmitting(true);
+      setRootError(null);
+      try {
+        await submitRootResponse({
+          request_id: pendingRootRequest.requestId,
+          action,
+          password,
+        });
+        appendBlock({
+          id: nextBlockId(),
+          type: 'observation',
+          timestamp: new Date(),
+          content: `已提交管理员权限响应：${action}${password ? '（已附带密码）' : ''}`,
+        });
+        setPendingRootRequest(null);
+      } catch (err: any) {
+        setRootError(err?.message || '权限响应提交失败');
+      } finally {
+        setRootSubmitting(false);
+      }
+    },
+    [pendingRootRequest, appendBlock],
+  );
+
   // =================================================================
   // 渲染
   // =================================================================
@@ -541,9 +654,46 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.controlDeck}>
+        <View style={styles.filterRow}>
+          {BLOCK_FILTERS.map((filter) => (
+            <TouchableOpacity
+              key={filter.id}
+              style={[
+                styles.filterChip,
+                blockFilter === filter.id && styles.filterChipActive,
+              ]}
+              onPress={() => setBlockFilter(filter.id)}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  blockFilter === filter.id && styles.filterChipTextActive,
+                ]}
+              >
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.quickTaskRow}>
+          {QUICK_TASKS.map((task) => (
+            <TouchableOpacity
+              key={task.id}
+              style={styles.quickTaskChip}
+              disabled={streaming}
+              onPress={() => handleQuickTask(task.prompt)}
+            >
+              <Text style={styles.quickTaskChipText}>{task.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       <FlatList
         ref={flatListRef}
-        data={blocks}
+        data={filteredBlocks}
         keyExtractor={(item, index) => `${item.id}-${index}`}
         renderItem={({ item }) => <BlockRenderer block={item} />}
         contentContainerStyle={styles.blockList}
@@ -554,11 +704,13 @@ export default function ChatScreen() {
               size={64}
               color={Colors.textMuted}
             />
-            <Text style={styles.emptyText}>发送消息开始对话</Text>
+            <Text style={styles.emptyText}>
+              {blocks.length > 0 ? '当前视图下暂无内容' : '发送消息开始对话'}
+            </Text>
             <Text style={styles.emptySubtext}>
-              {CHAT_MODES.find((m) => m.id === mode)?.label}
-              {mode === 'agent' ? ` · ${AGENT_SUB.find((a) => a.id === agentSubType)?.label}` : ''}
-              {' · '}{MODELS.find((m) => m.id === model)?.label}
+              {blocks.length > 0
+                ? `当前筛选：${BLOCK_FILTERS.find((filter) => filter.id === blockFilter)?.label ?? blockFilter}`
+                : `${CHAT_MODES.find((m) => m.id === mode)?.label}${mode === 'agent' ? ` · ${AGENT_SUB.find((a) => a.id === agentSubType)?.label}` : ''} · ${MODELS.find((m) => m.id === model)?.label}`}
             </Text>
           </View>
         }
@@ -603,6 +755,19 @@ export default function ChatScreen() {
         onClose={() => setDebugVisible(false)}
         state={debugState}
         eventLog={[...eventLogRef.current]}
+      />
+
+      <RootPermissionModal
+        visible={pendingRootRequest !== null}
+        command={pendingRootRequest?.command ?? ''}
+        loading={rootSubmitting}
+        error={rootError}
+        onClose={() => {
+          void handleRootResponse('deny');
+        }}
+        onSubmit={(action, password) => {
+          void handleRootResponse(action, password);
+        }}
       />
     </KeyboardAvoidingView>
   );
@@ -699,6 +864,55 @@ const styles = StyleSheet.create({
   },
   debugBtn: {
     padding: Spacing.xs,
+  },
+  controlDeck: {
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.sm,
+    gap: Spacing.sm,
+    backgroundColor: Colors.background,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  filterChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + '18',
+  },
+  filterChipText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: Colors.primary,
+  },
+  quickTaskRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  quickTaskChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  quickTaskChipText: {
+    fontSize: FontSize.sm,
+    color: Colors.text,
+    fontWeight: '600',
   },
   blockList: {
     paddingVertical: Spacing.md,

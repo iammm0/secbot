@@ -1,308 +1,198 @@
-# Hackbot 跨平台移动应用文档
+# Secbot 移动应用文档
 
-## 概述
-
-Hackbot 提供基于 React Native 的跨平台移动应用，支持 iOS、Android 和 Web 平台。应用通过 REST API 和 SSE 与后端服务通信，实现完整的聊天、防御系统、网络管理和数据库管理功能。
+`app/` 目录是基于 **Expo + React Native** 的移动端工程，同时支持 iOS、Android 与 Web 调试。它通过 REST + SSE 调用 Python 后端。
 
 ## 技术栈
 
-- **框架**: React Native (Expo)
-- **导航**: React Navigation (Bottom Tabs)
-- **UI 组件**: Expo Vector Icons
-- **API 通信**: Fetch API + SSE (Server-Sent Events)
-- **构建**: Expo (eas build)
+- React Native `0.81`
+- Expo `54`
+- React Navigation `7`
+- TypeScript
+- 自定义 SSE 客户端
 
-## 项目结构
+## 当前目录结构
 
-```
+```text
 app/
-├── App.tsx                    # 应用入口 + Tab 导航
-├── app.json                   # Expo 配置
-├── package.json              # 依赖配置
-├── index.ts                   # 入口文件
-├── tsconfig.json             # TypeScript 配置
-├── assets/                   # 静态资源
+├── App.tsx
+├── package.json
+├── index.ts
 └── src/
-    ├── api/                  # API 客户端
-    │   ├── client.ts        # 统一 REST 请求封装
-    │   ├── config.ts        # API 配置 (Base URL)
-    │   ├── endpoints.ts     # API 端点调用方法
-    │   └── sse.ts          # SSE 客户端 (流式聊天)
-    ├── components/          # 复用组件
-    ├── screens/             # 屏幕组件
-    │   ├── ChatScreen.tsx      # 聊天界面
-    │   ├── DashboardScreen.tsx # 仪表盘
-    │   ├── DefenseScreen.tsx   # 防御系统
-    │   ├── NetworkScreen.tsx   # 网络管理
-    │   └── HistoryScreen.tsx  # 对话历史
-    ├── hooks/               # 自定义 Hooks
-    ├── theme/               # 主题配置
-    └── types/               # TypeScript 类型定义
+    ├── api/
+    │   ├── client.ts
+    │   ├── config.ts
+    │   ├── endpoints.ts
+    │   └── sse.ts
+    ├── components/
+    │   ├── BlockRenderer.tsx
+    │   ├── RootPermissionModal.tsx
+    │   ├── MessageBubble.tsx
+    │   └── ...
+    ├── hooks/
+    ├── screens/
+    │   ├── ChatScreen.tsx
+    │   ├── DashboardScreen.tsx
+    │   ├── DefenseScreen.tsx
+    │   ├── NetworkScreen.tsx
+    │   └── HistoryScreen.tsx
+    ├── theme/
+    └── types/
 ```
 
-## 快速开发与调试
+## 功能概览
 
-| 操作           | 命令 |
-|----------------|------|
-| 安装依赖       | `cd app && npm install` |
-| 启动开发服务器 | `npx expo start`（默认 http://localhost:8081） |
-| iOS 模拟器     | `npx expo start --ios` |
-| Android 模拟器 | `npx expo start --android` |
-| Web 版本       | `npx expo start --web` |
+### 1. 聊天页
 
-**一键启动**（需先启动后端 API）：
+`ChatScreen.tsx` 目前支持：
+
+- `ask` / `agent` 两种模式
+- `secbot-cli` / `superhackbot` 两种智能体选择
+- 模型偏好切换
+- SSE 流式渲染规划、推理、执行、报告、最终响应
+- 收到 `root_required` 时弹出 `RootPermissionModal`
+
+### 2. 仪表盘页
+
+展示：
+
+- `GET /api/system/info`
+- `GET /api/system/status`
+
+### 3. 防御页
+
+调用：
+
+- `POST /api/defense/scan`
+- `GET /api/defense/status`
+- `GET /api/defense/blocked`
+- `POST /api/defense/unblock`
+- `GET /api/defense/report`
+
+### 4. 网络页
+
+调用：
+
+- `POST /api/network/discover`
+- `GET /api/network/targets`
+- `GET /api/network/authorizations`
+- `POST /api/network/authorize`
+- `DELETE /api/network/authorize/{target_ip}`
+
+### 5. 历史页
+
+调用：
+
+- `GET /api/db/history`
+- `DELETE /api/db/history`
+
+## 启动开发环境
+
+### 1. 先启动后端
 
 ```bash
-# 终端 1：启动 API
-uvicorn router.main:app --reload --host 0.0.0.0 --port 8000
-
-# 终端 2：启动 App
-cd app && npm install && npx expo start
+uv run secbot --backend
 ```
 
-按 `i` 打开 iOS 模拟器，`a` 打开 Android 模拟器，`w` 在浏览器中打开。真机调试时请将 `src/api/config.ts` 中的 `BASE_URL` 改为本机局域网 IP。
-
----
-
-## 安装与运行
-
-### 前置要求
-
-- Node.js 18+
-- npm 或 yarn
-- Expo CLI
-- iOS: macOS + Xcode (真机调试)
-- Android: Android Studio (真机调试)
-
-### 安装依赖
+### 2. 启动 Expo
 
 ```bash
 cd app
 npm install
-# 或使用 yarn
-# yarn install
+npm start
 ```
 
-### 运行开发服务器
+常用命令：
 
 ```bash
-# 启动开发服务器 (默认 localhost:8081)
-npm start
-
-# iOS 模拟器
 npm run ios
-
-# Android 模拟器
 npm run android
-
-# Web 版本
 npm run web
 ```
 
-### 真机调试
+## 后端地址配置
 
-1. **iOS 真机**:
-   - 需要 Apple Developer 账号
-   - 使用 `eas build` 构建或通过 Expo Go
+文件：
 
-2. **Android 真机**:
-   - 安装 Expo Go 应用
-   - 确保手机和电脑在同一局域网
-   - 修改 `src/api/config.ts` 中的 `BASE_URL` 为本机局域网 IP
+`app/src/api/config.ts`
 
-### 配置说明
+当前默认逻辑：
 
-修改 `src/api/config.ts` 配置后端地址：
+- Android 模拟器：`http://10.0.2.2:8000`
+- iOS 模拟器 / Web：`http://localhost:8000`
 
-```typescript
-const DEV_API_HOST =
-  Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+真机调试时，请把地址改成开发机局域网 IP，例如：
 
-// 真机调试时改为本机局域网 IP
-// const DEV_API_HOST = 'http://192.168.1.100:8000';
-
-export const BASE_URL = DEV_API_HOST;
+```ts
+const DEV_API_HOST = "http://192.168.1.100:8000";
 ```
 
-## 功能模块
+同时确保后端监听在对外可访问的地址上。
 
-### 1. 聊天界面 (Chat)
+## API 使用方式
 
-- **流式聊天**: 使用 SSE 实时接收 AI 响应
-- **模式切换**: ask (仅提问)、agent (执行，开源版自动化安全测试智能体)
-- **智能体选择**: hackbot、superhackbot
-- **ReAct 过程展示**: 规划、推理、执行、报告
+### REST 请求
 
-### 2. 仪表盘 (Dashboard)
+统一封装在：
 
-- **系统信息**: OS、架构、Python 版本、主机名等
-- **系统状态**: CPU、内存、磁盘使用情况
-- **快速操作**: 常用功能入口
+- `app/src/api/client.ts`
+- `app/src/api/endpoints.ts`
 
-### 3. 防御系统 (Defense)
+示例：
 
-- **安全扫描**: 执行完整安全扫描
-- **监控状态**: 查看监控和自动响应状态
-- **封禁管理**: 列出/解封被封禁的 IP
-- **报告生成**: 生成漏洞/攻击报告
+```ts
+import { getSystemInfo, defenseScan } from "./src/api/endpoints";
 
-### 4. 网络管理 (Network)
-
-- **内网发现**: 扫描内网在线主机
-- **目标列表**: 列出已发现的目标
-- **授权管理**: 授权/撤销目标主机
-- **SSH 连接**: 通过用户名密码或密钥连接
-
-### 5. 对话历史 (History)
-
-- **历史记录**: 查看历史对话
-- **智能体筛选**: 按智能体类型筛选
-- **清空历史**: 清空对话记录
-
-## API 集成
-
-### REST API
-
-应用通过 `src/api/endpoints.ts` 中的方法调用后端 API：
-
-```typescript
-// 聊天
-import { chatSync } from './api/endpoints';
-const response = await chatSync({ message: '扫描内网', mode: 'agent' });
-
-// 系统信息
-import { getSystemInfo } from './api/endpoints';
 const info = await getSystemInfo();
-
-// 防御扫描
-import { defenseScan } from './api/endpoints';
-const result = await defenseScan();
+const report = await defenseScan();
 ```
 
 ### SSE 流式聊天
 
-```typescript
-import { connectSSE } from './api/sse';
+`ChatScreen.tsx` 会向 `POST /api/chat` 发送请求，并消费以下事件：
 
-const controller = connectSSE('/api/chat', {
-  message: '扫描内网主机',
-  mode: 'agent'
-}, {
-  onEvent: (event) => {
-    switch (event.event) {
-      case 'planning':
-        console.log('规划:', event.data);
-        break;
-      case 'thought':
-        console.log('推理:', event.data.content);
-        break;
-      case 'action_result':
-        console.log('执行结果:', event.data.result);
-        break;
-      case 'response':
-        console.log('最终响应:', event.data.content);
-        break;
-    }
-  },
-  onError: (error) => {
-    console.error('错误:', error);
-  },
-  onDone: () => {
-    console.log('完成');
-  }
-});
+- `planning`
+- `thought_start`
+- `thought_chunk`
+- `thought`
+- `action_start`
+- `action_result`
+- `content`
+- `report`
+- `phase`
+- `root_required`
+- `response`
+- `done`
 
-// 取消请求
-// controller.abort();
+如果用户在设备上确认 root 权限动作，则会调用：
+
+```text
+POST /api/chat/root-response
 ```
 
-## 构建发布版本
+## 构建与发布
 
-### 使用 EAS Build
+### 开发阶段
+
+优先使用：
 
 ```bash
-# 安装 eas-cli
+npm start
+```
+
+### EAS Build
+
+如需云端构建：
+
+```bash
 npm install -g eas-cli
-
-# 登录 Expo 账号
 eas login
-
-# 配置构建
 eas build:configure
-
-# iOS 构建
 eas build --platform ios
-
-# Android 构建
 eas build --platform android
-
-# 同时构建
-eas build --platform all
 ```
 
-### 本地构建
+## 维护建议
 
-**iOS (macOS)**:
-```bash
-cd app
-npx expo export --platform ios
-# 使用 Xcode 打开导出目录构建
-```
-
-**Android**:
-```bash
-cd app
-npx expo export --platform android
-# 使用 Android Studio 打开导出目录构建
-```
-
-## 主题配置
-
-应用支持深色主题，配置在 `src/theme/` 目录：
-
-```typescript
-// src/theme/colors.ts
-export const Colors = {
-  primary: '#00D9FF',
-  background: '#0D1117',
-  surface: '#161B22',
-  text: '#FFFFFF',
-  textMuted: '#8B949E',
-  border: '#30363D',
-  accent: '#FF6B6B',
-};
-```
-
-## 屏幕截图
-
-| 聊天界面 | 仪表盘 | 防御系统 |
-|---------|-------|---------|
-| 流式响应展示 | 系统状态监控 | 安全扫描 |
-
-## 注意事项
-
-1. **后端服务**: 确保 Hackbot 后端服务已启动 (`hackbot-server`)
-2. **网络配置**: 真机调试时需配置正确的局域网 IP
-3. **权限**: Android 需要网络权限，iOS 需要 Info.plist 配置
-4. **SSL**: 生产环境建议使用 HTTPS
-
-## 部署到应用商店
-
-### iOS App Store
-
-1. 使用 EAS Build 或本地构建生成 .ipa
-2. 通过 App Store Connect 提交审核
-3. 遵守 Apple 审核指南
-
-### Google Play
-
-1. 使用 EAS Build 生成 .aab
-2. 通过 Google Play Console 提交
-3. 遵守 Google Play 政策
-
-## 相关文档
-
-- [API 接口文档](API.md)
-- [部署指南](../docs/DEPLOYMENT.md)
-- [安全警告](../docs/SECURITY_WARNING.md)
-
+- 如果后端 SSE 事件结构有变动，优先同步 `app/src/types/index.ts` 和 `ChatScreen.tsx`
+- 如果新增 API 接口，优先补到 `app/src/api/endpoints.ts`
+- 如果要调试真机网络问题，先用浏览器或 `curl` 验证后端地址是否可达

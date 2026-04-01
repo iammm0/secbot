@@ -19,6 +19,8 @@ export interface SSEEvent {
   data: Record<string, any>;
 }
 
+export type RootAction = 'run_once' | 'always_allow' | 'deny';
+
 // -- ReAct 渲染块 --
 // 每个块对应 CLI TUI 中的一个可视面板
 
