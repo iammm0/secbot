@@ -107,7 +107,7 @@ Issues = "https://github.com/iammm0/hackbot/issues"
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 tag_format = "v{version}"
-changelog_file = "docs/CHANGELOG.md"
+changelog_file = "CHANGELOG.md"
 commit_parser = "angular"
 build_command = ""
 commit_message = "chore(release): {version} [skip ci]"

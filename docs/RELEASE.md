@@ -1,45 +1,29 @@
-# 发布版使用说明
+# Release Guide
 
-本文档分两部分：
+This repository now uses a single release source of truth:
 
-- **普通使用者**：如何使用 GitHub Release 下载的打包产物
-- **维护者**：如何基于当前仓库结构生成发布包
+- Root changelog: [../CHANGELOG.md](../CHANGELOG.md)
+- Version docs: [releases/README.md](releases/README.md)
+- Workflow: [../.github/workflows/release.yml](../.github/workflows/release.yml)
 
-## 一、普通使用者
+## User-facing Releases
 
-### 1. 从哪里下载
+Download packaged builds from [GitHub Releases](https://github.com/iammm0/secbot/releases).
 
-请前往：
+Current release archives are named `secbot-<platform>.zip`. Inside the archive, the executable may still use the legacy `hackbot` binary name because the PyInstaller spec is still `hackbot.spec`.
 
-[https://github.com/iammm0/secbot/releases](https://github.com/iammm0/secbot/releases)
+Typical extracted binaries:
 
-下载与你平台匹配的 zip 包。
+- Windows: `hackbot.exe`
+- Linux / macOS: `hackbot`
 
-说明：
-
-- 当前 GitHub Actions / PyInstaller 产物仍沿用历史命名，压缩包和可执行文件可能仍以 `hackbot` 命名
-- 这不影响运行，但文档中会统一说明这一点，避免解压后找不到可执行文件
-
-### 2. 解压后会看到什么
-
-解压后通常会得到一个目录，当前可执行文件一般为：
-
-- Windows：`hackbot.exe`
-- Linux / macOS：`hackbot`
-
-### 3. 运行前配置 `.env`
-
-在可执行文件同目录创建 `.env` 文件。最常见的最小配置如下：
-
-使用 DeepSeek：
+Create a `.env` file next to the executable before first launch. Minimal examples:
 
 ```env
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-your-api-key
 DEEPSEEK_MODEL=deepseek-reasoner
 ```
-
-使用 Ollama：
 
 ```env
 LLM_PROVIDER=ollama
@@ -48,78 +32,58 @@ OLLAMA_MODEL=gemma3:1b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-### 4. 运行方式
+Run the packaged binary:
 
-- Windows：双击 `hackbot.exe`，或在终端中执行
-- Linux / macOS：先 `chmod +x hackbot`，再执行 `./hackbot`
+- Windows: `hackbot.exe`
+- Linux / macOS: `chmod +x hackbot && ./hackbot`
 
-说明：
+## Maintainer Flow
 
-- 打包产物默认进入交互式终端界面
-- 如果未满足完整 TUI 条件，程序会尽量给出明确提示
+Release metadata is sourced from:
 
-## 二、维护者：如何生成发布包
+- `pyproject.toml` for the package version
+- `CHANGELOG.md` for human-readable release notes
 
-### 1. 版本与变更记录
+`python-semantic-release` is configured in [../pyproject.toml](../pyproject.toml) and runs from the `main` and `beta` branches. The GitHub Actions workflow:
 
-当前版本号来源于 `pyproject.toml` 中的 `project.version`。发布前请确认：
+1. Computes whether a release should be created.
+2. Builds platform packages with `uv` and PyInstaller.
+3. Generates `README_RELEASE.md` inside the packaged artifact from `CHANGELOG.md`.
+4. Uploads `secbot-<platform>.zip` files to the GitHub release.
 
-- `pyproject.toml` 版本号正确
-- `docs/CHANGELOG.md` 已同步主要变更
+## Local Release Tasks
 
-仓库当前使用 `python-semantic-release` 维护版本与 release 流程，配置位于 `pyproject.toml`。
-
-### 2. GitHub Actions 发布
-
-工作流文件：
-
-`/.github/workflows/release.yml`
-
-当前流程会：
-
-- 在 `main` / `beta` 分支 push 时尝试发布
-- 使用 PyInstaller 基于 `hackbot.spec` 生成多平台 onedir 产物
-- 上传 zip 到 GitHub Release
-
-### 3. 本地手动打包
-
-先安装依赖：
+Install dependencies:
 
 ```bash
 uv sync
 uv pip install pyinstaller
 ```
 
-再执行：
+Build the packaged application:
 
 ```bash
 uv run python -m PyInstaller hackbot.spec
 ```
 
-当前打包产物目录为：
+Generate versioned release docs from the root changelog:
 
-```text
-dist/hackbot/
+```bash
+python -m utils.release_docs version-docs --changelog CHANGELOG.md --output-dir docs/releases
 ```
 
-其中包含：
+Generate a packaged release README manually:
 
-- `hackbot` 或 `hackbot.exe`
-- 依赖库
-- 发布说明文件（若由 CI 注入）
+```bash
+python -m utils.release_docs package-readme \
+  --changelog CHANGELOG.md \
+  --version v1.8.0 \
+  --platform windows-amd64 \
+  --output dist/hackbot/README_RELEASE.md
+```
 
-### 4. 当前命名约定
+## Notes
 
-虽然仓库与包名已经是 `secbot` / `secbot_cli`，但 PyInstaller 相关构建链路仍保留历史命名：
-
-- spec：`hackbot.spec`
-- 产物目录：`dist/hackbot/`
-- 可执行文件名：`hackbot`
-
-因此在发布说明、下载页面与使用文档中，应优先以**实际可执行文件名**为准。
-
-## 三、已知注意事项
-
-- 仓库当前没有根目录 `.env.example`，发布说明应直接给出可复制的 `.env` 示例
-- wheel / pip 安装与 GitHub Release 打包产物并不完全等价，完整 TUI 体验以源码运行或 Release 包为准
-- 如果你在 macOS / Linux 上下载的是裸可执行文件，首次运行前通常需要 `chmod +x`
+- There is no root `.env.example` yet, so release docs intentionally embed copyable `.env` snippets.
+- `pip install .` and GitHub Release artifacts do not provide the exact same runtime surface. The packaged release remains the best path for an out-of-the-box terminal experience.
+- The release archive name is now `secbot-*`, while the bundled executable still uses the historical `hackbot` name until the PyInstaller spec is renamed.
