@@ -4,135 +4,142 @@
 
 ## v1.8.0 (2026-04-01)
 
+_No curated release notes were recorded for this version. Check the commit history for details._
 
 ## v1.7.0 (2026-04-01)
 
 ### Features
 
-- 更新多端交互并发布 1.6.1
-  ([`75de423`](https://github.com/iammm0/secbot/commit/75de4230adcddbcc42c6463a1d33a2d6110ae4be))
+- Updated the multi-client experience and published the `v1.6.1` release line.
 
+## v1.6.1 (2026-04-01)
+
+### Changed
+
+- Refined mobile and desktop UI interactions, including endpoint and type alignment.
+- Improved terminal TUI startup and rendering compatibility.
+- Updated API, deployment, quickstart, and release documentation along with dependency locks.
 
 ## v1.6.0 (2026-03-23)
 
 ### Chores
 
-- 更新依赖并清理仓库文件（uv.lock、.dockerignore）
-  ([`5462ab2`](https://github.com/iammm0/secbot/commit/5462ab28a5f03f3b190b4ef8f636e181ea2f09a7))
+- Updated dependencies and cleaned repository files such as `uv.lock` and container-related ignores.
 
 ### Documentation
 
-- 更新 README 说明
-  ([`3cf7423`](https://github.com/iammm0/secbot/commit/3cf7423cf6f43245570bff0b43ac907175cae414))
+- Refreshed the main README.
 
 ### Features
 
-- 优化会话启动流程（secbot_cli/launch_tui）
-  ([`3fba898`](https://github.com/iammm0/secbot/commit/3fba8987eb658b1a299c4dc0bdc678d771d61c8b))
-
-- **terminal-ui**: 更新前端交互与内容渲染
-  ([`6e66a7b`](https://github.com/iammm0/secbot/commit/6e66a7bfa8af95b2fafa012956b7553f14275634))
-
+- Improved the session startup flow in `secbot_cli/launch_tui`.
+- Updated terminal UI interactions and content rendering.
 
 ## v1.5.0 (2026-03-23)
 
 ### Chores
 
-- **logging**: 补充日志上下文与日志查看工具
-  ([`5cb5a7e`](https://github.com/iammm0/secbot/commit/5cb5a7ed5cd3e4997f917b12abd5573caaa50941))
+- Added log context and a log viewer tool.
 
 ### Documentation
 
-- 更新 README 与 repowiki 文档
-  ([`d3b8b20`](https://github.com/iammm0/secbot/commit/d3b8b2060990e476c9ca2b2c9015d28f1ff06f57))
+- Updated the README and repository wiki content.
 
 ### Features
 
-- **core**: 增强智能体路由、攻击链与会话能力
-  ([`8f4986b`](https://github.com/iammm0/secbot/commit/8f4986b60e5e658828ff422dcb1ba4783dab8841))
-
-- **terminal-ui**: 更新交互组件与会话展示
-  ([`6f9c25c`](https://github.com/iammm0/secbot/commit/6f9c25c2b26a896029e1a94ea0666312672cc908))
-
+- Strengthened core routing, attack-chain handling, and session behavior.
+- Refined terminal UI components and session presentation.
 
 ## v1.4.0 (2026-03-22)
 
 ### Features
 
-- CLI 包更名为 secbot_cli 并完善数据库持久化链路
-  ([`83d6048`](https://github.com/iammm0/secbot/commit/83d60487af8cc08c0858c31522232f3a9f626504))
-
+- Renamed the CLI package to `secbot_cli` and improved database persistence flows.
 
 ## v1.3.0 (2026-03-22)
 
 ### Chores
 
-- 移除旧版 RELEASE 文档，更新 desktop Cargo 与 uv.lock
-  ([`9665019`](https://github.com/iammm0/secbot/commit/9665019627f4cc7775dbf30d84bfd1e57e3ced11))
+- Removed the old release doc and updated desktop Cargo and `uv.lock` files.
 
 ### Documentation
 
-- 更新 LICENSE 与 README
-  ([`3216c15`](https://github.com/iammm0/secbot/commit/3216c155916d56d387979d703c9ddc10843f0b0a))
-
-- 更新 repowiki（.qoder/repowiki/zh）
-  ([`e741adc`](https://github.com/iammm0/secbot/commit/e741adce980314d7adc5a520d5d9b4d59b9c8ffd))
+- Updated the license and README.
+- Refreshed repository wiki documentation.
 
 ### Features
 
-- **desktop**: 新增 Tauri 2 桌面端（核心 SSE 聊天）并更新 README
-  ([`4b2d40f`](https://github.com/iammm0/secbot/commit/4b2d40fef468174101d79153c527ae08bf29701e))
+- Added the Tauri 2 desktop app with core SSE chat support and updated the README.
+- Added `SECBOT_DESKTOP`-style environment toggles for listener behavior and hot reload control.
 
-- **router**: 支持 SECBOT_DESKTOP 等环境变量控制监听与热重载
-  ([`60c0d0f`](https://github.com/iammm0/secbot/commit/60c0d0f44f4ad2e48e92da35a4531c4684aee9a9))
+## v1.2.10 (2026-02-17)
 
+### Fixed
+
+- Switched release builds to `python -m PyInstaller` to avoid the `darwin-amd64` executable invocation failure.
+
+## v1.2.9 (2026-02-17)
+
+### Fixed
+
+- Fixed the Apple Silicon `darwin-amd64` workflow by avoiding the `arch -x86_64 uv` `Bad CPU type` failure.
+
+## v1.2.8 (2026-02-17)
+
+### Changed
+
+- Moved the release workflow to a multi-platform executable build process based on `uv`.
+
+## v1.2.7 (2026-02-17)
+
+### Changed
+
+- Removed the `requirements.txt` dependency from the release workflow and switched to `pyproject.toml` plus `uv sync`.
+
+## v1.2.6 (2026-02-17)
+
+### Added
+
+- Added the virtual test environment guide in [docs/VIRTUAL_TEST_ENVIRONMENT.md](docs/VIRTUAL_TEST_ENVIRONMENT.md).
+- Added initial product screenshots to README and QUICKSTART.
+
+### Changed
+
+- Simplified documentation to describe SQLite-only persistence and removed references to extra database services.
+- Rewrote the Docker setup guide to match the current deployment strategy.
 
 ## v1.2.0 (2026-03-22)
 
 ### Features
 
-- **tui**: 底部 SECBOT 改为固定绿色，移除彩虹动画
-  ([`3df24e3`](https://github.com/iammm0/secbot/commit/3df24e3ee7c5ffe01abbadf2d43063620dfde697))
-
+- Updated the TUI footer branding to a fixed green Secbot treatment and removed the rainbow animation.
 
 ## v1.1.1 (2026-03-20)
 
 ### Bug Fixes
 
-- **core**: 恢复 execute_todo 中的推理事件发送（thought_start/chunk/end）
-  ([`74c228b`](https://github.com/iammm0/secbot/commit/74c228b2a47b8709ff7bc798b73e134752f7bad4))
+- Restored reasoning event emission in `execute_todo`, including `thought_start`, `chunk`, and `end`.
 
 ### Code Style
 
-- **core**: 代码格式化与推理事件发送优化
-  ([`a09dddf`](https://github.com/iammm0/secbot/commit/a09dddf31f3be3ebbbd81078f7ed810cd55266ca))
+- Reformatted core code and cleaned up reasoning event emission.
 
 ### Documentation
 
-- 更新 README.md 添加 pip 安装方式、主界面展示及技术栈徽章
-  ([`de3c1c6`](https://github.com/iammm0/secbot/commit/de3c1c61cb459795c1bd334f7cf61c7cf95fccc5))
-
-- 更新项目知识库与发布文档（repowiki、RELEASE_v1.0.1、CLI系统、LLM回退机制）
-  ([`7d49eab`](https://github.com/iammm0/secbot/commit/7d49eabd357421dcc6d04a9bb45621b845210412))
-
+- Updated README installation guidance and main screen presentation.
+- Updated project knowledge-base and release-related docs.
 
 ## v1.1.0 (2026-03-15)
 
 ### Documentation
 
-- Add repowiki knowledge base to version control
-  ([`78239d2`](https://github.com/iammm0/secbot/commit/78239d28f722bd015488300030bde6e42a13e838))
-
-- Rewrite README with open-source standards and organize docs directory
-  ([`9922572`](https://github.com/iammm0/secbot/commit/9922572c6da4748d361dd64b1ea98dd68af6edd8))
+- Added the repository wiki knowledge base to version control.
+- Rewrote the README with a clearer open-source structure and docs layout.
 
 ### Features
 
-- 智能体与 TUI 增强、LLM
-  回退与文档（planner/qa/specialist、UserMessageBlock、LLM_PROVIDERS、llm_http_fallback、terminal_tool）
-  ([`86fceb5`](https://github.com/iammm0/secbot/commit/86fceb520412103ebfc3ec734d7a5c305362e216))
-
+- Expanded agents and terminal UI behavior, and improved LLM fallback-related docs and tooling.
 
 ## v1.0.0 (2026-03-11)
 
-- Initial Release
+- Initial release.
