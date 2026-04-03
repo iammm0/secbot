@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.10.0 (2026-04-03)
+
+### Features
+
+- **app**: 优化移动端会话界面与桌面端样式
+  ([`f8ae9a3`](https://github.com/iammm0/secbot/commit/f8ae9a36e53cbbf6c3c915e428c8f885cf6704eb))
+
+
 ## v1.9.0 (2026-04-03)
 
 ### Chores
