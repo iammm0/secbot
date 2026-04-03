@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform, useWindowDimensions } from 'react-native';
 
 import ChatScreen from './src/screens/ChatScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -26,6 +27,9 @@ const TAB_ICONS: Record<string, { focused: keyof typeof Ionicons.glyphMap; defau
 };
 
 export default function App() {
+  const { width } = useWindowDimensions();
+  const isTabletLayout = width >= 820;
+
   return (
     <NavigationContainer
       theme={{
@@ -59,11 +63,16 @@ export default function App() {
           tabBarStyle: {
             backgroundColor: Colors.surface,
             borderTopColor: Colors.border,
-            paddingBottom: 4,
-            height: 56,
+            borderTopWidth: 1,
+            paddingTop: 6,
+            paddingBottom: Platform.OS === 'ios' ? (isTabletLayout ? 12 : 10) : 6,
+            height: Platform.OS === 'ios' ? (isTabletLayout ? 78 : 72) : (isTabletLayout ? 70 : 60),
+          },
+          tabBarItemStyle: {
+            paddingVertical: isTabletLayout ? 2 : 0,
           },
           tabBarLabelStyle: {
-            fontSize: FontSize.xs,
+            fontSize: isTabletLayout ? FontSize.sm : FontSize.xs,
             fontWeight: '600',
           },
           headerStyle: {
@@ -74,6 +83,10 @@ export default function App() {
           headerTintColor: Colors.text,
           headerTitleStyle: {
             fontWeight: '700',
+            fontSize: isTabletLayout ? FontSize.xl : FontSize.lg,
+          },
+          sceneStyle: {
+            backgroundColor: Colors.background,
           },
         })}
       >

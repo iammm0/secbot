@@ -861,9 +861,97 @@ button {
   justify-content: flex-end;
 }
 
-@media (max-width: 1380px) {
+.app-shell {
+  width: min(100%, 1720px);
+  margin: 0 auto;
+  padding: clamp(12px, 1.8vw, 22px);
+}
+
+.topbar {
+  gap: 12px;
+  padding: clamp(12px, 1.4vw, 18px);
+  border-radius: 22px;
+}
+
+.main-layout {
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(280px, 320px);
+  gap: 16px;
+  margin-top: 16px;
+  min-height: calc(100vh - 148px);
+}
+
+.workspace-panel,
+.composer-panel,
+.panel-card,
+.inspector-card {
+  border-radius: 22px;
+}
+
+.backend-pill {
+  max-width: min(540px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand {
+  min-width: 0;
+}
+
+.brand-subtitle {
+  white-space: nowrap;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(68, 212, 255, 0.6);
+  outline-offset: 1px;
+}
+
+.secondary-button:hover,
+.quick-tile:hover,
+.hero-chip:hover,
+.command-trigger:hover,
+.rail-tab:hover {
+  border-color: var(--border-strong);
+}
+
+.panel-actions button,
+.hero-actions .hero-chip {
+  min-height: 38px;
+}
+
+.blocks,
+.rail-body,
+.inspector,
+.palette-results {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(142, 167, 199, 0.35) rgba(255, 255, 255, 0.03);
+}
+
+@media (max-width: 1520px) {
   .main-layout {
-    grid-template-columns: 250px minmax(0, 1fr);
+    grid-template-columns: 230px minmax(0, 1fr) 290px;
+  }
+
+  .panel-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 1260px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
+
+  .status-line {
+    margin-left: 0;
+  }
+
+  .main-layout {
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: auto;
   }
 
   .inspector {
@@ -879,18 +967,176 @@ button {
   }
 
   .topbar {
-    flex-wrap: wrap;
+    gap: 10px;
+    border-radius: 18px;
+  }
+
+  .topbar .brand {
+    flex: 1 1 240px;
+  }
+
+  .backend-pill {
+    order: 7;
+    width: 100%;
+    max-width: none;
+  }
+
+  .command-trigger {
+    margin-left: auto;
+  }
+
+  .segmented {
+    flex: 1 1 180px;
   }
 
   .main-layout {
     grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .nav-rail {
+    order: 2;
+  }
+
+  .chat-col {
+    order: 1;
   }
 
   .inspector {
+    order: 3;
     display: flex;
+    grid-column: auto;
+  }
+
+  .rail-tabs {
+    flex-direction: row;
+    gap: 10px;
+    padding: 10px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  .rail-tab {
+    min-width: 148px;
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .rail-body {
+    max-height: 420px;
   }
 
   .workspace-hero {
     flex-direction: column;
+  }
+
+  .workspace-hero h1 {
+    font-size: 24px;
+  }
+
+  .hero-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .panel-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .composer-panel {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .composer-actions {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .composer-actions > button {
+    flex: 1 1 calc(50% - 6px);
+  }
+}
+
+@media (max-width: 760px) {
+  .brand-title {
+    font-size: 16px;
+  }
+
+  .brand-subtitle {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+
+  .segmented {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .segmented button {
+    flex: 1;
+    padding: 8px 10px;
+  }
+
+  .status-line {
+    width: 100%;
+    justify-content: flex-start;
+    font-size: 12px;
+  }
+
+  .command-trigger {
+    width: 100%;
+    align-items: center;
+    text-align: center;
+  }
+
+  .workspace-panel,
+  .composer-panel {
+    padding: 14px;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .panel-actions,
+  .hero-actions {
+    gap: 6px;
+  }
+
+  .blocks {
+    padding-right: 0;
+  }
+
+  .block {
+    border-radius: 16px;
+    padding: 12px;
+  }
+
+  .composer-panel textarea {
+    min-height: 96px;
+  }
+
+  .composer-actions > button {
+    flex-basis: 100%;
+  }
+
+  .inspector-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .palette-backdrop,
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .palette,
+  .modal-card {
+    border-radius: 20px;
   }
 }
