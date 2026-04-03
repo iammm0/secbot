@@ -18,10 +18,12 @@ import {
   Text,
   TextInput,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../theme';
@@ -96,6 +98,10 @@ const nextBlockId = () =>
   `blk_${Date.now()}_${++blockIdCounter}_${Math.random().toString(36).slice(2, 9)}`;
 
 export default function ChatScreen() {
+  const { width } = useWindowDimensions();
+  const isTabletLayout = width >= 900;
+  const isCompactLayout = width < 420;
+
   const [blocks, setBlocks] = useState<RenderBlock[]>([]);
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'ask' | 'agent'>('agent');
@@ -578,178 +584,193 @@ export default function ChatScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? (isTabletLayout ? 72 : 94) : 0}
     >
-      {/* 模式 Ask / Plan / Agent；Agent 时显示 自动/专家 */}
-      <View style={styles.toolbar}>
-        <View style={styles.modeRow}>
-          {CHAT_MODES.map((m) => (
+      <View style={[styles.pageShell, isTabletLayout && styles.pageShellTablet]}>
+        {/* 模式 Ask / Agent；Agent 时显示 自动/专家 */}
+        <View style={[styles.toolbar, isTabletLayout && styles.toolbarTablet]}>
+          <View style={styles.toolbarTopRow}>
+            <View style={[styles.modeRow, isCompactLayout && styles.modeRowCompact]}>
+              {CHAT_MODES.map((m) => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[styles.modeBtn, mode === m.id && styles.modeBtnActive]}
+                  onPress={() => setMode(m.id)}
+                >
+                  <Text
+                    style={[
+                      styles.modeBtnText,
+                      mode === m.id && styles.modeBtnTextActive,
+                    ]}
+                  >
+                    {m.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {mode === 'agent' && (
+              <View style={styles.agentSubRow}>
+                {AGENT_SUB.map((a) => (
+                  <TouchableOpacity
+                    key={a.id}
+                    style={[
+                      styles.agentSubBtn,
+                      agentSubType === a.id && styles.agentSubBtnActive,
+                    ]}
+                    onPress={() => setAgentSubType(a.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.agentSubBtnText,
+                        agentSubType === a.id && styles.agentSubBtnTextActive,
+                      ]}
+                    >
+                      {a.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.toolbarBottomRow}>
             <TouchableOpacity
-              key={m.id}
-              style={[styles.modeBtn, mode === m.id && styles.modeBtnActive]}
-              onPress={() => setMode(m.id)}
+              style={[styles.modelBtn, isCompactLayout && styles.modelBtnCompact]}
+              onPress={() => {
+                const idx = MODELS.findIndex((m) => m.id === model);
+                setModel(MODELS[(idx + 1) % MODELS.length].id);
+              }}
             >
-              <Text
-                style={[
-                  styles.modeBtnText,
-                  mode === m.id && styles.modeBtnTextActive,
-                ]}
-              >
-                {m.label}
+              <Ionicons name="server-outline" size={14} color={Colors.textMuted} />
+              <Text style={styles.modelBtnText} numberOfLines={1}>
+                {MODELS.find((m) => m.id === model)?.label ?? model}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
-        {mode === 'agent' && (
-          <View style={styles.agentSubRow}>
-            {AGENT_SUB.map((a) => (
-              <TouchableOpacity
-                key={a.id}
+            <View style={styles.statusBadge}>
+              <View
                 style={[
-                  styles.agentSubBtn,
-                  agentSubType === a.id && styles.agentSubBtnActive,
+                  styles.statusDot,
+                  { backgroundColor: streaming ? Colors.primary : Colors.success },
                 ]}
-                onPress={() => setAgentSubType(a.id)}
+              />
+              <Text style={styles.statusText} numberOfLines={1}>
+                {statusText}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.debugBtn}
+              onPress={() => setDebugVisible(true)}
+            >
+              <Ionicons name="bug-outline" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={[styles.controlDeck, isTabletLayout && styles.controlDeckTablet]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {BLOCK_FILTERS.map((filter) => (
+              <TouchableOpacity
+                key={filter.id}
+                style={[
+                  styles.filterChip,
+                  blockFilter === filter.id && styles.filterChipActive,
+                ]}
+                onPress={() => setBlockFilter(filter.id)}
               >
                 <Text
                   style={[
-                    styles.agentSubBtnText,
-                    agentSubType === a.id && styles.agentSubBtnTextActive,
+                    styles.filterChipText,
+                    blockFilter === filter.id && styles.filterChipTextActive,
                   ]}
                 >
-                  {a.label}
+                  {filter.label}
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
-        )}
-        <TouchableOpacity
-          style={styles.modelBtn}
-          onPress={() => {
-            const idx = MODELS.findIndex((m) => m.id === model);
-            setModel(MODELS[(idx + 1) % MODELS.length].id);
-          }}
-        >
-          <Ionicons name="server-outline" size={14} color={Colors.textMuted} />
-          <Text style={styles.modelBtnText} numberOfLines={1}>
-            {MODELS.find((m) => m.id === model)?.label ?? model}
-          </Text>
-        </TouchableOpacity>
-        <View style={styles.statusBadge}>
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: streaming ? Colors.primary : Colors.success },
-            ]}
-          />
-          <Text style={styles.statusText} numberOfLines={1}>
-            {statusText}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={styles.debugBtn}
-          onPress={() => setDebugVisible(true)}
-        >
-          <Ionicons name="bug-outline" size={20} color={Colors.textMuted} />
-        </TouchableOpacity>
-      </View>
+          </ScrollView>
 
-      <View style={styles.controlDeck}>
-        <View style={styles.filterRow}>
-          {BLOCK_FILTERS.map((filter) => (
-            <TouchableOpacity
-              key={filter.id}
-              style={[
-                styles.filterChip,
-                blockFilter === filter.id && styles.filterChipActive,
-              ]}
-              onPress={() => setBlockFilter(filter.id)}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  blockFilter === filter.id && styles.filterChipTextActive,
-                ]}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickTaskRow}
+          >
+            {QUICK_TASKS.map((task) => (
+              <TouchableOpacity
+                key={task.id}
+                style={styles.quickTaskChip}
+                disabled={streaming}
+                onPress={() => handleQuickTask(task.prompt)}
               >
-                {filter.label}
+                <Text style={styles.quickTaskChipText}>{task.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <FlatList
+          ref={flatListRef}
+          style={[styles.blockListView, isTabletLayout && styles.blockListViewTablet]}
+          data={filteredBlocks}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
+          renderItem={({ item }) => <BlockRenderer block={item} />}
+          contentContainerStyle={[styles.blockList, isTabletLayout && styles.blockListTablet]}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={64}
+                color={Colors.textMuted}
+              />
+              <Text style={styles.emptyText}>
+                {blocks.length > 0 ? '当前视图下暂无内容' : '发送消息开始对话'}
               </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.quickTaskRow}>
-          {QUICK_TASKS.map((task) => (
-            <TouchableOpacity
-              key={task.id}
-              style={styles.quickTaskChip}
-              disabled={streaming}
-              onPress={() => handleQuickTask(task.prompt)}
-            >
-              <Text style={styles.quickTaskChipText}>{task.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <FlatList
-        ref={flatListRef}
-        data={filteredBlocks}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
-        renderItem={({ item }) => <BlockRenderer block={item} />}
-        contentContainerStyle={styles.blockList}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={64}
-              color={Colors.textMuted}
-            />
-            <Text style={styles.emptyText}>
-              {blocks.length > 0 ? '当前视图下暂无内容' : '发送消息开始对话'}
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {blocks.length > 0
-                ? `当前筛选：${BLOCK_FILTERS.find((filter) => filter.id === blockFilter)?.label ?? blockFilter}`
-                : `${CHAT_MODES.find((m) => m.id === mode)?.label}${mode === 'agent' ? ` · ${AGENT_SUB.find((a) => a.id === agentSubType)?.label}` : ''} · ${MODELS.find((m) => m.id === model)?.label}`}
-            </Text>
-          </View>
-        }
-      />
-
-      {/* 输入栏 */}
-      <View style={styles.inputBar}>
-        <TextInput
-          style={styles.input}
-          value={input}
-          onChangeText={setInput}
-          placeholder="输入消息..."
-          placeholderTextColor={Colors.textMuted}
-          multiline
-          maxLength={4000}
-          editable={!streaming}
-          onSubmitEditing={handleSend}
-          returnKeyType="send"
+              <Text style={styles.emptySubtext}>
+                {blocks.length > 0
+                  ? `当前筛选：${BLOCK_FILTERS.find((filter) => filter.id === blockFilter)?.label ?? blockFilter}`
+                  : `${CHAT_MODES.find((m) => m.id === mode)?.label}${mode === 'agent' ? ` · ${AGENT_SUB.find((a) => a.id === agentSubType)?.label}` : ''} · ${MODELS.find((m) => m.id === model)?.label}`}
+              </Text>
+            </View>
+          }
         />
 
-        {streaming ? (
-          <TouchableOpacity onPress={stopStream} style={styles.sendBtn}>
-            <Ionicons name="stop-circle" size={28} color={Colors.danger} />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            onPress={handleSend}
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-            disabled={!input.trim()}
-          >
-            <Ionicons
-              name="send"
-              size={24}
-              color={input.trim() ? Colors.primary : Colors.textMuted}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
+        {/* 输入栏 */}
+        <View style={[styles.inputBar, isTabletLayout && styles.inputBarTablet]}>
+          <TextInput
+            style={styles.input}
+            value={input}
+            onChangeText={setInput}
+            placeholder="输入消息..."
+            placeholderTextColor={Colors.textMuted}
+            multiline
+            maxLength={4000}
+            editable={!streaming}
+            onSubmitEditing={handleSend}
+            returnKeyType="send"
+          />
 
+          {streaming ? (
+            <TouchableOpacity onPress={stopStream} style={styles.sendBtn}>
+              <Ionicons name="stop-circle" size={28} color={Colors.danger} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={handleSend}
+              style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+              disabled={!input.trim()}
+            >
+              <Ionicons
+                name="send"
+                size={22}
+                color={input.trim() ? Colors.primary : Colors.textMuted}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
       <ChatDebugPanel
         visible={debugVisible}
         onClose={() => setDebugVisible(false)}
@@ -778,21 +799,49 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  pageShell: {
+    flex: 1,
+    width: '100%',
+  },
+  pageShellTablet: {
+    alignSelf: 'center',
+    maxWidth: 980,
+  },
   toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.surface,
+  },
+  toolbarTablet: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.sm,
+  },
+  toolbarTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  toolbarBottomRow: {
+    marginTop: Spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   modeRow: {
     flexDirection: 'row',
     backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.sm,
     padding: 2,
+  },
+  modeRowCompact: {
+    flex: 1,
   },
   modeBtn: {
     paddingHorizontal: Spacing.md,
@@ -835,12 +884,19 @@ const styles = StyleSheet.create({
   modelBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingVertical: 6,
     backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.sm,
-    maxWidth: 120,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    maxWidth: 220,
+    minWidth: 116,
+    flexShrink: 1,
+  },
+  modelBtnCompact: {
+    maxWidth: 160,
   },
   modelBtnText: {
     fontSize: FontSize.xs,
@@ -863,18 +919,29 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   debugBtn: {
-    padding: Spacing.xs,
+    width: 34,
+    height: 34,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   controlDeck: {
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
     gap: Spacing.sm,
     backgroundColor: Colors.background,
   },
+  controlDeckTablet: {
+    paddingHorizontal: 0,
+  },
   filterRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.xs,
+    paddingRight: Spacing.md,
   },
   filterChip: {
     paddingHorizontal: Spacing.md,
@@ -898,11 +965,11 @@ const styles = StyleSheet.create({
   },
   quickTaskRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.xs,
+    paddingRight: Spacing.md,
   },
   quickTaskChip: {
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 8,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.card,
@@ -910,19 +977,33 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   quickTaskChipText: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.text,
     fontWeight: '600',
   },
+  blockListView: {
+    flex: 1,
+  },
+  blockListViewTablet: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: Colors.border,
+  },
   blockList: {
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    flexGrow: 1,
+  },
+  blockListTablet: {
+    paddingHorizontal: 0,
     flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 160,
+    paddingTop: 120,
+    paddingHorizontal: Spacing.xl,
   },
   emptyText: {
     fontSize: FontSize.lg,
@@ -939,26 +1020,39 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     backgroundColor: Colors.surface,
+  },
+  inputBarTablet: {
+    paddingHorizontal: 0,
+    marginBottom: Spacing.sm,
   },
   input: {
     flex: 1,
     backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
     color: Colors.text,
     fontSize: FontSize.md,
-    maxHeight: 120,
+    minHeight: 48,
+    maxHeight: 144,
     borderWidth: 1,
     borderColor: Colors.border,
+    textAlignVertical: 'top',
   },
   sendBtn: {
-    padding: Spacing.sm,
-    marginLeft: Spacing.xs,
-    marginBottom: 2,
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sendBtnDisabled: {
     opacity: 0.4,
