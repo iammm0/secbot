@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.9.0 (2026-04-03)
+
+### Chores
+
+- **release**: 完善发布文档与发布流程测试
+  ([`c952102`](https://github.com/iammm0/secbot/commit/c952102aaf14b9ce332b9df596dde34a4e5eb713))
+
+### Features
+
+- **desktop**: 支持将剪切板内容附加为文本/代码块
+  ([`c4fc478`](https://github.com/iammm0/secbot/commit/c4fc47864c0df4f62e78432f17aa780d35749db4))
+
+
 ## v1.8.0 (2026-04-01)
 
 _No curated release notes were recorded for this version. Check the commit history for details._
