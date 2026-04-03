@@ -26,6 +26,13 @@ const PHASE_LABELS: Record<string, string> = {
 
 type SidebarPane = "overview" | "tools" | "agents" | "system";
 type AgentMode = "secbot-cli" | "superhackbot";
+type ClipboardBlockKind = "text" | "code";
+
+interface ClipboardBlock {
+  id: string;
+  kind: ClipboardBlockKind;
+  content: string;
+}
 
 interface RootPromptState {
   requestId: string;
@@ -121,6 +128,35 @@ function formatSystemSummary(config: SystemConfigResponse | null): string {
   ].join("\n");
 }
 
+function formatClipboardCodeFence(content: string): string {
+  const normalized = content.replace(/\r\n/g, "\n");
+  const matches = normalized.match(/`{3,}/g) ?? [];
+  const longestFence = matches.reduce((max, run) => Math.max(max, run.length), 3);
+  const fence = "`".repeat(Math.max(3, longestFence + 1));
+  return `${fence}text\n${normalized}\n${fence}`;
+}
+
+function composePromptWithClipboard(prompt: string, blocks: ClipboardBlock[]): string {
+  const trimmedPrompt = prompt.trim();
+  if (blocks.length === 0) return trimmedPrompt;
+
+  const sections = blocks.map((block, index) => {
+    if (block.kind === "text") {
+      return `[剪切板文本块 ${index + 1}]\n${block.content}`;
+    }
+    return `[剪切板代码块 ${index + 1}]\n${formatClipboardCodeFence(block.content)}`;
+  });
+
+  const header = "以下内容来自剪切板，并作为本次会话的一部分提交：";
+  return [trimmedPrompt, header, sections.join("\n\n")].filter((part) => part.trim()).join("\n\n");
+}
+
+function summarizeClipboardContent(content: string, max = 220): string {
+  const normalized = content.replace(/\r\n/g, "\n");
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max)}…`;
+}
+
 function BlockView({ block }: { block: RenderBlock }) {
   type BlockType = RenderBlock["type"];
   const label: Record<BlockType, string> = {
@@ -182,6 +218,8 @@ function BlockView({ block }: { block: RenderBlock }) {
 export default function App() {
   const [blocks, setBlocks] = useState<RenderBlock[]>([]);
   const [input, setInput] = useState("");
+  const [clipboardBlocks, setClipboardBlocks] = useState<ClipboardBlock[]>([]);
+  const [clipboardError, setClipboardError] = useState<string | null>(null);
   const [mode, setMode] = useState<"ask" | "agent">("agent");
   const [agentSubType, setAgentSubType] = useState<AgentMode>("secbot-cli");
   const [sessionNote, setSessionNote] = useState("加载中…");
@@ -205,6 +243,8 @@ export default function App() {
   const blocksEndRef = useRef<HTMLDivElement>(null);
 
   const { streaming, startStream, stopStream } = useSSE();
+
+  const canSubmit = useMemo(() => input.trim().length > 0 || clipboardBlocks.length > 0, [clipboardBlocks.length, input]);
 
   const scrollToEnd = useCallback(() => {
     setTimeout(() => blocksEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 80);
@@ -521,14 +561,51 @@ export default function App() {
     [agentSubType, appendBlock, appendObservation, mode, scrollToEnd, setPhase, updateBlock],
   );
 
+  const appendClipboardBlock = useCallback(
+    async (kind: ClipboardBlockKind) => {
+      if (streaming) return;
+      try {
+        if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
+          throw new Error("当前环境不支持直接读取剪切板，请先手动粘贴到输入框。");
+        }
+        const content = (await navigator.clipboard.readText()).replace(/\r\n/g, "\n");
+        if (!content.trim()) {
+          throw new Error("剪切板为空，或仅包含空白字符。");
+        }
+        setClipboardBlocks((previous) => [
+          ...previous,
+          {
+            id: nextBlockId(),
+            kind,
+            content,
+          },
+        ]);
+        setClipboardError(null);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setClipboardError(message || "读取剪切板失败。");
+      }
+    },
+    [streaming],
+  );
+
+  const removeClipboardBlock = useCallback((id: string) => {
+    setClipboardBlocks((previous) => previous.filter((item) => item.id !== id));
+  }, []);
+
+  const clearClipboardBlocks = useCallback(() => {
+    setClipboardBlocks([]);
+    setClipboardError(null);
+  }, []);
+
   const submitPrompt = useCallback(
     (
       prompt: string,
       nextMode: "ask" | "agent" = mode,
       nextAgent: AgentMode = agentSubType,
     ) => {
-      const trimmed = prompt.trim();
-      if (!trimmed || streaming) return;
+      const composedMessage = composePromptWithClipboard(prompt, clipboardBlocks);
+      if (!composedMessage || streaming) return;
 
       thinkingIdRef.current = null;
       thinkingContentRef.current = "";
@@ -541,16 +618,18 @@ export default function App() {
         id: nextBlockId(),
         type: "user",
         timestamp: new Date(),
-        content: trimmed,
+        content: composedMessage,
       });
       setInput("");
+      setClipboardBlocks([]);
+      setClipboardError(null);
       scrollToEnd();
       setPhase("thinking", "连接中…");
 
       startStream(
         "/api/chat",
         {
-          message: trimmed,
+          message: composedMessage,
           mode: nextMode,
           agent: nextMode === "agent" ? nextAgent : "secbot-cli",
         },
@@ -574,6 +653,7 @@ export default function App() {
     [
       agentSubType,
       appendBlock,
+      clipboardBlocks,
       handleSSEEvent,
       mode,
       scrollToEnd,
@@ -990,19 +1070,58 @@ export default function App() {
           </section>
 
           <section className="composer-panel">
-            <textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  handleSend();
-                }
-              }}
-              rows={3}
-            />
+            <div className="composer-main">
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    handleSend();
+                  }
+                }}
+                rows={3}
+              />
+              {clipboardBlocks.length > 0 ? (
+                <div className="clipboard-blocks">
+                  {clipboardBlocks.map((block, index) => (
+                    <article key={block.id} className={`clipboard-block ${block.kind}`}>
+                      <div className="clipboard-block-header">
+                        <span>{block.kind === "text" ? `文本块 ${index + 1}` : `代码块 ${index + 1}`}</span>
+                        <button type="button" onClick={() => removeClipboardBlock(block.id)}>
+                          移除
+                        </button>
+                      </div>
+                      <pre className="clipboard-block-preview">{summarizeClipboardContent(block.content)}</pre>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+              {clipboardError ? <div className="composer-error">{clipboardError}</div> : null}
+            </div>
             <div className="composer-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={streaming}
+                onClick={() => void appendClipboardBlock("text")}
+              >
+                剪切板转文本块
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={streaming}
+                onClick={() => void appendClipboardBlock("code")}
+              >
+                剪切板转代码块
+              </button>
+              {clipboardBlocks.length > 0 ? (
+                <button type="button" className="secondary-button" disabled={streaming} onClick={clearClipboardBlocks}>
+                  清空附加块
+                </button>
+              ) : null}
               <button type="button" className="secondary-button" onClick={() => setPaletteOpen(true)}>
                 打开命令面板
               </button>
@@ -1011,7 +1130,7 @@ export default function App() {
                   停止
                 </button>
               ) : (
-                <button type="button" className="primary-button" disabled={!input.trim()} onClick={handleSend}>
+                <button type="button" className="primary-button" disabled={!canSubmit} onClick={handleSend}>
                   发送
                 </button>
               )}
