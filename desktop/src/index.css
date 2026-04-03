@@ -506,13 +506,20 @@ button {
 
 .composer-panel {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 12px;
   padding: 16px;
 }
 
-.composer-panel textarea {
+.composer-main {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.composer-panel textarea {
+  width: 100%;
   min-height: 78px;
   max-height: 200px;
   resize: vertical;
@@ -523,10 +530,66 @@ button {
   padding: 14px 16px;
 }
 
+.clipboard-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.clipboard-block {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px 12px;
+}
+
+.clipboard-block.text {
+  border-color: rgba(68, 212, 255, 0.22);
+}
+
+.clipboard-block.code {
+  border-color: rgba(255, 207, 93, 0.28);
+}
+
+.clipboard-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.clipboard-block-header button {
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  padding: 0;
+}
+
+.clipboard-block-preview {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+  font-size: 12px;
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+}
+
+.composer-error {
+  color: #ffc4d0;
+  font-size: 12px;
+}
+
 .composer-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 160px;
 }
 
 .panel-card,
