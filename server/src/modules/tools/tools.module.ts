@@ -8,4 +8,3 @@ import { ToolsService } from './tools.service';
   exports: [ToolsService],
 })
 export class ToolsModule {}
-

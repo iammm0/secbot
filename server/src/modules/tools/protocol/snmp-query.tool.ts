@@ -14,7 +14,10 @@ const COMMON_OIDS: Record<string, string> = {
 
 export class SnmpQueryTool extends BaseTool {
   constructor() {
-    super('snmp_query', 'Query SNMPv1 device information (system description, name, uptime, etc.).');
+    super(
+      'snmp_query',
+      'Query SNMPv1 device information (system description, name, uptime, etc.).',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
@@ -135,7 +138,11 @@ export class SnmpQueryTool extends BaseTool {
     const errorStatus = this.asn1Integer(0);
     const errorIndex = this.asn1Integer(0);
     const pduContent = Buffer.concat([requestIdField, errorStatus, errorIndex, varbindList]);
-    const pdu = Buffer.concat([Buffer.from([0xa0]), this.asn1Length(pduContent.length), pduContent]);
+    const pdu = Buffer.concat([
+      Buffer.from([0xa0]),
+      this.asn1Length(pduContent.length),
+      pduContent,
+    ]);
 
     const version = this.asn1Integer(0); // SNMPv1
     const communityField = Buffer.concat([
@@ -169,7 +176,11 @@ export class SnmpQueryTool extends BaseTool {
       encoded.push(...chunks);
     }
 
-    return Buffer.concat([Buffer.from([0x06]), this.asn1Length(encoded.length), Buffer.from(encoded)]);
+    return Buffer.concat([
+      Buffer.from([0x06]),
+      this.asn1Length(encoded.length),
+      Buffer.from(encoded),
+    ]);
   }
 
   private asn1Integer(value: number): Buffer {

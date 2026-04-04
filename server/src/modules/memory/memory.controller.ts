@@ -46,29 +46,19 @@ export class MemoryController {
   @Get('list')
   list(@Query() query: RecallQueryDto) {
     return {
-      memories: this.memoryService.list_memories(
-        query.memory_type,
-        query.limit,
-      ),
+      memories: this.memoryService.list_memories(query.memory_type, query.limit),
     };
   }
 
   @Post('distill')
   async distill(@Body() body: DistillConversationRequestDto) {
-    await this.memoryService.distill_from_conversation(
-      body.conversation,
-      body.summary,
-    );
+    await this.memoryService.distill_from_conversation(body.conversation, body.summary);
     return { success: true };
   }
 
   @Post('episode')
   async addEpisode(@Body() body: AddEpisodeRequestDto) {
-    await this.memoryService.add_episode(
-      body.event,
-      body.outcome,
-      body.target ?? '',
-    );
+    await this.memoryService.add_episode(body.event, body.outcome, body.target ?? '');
     return { success: true };
   }
 
@@ -119,4 +109,3 @@ export class MemoryController {
     return this.memoryService.get_vector_stats();
   }
 }
-

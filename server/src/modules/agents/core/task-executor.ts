@@ -25,10 +25,7 @@ export class TaskExecutor {
     this.planner = new PlannerAgent();
   }
 
-  async run(
-    userInput: string,
-    onEvent?: OnEventCallback,
-  ): Promise<string> {
+  async run(userInput: string, onEvent?: OnEventCallback): Promise<string> {
     const layers = this.planner.getExecutionOrder(this.plan.todos);
     const results: string[] = [];
     let currentTodos = [...this.plan.todos];
@@ -77,9 +74,7 @@ export class TaskExecutor {
           });
 
           const resultText =
-            typeof result.result === 'string'
-              ? result.result
-              : JSON.stringify(result.result ?? '');
+            typeof result.result === 'string' ? result.result : JSON.stringify(result.result ?? '');
 
           currentTodos = currentTodos.map((t) =>
             t.id === todo.id ? markTodoCompleted(t, resultText) : t,
@@ -95,9 +90,7 @@ export class TaskExecutor {
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
 
-          currentTodos = currentTodos.map((t) =>
-            t.id === todo.id ? markTodoCancelled(t) : t,
-          );
+          currentTodos = currentTodos.map((t) => (t.id === todo.id ? markTodoCancelled(t) : t));
 
           this.eventBus.emitSimple(EventType.ERROR, {
             todoId: todo.id,
@@ -117,14 +110,11 @@ export class TaskExecutor {
       });
     }
 
-    const completedCount = currentTodos.filter(
-      (t) => t.status === TodoStatus.COMPLETED,
-    ).length;
+    const completedCount = currentTodos.filter((t) => t.status === TodoStatus.COMPLETED).length;
     const totalCount = currentTodos.length;
 
     const summary =
-      `执行完成：${completedCount}/${totalCount} 个任务成功\n\n` +
-      results.join('\n\n---\n\n');
+      `执行完成：${completedCount}/${totalCount} 个任务成功\n\n` + results.join('\n\n---\n\n');
 
     this.eventBus.emitSimple(EventType.PLAN_COMPLETE, {
       completed: completedCount,

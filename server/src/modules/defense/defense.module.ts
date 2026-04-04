@@ -8,4 +8,3 @@ import { DefenseService } from './defense.service';
   exports: [DefenseService],
 })
 export class DefenseModule {}
-

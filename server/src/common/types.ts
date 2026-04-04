@@ -49,10 +49,7 @@ export function markTodoInProgress(todo: TodoItem): TodoItem {
   return { ...todo, status: TodoStatus.IN_PROGRESS, updatedAt: new Date() };
 }
 
-export function markTodoCompleted(
-  todo: TodoItem,
-  resultSummary = '',
-): TodoItem {
+export function markTodoCompleted(todo: TodoItem, resultSummary = ''): TodoItem {
   return {
     ...todo,
     status: TodoStatus.COMPLETED,
@@ -99,9 +96,7 @@ export interface Session {
   updatedAt: Date;
 }
 
-export function createSession(
-  partial: Partial<Session> & { id: string },
-): Session {
+export function createSession(partial: Partial<Session> & { id: string }): Session {
   const now = new Date();
   return {
     name: '',
@@ -121,10 +116,7 @@ export function addSessionMessage(
 ): Session {
   return {
     ...session,
-    messages: [
-      ...session.messages,
-      { role, content, timestamp: new Date(), metadata },
-    ],
+    messages: [...session.messages, { role, content, timestamp: new Date(), metadata }],
     updatedAt: new Date(),
   };
 }

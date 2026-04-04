@@ -27,4 +27,3 @@ export interface ExecuteToolResponseDto {
   result: unknown;
   error?: string;
 }
-

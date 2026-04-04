@@ -8,4 +8,3 @@ import { SessionsService } from './sessions.service';
   exports: [SessionsService],
 })
 export class SessionsModule {}
-

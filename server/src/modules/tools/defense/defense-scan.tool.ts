@@ -29,7 +29,11 @@ export class DefenseScanTool extends BaseTool {
       const vulnerabilities = this.extractVulnerabilitySummary(vuln);
       const networkSummary = this.extractNetworkSummary(network);
       const attacksDetected = this.extractAttackCount(intrusion);
-      const recommendations = this.buildRecommendations(vulnerabilities, networkSummary, attacksDetected);
+      const recommendations = this.buildRecommendations(
+        vulnerabilities,
+        networkSummary,
+        attacksDetected,
+      );
 
       return {
         success: true,
@@ -68,7 +72,10 @@ export class DefenseScanTool extends BaseTool {
     };
   }
 
-  private extractNetworkSummary(result: ToolResult): { total_connections: number; suspicious_count: number } {
+  private extractNetworkSummary(result: ToolResult): {
+    total_connections: number;
+    suspicious_count: number;
+  } {
     if (!result.success || !result.result || typeof result.result !== 'object') {
       return { total_connections: 0, suspicious_count: 0 };
     }
@@ -94,16 +101,24 @@ export class DefenseScanTool extends BaseTool {
   ): string[] {
     const recs: string[] = [];
     if (vulnerabilities.total > 0) {
-      recs.push('Prioritize patching and remediation for detected vulnerabilities, starting with high/critical severities.');
+      recs.push(
+        'Prioritize patching and remediation for detected vulnerabilities, starting with high/critical severities.',
+      );
     }
     if (network.suspicious_count > 0) {
-      recs.push('Investigate suspicious outbound/inbound sessions and block unknown destinations at firewall level.');
+      recs.push(
+        'Investigate suspicious outbound/inbound sessions and block unknown destinations at firewall level.',
+      );
     }
     if (attacksDetected > 0) {
-      recs.push('Enable stronger intrusion monitoring and review attack indicators from recent events.');
+      recs.push(
+        'Enable stronger intrusion monitoring and review attack indicators from recent events.',
+      );
     }
     if (recs.length === 0) {
-      recs.push('No immediate high-risk indicators found; maintain baseline monitoring and routine patch management.');
+      recs.push(
+        'No immediate high-risk indicators found; maintain baseline monitoring and routine patch management.',
+      );
     }
     return recs;
   }

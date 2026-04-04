@@ -95,7 +95,9 @@ export class RedisProbeTool extends BaseTool {
         };
       }
 
-      const configResp = await this.sendCommand(socket, 'CONFIG GET dir\r\n', timeoutMs).catch(() => '');
+      const configResp = await this.sendCommand(socket, 'CONFIG GET dir\r\n', timeoutMs).catch(
+        () => '',
+      );
       if (configResp && !configResp.startsWith('-')) {
         result.risk_level = 'critical';
         result.findings.push('CONFIG GET is executable and may enable write-to-disk attacks.');

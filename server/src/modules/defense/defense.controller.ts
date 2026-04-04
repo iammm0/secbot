@@ -34,4 +34,3 @@ export class DefenseController {
     return this.defenseService.report(type);
   }
 }
-

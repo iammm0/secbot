@@ -21,4 +21,3 @@ export class DatabaseController {
     return this.databaseService.clear(query);
   }
 }
-

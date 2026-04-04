@@ -46,9 +46,7 @@ export function Dialog({ width, height }: DialogProps) {
   }
   return (
     <Box {...(overlayProps as any)}>
-      <Box {...(panelProps as any)}>
-        {top.element}
-      </Box>
+      <Box {...(panelProps as any)}>{top.element}</Box>
     </Box>
   );
 }

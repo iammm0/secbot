@@ -61,11 +61,7 @@ export class MemoryService {
     await this.addLongTerm(item);
   }
 
-  async recall(
-    query = '',
-    memoryType?: string | null,
-    limit = 5,
-  ): Promise<MemoryItem[]> {
+  async recall(query = '', memoryType?: string | null, limit = 5): Promise<MemoryItem[]> {
     const targetLimit = Math.max(1, limit);
     const resolvedType = toMemoryType(memoryType ?? undefined);
 
@@ -133,11 +129,7 @@ export class MemoryService {
     await this.addEpisodic(item);
   }
 
-  async add_episode(
-    event: string,
-    outcome: string,
-    target = '',
-  ): Promise<void> {
+  async add_episode(event: string, outcome: string, target = ''): Promise<void> {
     const item = createMemoryItem({
       content: event,
       type: 'episodic',
@@ -147,11 +139,7 @@ export class MemoryService {
     await this.addEpisodic(item);
   }
 
-  async add_knowledge(
-    fact: string,
-    category = 'general',
-    importance = 0.5,
-  ): Promise<void> {
+  async add_knowledge(fact: string, category = 'general', importance = 0.5): Promise<void> {
     const item = createMemoryItem({
       content: fact,
       type: 'long_term',
@@ -183,11 +171,7 @@ export class MemoryService {
       return targetLimit ? values.slice(-targetLimit) : values;
     }
 
-    const merged = [
-      ...this.shortTermBuffer,
-      ...this.episodicMemories,
-      ...this.longTermMemories,
-    ];
+    const merged = [...this.shortTermBuffer, ...this.episodicMemories, ...this.longTermMemories];
     return targetLimit ? merged.slice(-targetLimit) : merged;
   }
 
@@ -303,9 +287,7 @@ export class MemoryService {
       }
       return normalized;
     } catch (error) {
-      this.logger.warn(
-        `Failed to load memory store ${storagePath}: ${(error as Error).message}`,
-      );
+      this.logger.warn(`Failed to load memory store ${storagePath}: ${(error as Error).message}`);
       return [];
     }
   }
@@ -316,28 +298,20 @@ export class MemoryService {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(storagePath, JSON.stringify(items, null, 2), 'utf8');
     } catch (error) {
-      this.logger.error(
-        `Failed to save memory store ${storagePath}: ${(error as Error).message}`,
-      );
+      this.logger.error(`Failed to save memory store ${storagePath}: ${(error as Error).message}`);
     }
   }
 
-  private normalizeMemoryItem(
-    value: unknown,
-    defaultType: MemoryType,
-  ): MemoryItem | null {
+  private normalizeMemoryItem(value: unknown, defaultType: MemoryType): MemoryItem | null {
     if (!value || typeof value !== 'object') return null;
     const obj = value as Record<string, unknown>;
 
     const content = typeof obj.content === 'string' ? obj.content : '';
     if (!content) return null;
 
-    const type = toMemoryType(
-      typeof obj.type === 'string' ? obj.type : defaultType,
-    ) ?? defaultType;
+    const type = toMemoryType(typeof obj.type === 'string' ? obj.type : defaultType) ?? defaultType;
 
-    const importanceRaw =
-      typeof obj.importance === 'number' ? obj.importance : 0.5;
+    const importanceRaw = typeof obj.importance === 'number' ? obj.importance : 0.5;
     const importance = clampImportance(importanceRaw);
 
     const id = typeof obj.id === 'string' && obj.id ? obj.id : `mem-${Date.now()}`;
@@ -373,4 +347,3 @@ export class MemoryService {
     return path.isAbsolute(source) ? source : path.resolve(process.cwd(), source);
   }
 }
-

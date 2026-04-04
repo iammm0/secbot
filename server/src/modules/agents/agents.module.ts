@@ -8,4 +8,3 @@ import { AgentsService } from './agents.service';
   exports: [AgentsService],
 })
 export class AgentsModule {}
-

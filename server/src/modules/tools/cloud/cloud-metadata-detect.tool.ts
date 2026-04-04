@@ -37,7 +37,10 @@ const METADATA_ENDPOINTS: Record<string, MetadataEndpoint> = {
 
 export class CloudMetadataDetectTool extends BaseTool {
   constructor() {
-    super('cloud_metadata_detect', 'Detect accessible cloud metadata endpoints for SSRF risk assessment.');
+    super(
+      'cloud_metadata_detect',
+      'Detect accessible cloud metadata endpoints for SSRF risk assessment.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {

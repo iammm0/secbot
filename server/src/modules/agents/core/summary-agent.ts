@@ -32,10 +32,7 @@ export class SummaryAgent extends BaseAgent {
     });
   }
 
-  async process(
-    userInput: string,
-    options?: Record<string, unknown>,
-  ): Promise<string> {
+  async process(userInput: string, options?: Record<string, unknown>): Promise<string> {
     const summarizeOptions = options as unknown as SummarizeOptions | undefined;
     const summary = await this.summarizeInteraction(userInput, summarizeOptions);
     return summary.rawReport;
@@ -62,8 +59,7 @@ export class SummaryAgent extends BaseAgent {
     const todoCompletion = this.buildTodoCompletion(options?.todos);
 
     if (mode === 'brief') {
-      const briefPrompt =
-        `请将以下安全测试报告压缩为 3-5 句话的摘要，保留最关键的发现和建议：\n\n${rawReport}`;
+      const briefPrompt = `请将以下安全测试报告压缩为 3-5 句话的摘要，保留最关键的发现和建议：\n\n${rawReport}`;
       const briefMessages: ChatMessage[] = [
         { role: 'system', content: this.systemPrompt },
         { role: 'user', content: briefPrompt },
@@ -94,13 +90,8 @@ export class SummaryAgent extends BaseAgent {
     };
   }
 
-  private buildSummaryPrompt(
-    userInput: string,
-    options?: SummarizeOptions,
-  ): string {
-    const parts: string[] = [
-      `## 原始任务\n${userInput}`,
-    ];
+  private buildSummaryPrompt(userInput: string, options?: SummarizeOptions): string {
+    const parts: string[] = [`## 原始任务\n${userInput}`];
 
     if (options?.todos?.length) {
       const todoLines = options.todos.map(
@@ -112,33 +103,28 @@ export class SummaryAgent extends BaseAgent {
     }
 
     if (options?.thoughts?.length) {
-      parts.push(
-        `## 分析思路\n${options.thoughts.map((t, i) => `${i + 1}. ${t}`).join('\n')}`,
-      );
+      parts.push(`## 分析思路\n${options.thoughts.map((t, i) => `${i + 1}. ${t}`).join('\n')}`);
     }
 
     if (options?.observations?.length) {
-      parts.push(
-        `## 观察结果\n${options.observations.map((o, i) => `${i + 1}. ${o}`).join('\n')}`,
-      );
+      parts.push(`## 观察结果\n${options.observations.map((o, i) => `${i + 1}. ${o}`).join('\n')}`);
     }
 
     if (options?.toolResults?.length) {
       const toolLines = options.toolResults.map(
-        (r) =>
-          `- **${r.tool}**: ${r.success ? '成功' : '失败'} — ${r.result}`,
+        (r) => `- **${r.tool}**: ${r.success ? '成功' : '失败'} — ${r.result}`,
       );
       parts.push(`## 工具执行结果\n${toolLines.join('\n')}`);
     }
 
     parts.push(
       '\n请根据以上信息生成一份结构化安全测试报告，包含以下章节：\n' +
-      '1. **任务概述**\n' +
-      '2. **关键发现**（按严重程度排序）\n' +
-      '3. **执行操作**\n' +
-      '4. **风险评估**\n' +
-      '5. **修复建议**\n' +
-      '6. **总结**',
+        '1. **任务概述**\n' +
+        '2. **关键发现**（按严重程度排序）\n' +
+        '3. **执行操作**\n' +
+        '4. **风险评估**\n' +
+        '5. **修复建议**\n' +
+        '6. **总结**',
     );
 
     return parts.join('\n\n');
@@ -175,9 +161,7 @@ export class SummaryAgent extends BaseAgent {
     return lines.join('\n') || `针对任务「${userInput}」的安全测试报告。`;
   }
 
-  private buildTodoCompletion(
-    todos?: TodoItem[],
-  ): Record<string, unknown> {
+  private buildTodoCompletion(todos?: TodoItem[]): Record<string, unknown> {
     if (!todos?.length) {
       return { total: 0, completed: 0, cancelled: 0, pending: 0, rate: '0%' };
     }

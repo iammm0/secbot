@@ -55,10 +55,7 @@ export class SecurityReActAgent extends BaseAgent {
     return this._reactHistory;
   }
 
-  async process(
-    userInput: string,
-    options?: Record<string, unknown>,
-  ): Promise<string> {
+  async process(userInput: string, options?: Record<string, unknown>): Promise<string> {
     const onEvent = options?.onEvent as OnEventCallback | undefined;
 
     this._reactHistory = [];
@@ -174,19 +171,14 @@ export class SecurityReActAgent extends BaseAgent {
       return null;
     }
 
-    const actionMatch = thought.match(
-      /Action\s*:\s*(\{[\s\S]*?\})\s*(?:\n|$)/,
-    );
+    const actionMatch = thought.match(/Action\s*:\s*(\{[\s\S]*?\})\s*(?:\n|$)/);
     if (!actionMatch) {
       return null;
     }
 
     try {
       const parsed = JSON.parse(actionMatch[1]);
-      if (
-        typeof parsed.tool === 'string' &&
-        parsed.params !== undefined
-      ) {
+      if (typeof parsed.tool === 'string' && parsed.params !== undefined) {
         return {
           tool: parsed.tool,
           params: parsed.params as Record<string, unknown>,
@@ -199,10 +191,7 @@ export class SecurityReActAgent extends BaseAgent {
     return null;
   }
 
-  async executeTool(
-    toolName: string,
-    params: Record<string, unknown>,
-  ): Promise<ToolResult> {
+  async executeTool(toolName: string, params: Record<string, unknown>): Promise<ToolResult> {
     const tool = this.toolsDict.get(toolName);
     if (!tool) {
       return {
@@ -236,9 +225,7 @@ export class SecurityReActAgent extends BaseAgent {
   }
 
   getToolsDescription(): string {
-    return this.tools
-      .map((t) => `- ${t.name}: ${t.description}`)
-      .join('\n');
+    return this.tools.map((t) => `- ${t.name}: ${t.description}`).join('\n');
   }
 
   async executeTodo(

@@ -52,7 +52,9 @@ export function cleanHtmlToText(html: string): string {
     .replace(/<aside[\s\S]*?<\/aside>/gi, ' ')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, ' ');
 
-  const text = stripTags(cleaned).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+  const text = stripTags(cleaned)
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n');
   return normalizeText(text);
 }
 
@@ -106,7 +108,10 @@ export function extractImages(html: string, baseUrl?: string, limit = 10): Image
     const src = safeAbsoluteUrl(srcMatch[1], baseUrl);
     if (!src || seen.has(src)) continue;
     seen.add(src);
-    const alt = stripTags((attrs.match(/\balt\s*=\s*["']([^"']*)["']/i)?.[1] ?? '').trim()).slice(0, 100);
+    const alt = stripTags((attrs.match(/\balt\s*=\s*["']([^"']*)["']/i)?.[1] ?? '').trim()).slice(
+      0,
+      100,
+    );
     images.push({ alt, src });
   }
   return images;
@@ -127,7 +132,10 @@ export function extractHeadings(html: string, limit = 50): Array<{ level: number
   return headings;
 }
 
-export function extractTables(html: string, tableLimit = 10): Array<{ rows: string[][]; total_rows: number }> {
+export function extractTables(
+  html: string,
+  tableLimit = 10,
+): Array<{ rows: string[][]; total_rows: number }> {
   const tables: Array<{ rows: string[][]; total_rows: number }> = [];
   const tableRegex = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
   let tableMatch: RegExpExecArray | null;
@@ -158,7 +166,10 @@ export function extractTables(html: string, tableLimit = 10): Array<{ rows: stri
   return tables;
 }
 
-export function extractLists(html: string, limit = 20): Array<{ type: 'ul' | 'ol'; items: string[]; total_items: number }> {
+export function extractLists(
+  html: string,
+  limit = 20,
+): Array<{ type: 'ul' | 'ol'; items: string[]; total_items: number }> {
   const lists: Array<{ type: 'ul' | 'ol'; items: string[]; total_items: number }> = [];
   const listRegex = /<(ul|ol)\b[^>]*>([\s\S]*?)<\/\1>/gi;
   let listMatch: RegExpExecArray | null;
@@ -219,10 +230,7 @@ export function applySimpleSelector(html: string, selector?: string): string {
   if (!s) return html;
 
   if (/^[a-z][a-z0-9-]*$/i.test(s)) {
-    const blocks = extractContainer(
-      html,
-      new RegExp(`<${s}\\b[^>]*>[\\s\\S]*?<\\/${s}>`, 'gi'),
-    );
+    const blocks = extractContainer(html, new RegExp(`<${s}\\b[^>]*>[\\s\\S]*?<\\/${s}>`, 'gi'));
     return blocks.length > 0 ? blocks.join('\n') : html;
   }
 

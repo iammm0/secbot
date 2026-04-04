@@ -10,7 +10,10 @@ const SSRF_PAYLOADS = [
 
 export class SsrfDetectTool extends BaseTool {
   constructor() {
-    super('ssrf_detect', 'Assess SSRF risk from URL parameters and optionally probe endpoint behavior.');
+    super(
+      'ssrf_detect',
+      'Assess SSRF risk from URL parameters and optionally probe endpoint behavior.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
@@ -72,4 +75,3 @@ export class SsrfDetectTool extends BaseTool {
     }
   }
 }
-

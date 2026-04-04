@@ -17,7 +17,9 @@ export class VulnVectorStore {
 
   upsert_vulns(vulns: UnifiedVuln[], embeddings: number[][]): number {
     if (vulns.length !== embeddings.length) {
-      throw new Error(`vulns count ${vulns.length} does not match embeddings count ${embeddings.length}`);
+      throw new Error(
+        `vulns count ${vulns.length} does not match embeddings count ${embeddings.length}`,
+      );
     }
 
     const items: VectorItem[] = [];
@@ -51,12 +53,7 @@ export class VulnVectorStore {
     limit = 10,
     threshold = 0.5,
   ): Array<[Record<string, unknown>, number]> {
-    const raw = this.store.search(
-      queryVector,
-      limit,
-      VulnVectorStore.COLLECTION,
-      threshold,
-    );
+    const raw = this.store.search(queryVector, limit, VulnVectorStore.COLLECTION, threshold);
 
     return raw.map(({ item, similarity }) => {
       const metadata: Record<string, unknown> = {
@@ -84,4 +81,3 @@ export class VulnVectorStore {
     return this.dimension;
   }
 }
-

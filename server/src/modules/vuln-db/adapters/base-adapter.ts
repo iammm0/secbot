@@ -16,4 +16,3 @@ export abstract class BaseVulnAdapter {
     return result;
   }
 }
-

@@ -49,10 +49,7 @@ export class SessionsController {
   }
 
   @Post(':sessionId/commands')
-  addCommand(
-    @Param('sessionId') sessionId: string,
-    @Body() body: AddCommandRequestDto,
-  ) {
+  addCommand(@Param('sessionId') sessionId: string, @Body() body: AddCommandRequestDto) {
     const ok = this.sessionsService.addCommand(sessionId, body.command, body.result ?? {});
     if (!ok) {
       return { success: false, error: `Session not found: ${sessionId}` };
@@ -61,10 +58,7 @@ export class SessionsController {
   }
 
   @Post(':sessionId/files')
-  addFileTransfer(
-    @Param('sessionId') sessionId: string,
-    @Body() body: AddFileTransferRequestDto,
-  ) {
+  addFileTransfer(@Param('sessionId') sessionId: string, @Body() body: AddFileTransferRequestDto) {
     const ok = this.sessionsService.addFileTransfer(
       sessionId,
       body.transfer_type,

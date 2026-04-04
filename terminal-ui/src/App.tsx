@@ -219,18 +219,19 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
+    const hasOpenDialog = dialog.stack.length > 0;
     if (keybind.match('exit', evt)) {
-      if (dialog.stack.length > 0) {
+      if (hasOpenDialog) {
         dialog.clear();
         return;
       }
     }
-    // 弹窗内 Esc 由各弹窗组件自行处理，避免统一 clear() 破坏多步骤返回流程。
-    if (keybind.match('command_list', evt)) {
+    // 已有弹窗时不要打开命令面板，否则会 replace 掉当前弹窗（如 /model），表现为「闪退」
+    if (!hasOpenDialog && keybind.match('command_list', evt)) {
       dialog.replace(<CommandPanel />, () => dialog.clear());
       return;
     }
-    if (!hasDialog && keybind.match('agent_switch', evt)) {
+    if (!hasOpenDialog && keybind.match('agent_switch', evt)) {
       trigger('/agent');
       return;
     }

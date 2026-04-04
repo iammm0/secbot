@@ -59,8 +59,11 @@ export class JwtAnalyzeTool extends BaseTool {
         },
       };
     } catch (error) {
-      return { success: false, result: null, error: `JWT parse failed: ${(error as Error).message}` };
+      return {
+        success: false,
+        result: null,
+        error: `JWT parse failed: ${(error as Error).message}`,
+      };
     }
   }
 }
-

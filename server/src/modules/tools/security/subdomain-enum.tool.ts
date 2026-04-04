@@ -2,8 +2,21 @@ import * as dns from 'dns';
 import { BaseTool, ToolResult } from '../core/base-tool';
 
 const COMMON_SUBDOMAINS = [
-  'www', 'mail', 'ftp', 'admin', 'api', 'dev', 'staging', 'test',
-  'blog', 'shop', 'cdn', 'static', 'app', 'portal', 'secure',
+  'www',
+  'mail',
+  'ftp',
+  'admin',
+  'api',
+  'dev',
+  'staging',
+  'test',
+  'blog',
+  'shop',
+  'cdn',
+  'static',
+  'app',
+  'portal',
+  'secure',
 ];
 
 export class SubdomainEnumTool extends BaseTool {
@@ -27,8 +40,9 @@ export class SubdomainEnumTool extends BaseTool {
       );
 
       const subdomains = results
-        .filter((r): r is PromiseFulfilledResult<{ subdomain: string; ip: string }> =>
-          r.status === 'fulfilled',
+        .filter(
+          (r): r is PromiseFulfilledResult<{ subdomain: string; ip: string }> =>
+            r.status === 'fulfilled',
         )
         .map((r) => r.value);
 

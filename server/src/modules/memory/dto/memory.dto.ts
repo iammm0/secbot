@@ -1,13 +1,4 @@
-import {
-  IsArray,
-  IsIn,
-  IsNumber,
-  IsObject,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsArray, IsIn, IsNumber, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 import { MEMORY_TYPES } from '../memory.models';
 
 export class RememberRequestDto {
@@ -124,4 +115,3 @@ export class SearchVectorMemoryRequestDto {
   @Max(200)
   limit?: number;
 }
-

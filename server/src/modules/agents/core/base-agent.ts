@@ -14,10 +14,7 @@ export abstract class BaseAgent {
     this.systemPrompt = systemPrompt ?? this.defaultSystemPrompt();
   }
 
-  abstract process(
-    userInput: string,
-    options?: Record<string, unknown>,
-  ): Promise<string>;
+  abstract process(userInput: string, options?: Record<string, unknown>): Promise<string>;
 
   addMessage(role: string, content: string, metadata?: Record<string, unknown>): void {
     this.conversationHistory.push({ role, content, metadata });

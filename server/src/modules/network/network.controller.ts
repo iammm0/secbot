@@ -81,4 +81,3 @@ export class NetworkController {
     return this.networkService.listActiveControlSessions();
   }
 }
-

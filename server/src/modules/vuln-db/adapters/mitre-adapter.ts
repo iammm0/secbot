@@ -1,11 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { BaseVulnAdapter } from './base-adapter';
-import {
-  AttackTechnique,
-  UnifiedVuln,
-  VulnSeverity,
-  VulnSource,
-} from '../schema';
+import { AttackTechnique, UnifiedVuln, VulnSeverity, VulnSource } from '../schema';
 
 const ENTERPRISE_ATTACK_URL =
   'https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json';
@@ -105,10 +100,7 @@ export class MitreAttackAdapter extends BaseVulnAdapter {
     return techniques;
   }
 
-  private normalize(
-    techniqueId: string,
-    obj: Record<string, unknown>,
-  ): UnifiedVuln {
+  private normalize(techniqueId: string, obj: Record<string, unknown>): UnifiedVuln {
     const technique = this.to_technique(techniqueId, obj);
     const platforms = this.asArr(obj.x_mitre_platforms).map((item) => this.asStr(item));
     const tactics = this.asArr(obj.kill_chain_phases).map((item) =>
@@ -131,10 +123,7 @@ export class MitreAttackAdapter extends BaseVulnAdapter {
     });
   }
 
-  private to_technique(
-    techniqueId: string,
-    obj: Record<string, unknown>,
-  ): AttackTechnique {
+  private to_technique(techniqueId: string, obj: Record<string, unknown>): AttackTechnique {
     const phases = this.asArr(obj.kill_chain_phases).map((phase) => this.asObj(phase));
     const tactic = this.asStr(phases[0]?.phase_name);
     let url = '';

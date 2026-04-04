@@ -158,18 +158,17 @@ async function main() {
     log('Skipping npm install due to --no-install');
   }
 
-  log('Building backend...');
-  await runNpm(['run', 'build']);
-
   log(`Stopping old backend on port ${DEFAULT_PORT} (if any)...`);
   await stopListeningProcessOnPort(DEFAULT_PORT);
 
   if (PREPARE_ONLY) {
+    log('Building backend...');
+    await runNpm(['run', 'build']);
     log('Prepare-only completed.');
     return;
   }
 
-  log('Launching full stack...');
+  log('Launching full stack (start:stack will build backend then start TUI)...');
   await runNpm(['run', 'start:stack']);
 }
 

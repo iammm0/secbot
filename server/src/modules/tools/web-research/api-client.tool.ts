@@ -255,7 +255,11 @@ export class ApiClientTool extends BaseTool {
       : config.url_template;
 
     const headers = { ...config.headers, ...parseStringRecord(params.headers) };
-    this.applyAuth(headers, ensureString(params.auth_type, 'none'), ensureString(params.auth_value));
+    this.applyAuth(
+      headers,
+      ensureString(params.auth_type, 'none'),
+      ensureString(params.auth_value),
+    );
 
     return await this.doRequest({
       url,
@@ -273,7 +277,11 @@ export class ApiClientTool extends BaseTool {
     const headers = parseStringRecord(params.headers);
     const queryParams = parseObject(params.params);
     const body = params.body;
-    this.applyAuth(headers, ensureString(params.auth_type, 'none'), ensureString(params.auth_value));
+    this.applyAuth(
+      headers,
+      ensureString(params.auth_type, 'none'),
+      ensureString(params.auth_value),
+    );
 
     return await this.doRequest({
       url,
@@ -286,11 +294,7 @@ export class ApiClientTool extends BaseTool {
     });
   }
 
-  private applyAuth(
-    headers: Record<string, string>,
-    authType: string,
-    authValue: string,
-  ): void {
+  private applyAuth(headers: Record<string, string>, authType: string, authValue: string): void {
     const t = authType.toLowerCase();
     if (t === 'bearer' && authValue) {
       headers.Authorization = `Bearer ${authValue}`;
@@ -371,7 +375,12 @@ export class ApiClientTool extends BaseTool {
 
     let requestBody: string | undefined;
     const headers = { ...options.headers };
-    if (options.body !== null && options.body !== undefined && options.method !== 'GET' && options.method !== 'HEAD') {
+    if (
+      options.body !== null &&
+      options.body !== undefined &&
+      options.method !== 'GET' &&
+      options.method !== 'HEAD'
+    ) {
       if (typeof options.body === 'string') {
         requestBody = options.body;
         if (/^\s*[\[{]/.test(requestBody) && !headers['Content-Type']) {

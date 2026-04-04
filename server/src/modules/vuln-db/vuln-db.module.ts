@@ -10,4 +10,3 @@ import { VulnDbService } from './vuln-db.service';
   exports: [VulnDbService],
 })
 export class VulnDbModule {}
-

@@ -24,10 +24,7 @@ export class VulnDbController {
 
   @Post('search')
   async searchNaturalLanguage(@Body() body: SearchNaturalLanguageRequestDto) {
-    const vulns = await this.vulnDbService.search_natural_language(
-      body.query,
-      body.limit ?? 10,
-    );
+    const vulns = await this.vulnDbService.search_natural_language(body.query, body.limit ?? 10);
     return { vulnerabilities: vulns };
   }
 
@@ -61,4 +58,3 @@ export class VulnDbController {
     return this.vulnDbService.get_stats();
   }
 }
-

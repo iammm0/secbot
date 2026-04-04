@@ -58,9 +58,7 @@ export class CrawlerController {
   @Post('tasks/:taskId/cancel')
   cancelTask(@Param('taskId') taskId: string) {
     const ok = this.crawlerService.cancelTask(taskId);
-    return ok
-      ? { success: true }
-      : { success: false, error: `Task not found: ${taskId}` };
+    return ok ? { success: true } : { success: false, error: `Task not found: ${taskId}` };
   }
 
   @Post('batch')
@@ -115,8 +113,6 @@ export class CrawlerController {
   @Post('monitors/:monitorId/remove')
   removeMonitor(@Param('monitorId') monitorId: string) {
     const ok = this.crawlerService.removeMonitor(monitorId);
-    return ok
-      ? { success: true }
-      : { success: false, error: `Monitor not found: ${monitorId}` };
+    return ok ? { success: true } : { success: false, error: `Monitor not found: ${monitorId}` };
   }
 }

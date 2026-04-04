@@ -37,10 +37,7 @@ export class PlannerAgent extends BaseAgent {
     });
   }
 
-  async process(
-    userInput: string,
-    _options?: Record<string, unknown>,
-  ): Promise<string> {
+  async process(userInput: string, _options?: Record<string, unknown>): Promise<string> {
     const result = await this.plan(userInput);
     if (result.directResponse) {
       return result.directResponse;

@@ -1,6 +1,7 @@
 import { LLMProvider } from './llm.interface';
 import { OllamaProvider } from './ollama.provider';
 import { OpenAICompatProvider } from './openai-compat.provider';
+import { getDefaultOpenAICompatBaseUrl } from '../../modules/system/llm-provider-registry';
 
 export interface LLMConfig {
   provider: string;
@@ -21,12 +22,9 @@ export function createLLM(config: LLMConfig): LLMProvider {
 
   const baseUrl =
     config.baseUrl ??
-    (provider === 'deepseek'
-      ? 'https://api.deepseek.com'
-      : 'https://api.openai.com');
-  const model =
-    config.model ??
-    (provider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini');
+    getDefaultOpenAICompatBaseUrl(provider) ??
+    (provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.openai.com');
+  const model = config.model ?? (provider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini');
   const apiKey = config.apiKey ?? '';
 
   return new OpenAICompatProvider(baseUrl, apiKey, model);

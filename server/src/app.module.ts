@@ -35,5 +35,3 @@ import { VulnDbModule } from './modules/vuln-db/vuln-db.module';
   ],
 })
 export class AppModule {}
-
-

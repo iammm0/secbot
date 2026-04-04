@@ -132,4 +132,3 @@ export class FileAnalyzeTool extends BaseTool {
     return `${value.toFixed(1)} ${units[idx]}`;
   }
 }
-

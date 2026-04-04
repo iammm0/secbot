@@ -35,4 +35,3 @@ bootstrap().catch((error) => {
   console.error('Failed to bootstrap NestJS application', error);
   process.exit(1);
 });
-

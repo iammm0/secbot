@@ -33,4 +33,3 @@ export const UTILITY_TOOLS: BaseTool[] = [
   new DependencyAuditTool(),
   new PayloadGeneratorTool(),
 ];
-

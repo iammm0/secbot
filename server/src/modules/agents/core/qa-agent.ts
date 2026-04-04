@@ -58,10 +58,7 @@ export class QAAgent extends BaseAgent {
     });
   }
 
-  async process(
-    userInput: string,
-    options?: Record<string, unknown>,
-  ): Promise<string> {
+  async process(userInput: string, options?: Record<string, unknown>): Promise<string> {
     const context = options?.context as string | undefined;
     return this.answer(userInput, context);
   }
@@ -72,9 +69,7 @@ export class QAAgent extends BaseAgent {
       return ruleResponse;
     }
 
-    const messages: ChatMessage[] = [
-      { role: 'system', content: this.systemPrompt },
-    ];
+    const messages: ChatMessage[] = [{ role: 'system', content: this.systemPrompt }];
 
     if (context) {
       messages.push({
@@ -88,10 +83,7 @@ export class QAAgent extends BaseAgent {
     return this.llm.chat(messages);
   }
 
-  async answerWithContext(
-    userInput: string,
-    conversationHistory: ChatMessage[],
-  ): Promise<string> {
+  async answerWithContext(userInput: string, conversationHistory: ChatMessage[]): Promise<string> {
     const ruleResponse = this.matchRule(userInput);
     if (ruleResponse) {
       return ruleResponse;

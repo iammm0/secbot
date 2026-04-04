@@ -34,12 +34,15 @@ function runCommand(command: string, args: string[], timeoutSec = 6): Promise<st
       stderr += String(chunk);
     });
 
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      child.kill('SIGTERM');
-      resolve(stdout || stderr);
-    }, Math.max(1, timeoutSec) * 1000);
+    const timer = setTimeout(
+      () => {
+        if (done) return;
+        done = true;
+        child.kill('SIGTERM');
+        resolve(stdout || stderr);
+      },
+      Math.max(1, timeoutSec) * 1000,
+    );
 
     child.on('error', () => {
       if (done) return;
@@ -195,7 +198,11 @@ export class SystemInfoTool extends BaseTool {
       const output = await runCommand('tasklist', ['/fo', 'csv', '/nh'], 8);
       sample = parseWindowsTasklist(output).slice(0, 120);
     } else {
-      const output = await runCommand('ps', ['-eo', 'pid,ppid,user,pcpu,pmem,comm', '--no-headers'], 8);
+      const output = await runCommand(
+        'ps',
+        ['-eo', 'pid,ppid,user,pcpu,pmem,comm', '--no-headers'],
+        8,
+      );
       sample = parseUnixPs(output).slice(0, 120);
     }
 

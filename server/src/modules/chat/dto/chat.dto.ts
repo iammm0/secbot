@@ -42,4 +42,3 @@ export class RootResponseRequestDto {
   @IsString()
   password?: string;
 }
-

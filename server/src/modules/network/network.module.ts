@@ -11,4 +11,3 @@ import { SessionsModule } from '../sessions/sessions.module';
   exports: [NetworkService],
 })
 export class NetworkModule {}
-

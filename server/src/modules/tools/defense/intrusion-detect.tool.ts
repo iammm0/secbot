@@ -63,7 +63,9 @@ function clampHours(value: unknown, fallback = 24): number {
 
 function calculateSeverity(severities: AttackEvent['severity'][]): AttackEvent['severity'] {
   if (severities.length === 0) return 'low';
-  return severities.reduce((best, current) => (SEVERITY_ORDER[current] > SEVERITY_ORDER[best] ? current : best));
+  return severities.reduce((best, current) =>
+    SEVERITY_ORDER[current] > SEVERITY_ORDER[best] ? current : best,
+  );
 }
 
 export class IntrusionDetectTool extends BaseTool {

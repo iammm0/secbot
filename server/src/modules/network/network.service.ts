@@ -44,7 +44,8 @@ export class NetworkService {
   private readonly authFilePath: string;
   private readonly authorizations = new Map<string, AuthorizationRecord>();
   private discoveredHosts: HostInfoDto[] = [];
-  private readonly scanHistory: Array<{ network: string; timestamp: string; hosts_found: number }> = [];
+  private readonly scanHistory: Array<{ network: string; timestamp: string; hosts_found: number }> =
+    [];
 
   private readonly commonPorts = [22, 23, 80, 135, 139, 443, 445, 3389, 5985, 5986];
   private readonly serviceByPort: Record<number, string> = {
@@ -76,7 +77,11 @@ export class NetworkService {
 
     try {
       const ips = this.expandNetworkHosts(network, 1024);
-      const scanned = await this.runWithConcurrency(ips, 80, async (ip) => await this.discoverHost(ip));
+      const scanned = await this.runWithConcurrency(
+        ips,
+        80,
+        async (ip) => await this.discoverHost(ip),
+      );
       const discovered = scanned.filter((host): host is HostInfoDto => Boolean(host));
 
       this.discoveredHosts = discovered.map((host) => ({
@@ -157,15 +162,17 @@ export class NetworkService {
   }
 
   async listAuthorizations(): Promise<AuthorizationListResponseDto> {
-    const authorizations: AuthorizationInfoDto[] = [...this.authorizations.values()].map((record) => ({
-      targetIp: record.target_ip,
-      authType: record.auth_type,
-      username: String(record.credentials.username ?? 'N/A'),
-      createdAt: record.created_at,
-      description: record.description ?? 'N/A',
-      status: record.status,
-      expiresAt: record.expires_at ?? '',
-    }));
+    const authorizations: AuthorizationInfoDto[] = [...this.authorizations.values()].map(
+      (record) => ({
+        targetIp: record.target_ip,
+        authType: record.auth_type,
+        username: String(record.credentials.username ?? 'N/A'),
+        createdAt: record.created_at,
+        description: record.description ?? 'N/A',
+        status: record.status,
+        expiresAt: record.expires_at ?? '',
+      }),
+    );
     return { authorizations };
   }
 
@@ -209,7 +216,13 @@ export class NetworkService {
         return { success: false, error: 'Missing SSH username in credentials' };
       }
 
-      const connected = await this.remoteControl.connectSsh(targetIp, port, username, password, keyFile);
+      const connected = await this.remoteControl.connectSsh(
+        targetIp,
+        port,
+        username,
+        password,
+        keyFile,
+      );
       if (!connected) {
         return { success: false, error: 'SSH connection failed' };
       }
@@ -503,12 +516,11 @@ export class NetworkService {
   private async getPingTtl(ip: string): Promise<number | null> {
     try {
       const args =
+        process.platform === 'win32' ? ['-n', '1', '-w', '1000', ip] : ['-c', '1', '-W', '1', ip];
+      const options =
         process.platform === 'win32'
-          ? ['-n', '1', '-w', '1000', ip]
-          : ['-c', '1', '-W', '1', ip];
-      const options = process.platform === 'win32'
-        ? { timeout: 3000, windowsHide: true as const }
-        : { timeout: 3000 };
+          ? { timeout: 3000, windowsHide: true as const }
+          : { timeout: 3000 };
 
       const { stdout } = await execFileAsync('ping', args, options);
       const matched = stdout.match(/ttl[=\s:](\d+)/i);
@@ -574,12 +586,9 @@ export class NetworkService {
   }
 
   private intToIpv4(value: number): string {
-    return [
-      (value >>> 24) & 0xff,
-      (value >>> 16) & 0xff,
-      (value >>> 8) & 0xff,
-      value & 0xff,
-    ].join('.');
+    return [(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff].join(
+      '.',
+    );
   }
 
   private parseExpiresAt(raw: string | undefined): string | null {
@@ -623,7 +632,11 @@ export class NetworkService {
     return 'ssh';
   }
 
-  private resolvePort(targetIp: string, connectionType: string, credentials: Record<string, unknown>): number {
+  private resolvePort(
+    targetIp: string,
+    connectionType: string,
+    credentials: Record<string, unknown>,
+  ): number {
     const explicit = Number(credentials.port);
     if (Number.isFinite(explicit) && explicit > 0) {
       return explicit;
@@ -682,7 +695,9 @@ export class NetworkService {
           target_ip: String(rec.target_ip ?? targetIp),
           auth_type: String(rec.auth_type ?? 'full'),
           credentials:
-            rec.credentials && typeof rec.credentials === 'object' && !Array.isArray(rec.credentials)
+            rec.credentials &&
+            typeof rec.credentials === 'object' &&
+            !Array.isArray(rec.credentials)
               ? (rec.credentials as Record<string, unknown>)
               : {},
           created_at: String(rec.created_at ?? new Date().toISOString()),
