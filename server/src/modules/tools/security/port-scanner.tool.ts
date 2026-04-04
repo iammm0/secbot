@@ -1,11 +1,13 @@
 import * as net from 'net';
 import { BaseTool, ToolResult } from '../core/base-tool';
 
-const COMMON_PORTS = [
-  21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 5432, 8080, 8443,
-];
+const COMMON_PORTS = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 5432, 8080, 8443];
 
-function scanPort(host: string, port: number, timeout = 1000): Promise<{ port: number; open: boolean; status: string }> {
+function scanPort(
+  host: string,
+  port: number,
+  timeout = 1000,
+): Promise<{ port: number; open: boolean; status: string }> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     socket.setTimeout(timeout);
@@ -47,9 +49,7 @@ export class PortScannerTool extends BaseTool {
 
       for (let i = 0; i < ports.length; i += batchSize) {
         const batch = ports.slice(i, i + batchSize);
-        const batchResults = await Promise.all(
-          batch.map((port) => scanPort(host, port)),
-        );
+        const batchResults = await Promise.all(batch.map((port) => scanPort(host, port)));
         results.push(...batchResults);
       }
 

@@ -27,9 +27,7 @@ export class ToolsService {
     { id: 'web_research', name: 'Web Research', tools: WEB_RESEARCH_TOOLS },
   ];
 
-  private readonly allTools: BaseTool[] = this.uniqueTools(
-    this.categories.flatMap((c) => c.tools),
-  );
+  private readonly allTools: BaseTool[] = this.uniqueTools(this.categories.flatMap((c) => c.tools));
 
   private readonly toolsMap = new Map(this.allTools.map((t) => [t.name, t]));
 

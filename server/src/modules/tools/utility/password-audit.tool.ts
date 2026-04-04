@@ -29,7 +29,10 @@ const COMMON_WEAK_PASSWORDS = new Set([
 
 export class PasswordAuditTool extends BaseTool {
   constructor() {
-    super('password_audit', 'Evaluate password strength and optional local password policy checks.');
+    super(
+      'password_audit',
+      'Evaluate password strength and optional local password policy checks.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
@@ -56,7 +59,8 @@ export class PasswordAuditTool extends BaseTool {
     const hasUpper = /[A-Z]/.test(password);
     const hasDigit = /\d/.test(password);
     const hasSpecial = /[^a-zA-Z0-9]/.test(password);
-    const charset = (hasLower ? 26 : 0) + (hasUpper ? 26 : 0) + (hasDigit ? 10 : 0) + (hasSpecial ? 32 : 0);
+    const charset =
+      (hasLower ? 26 : 0) + (hasUpper ? 26 : 0) + (hasDigit ? 10 : 0) + (hasSpecial ? 32 : 0);
     const entropy = charset > 0 ? length * Math.log2(charset) : 0;
 
     let score = 0;
@@ -135,7 +139,9 @@ export class PasswordAuditTool extends BaseTool {
         output.net_accounts = stdout.slice(0, 1500);
         checks.push('Collected Windows account policy');
       } else if (platform === 'darwin') {
-        const { stdout } = await execFileAsync('pwpolicy', ['getaccountpolicies'], { timeout: 5000 });
+        const { stdout } = await execFileAsync('pwpolicy', ['getaccountpolicies'], {
+          timeout: 5000,
+        });
         output.pwpolicy = stdout.slice(0, 1500);
         checks.push('Collected macOS password policy');
       } else {
@@ -153,4 +159,3 @@ export class PasswordAuditTool extends BaseTool {
     return output;
   }
 }
-

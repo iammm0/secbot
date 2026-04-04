@@ -27,9 +27,7 @@ export class WafDetectTool extends BaseTool {
       const probeUrl = this.appendQuery(url, 'id', "' OR 1=1 --");
       const probe = await fetch(probeUrl, { method: 'GET', redirect: 'manual' });
 
-      const headerText = [...baseline.headers.entries()]
-        .map(([k, v]) => `${k}: ${v}`)
-        .join('\n');
+      const headerText = [...baseline.headers.entries()].map(([k, v]) => `${k}: ${v}`).join('\n');
 
       const matched: string[] = [];
       for (const signature of WAF_SIGNATURES) {
@@ -68,4 +66,3 @@ export class WafDetectTool extends BaseTool {
     return u.toString();
   }
 }
-

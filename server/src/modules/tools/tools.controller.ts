@@ -16,4 +16,3 @@ export class ToolsController {
     return await this.toolsService.executeTool(body.tool, body.params ?? {});
   }
 }
-

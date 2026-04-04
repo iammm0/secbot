@@ -84,11 +84,7 @@ export class EventBus {
     }
   }
 
-  emitSimple(
-    type: EventType,
-    data: Record<string, unknown> = {},
-    iteration = 0,
-  ): void {
+  emitSimple(type: EventType, data: Record<string, unknown> = {}, iteration = 0): void {
     this.emit({
       type,
       data,

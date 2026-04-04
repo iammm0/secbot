@@ -16,4 +16,3 @@ export class AgentsController {
     return this.agentsService.clearMemory(body);
   }
 }
-

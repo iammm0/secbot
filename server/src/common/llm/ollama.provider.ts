@@ -20,10 +20,7 @@ export class OllamaProvider implements LLMProvider {
     return json.message?.content ?? '';
   }
 
-  async chatStream(
-    messages: ChatMessage[],
-    onChunk: (chunk: string) => void,
-  ): Promise<string> {
+  async chatStream(messages: ChatMessage[], onChunk: (chunk: string) => void): Promise<string> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

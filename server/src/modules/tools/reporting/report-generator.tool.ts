@@ -32,12 +32,18 @@ const RISK_TAG: Record<RiskLevel, string> = {
 
 export class ReportGeneratorTool extends BaseTool {
   constructor() {
-    super('report_generator', 'Generate structured security reports in markdown/html/json/pentest format.');
+    super(
+      'report_generator',
+      'Generate structured security reports in markdown/html/json/pentest format.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
-    const title = String(params.title ?? 'Security Assessment Report').trim() || 'Security Assessment Report';
-    const format = String(params.format ?? 'markdown').trim().toLowerCase();
+    const title =
+      String(params.title ?? 'Security Assessment Report').trim() || 'Security Assessment Report';
+    const format = String(params.format ?? 'markdown')
+      .trim()
+      .toLowerCase();
     const target = String(params.target ?? '').trim();
     const attackChain = params.attack_chain;
     const exploitResults = params.exploit_results;
@@ -88,8 +94,16 @@ export class ReportGeneratorTool extends BaseTool {
 
     const reportsDir = path.resolve(process.cwd(), 'reports');
     await fs.mkdir(reportsDir, { recursive: true });
-    const safeTitle = title.replace(/[^a-zA-Z0-9\-_ ]/g, '').slice(0, 50).trim() || 'report';
-    const suffix = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '_');
+    const safeTitle =
+      title
+        .replace(/[^a-zA-Z0-9\-_ ]/g, '')
+        .slice(0, 50)
+        .trim() || 'report';
+    const suffix = new Date()
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\..+/, '')
+      .replace('T', '_');
     const filePath = path.join(reportsDir, `${safeTitle}_${suffix}.${ext}`);
     await fs.writeFile(filePath, content, 'utf8');
 
@@ -234,7 +248,7 @@ export class ReportGeneratorTool extends BaseTool {
       ? `<p><strong>Recommendation:</strong> ${this.escapeHtml(finding.recommendation)}</p>`
       : ''
   }
-</div>`
+</div>`;
             })
             .join('\n');
 
@@ -353,11 +367,15 @@ export class ReportGeneratorTool extends BaseTool {
       lines.push('');
     }
 
-    const rollbacks = Array.isArray(chain.rollbacks) ? (chain.rollbacks as Record<string, unknown>[]) : [];
+    const rollbacks = Array.isArray(chain.rollbacks)
+      ? (chain.rollbacks as Record<string, unknown>[])
+      : [];
     if (rollbacks.length > 0) {
       lines.push(`### Rollbacks (${rollbacks.length})`, '');
       for (const rollback of rollbacks) {
-        lines.push(`- Vulnerability ${String(rollback.vuln_id ?? '')}: ${String(rollback.error ?? '')}`);
+        lines.push(
+          `- Vulnerability ${String(rollback.vuln_id ?? '')}: ${String(rollback.error ?? '')}`,
+        );
       }
     }
     return lines;
@@ -399,7 +417,10 @@ export class ReportGeneratorTool extends BaseTool {
       ];
     }
     if (stats.medium > 0) {
-      return ['**Risk Level**: Medium', `Detected ${stats.medium} medium findings. Prioritize fixes soon.`];
+      return [
+        '**Risk Level**: Medium',
+        `Detected ${stats.medium} medium findings. Prioritize fixes soon.`,
+      ];
     }
     if (total > 0) {
       return ['**Risk Level**: Low', 'Only low/info findings were detected.'];

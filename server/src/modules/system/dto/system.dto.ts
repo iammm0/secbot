@@ -182,4 +182,3 @@ export class SystemStatusResponseDto {
 
   disks: DiskInfoDto[] = [];
 }
-

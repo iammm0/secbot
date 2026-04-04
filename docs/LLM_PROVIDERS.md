@@ -121,4 +121,4 @@ https://<resource-name>.openai.azure.com/openai/v1
 ## 注意事项
 
 - 厂商侧模型与 Base URL 可能会变化，文档只保证与当前代码的配置逻辑一致
-- 如果要看默认模型建议值，请以 `server/src/modules/system/system.service.ts` 中的 `PROVIDER_REGISTRY` 为准
+- 厂商清单与默认 OpenAI 兼容网关以 `server/src/modules/system/llm-provider-registry.ts` 中的 `LLM_PROVIDER_REGISTRY` 为准（`listProviders` 与此同步）

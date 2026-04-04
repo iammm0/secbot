@@ -26,4 +26,3 @@ export class ClearMemoryResponseDto {
 
   message!: string;
 }
-

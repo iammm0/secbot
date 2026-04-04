@@ -10,4 +10,3 @@ import { ToolsModule } from '../tools/tools.module';
   exports: [ChatService],
 })
 export class ChatModule {}
-

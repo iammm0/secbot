@@ -58,7 +58,11 @@ export class SmartSearchTool extends BaseTool {
         },
       };
     } catch (error) {
-      return { success: false, result: null, error: `Smart search failed: ${(error as Error).message}` };
+      return {
+        success: false,
+        result: null,
+        error: `Smart search failed: ${(error as Error).message}`,
+      };
     }
   }
 

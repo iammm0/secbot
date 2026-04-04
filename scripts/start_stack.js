@@ -3,6 +3,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
@@ -73,9 +74,9 @@ function runNpm(args, options = {}) {
   });
 }
 
-async function ensureBackendBuild() {
-  if (fs.existsSync(BACKEND_ENTRY)) return;
-  log('Backend dist not found, building TypeScript backend...');
+/** 每次启动均编译后端，避免沿用旧的 server/dist */
+async function buildBackendLatest() {
+  log('Building TypeScript backend (latest sources)...');
   await runNpm(['run', 'build']);
 }
 
@@ -133,12 +134,34 @@ async function stopProcess(proc) {
   }
 }
 
-async function main() {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    log('Current terminal has no real TTY; open CMD/PowerShell/Windows Terminal to run TUI.');
-  }
+/**
+ * IDE 集成终端通常无真实 TTY，Ink 无法在同一进程内运行。在 Windows 上通过「新控制台窗口」启动 TUI。
+ */
+function launchTuiInNewWindowsConsole(baseUrl) {
+  const batPath = path.join(os.tmpdir(), `secbot-tui-${process.pid}-${Date.now()}.bat`);
+  const safeUrl = baseUrl.replace(/"/g, '').replace(/\r?\n/g, '');
+  const safeDir = TUI_DIR.replace(/"/g, '""');
+  const body = [
+    '@echo off',
+    `set "SECBOT_API_URL=${safeUrl}"`,
+    `cd /d "${safeDir}"`,
+    'call npm.cmd run tui',
+  ].join('\r\n');
+  fs.writeFileSync(batPath, `${body}\r\n`, 'utf8');
 
-  await ensureBackendBuild();
+  const child = spawn('cmd.exe', ['/c', 'start', 'Secbot TUI', batPath], {
+    cwd: ROOT,
+    stdio: 'ignore',
+    windowsHide: false,
+    detached: true,
+  });
+  child.unref();
+}
+
+async function main() {
+  const hasTTY = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+  await buildBackendLatest();
   await ensureTuiDeps();
 
   const port = String(process.env.PORT || 8000);
@@ -174,25 +197,43 @@ async function main() {
     log(`Using existing backend at ${baseUrl}`);
   }
 
-  log('Starting terminal TUI...');
-  const tuiNpm = npmInvocation(['run', 'tui']);
-  const tuiProc = spawn(tuiNpm.cmd, tuiNpm.argv, {
-    cwd: TUI_DIR,
-    env: tuiEnv,
-    stdio: 'inherit',
-    shell: tuiNpm.shell,
-    windowsHide: true,
-  });
-
   const shutdown = async () => {
     if (startedBackend) {
       await stopProcess(backendProc);
     }
   };
 
+  let tuiProc = null;
+  let tuiInSameTerminal = true;
+
+  if (!hasTTY && process.platform === 'win32') {
+    log('当前无真实 TTY（常见于 Cursor/VS Code 集成终端），将在新控制台窗口中启动 TUI。');
+    log('Starting terminal TUI in a new window...');
+    launchTuiInNewWindowsConsole(baseUrl);
+    log('TUI 已在新窗口启动；本终端将保持后端运行，按 Ctrl+C 可停止后端。');
+    tuiInSameTerminal = false;
+  } else if (!hasTTY) {
+    log('当前终端无真实 TTY，无法在此进程内启动 Ink TUI。');
+    log('请在系统终端中执行：npm run start:stack，或 Windows 下双击 scripts\\start-cli.bat');
+    await shutdown();
+    process.exit(1);
+  } else {
+    log('Starting terminal TUI...');
+    const tuiNpm = npmInvocation(['run', 'tui']);
+    tuiProc = spawn(tuiNpm.cmd, tuiNpm.argv, {
+      cwd: TUI_DIR,
+      env: tuiEnv,
+      stdio: 'inherit',
+      shell: tuiNpm.shell,
+      windowsHide: true,
+    });
+  }
+
   process.on('SIGINT', async () => {
     try {
-      if (tuiProc.exitCode === null) tuiProc.kill('SIGINT');
+      if (tuiInSameTerminal && tuiProc && tuiProc.exitCode === null) {
+        tuiProc.kill('SIGINT');
+      }
       await shutdown();
     } finally {
       process.exit(130);
@@ -201,12 +242,20 @@ async function main() {
 
   process.on('SIGTERM', async () => {
     try {
-      if (tuiProc.exitCode === null) tuiProc.kill('SIGTERM');
+      if (tuiInSameTerminal && tuiProc && tuiProc.exitCode === null) {
+        tuiProc.kill('SIGTERM');
+      }
       await shutdown();
     } finally {
       process.exit(143);
     }
   });
+
+  if (!tuiInSameTerminal) {
+    // 后端子进程已启动时，本进程需保持运行直至用户 Ctrl+C（见 SIGINT）；否则仅新开 TUI 窗口时也可仅靠子进程存活
+    await new Promise(() => {});
+    return;
+  }
 
   const tuiCode = await new Promise((resolve, reject) => {
     tuiProc.once('error', reject);

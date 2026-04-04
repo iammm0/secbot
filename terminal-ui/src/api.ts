@@ -3,6 +3,19 @@
  */
 import { getBaseUrl } from './config.js';
 
+/** 后端全局 TransformInterceptor 将控制器返回值包在 { success, data } 中，此处解包为业务 JSON */
+function unwrapNestEnvelope<T>(json: unknown): T {
+  if (
+    json !== null &&
+    typeof json === 'object' &&
+    (json as { success?: unknown }).success === true &&
+    'data' in (json as object)
+  ) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${getBaseUrl()}${path}`;
   const res = await fetch(url, {
@@ -13,7 +26,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const text = await res.text();
     throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
   }
-  return res.json() as Promise<T>;
+  const json: unknown = await res.json();
+  return unwrapNestEnvelope<T>(json);
 }
 
 export const api = {

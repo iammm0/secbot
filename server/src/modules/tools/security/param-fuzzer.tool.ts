@@ -12,7 +12,10 @@ const DEFAULT_PARAMS = ['id', 'q', 'search', 'page', 'callback', 'redirect', 'ur
 
 export class ParamFuzzerTool extends BaseTool {
   constructor() {
-    super('param_fuzzer', 'Fuzz URL query parameters with security payloads and compare response behavior.');
+    super(
+      'param_fuzzer',
+      'Fuzz URL query parameters with security payloads and compare response behavior.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
@@ -76,4 +79,3 @@ export class ParamFuzzerTool extends BaseTool {
     }
   }
 }
-

@@ -8,4 +8,3 @@ import { DatabaseService } from './database.service';
   exports: [DatabaseService],
 })
 export class DatabaseModule {}
-

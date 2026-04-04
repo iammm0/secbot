@@ -36,9 +36,10 @@ export class HttpRequestTool extends BaseTool {
           status: response.status,
           statusText: response.statusText,
           headers: responseHeaders,
-          body: responseBody.length > maxLen
-            ? responseBody.slice(0, maxLen) + '...(truncated)'
-            : responseBody,
+          body:
+            responseBody.length > maxLen
+              ? responseBody.slice(0, maxLen) + '...(truncated)'
+              : responseBody,
         },
       };
     } catch (error) {

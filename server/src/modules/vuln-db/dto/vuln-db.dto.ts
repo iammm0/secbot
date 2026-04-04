@@ -1,13 +1,4 @@
-import {
-  IsArray,
-  IsIn,
-  IsNumber,
-  IsObject,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsArray, IsIn, IsNumber, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class SearchNaturalLanguageRequestDto {
   @IsString()
@@ -47,4 +38,3 @@ export class SyncFromSourcesRequestDto {
   @Max(200)
   limit_per_source?: number;
 }
-

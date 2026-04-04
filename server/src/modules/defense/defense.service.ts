@@ -53,9 +53,7 @@ export class DefenseService {
     const deleted = this.blockedIps.delete(body.ip);
     return {
       success: deleted,
-      message: deleted
-        ? `已解封 IP: ${body.ip}`
-        : `IP 未封禁: ${body.ip}`,
+      message: deleted ? `已解封 IP: ${body.ip}` : `IP 未封禁: ${body.ip}`,
     };
   }
 

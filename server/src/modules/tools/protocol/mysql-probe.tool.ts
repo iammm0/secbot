@@ -28,7 +28,11 @@ export class MysqlProbeTool extends BaseTool {
     }
 
     try {
-      const packet = await this.readGreetingPacket(target, port, Number(params.timeout_ms ?? 10_000));
+      const packet = await this.readGreetingPacket(
+        target,
+        port,
+        Number(params.timeout_ms ?? 10_000),
+      );
       const parsed = this.parseGreeting(packet, target, port);
       return { success: true, result: parsed };
     } catch (error) {

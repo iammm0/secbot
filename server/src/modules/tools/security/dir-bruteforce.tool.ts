@@ -34,7 +34,11 @@ export class DirBruteforceTool extends BaseTool {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         try {
-          const response = await fetch(target, { method: 'GET', signal: controller.signal, redirect: 'manual' });
+          const response = await fetch(target, {
+            method: 'GET',
+            signal: controller.signal,
+            redirect: 'manual',
+          });
           if (response.status < 400 || [401, 403].includes(response.status)) {
             findings.push({
               path: `/${entry.replace(/^\/+/, '')}`,
@@ -63,4 +67,3 @@ export class DirBruteforceTool extends BaseTool {
     }
   }
 }
-

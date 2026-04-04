@@ -86,7 +86,11 @@ export class SelfVulnScanTool extends BaseTool {
       });
     }
 
-    if (process.platform !== 'win32' && typeof process.getuid === 'function' && process.getuid() === 0) {
+    if (
+      process.platform !== 'win32' &&
+      typeof process.getuid === 'function' &&
+      process.getuid() === 0
+    ) {
       findings.push({
         id: 'SYS-RUN-AS-ROOT',
         title: 'Process running as root',
@@ -122,7 +126,9 @@ export class SelfVulnScanTool extends BaseTool {
     const listening = (result.result as Record<string, unknown>).listening;
     if (Array.isArray(listening)) {
       const exposed = listening
-        .map((item) => (item && typeof item === 'object' ? (item as Record<string, unknown>) : null))
+        .map((item) =>
+          item && typeof item === 'object' ? (item as Record<string, unknown>) : null,
+        )
         .filter((item): item is Record<string, unknown> => !!item)
         .filter((item) => String(item.local ?? '').startsWith('0.0.0.0:'));
 
@@ -137,14 +143,17 @@ export class SelfVulnScanTool extends BaseTool {
             severity: 'high',
             category: 'network',
             description: `Service listening on ${local} may be externally reachable.`,
-            recommendation: 'Restrict exposure via firewall, ACL, or bind service to private interface only.',
+            recommendation:
+              'Restrict exposure via firewall, ACL, or bind service to private interface only.',
             evidence: JSON.stringify(item),
           });
         }
       }
     }
 
-    const suspiciousCount = Number((result.result as Record<string, unknown>).suspicious_count ?? 0);
+    const suspiciousCount = Number(
+      (result.result as Record<string, unknown>).suspicious_count ?? 0,
+    );
     if (suspiciousCount > 0) {
       findings.push({
         id: 'NET-SUSPICIOUS-CONNECTIONS',
@@ -166,8 +175,12 @@ export class SelfVulnScanTool extends BaseTool {
       const raw = await readFile(packagePath, 'utf8');
       const pkg = JSON.parse(raw) as Record<string, unknown>;
       const deps = {
-        ...(typeof pkg.dependencies === 'object' && pkg.dependencies ? (pkg.dependencies as Record<string, unknown>) : {}),
-        ...(typeof pkg.devDependencies === 'object' && pkg.devDependencies ? (pkg.devDependencies as Record<string, unknown>) : {}),
+        ...(typeof pkg.dependencies === 'object' && pkg.dependencies
+          ? (pkg.dependencies as Record<string, unknown>)
+          : {}),
+        ...(typeof pkg.devDependencies === 'object' && pkg.devDependencies
+          ? (pkg.devDependencies as Record<string, unknown>)
+          : {}),
       };
 
       for (const [name, version] of Object.entries(deps)) {
@@ -185,7 +198,10 @@ export class SelfVulnScanTool extends BaseTool {
         }
       }
 
-      const scripts = (typeof pkg.scripts === 'object' && pkg.scripts ? (pkg.scripts as Record<string, unknown>) : {});
+      const scripts =
+        typeof pkg.scripts === 'object' && pkg.scripts
+          ? (pkg.scripts as Record<string, unknown>)
+          : {};
       for (const [scriptName, scriptValue] of Object.entries(scripts)) {
         const content = String(scriptValue);
         if (/--inspect\b/.test(content) || /\bnode\s+--inspect/.test(content)) {
@@ -207,7 +223,8 @@ export class SelfVulnScanTool extends BaseTool {
         severity: 'low',
         category: 'application',
         description: 'Could not read package.json for application-level checks.',
-        recommendation: 'Ensure application metadata is available before running vulnerability checks.',
+        recommendation:
+          'Ensure application metadata is available before running vulnerability checks.',
       });
     }
     return findings;

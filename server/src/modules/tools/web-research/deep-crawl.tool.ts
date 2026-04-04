@@ -1,11 +1,6 @@
 import { createLLM } from '../../../common/llm';
 import { BaseTool, ToolResult } from '../core/base-tool';
-import {
-  cleanHtmlToText,
-  extractLinks,
-  extractTitle,
-  normalizeUrlForVisit,
-} from './html-utils';
+import { cleanHtmlToText, extractLinks, extractTitle, normalizeUrlForVisit } from './html-utils';
 
 type CrawlPage = {
   url: string;
@@ -68,7 +63,11 @@ export class DeepCrawlTool extends BaseTool {
         },
       };
     } catch (error) {
-      return { success: false, result: null, error: `Deep crawl failed: ${(error as Error).message}` };
+      return {
+        success: false,
+        result: null,
+        error: `Deep crawl failed: ${(error as Error).message}`,
+      };
     }
   }
 
@@ -102,7 +101,11 @@ export class DeepCrawlTool extends BaseTool {
       const currentDepth = queue[0].depth;
       const batch: Array<{ url: string; depth: number }> = [];
 
-      while (queue.length > 0 && queue[0].depth === currentDepth && batch.length < maxPages - results.length) {
+      while (
+        queue.length > 0 &&
+        queue[0].depth === currentDepth &&
+        batch.length < maxPages - results.length
+      ) {
         const item = queue.shift();
         if (item) batch.push(item);
       }

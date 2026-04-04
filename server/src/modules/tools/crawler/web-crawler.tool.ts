@@ -36,7 +36,12 @@ export class WebCrawlerTool extends BaseTool {
       let extractedInfo: Record<string, unknown> = {};
       if (extractInfo) {
         if (extractionSchema) {
-          extractedInfo = await this.extractBySchema(page.title, page.url, content, extractionSchema);
+          extractedInfo = await this.extractBySchema(
+            page.title,
+            page.url,
+            content,
+            extractionSchema,
+          );
         } else {
           const [summary, keywords] = await Promise.all([
             this.generateSummary(content),
@@ -62,7 +67,11 @@ export class WebCrawlerTool extends BaseTool {
         },
       };
     } catch (error) {
-      return { success: false, result: null, error: `Web crawler failed: ${(error as Error).message}` };
+      return {
+        success: false,
+        result: null,
+        error: `Web crawler failed: ${(error as Error).message}`,
+      };
     }
   }
 

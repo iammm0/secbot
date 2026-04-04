@@ -4,7 +4,10 @@ type Action = 'encode' | 'decode' | 'auto_detect';
 
 export class EncodeDecodeTool extends BaseTool {
   constructor() {
-    super('encode_decode', 'Encode/decode utility: base64, url, hex, html, unicode, rot13, binary.');
+    super(
+      'encode_decode',
+      'Encode/decode utility: base64, url, hex, html, unicode, rot13, binary.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
@@ -133,4 +136,3 @@ export class EncodeDecodeTool extends BaseTool {
     });
   }
 }
-

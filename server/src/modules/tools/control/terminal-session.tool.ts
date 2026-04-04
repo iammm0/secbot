@@ -215,7 +215,9 @@ export class TerminalSessionTool extends BaseTool {
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
-    const action = String(params.action ?? '').trim().toLowerCase();
+    const action = String(params.action ?? '')
+      .trim()
+      .toLowerCase();
     cleanupIdleSessions();
 
     if (action === 'open') return await this.openSession(params);
@@ -284,7 +286,11 @@ export class TerminalSessionTool extends BaseTool {
 
     const opened = await this.spawnExternalTerminal(cwd, initialCommand);
     if (!opened.ok) {
-      return { success: false, result: null, error: `Unable to launch external terminal: ${opened.error}` };
+      return {
+        success: false,
+        result: null,
+        error: `Unable to launch external terminal: ${opened.error}`,
+      };
     }
 
     return {
@@ -441,7 +447,9 @@ export class TerminalSessionTool extends BaseTool {
       }
 
       if (process.platform === 'darwin') {
-        const cmd = initialCommand ? `cd ${this.quoteForShell(workDir)}; ${initialCommand}` : `cd ${this.quoteForShell(workDir)}`;
+        const cmd = initialCommand
+          ? `cd ${this.quoteForShell(workDir)}; ${initialCommand}`
+          : `cd ${this.quoteForShell(workDir)}`;
         const script = `tell application "Terminal" to do script ${JSON.stringify(cmd)}`;
         const child = spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
         child.unref();

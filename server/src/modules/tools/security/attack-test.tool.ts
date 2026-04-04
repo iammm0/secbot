@@ -67,22 +67,34 @@ export class AttackTestTool extends BaseTool {
     const attackType = String(params.attack_type ?? '').trim();
     const targetUrl = String(params.target_url ?? '').trim();
     if (!attackType || !targetUrl) {
-      return { success: false, result: null, error: 'Missing parameters: attack_type and target_url' };
+      return {
+        success: false,
+        result: null,
+        error: 'Missing parameters: attack_type and target_url',
+      };
     }
 
     try {
       switch (attackType) {
         case 'sql_injection':
-          return { success: true, result: await this.sqlInjection(targetUrl, String(params.parameter ?? 'id')) };
+          return {
+            success: true,
+            result: await this.sqlInjection(targetUrl, String(params.parameter ?? 'id')),
+          };
         case 'xss':
-          return { success: true, result: await this.xss(targetUrl, String(params.parameter ?? 'q')) };
+          return {
+            success: true,
+            result: await this.xss(targetUrl, String(params.parameter ?? 'q')),
+          };
         case 'brute_force':
           return {
             success: true,
             result: await this.bruteForce(
               targetUrl,
               String(params.username ?? 'admin'),
-              toStringArray(params.passwords).length > 0 ? toStringArray(params.passwords) : DEFAULT_PASSWORDS,
+              toStringArray(params.passwords).length > 0
+                ? toStringArray(params.passwords)
+                : DEFAULT_PASSWORDS,
             ),
           };
         case 'dos':
@@ -106,14 +118,18 @@ export class AttackTestTool extends BaseTool {
     }
   }
 
-  private async sqlInjection(targetUrl: string, parameter: string): Promise<Record<string, unknown>> {
+  private async sqlInjection(
+    targetUrl: string,
+    parameter: string,
+  ): Promise<Record<string, unknown>> {
     const findings: Array<Record<string, unknown>> = [];
     for (const payload of SQL_PAYLOADS) {
       try {
         const url = setQueryParam(targetUrl, parameter || 'id', payload);
         const response = await fetch(url, { method: 'GET', redirect: 'manual' });
         const body = await safeReadText(response);
-        const vulnerable = response.status >= 500 || SQL_ERROR_PATTERNS.some((pattern) => pattern.test(body));
+        const vulnerable =
+          response.status >= 500 || SQL_ERROR_PATTERNS.some((pattern) => pattern.test(body));
         if (vulnerable) {
           findings.push({
             payload,

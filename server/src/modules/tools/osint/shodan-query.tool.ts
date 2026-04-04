@@ -24,7 +24,11 @@ export class ShodanQueryTool extends BaseTool {
       }
       return await this.querySearch(apiKey, query);
     } catch (error) {
-      return { success: false, result: null, error: `Shodan query failed: ${(error as Error).message}` };
+      return {
+        success: false,
+        result: null,
+        error: `Shodan query failed: ${(error as Error).message}`,
+      };
     }
   }
 
@@ -84,7 +88,10 @@ export class ShodanQueryTool extends BaseTool {
     }
 
     const data = (await response.json()) as Record<string, unknown>;
-    const matches = ((data.matches as Array<Record<string, unknown>> | undefined) ?? []).slice(0, 20);
+    const matches = ((data.matches as Array<Record<string, unknown>> | undefined) ?? []).slice(
+      0,
+      20,
+    );
 
     return {
       success: true,

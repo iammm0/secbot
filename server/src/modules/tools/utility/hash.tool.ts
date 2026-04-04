@@ -55,7 +55,9 @@ export class HashTool extends BaseTool {
           return { success: false, result: null, error: 'Missing parameter: hash_value' };
         }
         const matchedAlgorithm =
-          Object.entries(hashes).find(([, v]) => v.toLowerCase() === hashValue.toLowerCase())?.[0] ?? null;
+          Object.entries(hashes).find(
+            ([, v]) => v.toLowerCase() === hashValue.toLowerCase(),
+          )?.[0] ?? null;
         return {
           success: true,
           result: {
@@ -100,4 +102,3 @@ export class HashTool extends BaseTool {
     return result;
   }
 }
-

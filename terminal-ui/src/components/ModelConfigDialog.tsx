@@ -1,12 +1,14 @@
 /**
  * 模型/推理配置悬浮窗 — 输入 /model 后弹出，可选查看或按提供商配置，可配置 API Key
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useDialog } from '../contexts/DialogContext.js';
 import { api } from '../api.js';
+import type { ProviderApiKeyStatus } from '../model-config-types.js';
+import { mergeProviderListFromApi } from '../llm-provider-ui-fallback.js';
 
 interface Config {
   llm_provider: string;
@@ -18,16 +20,6 @@ interface Config {
   current_provider_base_url?: string;
 }
 
-interface ProviderApiKeyStatus {
-  id: string;
-  name: string;
-  needs_api_key: boolean;
-  configured: boolean;
-  // 后端可选字段：对于 OpenAI 兼容中转等，标记是否需要 / 已配置 Base URL
-  needs_base_url?: boolean;
-  has_base_url?: boolean;
-}
-
 type ProviderId = 'current' | 'ollama' | 'deepseek' | 'switch_provider' | 'configured_list' | 'api_key';
 
 const PROVIDERS: { id: ProviderId; label: string }[] = [
@@ -36,6 +28,33 @@ const PROVIDERS: { id: ProviderId; label: string }[] = [
   { id: 'switch_provider', label: '切换推理后端' },
   { id: 'api_key', label: '配置 API Key' },
 ];
+
+/** API JSON 在极端情况下可能为非字符串；Ink <Text> 子节点若为对象会触发 componentDidCatch → exit(1) */
+function normalizeSystemConfig(raw: Record<string, unknown>): Config {
+  const str = (v: unknown, fallback = ''): string => {
+    if (v == null) return fallback;
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  };
+  const opt = (v: unknown): string | undefined => {
+    if (v == null || v === '') return undefined;
+    return str(v);
+  };
+  return {
+    llm_provider: str(raw.llm_provider, 'ollama'),
+    ollama_model: str(raw.ollama_model, ''),
+    ollama_base_url: str(raw.ollama_base_url, ''),
+    deepseek_model: opt(raw.deepseek_model),
+    deepseek_base_url: opt(raw.deepseek_base_url),
+    current_provider_model: opt(raw.current_provider_model),
+    current_provider_base_url: opt(raw.current_provider_base_url),
+  };
+}
 
 export function ModelConfigDialog() {
   const theme = useTheme();
@@ -66,29 +85,50 @@ export function ModelConfigDialog() {
   const [ollamaModelsError, setOllamaModelsError] = useState<string | null>(null);
   const [ollamaPullingModel, setOllamaPullingModel] = useState<string | null>(null);
 
+  const configuredProviders = useMemo(
+    () => allProvidersForList.filter((p) => p.configured),
+    [allProvidersForList]
+  );
+
   useEffect(() => {
     api
-      .get<Config>('/api/system/config')
-      .then(setConfig)
-      .catch((e) => setError(String((e as Error).message)))
-      .finally(() => setLoading(false));
+      .get<Record<string, unknown>>('/api/system/config')
+      .then((raw) => {
+        const c = normalizeSystemConfig(raw);
+        setConfig(c);
+      })
+      .catch((e) => {
+        setError(String((e as Error).message));
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
     if (view === 'api_key_list' || view === 'api_key_input') {
-      api.get<{ providers: ProviderApiKeyStatus[] }>('/api/system/config/providers').then((r) => setApiKeyProviders(r.providers.filter((p) => p.needs_api_key))).catch(() => setApiKeyProviders([]));
+      api
+        .get<{ providers: ProviderApiKeyStatus[] }>('/api/system/config/providers')
+        .then((r) => setApiKeyProviders(mergeProviderListFromApi(r.providers).filter((p) => p.needs_api_key)))
+        .catch(() => setApiKeyProviders([]));
     }
   }, [view]);
 
   useEffect(() => {
     if (view === 'provider_switch_list' || view === 'confirm_switch') {
-      api.get<{ providers: ProviderApiKeyStatus[] }>('/api/system/config/providers').then((r) => setAllProvidersForSwitch(r.providers)).catch(() => setAllProvidersForSwitch([]));
+      api
+        .get<{ providers: ProviderApiKeyStatus[] }>('/api/system/config/providers')
+        .then((r) => setAllProvidersForSwitch(mergeProviderListFromApi(r.providers)))
+        .catch(() => setAllProvidersForSwitch(mergeProviderListFromApi(undefined)));
     }
   }, [view]);
 
   useEffect(() => {
     if (view === 'list' || view === 'configured_list') {
-      api.get<{ providers: ProviderApiKeyStatus[] }>('/api/system/config/providers').then((r) => setAllProvidersForList(r.providers)).catch(() => setAllProvidersForList([]));
+      api
+        .get<{ providers: ProviderApiKeyStatus[] }>('/api/system/config/providers')
+        .then((r) => setAllProvidersForList(mergeProviderListFromApi(r.providers)))
+        .catch(() => setAllProvidersForList(mergeProviderListFromApi(undefined)));
     }
   }, [view]);
 
@@ -160,8 +200,7 @@ export function ModelConfigDialog() {
           setView('list');
           setDetailProvider(null);
         }
-      }
-      if (view === 'list') {
+      } else if (view === 'list') {
         pop();
       }
       return;
@@ -235,6 +274,9 @@ export function ModelConfigDialog() {
       if (key.upArrow) setSelectedIndex((i) => Math.max(0, i - 1));
       else if (key.downArrow) setSelectedIndex((i) => Math.min(PROVIDERS.length - 1, i + 1));
       else if (key.return) {
+        if (loading || error || !config) {
+          return;
+        }
         const id = PROVIDERS[selectedIndex].id;
         if (id === 'api_key') {
           setView('api_key_list');
@@ -324,7 +366,7 @@ export function ModelConfigDialog() {
         api
           .post<{ success: boolean; message: string }>('/api/system/config/api-key', {
             provider: apiKeyEditingProvider.id,
-            api_key: trimmed,
+            apiKey: trimmed,
           })
           .then((r) => {
             setApiKeyMessage(r.message);
@@ -346,8 +388,8 @@ export function ModelConfigDialog() {
         api
           .post<{ success: boolean; message: string }>('/api/system/config/api-key', {
             provider: apiKeyEditingProvider.id,
-            api_key: '',
-            base_url: trimmed,
+            apiKey: '',
+            baseUrl: trimmed,
           })
           .then((r) => {
             setApiKeyMessage(r.message);
@@ -362,7 +404,7 @@ export function ModelConfigDialog() {
       }
     };
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>
           {apiKeyEditingProvider.name}{' '}
           {isBaseUrlStep ? '— 输入 Base URL（必填，留空则清除已保存的 Base URL）' : '— 输入 API Key（留空删除）'}
@@ -404,7 +446,7 @@ export function ModelConfigDialog() {
     const list = apiKeyProviders;
     const safeIdx = Math.min(apiKeyListIndex, Math.max(0, list.length - 1));
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>配置 API Key — 选择厂商</Text>
         <Text color={theme.textMuted}>↑↓ 选择 · Enter 配置 · Esc 返回</Text>
         <Box marginTop={0}>
@@ -430,7 +472,6 @@ export function ModelConfigDialog() {
     );
   }
 
-  const configuredProviders = allProvidersForList.filter((p) => p.configured);
   const getProviderModelLabel = (providerId: string): string => {
     if (!config) return '';
     if (providerId === 'ollama') return config.ollama_model ?? '';
@@ -443,7 +484,7 @@ export function ModelConfigDialog() {
     const list = configuredProviders;
     const safeIdx = Math.min(configuredListIndex, Math.max(0, list.length - 1));
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>
           已配置的推理后端 — 选择一项可查看并编辑模型与地址
         </Text>
@@ -473,7 +514,7 @@ export function ModelConfigDialog() {
 
   if (view === 'confirm_switch' && confirmSwitchProvider) {
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>
           是否将默认推理后端切换为「{confirmSwitchProvider.name}」？
         </Text>
@@ -489,7 +530,7 @@ export function ModelConfigDialog() {
     const safeIdx = Math.min(providerSwitchListIndex, Math.max(0, list.length - 1));
     const currentId = config?.llm_provider ?? '';
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>切换推理后端</Text>
         <Text color={theme.textMuted}>↑↓ 选择 · Enter 确认切换 · Esc 返回</Text>
         {switchSuccessMessage && (
@@ -567,7 +608,7 @@ export function ModelConfigDialog() {
           .catch((e) => setDetailEditMessage(String((e as Error).message)));
       };
       return (
-        <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
+        <Box flexDirection="column" paddingX={1} paddingY={0}>
           <Text bold color={theme.primary}>
             {isModel ? '修改默认模型' : '修改 API 地址'}
           </Text>
@@ -653,8 +694,12 @@ export function ModelConfigDialog() {
       lines.push('  API Key: 在弹窗首页选「配置 API Key」可设置或删除');
     } else if (typeof detailProvider === 'string') {
       const name = allProvidersForList.find((pr) => pr.id === detailProvider)?.name ?? detailProvider;
-      const model = detailProviderConfig?.model ?? config?.llm_provider === detailProvider ? config?.current_provider_model : null;
-      const baseUrl = detailProviderConfig?.base_url ?? config?.llm_provider === detailProvider ? config?.current_provider_base_url : null;
+      const model =
+        detailProviderConfig?.model ??
+        (config?.llm_provider === detailProvider ? config?.current_provider_model : null);
+      const baseUrl =
+        detailProviderConfig?.base_url ??
+        (config?.llm_provider === detailProvider ? config?.current_provider_base_url : null);
       lines.push(`${name} 配置`);
       lines.push(`  默认模型: ${model ?? '-'}`);
       lines.push(`  API 地址: ${baseUrl ?? '-'}`);
@@ -666,7 +711,7 @@ export function ModelConfigDialog() {
         : (PROVIDERS.find((p) => p.id === detailProvider)?.label ?? '');
 
     return (
-      <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>
           {label}
         </Text>
@@ -691,16 +736,17 @@ export function ModelConfigDialog() {
     );
   }
 
-  const currentLabel =
+  const currentLabel = String(
     config.llm_provider === 'ollama'
       ? `Ollama (${config.ollama_model})`
       : config.llm_provider === 'deepseek'
         ? `DeepSeek (${config.deepseek_model ?? '-'})`
-        : config.llm_provider;
+        : config.llm_provider
+  );
   const configuredCount = allProvidersForList.filter((p) => p.configured).length;
 
   return (
-    <Box flexDirection="column" paddingX={1} paddingY={0} minWidth={64}>
+    <Box flexDirection="column" paddingX={1} paddingY={0}>
       <Text bold color={theme.primary}>
         模型 / 推理配置 — 选择提供商查看或配置
       </Text>

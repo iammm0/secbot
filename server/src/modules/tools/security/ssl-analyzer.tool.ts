@@ -33,29 +33,23 @@ export class SslAnalyzerTool extends BaseTool {
     }
   }
 
-  private getCertInfo(
-    host: string,
-    port: number,
-  ): Promise<Record<string, unknown>> {
+  private getCertInfo(host: string, port: number): Promise<Record<string, unknown>> {
     return new Promise((resolve, reject) => {
-      const socket = tls.connect(
-        { host, port, rejectUnauthorized: false, timeout: 5000 },
-        () => {
-          const cert = socket.getPeerCertificate();
-          const protocol = socket.getProtocol();
+      const socket = tls.connect({ host, port, rejectUnauthorized: false, timeout: 5000 }, () => {
+        const cert = socket.getPeerCertificate();
+        const protocol = socket.getProtocol();
 
-          socket.end();
+        socket.end();
 
-          resolve({
-            valid: socket.authorized,
-            issuer: cert.issuer || {},
-            subject: cert.subject || {},
-            validFrom: cert.valid_from || '',
-            validTo: cert.valid_to || '',
-            protocol: protocol || 'unknown',
-          });
-        },
-      );
+        resolve({
+          valid: socket.authorized,
+          issuer: cert.issuer || {},
+          subject: cert.subject || {},
+          validFrom: cert.valid_from || '',
+          validTo: cert.valid_to || '',
+          protocol: protocol || 'unknown',
+        });
+      });
 
       socket.on('error', (err) => {
         reject(err);

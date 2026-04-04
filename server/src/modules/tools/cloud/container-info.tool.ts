@@ -4,7 +4,10 @@ import { BaseTool, ToolResult } from '../core/base-tool';
 
 export class ContainerInfoTool extends BaseTool {
   constructor() {
-    super('container_info', 'Detect Docker/Kubernetes runtime context and container security signals.');
+    super(
+      'container_info',
+      'Detect Docker/Kubernetes runtime context and container security signals.',
+    );
   }
 
   async run(): Promise<ToolResult> {
@@ -80,7 +83,9 @@ export class ContainerInfoTool extends BaseTool {
 
     if (await this.fileExists('/var/run/secrets/kubernetes.io/serviceaccount/token')) {
       info.service_account_token = true;
-      const namespace = await this.readText('/var/run/secrets/kubernetes.io/serviceaccount/namespace');
+      const namespace = await this.readText(
+        '/var/run/secrets/kubernetes.io/serviceaccount/namespace',
+      );
       if (namespace) {
         info.namespace = namespace.trim();
       }
@@ -200,7 +205,10 @@ export class ContainerInfoTool extends BaseTool {
     }
 
     if (findings.length === 0) {
-      findings.push({ level: 'info', message: 'No obvious container security misconfiguration detected.' });
+      findings.push({
+        level: 'info',
+        message: 'No obvious container security misconfiguration detected.',
+      });
     }
     return findings;
   }

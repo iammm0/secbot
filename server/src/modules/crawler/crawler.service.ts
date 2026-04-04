@@ -25,11 +25,7 @@ export class CrawlerService {
   private monitorRunning = false;
   private monitorLoopPromise: Promise<void> | null = null;
 
-  createTask(
-    url: string,
-    crawlerType = 'simple',
-    metadata: Record<string, unknown> = {},
-  ): string {
+  createTask(url: string, crawlerType = 'simple', metadata: Record<string, unknown> = {}): string {
     const id = `${url}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const task: CrawlerTaskDto = {
       id,
@@ -133,11 +129,7 @@ export class CrawlerService {
     return [...this.tasks.values()];
   }
 
-  addMonitor(
-    url: string,
-    interval = 300,
-    extractorConfig?: Record<string, unknown>,
-  ): string {
+  addMonitor(url: string, interval = 300, extractorConfig?: Record<string, unknown>): string {
     const id = `${url}_${interval}`;
     this.monitors.set(id, {
       id,

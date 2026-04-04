@@ -62,4 +62,3 @@ export function toMemoryType(value: string | undefined | null): MemoryType | nul
     ? (normalized as MemoryType)
     : null;
 }
-

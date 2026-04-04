@@ -43,4 +43,3 @@ export class IpGeoTool extends BaseTool {
     }
   }
 }
-

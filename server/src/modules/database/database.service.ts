@@ -126,33 +126,49 @@ export class DatabaseService implements OnModuleInit {
     return info.lastInsertRowid as number;
   }
 
-  getConversations(opts: {
-    agentType?: string;
-    sessionId?: string;
-    limit?: number;
-    offset?: number;
-  } = {}): Conversation[] {
+  getConversations(
+    opts: {
+      agentType?: string;
+      sessionId?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Conversation[] {
     const clauses: string[] = [];
     const params: unknown[] = [];
-    if (opts.agentType) { clauses.push('agent_type = ?'); params.push(opts.agentType); }
-    if (opts.sessionId) { clauses.push('session_id = ?'); params.push(opts.sessionId); }
+    if (opts.agentType) {
+      clauses.push('agent_type = ?');
+      params.push(opts.agentType);
+    }
+    if (opts.sessionId) {
+      clauses.push('session_id = ?');
+      params.push(opts.sessionId);
+    }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const limit = opts.limit ? `LIMIT ${opts.limit}` : '';
     const offset = opts.offset ? `OFFSET ${opts.offset}` : '';
-    const rows = this.db.prepare(
-      `SELECT * FROM conversations ${where} ORDER BY id DESC ${limit} ${offset}`,
-    ).all(...params) as Array<Record<string, unknown>>;
+    const rows = this.db
+      .prepare(`SELECT * FROM conversations ${where} ORDER BY id DESC ${limit} ${offset}`)
+      .all(...params) as Array<Record<string, unknown>>;
     return rows.map((r) => this.mapConversation(r));
   }
 
-  deleteConversations(opts: {
-    agentType?: string;
-    sessionId?: string;
-  } = {}): number {
+  deleteConversations(
+    opts: {
+      agentType?: string;
+      sessionId?: string;
+    } = {},
+  ): number {
     const clauses: string[] = [];
     const params: unknown[] = [];
-    if (opts.agentType) { clauses.push('agent_type = ?'); params.push(opts.agentType); }
-    if (opts.sessionId) { clauses.push('session_id = ?'); params.push(opts.sessionId); }
+    if (opts.agentType) {
+      clauses.push('agent_type = ?');
+      params.push(opts.agentType);
+    }
+    if (opts.sessionId) {
+      clauses.push('session_id = ?');
+      params.push(opts.sessionId);
+    }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const info = this.db.prepare(`DELETE FROM conversations ${where}`).run(...params);
     return info.changes;
@@ -172,15 +188,23 @@ export class DatabaseService implements OnModuleInit {
   }
 
   getConfig(key: string): UserConfig | null {
-    const row = this.db.prepare('SELECT * FROM user_configs WHERE key = ?').get(key) as Record<string, unknown> | undefined;
+    const row = this.db.prepare('SELECT * FROM user_configs WHERE key = ?').get(key) as
+      | Record<string, unknown>
+      | undefined;
     return row ? this.mapUserConfig(row) : null;
   }
 
   listConfigs(category?: string): UserConfig[] {
     if (category) {
-      return (this.db.prepare('SELECT * FROM user_configs WHERE category = ?').all(category) as Array<Record<string, unknown>>).map((r) => this.mapUserConfig(r));
+      return (
+        this.db.prepare('SELECT * FROM user_configs WHERE category = ?').all(category) as Array<
+          Record<string, unknown>
+        >
+      ).map((r) => this.mapUserConfig(r));
     }
-    return (this.db.prepare('SELECT * FROM user_configs').all() as Array<Record<string, unknown>>).map((r) => this.mapUserConfig(r));
+    return (
+      this.db.prepare('SELECT * FROM user_configs').all() as Array<Record<string, unknown>>
+    ).map((r) => this.mapUserConfig(r));
   }
 
   deleteConfig(key: string): boolean {
@@ -201,12 +225,18 @@ export class DatabaseService implements OnModuleInit {
   }
 
   getPromptChain(name: string): PromptChain | null {
-    const row = this.db.prepare('SELECT * FROM prompt_chains WHERE name = ?').get(name) as Record<string, unknown> | undefined;
+    const row = this.db.prepare('SELECT * FROM prompt_chains WHERE name = ?').get(name) as
+      | Record<string, unknown>
+      | undefined;
     return row ? this.mapPromptChain(row) : null;
   }
 
   listPromptChains(): PromptChain[] {
-    return (this.db.prepare('SELECT * FROM prompt_chains ORDER BY updated_at DESC').all() as Array<Record<string, unknown>>).map((r) => this.mapPromptChain(r));
+    return (
+      this.db.prepare('SELECT * FROM prompt_chains ORDER BY updated_at DESC').all() as Array<
+        Record<string, unknown>
+      >
+    ).map((r) => this.mapPromptChain(r));
   }
 
   deletePromptChain(name: string): boolean {
@@ -220,18 +250,36 @@ export class DatabaseService implements OnModuleInit {
       INSERT INTO crawler_tasks (url, task_type, status, result, created_at, updated_at, metadata)
       VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), ?)
     `);
-    const info = stmt.run(task.url, task.taskType, task.status || 'pending', task.result || '{}', task.metadata || '{}');
+    const info = stmt.run(
+      task.url,
+      task.taskType,
+      task.status || 'pending',
+      task.result || '{}',
+      task.metadata || '{}',
+    );
     return info.lastInsertRowid as number;
   }
 
-  getCrawlerTasks(opts: { status?: string; taskType?: string; limit?: number } = {}): CrawlerTask[] {
+  getCrawlerTasks(
+    opts: { status?: string; taskType?: string; limit?: number } = {},
+  ): CrawlerTask[] {
     const clauses: string[] = [];
     const params: unknown[] = [];
-    if (opts.status) { clauses.push('status = ?'); params.push(opts.status); }
-    if (opts.taskType) { clauses.push('task_type = ?'); params.push(opts.taskType); }
+    if (opts.status) {
+      clauses.push('status = ?');
+      params.push(opts.status);
+    }
+    if (opts.taskType) {
+      clauses.push('task_type = ?');
+      params.push(opts.taskType);
+    }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const limit = opts.limit ? `LIMIT ${opts.limit}` : '';
-    return (this.db.prepare(`SELECT * FROM crawler_tasks ${where} ORDER BY id DESC ${limit}`).all(...params) as Array<Record<string, unknown>>).map((r) => this.mapCrawlerTask(r));
+    return (
+      this.db
+        .prepare(`SELECT * FROM crawler_tasks ${where} ORDER BY id DESC ${limit}`)
+        .all(...params) as Array<Record<string, unknown>>
+    ).map((r) => this.mapCrawlerTask(r));
   }
 
   /* ---- AuditRecord ---- */
@@ -241,13 +289,24 @@ export class DatabaseService implements OnModuleInit {
       INSERT INTO audit_records (session_id, agent, step_type, content, metadata, timestamp)
       VALUES (?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(rec.sessionId, rec.agent, rec.stepType, rec.content, rec.metadata || '{}', rec.timestamp || new Date().toISOString());
+    const info = stmt.run(
+      rec.sessionId,
+      rec.agent,
+      rec.stepType,
+      rec.content,
+      rec.metadata || '{}',
+      rec.timestamp || new Date().toISOString(),
+    );
     return info.lastInsertRowid as number;
   }
 
   getAuditTrail(sessionId: string, limit?: number): AuditRecord[] {
     const lim = limit ? `LIMIT ${limit}` : '';
-    return (this.db.prepare(`SELECT * FROM audit_records WHERE session_id = ? ORDER BY id ${lim}`).all(sessionId) as Array<Record<string, unknown>>).map((r) => this.mapAuditRecord(r));
+    return (
+      this.db
+        .prepare(`SELECT * FROM audit_records WHERE session_id = ? ORDER BY id ${lim}`)
+        .all(sessionId) as Array<Record<string, unknown>>
+    ).map((r) => this.mapAuditRecord(r));
   }
 
   deleteAuditTrail(sessionId: string): number {
@@ -261,7 +320,13 @@ export class DatabaseService implements OnModuleInit {
       INSERT INTO scan_results (target, scan_type, result, vulnerabilities, created_at, metadata)
       VALUES (?, ?, ?, ?, datetime('now'), ?)
     `);
-    const info = stmt.run(sr.target, sr.scanType, sr.result || '{}', sr.vulnerabilities || '[]', sr.metadata || '{}');
+    const info = stmt.run(
+      sr.target,
+      sr.scanType,
+      sr.result || '{}',
+      sr.vulnerabilities || '[]',
+      sr.metadata || '{}',
+    );
     return info.lastInsertRowid as number;
   }
 
@@ -271,11 +336,7 @@ export class DatabaseService implements OnModuleInit {
     return this.getStats();
   }
 
-  history(query: {
-    agent?: string;
-    limit?: number;
-    sessionId?: string;
-  }): {
+  history(query: { agent?: string; limit?: number; sessionId?: string }): {
     conversations: {
       timestamp: string;
       agentType: string;
@@ -320,9 +381,11 @@ export class DatabaseService implements OnModuleInit {
     const count = (table: string) =>
       (this.db.prepare(`SELECT COUNT(*) as c FROM ${table}`).get() as { c: number }).c;
 
-    const crawlerByStatus = (this.db.prepare(
-      "SELECT status, COUNT(*) as c FROM crawler_tasks GROUP BY status",
-    ).all() as Array<{ status: string; c: number }>).reduce<Record<string, number>>((acc, r) => {
+    const crawlerByStatus = (
+      this.db
+        .prepare('SELECT status, COUNT(*) as c FROM crawler_tasks GROUP BY status')
+        .all() as Array<{ status: string; c: number }>
+    ).reduce<Record<string, number>>((acc, r) => {
       acc[r.status] = r.c;
       return acc;
     }, {});

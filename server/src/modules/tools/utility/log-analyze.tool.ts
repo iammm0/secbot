@@ -56,7 +56,9 @@ export class LogAnalyzeTool extends BaseTool {
               ipCounter.set(ip, (ipCounter.get(ip) ?? 0) + 1);
             }
           }
-          if (['sql_injection', 'xss_attempt', 'command_injection', 'path_traversal'].includes(name)) {
+          if (
+            ['sql_injection', 'xss_attempt', 'command_injection', 'path_traversal'].includes(name)
+          ) {
             severity.HIGH += 1;
           } else if (['failed_login', 'brute_force', 'sensitive_file'].includes(name)) {
             severity.MEDIUM += 1;
@@ -113,4 +115,3 @@ export class LogAnalyzeTool extends BaseTool {
     }
   }
 }
-

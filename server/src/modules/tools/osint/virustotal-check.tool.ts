@@ -14,7 +14,9 @@ export class VirusTotalCheckTool extends BaseTool {
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
     const target = String(params.target ?? '').trim();
-    const scanType = String(params.type ?? '').trim().toLowerCase();
+    const scanType = String(params.type ?? '')
+      .trim()
+      .toLowerCase();
     const apiKey = (process.env.VIRUSTOTAL_API_KEY ?? '').trim();
 
     if (!target) {
@@ -28,11 +30,17 @@ export class VirusTotalCheckTool extends BaseTool {
       };
     }
     if (!apiKey) {
-      return { success: false, result: null, error: 'Missing VIRUSTOTAL_API_KEY environment variable' };
+      return {
+        success: false,
+        result: null,
+        error: 'Missing VIRUSTOTAL_API_KEY environment variable',
+      };
     }
 
     const resource =
-      scanType === 'url' ? Buffer.from(target, 'utf8').toString('base64url').replace(/=+$/, '') : target;
+      scanType === 'url'
+        ? Buffer.from(target, 'utf8').toString('base64url').replace(/=+$/, '')
+        : target;
     const url = `https://www.virustotal.com/api/v3/${TYPE_PATH[scanType]}/${encodeURIComponent(resource)}`;
 
     try {
@@ -60,8 +68,9 @@ export class VirusTotalCheckTool extends BaseTool {
 
       const data = (await response.json()) as Record<string, unknown>;
       const attrs =
-        ((data.data as Record<string, unknown> | undefined)?.attributes as Record<string, unknown> | undefined) ??
-        {};
+        ((data.data as Record<string, unknown> | undefined)?.attributes as
+          | Record<string, unknown>
+          | undefined) ?? {};
       const stats = (attrs.last_analysis_stats as Record<string, number> | undefined) ?? {};
 
       const result: Record<string, unknown> = {

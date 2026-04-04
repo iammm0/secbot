@@ -10,6 +10,7 @@ import {
   SystemStatusResponseDto,
 } from './dto/system.dto';
 import { DatabaseService } from '../database/database.service';
+import { LLM_PROVIDER_REGISTRY } from './llm-provider-registry';
 
 @Injectable()
 export class SystemService {
@@ -46,31 +47,19 @@ export class SystemService {
       if (dbItem && dbItem.value.trim() !== '') {
         return dbItem.value;
       }
-      const envVal =
-        this.configService.get<string>(envKey) ?? process.env[envKey] ?? '';
+      const envVal = this.configService.get<string>(envKey) ?? process.env[envKey] ?? '';
       if (envVal.trim() !== '') {
         return envVal;
       }
       return defaultValue;
     };
 
-    const llmProvider =
-      getConfigValue('llm_provider', 'LLM_PROVIDER', null) ?? 'ollama';
-    const ollamaModel =
-      getConfigValue('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2';
+    const llmProvider = getConfigValue('llm_provider', 'LLM_PROVIDER', null) ?? 'ollama';
+    const ollamaModel = getConfigValue('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2';
     const ollamaBaseUrl =
-      getConfigValue('ollama_base_url', 'OLLAMA_BASE_URL', null) ??
-      'http://localhost:11434';
-    const deepseekModel = getConfigValue(
-      'deepseek_model',
-      'DEEPSEEK_MODEL',
-      null,
-    );
-    const deepseekBaseUrl = getConfigValue(
-      'deepseek_base_url',
-      'DEEPSEEK_BASE_URL',
-      null,
-    );
+      getConfigValue('ollama_base_url', 'OLLAMA_BASE_URL', null) ?? 'http://localhost:11434';
+    const deepseekModel = getConfigValue('deepseek_model', 'DEEPSEEK_MODEL', null);
+    const deepseekBaseUrl = getConfigValue('deepseek_base_url', 'DEEPSEEK_BASE_URL', null);
 
     return {
       llmProvider,
@@ -87,48 +76,37 @@ export class SystemService {
     return {
       models: [],
       baseUrl,
-      error:
-        'TS 占位实现尚未连接 Ollama，领域逻辑迁移时会接入真实查询。',
+      error: 'TS 占位实现尚未连接 Ollama，领域逻辑迁移时会接入真实查询。',
       pullingModel: null,
     };
   }
 
   async listProviders(): Promise<ProviderListResponseDto> {
-    const hasDbKey = (providerId: string): boolean =>
-      !!this.db.getConfig(`${providerId}_api_key`);
+    const hasDbKey = (providerId: string): boolean => !!this.db.getConfig(`${providerId}_api_key`);
     const hasDbBaseUrl = (providerId: string): boolean =>
       !!this.db.getConfig(`${providerId}_base_url`);
 
     const hasEnvKey = (envKey: string): boolean =>
-      !!(
-        this.configService.get<string>(envKey) ?? process.env[envKey] ?? ''
-      ).trim();
+      !!(this.configService.get<string>(envKey) ?? process.env[envKey] ?? '').trim();
     const hasEnvBase = (envKey: string): boolean =>
-      !!(
-        this.configService.get<string>(envKey) ?? process.env[envKey] ?? ''
-      ).trim();
+      !!(this.configService.get<string>(envKey) ?? process.env[envKey] ?? '').trim();
 
-    return {
-      providers: [
-        {
-          id: 'openai',
-          name: 'OpenAI',
-          needsApiKey: true,
-          configured: hasDbKey('openai') || hasEnvKey('OPENAI_API_KEY'),
-          needsBaseUrl: false,
-          hasBaseUrl: true,
-        },
-        {
-          id: 'deepseek',
-          name: 'DeepSeek',
-          needsApiKey: true,
-          configured: hasDbKey('deepseek') || hasEnvKey('DEEPSEEK_API_KEY'),
-          needsBaseUrl: true,
-          hasBaseUrl:
-            hasDbBaseUrl('deepseek') || hasEnvBase('DEEPSEEK_BASE_URL'),
-        },
-      ],
-    };
+    const providers = LLM_PROVIDER_REGISTRY.map((meta) => {
+      const configured = meta.needsApiKey
+        ? hasDbKey(meta.id) || !!(meta.apiKeyEnv && hasEnvKey(meta.apiKeyEnv))
+        : true;
+      const hasBaseUrl = hasDbBaseUrl(meta.id) || hasEnvBase(meta.baseUrlEnv);
+      return {
+        id: meta.id,
+        name: meta.name,
+        needsApiKey: meta.needsApiKey,
+        configured,
+        needsBaseUrl: meta.needsBaseUrl,
+        hasBaseUrl,
+      };
+    });
+
+    return { providers };
   }
 
   async setApiKey(body: SetApiKeyRequestDto): Promise<SetApiKeyResponseDto> {
@@ -149,9 +127,7 @@ export class SystemService {
       const key = body.apiKey.trim();
       if (!key) {
         const deleted = this.db.deleteConfig(keyName);
-        msg = deleted
-          ? `已删除 ${provider} 的 API Key`
-          : `${provider} 的 API Key 已为空`;
+        msg = deleted ? `已删除 ${provider} 的 API Key` : `${provider} 的 API Key 已为空`;
       } else {
         this.db.saveConfig(keyName, key, 'api_keys', `${provider} API Key`);
         msg = `已保存 ${provider} API Key`;
@@ -159,12 +135,7 @@ export class SystemService {
     } else {
       const base = (body.baseUrl ?? '').trim();
       if (base) {
-        this.db.saveConfig(
-          baseName,
-          base,
-          'api_keys',
-          `${provider} Base URL`,
-        );
+        this.db.saveConfig(baseName, base, 'api_keys', `${provider} Base URL`);
         msg = `已更新 ${provider} Base URL`;
       } else {
         this.db.deleteConfig(baseName);
@@ -196,10 +167,9 @@ export class SystemService {
         totalGb: +(total / 1024 ** 3).toFixed(2),
         usedGb: +(used / 1024 ** 3).toFixed(2),
         availableGb: +(free / 1024 ** 3).toFixed(2),
-        percent: +(used / total * 100).toFixed(2),
+        percent: +((used / total) * 100).toFixed(2),
       },
       disks: [],
     };
   }
 }
-

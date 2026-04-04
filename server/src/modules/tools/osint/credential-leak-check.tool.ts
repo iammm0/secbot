@@ -13,12 +13,17 @@ type HibpBreach = {
 
 export class CredentialLeakCheckTool extends BaseTool {
   constructor() {
-    super('credential_leak_check', 'Check whether an email or domain appears in known breach datasets (HIBP).');
+    super(
+      'credential_leak_check',
+      'Check whether an email or domain appears in known breach datasets (HIBP).',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
     const email = String(params.email ?? '').trim();
-    const domain = String(params.domain ?? '').trim().toLowerCase();
+    const domain = String(params.domain ?? '')
+      .trim()
+      .toLowerCase();
 
     if (!email && !domain) {
       return { success: false, result: null, error: 'Provide email or domain' };

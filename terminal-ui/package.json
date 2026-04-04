@@ -10,8 +10,10 @@
   },
   "scripts": {
     "build": "tsc",
-    "tui": "npx tsx src/cli.tsx",
-    "start": "npx tsx src/cli.tsx",
+    "pretui": "npm run build",
+    "tui": "node dist/cli.js",
+    "prestart": "npm run build",
+    "start": "node dist/cli.js",
     "dev": "npx tsx src/cli.tsx"
   },
   "dependencies": {

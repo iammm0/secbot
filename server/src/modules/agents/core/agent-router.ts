@@ -2,15 +2,43 @@ import { RouteType, ChatMessage } from '../../../common/types';
 import { LLMProvider, createLLM } from '../../../common/llm';
 
 const GREETING_KEYWORDS = [
-  '你好', '嗨', '早上好', '下午好', '晚上好', '您好',
-  'hello', 'hi', 'hey', 'good morning', 'good afternoon',
+  '你好',
+  '嗨',
+  '早上好',
+  '下午好',
+  '晚上好',
+  '您好',
+  'hello',
+  'hi',
+  'hey',
+  'good morning',
+  'good afternoon',
 ];
 
 const ACTION_KEYWORDS = [
-  '扫描', '渗透', '攻击', '检测', '测试', '探测', '枚举',
-  '利用', '破解', '注入', '爆破', '提权', '嗅探',
-  'scan', 'exploit', 'attack', 'detect', 'pentest', 'enumerate',
-  'brute', 'inject', 'sniff', 'crack',
+  '扫描',
+  '渗透',
+  '攻击',
+  '检测',
+  '测试',
+  '探测',
+  '枚举',
+  '利用',
+  '破解',
+  '注入',
+  '爆破',
+  '提权',
+  '嗅探',
+  'scan',
+  'exploit',
+  'attack',
+  'detect',
+  'pentest',
+  'enumerate',
+  'brute',
+  'inject',
+  'sniff',
+  'crack',
 ];
 
 export function route(userInput: string): RouteType {
@@ -31,9 +59,7 @@ export function route(userInput: string): RouteType {
   return 'other';
 }
 
-export async function routeWithLLM(
-  userInput: string,
-): Promise<[RouteType, string | null]> {
+export async function routeWithLLM(userInput: string): Promise<[RouteType, string | null]> {
   const llm: LLMProvider = createLLM({
     provider: process.env.LLM_PROVIDER ?? 'ollama',
     model: process.env.LLM_MODEL,

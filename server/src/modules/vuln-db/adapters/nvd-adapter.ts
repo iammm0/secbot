@@ -1,12 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { BaseVulnAdapter } from './base-adapter';
-import {
-  AffectedProduct,
-  ExploitRef,
-  UnifiedVuln,
-  VulnSeverity,
-  VulnSource,
-} from '../schema';
+import { AffectedProduct, ExploitRef, UnifiedVuln, VulnSeverity, VulnSource } from '../schema';
 
 const NVD_API_BASE = 'https://services.nvd.nist.gov/rest/json/cves/2.0';
 
@@ -58,8 +52,7 @@ export class NvdAdapter extends BaseVulnAdapter {
   async search_by_cpe(cpeName: string, limit = 20): Promise<UnifiedVuln[]> {
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const url =
-      `${NVD_API_BASE}?cpeName=${encodeURIComponent(cpeName)}` +
-      `&resultsPerPage=${safeLimit}`;
+      `${NVD_API_BASE}?cpeName=${encodeURIComponent(cpeName)}` + `&resultsPerPage=${safeLimit}`;
     const payload = await this.fetch_json(url);
     if (!payload) return [];
     const items = this.asArr(this.asObj(payload).vulnerabilities);
@@ -140,10 +133,7 @@ export class NvdAdapter extends BaseVulnAdapter {
           affected.push({
             vendor: segments[3] ?? '',
             product: segments[4] ?? '',
-            versions:
-              segments[5] && segments[5] !== '*'
-                ? [segments[5]]
-                : [],
+            versions: segments[5] && segments[5] !== '*' ? [segments[5]] : [],
             cpe: cpeUri,
           });
         }

@@ -14,15 +14,14 @@ import {
 
 export class PageExtractTool extends BaseTool {
   constructor() {
-    super(
-      'page_extract',
-      'Extract page content in text/structured/custom mode from a target URL.',
-    );
+    super('page_extract', 'Extract page content in text/structured/custom mode from a target URL.');
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
     const url = String(params.url ?? '').trim();
-    const mode = String(params.mode ?? 'text').trim().toLowerCase();
+    const mode = String(params.mode ?? 'text')
+      .trim()
+      .toLowerCase();
     const schema = params.schema;
     const selector = String(params.css_selector ?? '').trim();
 
@@ -52,7 +51,11 @@ export class PageExtractTool extends BaseTool {
       }
       return { success: true, result: this.extractText(focusedHtml, page.url, page.title) };
     } catch (error) {
-      return { success: false, result: null, error: `Page extraction failed: ${(error as Error).message}` };
+      return {
+        success: false,
+        result: null,
+        error: `Page extraction failed: ${(error as Error).message}`,
+      };
     }
   }
 

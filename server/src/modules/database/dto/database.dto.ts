@@ -62,4 +62,3 @@ export class DbClearResponseDto {
   // 保留字段名，使前端兼容
   success = 1;
 }
-

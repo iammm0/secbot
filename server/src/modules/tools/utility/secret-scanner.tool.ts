@@ -189,4 +189,3 @@ export class SecretScannerTool extends BaseTool {
     return findings;
   }
 }
-

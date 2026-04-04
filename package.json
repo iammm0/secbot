@@ -21,6 +21,7 @@
     "clean": "node -e \"require('node:fs').rmSync('server/dist',{recursive:true,force:true})\"",
     "build": "tsc -p server/tsconfig.json",
     "dev": "tsx watch server/src/main.ts",
+    "prestart": "npm run build",
     "start": "node server/dist/main.js",
     "start:stack": "node scripts/start_stack.js",
     "start:latest": "node scripts/start_latest.js",

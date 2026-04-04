@@ -7,10 +7,7 @@ export class DatabaseMemory {
     private readonly sessionId: string,
   ) {}
 
-  async save_conversation(
-    userMessage: string,
-    assistantMessage: string,
-  ): Promise<void> {
+  async save_conversation(userMessage: string, assistantMessage: string): Promise<void> {
     this.dbManager.saveConversation({
       agentType: this.agentType,
       userMessage,
@@ -21,4 +18,3 @@ export class DatabaseMemory {
     });
   }
 }
-

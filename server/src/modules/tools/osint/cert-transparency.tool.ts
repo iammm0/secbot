@@ -2,11 +2,16 @@ import { BaseTool, ToolResult } from '../core/base-tool';
 
 export class CertTransparencyTool extends BaseTool {
   constructor() {
-    super('cert_transparency', 'Query certificate transparency logs (crt.sh) to enumerate subdomains.');
+    super(
+      'cert_transparency',
+      'Query certificate transparency logs (crt.sh) to enumerate subdomains.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
-    const domain = String(params.domain ?? '').trim().toLowerCase();
+    const domain = String(params.domain ?? '')
+      .trim()
+      .toLowerCase();
     if (!domain) {
       return { success: false, result: null, error: 'Missing parameter: domain' };
     }
@@ -18,7 +23,11 @@ export class CertTransparencyTool extends BaseTool {
         headers: { 'User-Agent': 'secbot-ts/2.0.0' },
       });
       if (!response.ok) {
-        return { success: false, result: null, error: `crt.sh request failed: HTTP ${response.status}` };
+        return {
+          success: false,
+          result: null,
+          error: `crt.sh request failed: HTTP ${response.status}`,
+        };
       }
 
       const raw = await response.text();

@@ -23,9 +23,7 @@ export class SQLiteVectorStore {
     dbPath = 'data/vectors.db',
     private readonly dimension = 768,
   ) {
-    const resolved = path.isAbsolute(dbPath)
-      ? dbPath
-      : path.resolve(process.cwd(), dbPath);
+    const resolved = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
     const dir = path.dirname(resolved);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     this.db = new Database(resolved);
@@ -150,9 +148,7 @@ export class SQLiteVectorStore {
   }
 
   delete(itemId: string): boolean {
-    const info = this.db
-      .prepare('DELETE FROM vector_items WHERE id = ?')
-      .run(itemId);
+    const info = this.db.prepare('DELETE FROM vector_items WHERE id = ?').run(itemId);
     return info.changes > 0;
   }
 
@@ -167,16 +163,14 @@ export class SQLiteVectorStore {
         .get(collection) as { c: number };
       return row.c;
     }
-    const row = this.db
-      .prepare('SELECT COUNT(*) as c FROM vector_items')
-      .get() as { c: number };
+    const row = this.db.prepare('SELECT COUNT(*) as c FROM vector_items').get() as { c: number };
     return row.c;
   }
 
   listCollections(): string[] {
-    const rows = this.db
-      .prepare('SELECT name FROM collections ORDER BY name ASC')
-      .all() as Array<{ name: string }>;
+    const rows = this.db.prepare('SELECT name FROM collections ORDER BY name ASC').all() as Array<{
+      name: string;
+    }>;
     return rows.map((row) => row.name);
   }
 
@@ -190,10 +184,7 @@ export class SQLiteVectorStore {
   }
 
   private blobToVector(blob: Buffer): number[] {
-    const aligned = blob.buffer.slice(
-      blob.byteOffset,
-      blob.byteOffset + blob.byteLength,
-    );
+    const aligned = blob.buffer.slice(blob.byteOffset, blob.byteOffset + blob.byteLength);
     const typed = new Float32Array(aligned);
     return Array.from(typed);
   }
@@ -323,4 +314,3 @@ export class VectorStoreManagerService implements OnModuleDestroy {
     this.stores.clear();
   }
 }
-

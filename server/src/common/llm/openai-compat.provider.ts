@@ -30,10 +30,7 @@ export class OpenAICompatProvider implements LLMProvider {
     return json.choices?.[0]?.message?.content ?? '';
   }
 
-  async chatStream(
-    messages: ChatMessage[],
-    onChunk: (chunk: string) => void,
-  ): Promise<string> {
+  async chatStream(messages: ChatMessage[], onChunk: (chunk: string) => void): Promise<string> {
     const res = await fetch(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: {

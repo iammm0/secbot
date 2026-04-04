@@ -44,7 +44,10 @@ export class ExecuteCommandTool extends BaseTool {
           stderr: result.stderr,
           output: result.returnCode === 0 ? result.stdout : result.stderr,
         },
-        error: result.returnCode === 0 ? undefined : result.stderr || `Command failed with code ${result.returnCode}`,
+        error:
+          result.returnCode === 0
+            ? undefined
+            : result.stderr || `Command failed with code ${result.returnCode}`,
       };
     } catch (error) {
       return {
@@ -126,7 +129,8 @@ export class ExecuteCommandTool extends BaseTool {
       return { command: 'cmd.exe', args: ['/d', '/s', '/c', command] };
     }
 
-    const shellPath = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+    const shellPath =
+      process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
     return { command: shellPath, args: ['-lc', command] };
   }
 }

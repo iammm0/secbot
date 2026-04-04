@@ -31,12 +31,15 @@ function runCommand(command: string, args: string[], timeoutSec = 8): Promise<st
       stderr += String(chunk);
     });
 
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      child.kill('SIGTERM');
-      resolve(stdout || stderr);
-    }, Math.max(1, timeoutSec) * 1000);
+    const timer = setTimeout(
+      () => {
+        if (done) return;
+        done = true;
+        child.kill('SIGTERM');
+        resolve(stdout || stderr);
+      },
+      Math.max(1, timeoutSec) * 1000,
+    );
 
     child.on('error', () => {
       if (done) return;
@@ -125,11 +128,15 @@ function isPrivateIp(host: string): boolean {
 
 export class NetworkAnalyzeTool extends BaseTool {
   constructor() {
-    super('network_analyze', 'Analyze active local network connections and summarize suspicious activity.');
+    super(
+      'network_analyze',
+      'Analyze active local network connections and summarize suspicious activity.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
-    const includeTraffic = params.include_traffic === undefined ? true : Boolean(params.include_traffic);
+    const includeTraffic =
+      params.include_traffic === undefined ? true : Boolean(params.include_traffic);
     try {
       const command = process.platform === 'win32' ? 'netstat' : 'netstat';
       const args = process.platform === 'win32' ? ['-ano'] : ['-an'];

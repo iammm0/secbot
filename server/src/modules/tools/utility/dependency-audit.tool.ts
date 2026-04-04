@@ -88,7 +88,15 @@ export class DependencyAuditTool extends BaseTool {
   private async findDependencyFiles(root: string, maxDepth: number): Promise<string[]> {
     const output: string[] = [];
     const queue: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }];
-    const ignored = new Set(['node_modules', '.git', '.venv', 'venv', 'dist', 'build', '__pycache__']);
+    const ignored = new Set([
+      'node_modules',
+      '.git',
+      '.venv',
+      'venv',
+      'dist',
+      'build',
+      '__pycache__',
+    ]);
 
     while (queue.length > 0) {
       const current = queue.shift() as { dir: string; depth: number };
@@ -205,4 +213,3 @@ export class DependencyAuditTool extends BaseTool {
     }
   }
 }
-

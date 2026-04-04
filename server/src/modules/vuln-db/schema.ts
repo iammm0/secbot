@@ -141,4 +141,3 @@ export interface ScanVulnMapping {
   matched_vulns: UnifiedVuln[];
   match_score: number;
 }
-

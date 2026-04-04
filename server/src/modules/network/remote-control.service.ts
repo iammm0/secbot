@@ -236,7 +236,8 @@ export class RemoteControlService {
         session.keyFile,
       );
       result.success = scp.code === 0;
-      result.error = scp.code === 0 ? '' : scp.stderr || `Download failed with exit code ${scp.code}`;
+      result.error =
+        scp.code === 0 ? '' : scp.stderr || `Download failed with exit code ${scp.code}`;
       return result;
     } catch (error) {
       result.error = (error as Error).message;
@@ -305,14 +306,7 @@ export class RemoteControlService {
       };
     }
 
-    const args = [
-      '-o',
-      'StrictHostKeyChecking=no',
-      '-o',
-      'BatchMode=yes',
-      '-p',
-      String(port),
-    ];
+    const args = ['-o', 'StrictHostKeyChecking=no', '-o', 'BatchMode=yes', '-p', String(port)];
     if (keyFile) {
       args.push('-i', keyFile);
     }
@@ -350,7 +344,17 @@ export class RemoteControlService {
       if (canPscp) {
         return await this.runProcess(
           'pscp',
-          ['-batch', '-P', String(port), '-l', username, '-pw', password, localPath, `${host}:${remotePath}`],
+          [
+            '-batch',
+            '-P',
+            String(port),
+            '-l',
+            username,
+            '-pw',
+            password,
+            localPath,
+            `${host}:${remotePath}`,
+          ],
           60_000,
         );
       }
@@ -381,7 +385,17 @@ export class RemoteControlService {
       if (canPscp) {
         return await this.runProcess(
           'pscp',
-          ['-batch', '-P', String(port), '-l', username, '-pw', password, `${host}:${remotePath}`, localPath],
+          [
+            '-batch',
+            '-P',
+            String(port),
+            '-l',
+            username,
+            '-pw',
+            password,
+            `${host}:${remotePath}`,
+            localPath,
+          ],
           60_000,
         );
       }
@@ -466,9 +480,10 @@ export class RemoteControlService {
       return this.commandExistsCache.get(command) as boolean;
     }
 
-    const check = process.platform === 'win32'
-      ? await this.runProcess('where', [command], 5_000)
-      : await this.runProcess('which', [command], 5_000);
+    const check =
+      process.platform === 'win32'
+        ? await this.runProcess('where', [command], 5_000)
+        : await this.runProcess('which', [command], 5_000);
     const ok = check.code === 0;
     this.commandExistsCache.set(command, ok);
     return ok;

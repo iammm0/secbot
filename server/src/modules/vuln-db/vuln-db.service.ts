@@ -7,11 +7,7 @@ import {
   MitreAttackAdapter,
   NvdAdapter,
 } from './adapters';
-import {
-  ScanVulnMapping,
-  UnifiedVuln,
-  VulnSource,
-} from './schema';
+import { ScanVulnMapping, UnifiedVuln, VulnSource } from './schema';
 import { VulnVectorStore } from './vuln-vector-store.service';
 
 const CVE_PATTERN = /CVE-\d{4}-\d{4,}/gi;
@@ -34,9 +30,7 @@ export class VulnDbService implements OnModuleDestroy {
     );
 
     const nvdApiKey =
-      this.config.get<string>('app.nvdApiKey') ??
-      process.env.NVD_API_KEY?.trim() ??
-      null;
+      this.config.get<string>('app.nvdApiKey') ?? process.env.NVD_API_KEY?.trim() ?? null;
 
     this.adapters = {
       cve: new CveAdapter(),
@@ -99,8 +93,8 @@ export class VulnDbService implements OnModuleDestroy {
     }
 
     const extracted = [
-      ...description.match(CVE_PATTERN) ?? [],
-      ...vulnType.match(CVE_PATTERN) ?? [],
+      ...(description.match(CVE_PATTERN) ?? []),
+      ...(vulnType.match(CVE_PATTERN) ?? []),
     ];
     for (const cveId of extracted.slice(0, 3)) {
       const vuln = await this.search_by_cve_id(cveId.toUpperCase());
@@ -325,4 +319,3 @@ export class VulnDbService implements OnModuleDestroy {
     return typeof value === 'string' ? value : '';
   }
 }
-

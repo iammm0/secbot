@@ -45,17 +45,13 @@ export class ServiceDetectorTool extends BaseTool {
         const scanData = scanResult.result as {
           ports: { port: number; open: boolean }[];
         };
-        ports = scanData.ports
-          .filter((p) => p.open)
-          .map((p) => p.port);
+        ports = scanData.ports.filter((p) => p.open).map((p) => p.port);
       }
 
       const services = ports.map((port) => ({
         port,
         service: PORT_SERVICES[port] || 'unknown',
-        name: PORT_SERVICES[port]
-          ? PORT_SERVICES[port].toUpperCase()
-          : `未知服务 (端口 ${port})`,
+        name: PORT_SERVICES[port] ? PORT_SERVICES[port].toUpperCase() : `未知服务 (端口 ${port})`,
       }));
 
       return {
