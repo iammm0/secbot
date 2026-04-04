@@ -36,7 +36,7 @@ export interface SystemInfoResponse {
   os_type: string;
   hostname: string;
   username: string;
-  python_version: string;
+  node_version: string;
 }
 
 export interface SessionsResponse {

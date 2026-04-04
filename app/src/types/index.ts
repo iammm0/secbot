@@ -78,7 +78,7 @@ export interface SystemInfoResponse {
   os_release: string;
   architecture: string;
   processor: string;
-  python_version: string;
+  node_version: string;
   hostname: string;
   username: string;
 }

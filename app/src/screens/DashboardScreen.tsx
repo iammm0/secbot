@@ -56,7 +56,7 @@ export default function DashboardScreen() {
           <InfoRow label="操作系统" value={`${sysInfo.data.os_name} ${sysInfo.data.os_version}`} />
           <InfoRow label="架构" value={sysInfo.data.architecture} />
           <InfoRow label="处理器" value={sysInfo.data.processor} />
-          <InfoRow label="Python" value={sysInfo.data.python_version} />
+          <InfoRow label="Node.js" value={sysInfo.data.node_version} />
           <InfoRow label="主机名" value={sysInfo.data.hostname} />
           <InfoRow label="用户" value={sysInfo.data.username} />
         </View>

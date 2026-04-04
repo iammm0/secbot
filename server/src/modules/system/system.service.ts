@@ -30,7 +30,7 @@ export class SystemService {
       osRelease: os.release(),
       architecture: os.arch(),
       processor: os.cpus()?.[0]?.model ?? '',
-      pythonVersion: process.env.PYTHON_VERSION ?? '',
+      nodeVersion: process.version,
       hostname,
       username: userInfo.username,
     };
