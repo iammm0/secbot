@@ -1,4 +1,4 @@
-# Web 研究工具 (web_research)
+# Web 研究工具 (web-research)
 
 ## 模块概述
 
@@ -16,11 +16,16 @@
 
 ## 依赖关系
 
-- 继承 `tools.base.BaseTool`
-- 被 `tools.pentest.security` 引入为 `WEB_RESEARCH_TOOLS`
-- WebResearchTool 委托给 `core.agents.web_research_agent.WebResearchAgent`
+- 继承 `BaseTool`（`server/src/modules/tools/core/base-tool.ts`）
+- 通过 `server/src/modules/tools/web-research/index.ts` 导出，由 `ToolsService` 自动发现与注册
+- WebResearchTool 委托给 `AgentsService`（`server/src/modules/agents/`）中的 WebResearchAgent 子 Agent
 
 ## 使用示例
+
+```typescript
+// Agent 调用示例
+const result = await smartSearchTool.execute({ query: 'CVE-2024-1234 exploit' });
+```
 
 ```
 用户: 搜索 CVE-2024-1234 的利用方式

@@ -12,7 +12,7 @@
 | EncodeDecodeTool | encode_decode | Base64/URL 等编解码 | data, mode |
 | IpGeoTool | ip_geo | IP 地理位置查询 | ip |
 | FileAnalyzeTool | file_analyze | 文件类型与内容分析 | path |
-| CveLookupTool | cve_lookup | CVE 漏洞信息查询 | cve_id |
+| CveLookupTool | cve_lookup | CVE 漏洞信息查询 | cveId |
 | LogAnalyzeTool | log_analyze | 日志分析与异常检测 | path |
 | PasswordAuditTool | password_audit | 密码强度审计 | - |
 | SecretScannerTool | secret_scanner | 敏感信息扫描 | path |
@@ -21,14 +21,19 @@
 
 ## 依赖关系
 
-- 继承 `tools.base.BaseTool`
-- 被 `tools.pentest.security` 引入为 `UTILITY_TOOLS`
+- 继承 `BaseTool`（`server/src/modules/tools/core/base-tool.ts`）
+- 通过 `server/src/modules/tools/utility/index.ts` 导出，由 `ToolsService` 自动发现与注册
 
 ## 使用示例
 
+```typescript
+// Agent 调用示例
+const result = await cveLookupTool.execute({ cveId: 'CVE-2024-1234' });
+```
+
 ```
 用户: 查询 CVE-2024-1234 的详情
-Agent: 调用 cve_lookup(cve_id="CVE-2024-1234")
+Agent: 调用 cve_lookup(cveId="CVE-2024-1234")
 ```
 
 ## 安全与权限

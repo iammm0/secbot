@@ -1,26 +1,20 @@
 # 快速启动指南
 
-本文档按“最快跑起来”的顺序整理当前仓库可用的启动方式。内容已对齐当前代码与目录结构，不再依赖不存在的 `requirements.txt`、`env.example` 或旧项目路径。
+本文档按"最快跑起来"的顺序整理当前仓库可用的启动方式。内容已对齐当前代码与目录结构。
 
 ## 1. 从源码拉起完整终端版本
 
-### 1.1 安装 Python 依赖
+### 1.1 安装依赖
 
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
-uv sync
-```
-
-### 1.2 安装 `terminal-ui` 依赖
-
-```bash
-cd terminal-ui
 npm install
-cd ..
 ```
 
-### 1.3 新建 `.env`
+> 要求 Node.js 18+ 和 npm。
+
+### 1.2 新建 `.env`
 
 仓库根目录当前没有 `.env.example`，请手动创建 `.env`。下面给出两个最常见的最小配置。
 
@@ -41,17 +35,17 @@ OLLAMA_MODEL=gemma3:1b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-### 1.4 启动
+### 1.3 启动
 
 ```bash
-python main.py
+npm start
 # 或
-uv run secbot
+npm run start:stack
 ```
 
 这两种方式都会：
 
-- 在本地自动检查并启动后端
+- 在本地自动检查并启动后端（NestJS，端口 8000）
 - 进入 `terminal-ui` 的全屏交互界面
 - 通过 `/api/chat` 使用 SSE 实时展示规划、推理、执行、报告过程
 
@@ -60,16 +54,15 @@ uv run secbot
 适合对接移动端、桌面端，或单独调试接口。
 
 ```bash
-uv run secbot --backend
+npm run dev
 # 或
-python -m router.main
+npm run build && node server/dist/main.js
 ```
 
 默认地址：
 
 - API：`http://127.0.0.1:8000`
 - Swagger UI：`http://127.0.0.1:8000/docs`
-- ReDoc：`http://127.0.0.1:8000/redoc`
 
 ## 3. 单独启动 `terminal-ui`
 
@@ -95,7 +88,8 @@ npm run tui
 ### 4.1 Expo / React Native 移动端
 
 ```bash
-uv run secbot --backend
+# 先启动后端
+npm run dev
 
 # 新开一个终端
 cd app
@@ -130,21 +124,28 @@ npm run tauri dev
 ## 5. 常见命令
 
 ```bash
-# 显示命令帮助
-uv run secbot --help
+# 构建后端
+npm run build
 
-# 交互式切换推理后端 / 模型
-uv run secbot model
+# 开发模式（tsx watch 热重载）
+npm run dev
 
-# 仅启动 TUI（假定后端已运行）
-uv run secbot --tui
+# 启动完整栈（后端 + TUI）
+npm run start:stack
+
+# 全局安装后使用 CLI
+npm install -g secbot
+secbot
+
+# 或通过 npx 直接运行
+npx secbot
 ```
 
 ## 6. 常见问题
 
 ### 6.1 运行 `secbot` 但没有进入 TUI
 
-若你是通过 wheel / pip 安装，而不是从源码运行，包内可能不包含 `terminal-ui` 的 Node 前端资源。此时程序会优先确保后端可启动，但不会提供完整全屏 TUI。
+若你是通过 `npm install -g secbot` 安装的全局包，包内可能不包含 `terminal-ui` 的 Node 前端资源。此时程序会优先确保后端可启动，但不会提供完整全屏 TUI。
 
 建议：
 

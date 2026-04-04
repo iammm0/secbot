@@ -15,11 +15,16 @@
 
 ## 依赖关系
 
-- 继承 `tools.base.BaseTool`
-- 被 `tools.pentest.security` 引入为 `OSINT_TOOLS`
-- Shodan、VirusTotal 需配置 API Key
+- 继承 `BaseTool`（`server/src/modules/tools/core/base-tool.ts`）
+- 通过 `server/src/modules/tools/osint/index.ts` 导出，由 `ToolsService` 自动发现与注册
+- Shodan、VirusTotal 需在环境变量中配置 API Key
 
 ## 使用示例
+
+```typescript
+// Agent 调用示例
+const result = await shodanQueryTool.execute({ ip: '1.2.3.4' });
+```
 
 ```
 用户: 在 Shodan 上查询 1.2.3.4 的信息
@@ -29,4 +34,4 @@ Agent: 调用 shodan_query(ip="1.2.3.4")
 ## 安全与权限
 
 - 均为 sensitivity=low
-- 需在配置中设置 Shodan API Key、VirusTotal API Key 等
+- 需在环境变量中设置 `SHODAN_API_KEY`、`VIRUSTOTAL_API_KEY` 等

@@ -15,11 +15,16 @@
 
 ## 依赖关系
 
-- 继承 `tools.base.BaseTool`
-- 被 `tools.pentest.security` 引入为 `PROTOCOL_TOOLS`
-- 依赖对应协议的客户端库
+- 继承 `BaseTool`（`server/src/modules/tools/core/base-tool.ts`）
+- 通过 `server/src/modules/tools/protocol/index.ts` 导出，由 `ToolsService` 自动发现与注册
+- 依赖对应协议的 npm 客户端库
 
 ## 使用示例
+
+```typescript
+// Agent 调用示例
+const result = await redisProbeTool.execute({ host: '192.168.1.1', port: 6379 });
+```
 
 ```
 用户: 检测 192.168.1.1 的 Redis 是否未授权

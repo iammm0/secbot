@@ -8,8 +8,8 @@
 |------|------|
 | [agent-architecture.md](agent-architecture.md) | 多智能体架构：基类抽象、消息模型、路由分发 |
 | [skill-plugin-system.md](skill-plugin-system.md) | 技能/插件系统：Markdown 技能加载、清单解析、按需注入 |
-| [cli-and-dependencies.md](cli-and-dependencies.md) | CLI 入口与依赖：极简入口、按需实例化、单例与 Depends |
-| [config-and-env.md](config-and-env.md) | 配置与环境：.env 分层、敏感信息 keyring、env.example 约定 |
+| [cli-and-dependencies.md](cli-and-dependencies.md) | 入口与依赖注入：极简入口、NestJS 模块化与依赖注入 |
+| [config-and-env.md](config-and-env.md) | 配置与环境：.env 分层、@nestjs/config ConfigModule、env.example 约定 |
 | [session-and-events.md](session-and-events.md) | 会话与事件：会话编排、EventBus 解耦 UI 与核心逻辑 |
 | [prompt-management.md](prompt-management.md) | 提示词管理：模板目录、链式结构、与存储结合 |
 | [react-and-tool-calling.md](react-and-tool-calling.md) | ReAct 与工具调用：Thought-Action-Observation 循环、工具注册与调用 |

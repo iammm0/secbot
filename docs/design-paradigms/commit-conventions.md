@@ -1,6 +1,6 @@
 # 提交方式与 Commit 信息习惯
 
-基于 Conventional Commits，结合本项目实际历史的提交格式约定。与具体业务无关，可在 CLI 智能体或其他项目中复用。
+基于 Conventional Commits，结合本项目实际历史的提交格式约定。与具体业务无关，可在其他项目中复用。
 
 ## 1. 基本格式
 
@@ -14,10 +14,10 @@
 
 示例：
 
-- `feat(core): 智能体与安全 ReAct 统一使用 _create_llm`
-- `refactor(hackbot): CLI 与交互流程`
+- `feat(core): 智能体与安全 ReAct 统一使用 createLlm`
+- `refactor(server): Controller 与 Service 分层重构`
 - `fix(agents): qa_agent 小改动`
-- `chore(deps): pyproject.toml 更新`
+- `chore(deps): 更新 package.json 依赖`
 
 ## 2. Type 约定
 
@@ -38,7 +38,7 @@
 按**代码/功能边界**划分，与目录或包名对应，便于从 commit 快速定位改动范围。本项目常见 scope 示例：
 
 - `core`、`agents`、`utils`、`tools`、`tui`/`terminal-ui`（TypeScript 终端 UI）、`router`、`defense`、`controller`、`database`、`prompts`
-- `hackbot`（CLI 入口与交互）
+- `server`（NestJS 后端）
 - `config`、`deps`、`deploy`、`ci`
 
 单次提交影响多个模块时，可只写主要模块，或拆成多个 commit；scope 可省略（如 `feat: 主流程集成`）。
@@ -50,7 +50,7 @@
 - `release: Version <x.y.z>`
 - 或带简短说明：`release: Version 1.2.5`、`release: Version 1.2.3 - Fix config command name`
 
-版本号与 `pyproject.toml` / `__init__.py` 一致；详细变更写在 CHANGELOG，不塞进 commit body。
+版本号与 `package.json` 中的 `version` 字段一致；详细变更写在 CHANGELOG，不塞进 commit body。
 
 ## 5. Description 写法
 
@@ -64,10 +64,11 @@
 需要补充说明时，在首行后空一行再写 body：
 
 ```
-feat(config): 添加密钥环配置系统和独立配置 CLI
+feat(config): 添加环境变量配置系统
 
-- 使用 keyring 存储 API Key
-- 新增 configure 子命令
+- 使用 @nestjs/config 的 ConfigModule
+- 支持 .env 文件加载
+- 新增 ConfigService 注入
 ```
 
 Body 不强制格式，可用于列出要点、原因、影响范围等。

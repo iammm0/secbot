@@ -9,11 +9,14 @@
 </p>
 
 <p>
-  <a href="https://www.python.org/downloads/">
-    <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
+  <a href="https://nodejs.org/">
+    <img src="https://img.shields.io/badge/Node.js-18%2B-339933.svg" alt="Node.js">
   </a>
-  <a href="pyproject.toml">
-    <img src="https://img.shields.io/badge/version-1.6.0-brightgreen.svg" alt="Version">
+  <a href="https://www.typescriptlang.org/">
+    <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6.svg" alt="TypeScript">
+  </a>
+  <a href="package.json">
+    <img src="https://img.shields.io/badge/version-2.0.0-brightgreen.svg" alt="Version">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-Custom-orange.svg" alt="License">
@@ -24,23 +27,20 @@
 </p>
 
 <p>
-  <a href="https://github.com/langchain-ai/langchain">
-    <img src="https://img.shields.io/badge/LangChain-0.1%2B-blueviolet.svg" alt="LangChain">
-  </a>
-  <a href="https://github.com/langchain-ai/langgraph">
-    <img src="https://img.shields.io/badge/LangGraph-0.2%2B-00BFFF.svg" alt="LangGraph">
-  </a>
-  <a href="https://fastapi.tiangolo.com/">
-    <img src="https://img.shields.io/badge/FastAPI-0.109%2B-009688.svg" alt="FastAPI">
+  <a href="https://nestjs.com/">
+    <img src="https://img.shields.io/badge/NestJS-11-E0234E.svg" alt="NestJS">
   </a>
   <a href="https://www.sqlite.org/">
     <img src="https://img.shields.io/badge/SQLite-3.x-003B57.svg" alt="SQLite">
   </a>
-  <a href="https://github.com/astral-sh/uv">
-    <img src="https://img.shields.io/badge/uv-latest-2E86C1.svg" alt="uv">
-  </a>
   <a href="https://github.com/vadimdemedes/ink">
     <img src="https://img.shields.io/badge/Ink-4.4%2B-FF69B4.svg" alt="Ink">
+  </a>
+  <a href="https://expo.dev/">
+    <img src="https://img.shields.io/badge/Expo-54-000020.svg" alt="Expo">
+  </a>
+  <a href="https://tauri.app/">
+    <img src="https://img.shields.io/badge/Tauri-2-FFC131.svg" alt="Tauri">
   </a>
 </p>
 
@@ -56,16 +56,16 @@
 
 ---
 
-![Secbot 主界面](assets/secbot-main.png)
-
 ## 功能概览
 
-- **统一后端**：基于 FastAPI 暴露 REST + SSE 接口，CLI/TUI、移动端、桌面端共用同一套编排与事件流。
+- **统一后端**：基于 NestJS 暴露 REST + SSE 接口，CLI/TUI、移动端、桌面端共用同一套编排与事件流。
 - **多智能体执行**：支持 `secbot-cli` 自动模式与 `superhackbot` 专家模式，结合规划、执行、总结链路完成安全任务。
-- **安全测试能力**：覆盖内网发现、端口与服务识别、Web 安全、OSINT、系统控制、防御扫描与报告生成。
-- **多推理后端**：内置 Ollama、DeepSeek、OpenAI、Anthropic、Gemini、Groq、OpenRouter 及多家 OpenAI 兼容厂商。
-- **多前端形态**：仓库同时包含 `terminal-ui/`、`app/`（Expo / React Native）与 `desktop/`（Tauri + Vite）工程。
+- **安全测试能力**：覆盖内网发现、端口与服务识别、Web 安全、OSINT、系统控制、防御扫描与报告生成，共 54 个工具。
+- **多推理后端**：内置 Ollama、DeepSeek、OpenAI 及多家 OpenAI 兼容厂商支持。
+- **多前端形态**：仓库同时包含 `terminal-ui/`（Ink TUI）、`app/`（Expo / React Native）与 `desktop/`（Tauri + Vite）工程。
 - **SQLite 持久化**：对话历史、提示词链、用户偏好和 API Key 配置可持久化到 SQLite。
+- **记忆与知识**：短期/长期/情景记忆子系统，向量存储与语义检索。
+- **漏洞数据库**：统一漏洞 schema，适配 CVE/NVD/Exploit-DB/MITRE ATT&CK。
 
 ## 架构概览
 
@@ -73,49 +73,52 @@
 flowchart LR
   subgraph Clients["客户端"]
     tui["terminal-ui (Ink)"]
-    mobile["app (Expo / React Native)"]
-    desktop["desktop (Tauri + React)"]
+    mobile["app (Expo)"]
+    desktop["desktop (Tauri)"]
   end
 
-  tui --> api["FastAPI /api/*"]
+  tui --> api["NestJS /api/*"]
   mobile --> api
   desktop --> api
 
-  api --> session["SessionManager"]
-  session --> planner["Planner / QA / Agent Router"]
-  planner --> tools["安全工具与系统控制"]
-  tools --> summary["Summary / Reports"]
-  summary --> db["SQLite"]
+  api --> chat["ChatModule"]
+  chat --> agents["AgentsModule"]
+  agents --> tools["ToolsModule (54 工具)"]
+  tools --> db["DatabaseModule (SQLite)"]
+  agents --> memory["MemoryModule"]
+  agents --> summary["SummaryAgent"]
+  summary --> sse["SSE 事件流"]
+  sse --> tui
+  sse --> mobile
+  sse --> desktop
 ```
 
 更细的 UI 与事件流说明见 [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md)，API 细节见 [docs/API.md](docs/API.md)。
 
 ## 环境要求
 
-- Python `3.10+`
-- [uv](https://github.com/astral-sh/uv)（推荐，用于同步 Python 依赖）
-- Node.js `18+`
-  说明：从源码运行 `terminal-ui/`、`app/`、`desktop/` 时需要；仅跑后端可不装
-- Ollama（可选，本地模型时需要）
+- **Node.js** `18+`（后端与所有前端均需要）
+- **npm**（随 Node.js 附带）
+- **Ollama**（可选，本地模型时需要）
 
 ## 安装与启动
 
-### 方式一：从源码运行（推荐）
+### 方式一：从 npm 安装
+
+```bash
+npm install -g secbot
+secbot
+```
+
+### 方式二：从源码运行（推荐开发使用）
 
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
-
-# Python 依赖
-uv sync
-
-# 终端 TUI 依赖
-cd terminal-ui
 npm install
-cd ..
 ```
 
-创建 `.env`，至少填写一组可用推理后端配置。仓库当前**没有**根目录 `.env.example`，请直接手动新建：
+创建 `.env`，至少填写一组可用推理后端配置：
 
 ```env
 # 云端推理（默认推荐）
@@ -127,86 +130,39 @@ DEEPSEEK_MODEL=deepseek-reasoner
 # LLM_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://localhost:11434
 # OLLAMA_MODEL=gemma3:1b
-# OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
 启动完整终端体验：
 
 ```bash
-python main.py
-# 或
-uv run secbot
+# 一键启动后端 + TUI
+npm run start:stack
+
+# 或分步启动
+npm run dev          # 启动后端（开发模式，热重载）
+npm run start:tui    # 在另一终端启动 TUI
 ```
 
-说明：
+### 方式三：下载 GitHub Release
 
-- `python main.py` / `uv run secbot` 会自动拉起本地后端，并进入全屏 `terminal-ui`
-- 如果只想调试后端，用 `uv run secbot --backend`
-- 如果后端已经在运行，也可以单独启动 `terminal-ui`
-
-```bash
-uv run secbot --backend
-
-# 新开一个终端
-cd terminal-ui
-npm run tui
-```
-
-### 方式二：下载 GitHub Release
-
-从 [Releases](https://github.com/iammm0/secbot/releases) 下载对应平台的 zip 包并解压。当前发布产物仍沿用历史命名，解压后可执行文件通常为：
-
-- Windows：`hackbot.exe`
-- Linux / macOS：`hackbot`
-
-在可执行文件同目录创建 `.env` 后再运行，例如：
-
-```env
-LLM_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-your-api-key
-```
+从 [Releases](https://github.com/iammm0/secbot/releases) 下载 npm 打包产物（`.tgz`），解压后运行。
 
 更详细的发布包说明见 [docs/RELEASE.md](docs/RELEASE.md)。
 
-### 方式三：安装 wheel / 本地包
-
-如果你只需要命令入口和后端，也可以本地安装当前仓库：
-
-```bash
-uv pip install -e .
-# 或
-pip install .
-```
-
-可用命令包括：
-
-```bash
-secbot
-secbot --backend
-secbot --tui
-hackbot
-hackbot-server
-secbot-server
-```
-
-注意：通过 wheel / pip 安装时，包内**不一定包含** `terminal-ui` 的 Node 前端资源。此时 `secbot` 会优先保证后端可启动，完整 TUI 请使用源码运行或 GitHub Release。
-
 ## 快速开始
 
-### 1. 先跑起来
+### 1. 常见开发入口
 
 ```bash
-python main.py
-```
+# 开发模式（后端热重载）
+npm run dev
 
-### 2. 常见开发入口
+# 生产构建
+npm run build
+npm start
 
-```bash
-# 仅后端
-uv run secbot --backend
-
-# 仅终端 TUI
-uv run secbot --tui
+# 终端 TUI
+npm run start:tui
 
 # 移动端
 cd app && npm install && npm start
@@ -215,7 +171,7 @@ cd app && npm install && npm start
 cd desktop && npm install && npm run tauri dev
 ```
 
-### 3. 常用环境变量
+### 2. 常用环境变量
 
 | 变量 | 用途 | 默认值 |
 |------|------|--------|
@@ -224,11 +180,9 @@ cd desktop && npm install && npm run tauri dev
 | `DEEPSEEK_MODEL` | DeepSeek 默认模型 | `deepseek-reasoner` |
 | `OLLAMA_BASE_URL` | Ollama 服务地址 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama 默认模型 | `gemma3:1b` |
-| `OLLAMA_EMBEDDING_MODEL` | Ollama 嵌入模型 | `nomic-embed-text` |
-| `DATABASE_URL` | SQLite 路径 | `sqlite:///./data/secbot.db` |
-| `LOG_LEVEL` | 日志级别 | `INFO` |
+| `PORT` | 后端监听端口 | `8000` |
 
-### 4. 常见斜杠命令
+### 3. 常见斜杠命令（TUI 内使用）
 
 | 命令 | 说明 |
 |------|------|
@@ -237,42 +191,73 @@ cd desktop && npm install && npm run tauri dev
 | `/list-agents` | 查看当前可用智能体 |
 | `/system-info` | 查看系统信息 |
 | `/db-stats` | 查看 SQLite 统计 |
-| `/logs` | 查看运行日志 |
 
 ## 目录结构
 
 ```text
 secbot/
-├── main.py                 # 一键启动入口（后端 + terminal-ui）
-├── secbot_cli/             # 命令行入口与启动编排
-├── router/                 # FastAPI 路由层
-├── core/                   # 智能体、执行器、规划器、记忆等核心逻辑
-├── tools/                  # 安全工具、Web 研究、协议、报告、云安全等
-├── database/               # SQLite 模型与数据库管理
+├── server/                 # NestJS 后端
+│   └── src/
+│       ├── main.ts         # 应用入口
+│       ├── app.module.ts   # 根模块
+│       ├── common/         # 公共基础设施（LLM 抽象、过滤器、拦截器）
+│       └── modules/        # 业务模块
+│           ├── agents/     # 多智能体（Planner/Hackbot/Coordinator/Summary）
+│           ├── chat/       # SSE 聊天接口
+│           ├── tools/      # 54 个安全工具（10 大类）
+│           ├── database/   # SQLite 持久化
+│           ├── memory/     # 记忆子系统
+│           ├── vuln-db/    # 漏洞数据库
+│           ├── network/    # 网络发现与远程控制
+│           ├── defense/    # 防御扫描
+│           ├── sessions/   # 会话管理
+│           ├── system/     # 系统信息与配置
+│           ├── crawler/    # 爬虫调度
+│           └── health/     # 健康检查
+├── npm-bin/                # npm CLI 入口包装
+│   ├── secbot.js
+│   └── secbot-server.js
 ├── terminal-ui/            # Ink 终端前端
 ├── app/                    # Expo / React Native 客户端
-├── desktop/                # Tauri 桌面端
-├── hackbot_config/         # 配置、环境变量与持久化偏好
+├── desktop/                # Tauri + Vite 桌面端
 ├── scripts/                # 启动与构建脚本
-├── tests/                  # 测试
+├── tools/                  # 工具能力说明文档
 └── docs/                   # 项目文档
+```
+
+## 开发
+
+```bash
+# 类型检查
+npm run typecheck
+
+# 代码检查
+npm run lint
+
+# 代码格式化
+npm run format
+
+# 运行测试
+npm test
+
+# 构建
+npm run build
 ```
 
 ## 文档索引
 
 | 文档 | 说明 |
 |------|------|
-| [docs/QUICKSTART.md](docs/QUICKSTART.md) | 从源码启动、前后端调试与常见入口 |
-| [docs/API.md](docs/API.md) | FastAPI REST + SSE 接口说明 |
-| [docs/APP.md](docs/APP.md) | Expo / React Native 移动端说明 |
-| [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md) | 多厂商模型后端与配置方式 |
-| [docs/OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md) | 本地 Ollama 配置与排障 |
-| [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md) | `terminal-ui` 的交互设计与上下文架构 |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | 后端部署与 systemd 示例 |
-| [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) | Docker 当前策略说明 |
-| [docs/RELEASE.md](docs/RELEASE.md) | Release 包使用与源码打包说明 |
-| [docs/DATABASE_GUIDE.md](docs/DATABASE_GUIDE.md) | SQLite 结构与数据库操作 |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本变更记录 |
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | 快速启动指南 |
+| [docs/API.md](docs/API.md) | REST + SSE 接口说明 |
+| [docs/APP.md](docs/APP.md) | Expo / React Native 移动端 |
+| [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md) | 多厂商模型后端与配置 |
+| [docs/OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md) | 本地 Ollama 配置 |
+| [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md) | TUI 交互设计 |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | 后端部署指南 |
+| [docs/RELEASE.md](docs/RELEASE.md) | 发布与打包说明 |
+| [docs/DATABASE_GUIDE.md](docs/DATABASE_GUIDE.md) | SQLite 结构与操作 |
+| [docs/TOOL_EXTENSION.md](docs/TOOL_EXTENSION.md) | 工具扩展开发指南 |
 
 ## 贡献
 
@@ -280,8 +265,10 @@ secbot/
 
 1. Fork 本仓库
 2. 创建分支：`git checkout -b feat/your-change`
-3. 提交修改：`git commit -m "docs: update guides"`
+3. 提交修改：`git commit -m "feat: 新增某功能"`
 4. 推送分支并发起 PR
+
+提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范。
 
 ## 许可证
 

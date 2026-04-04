@@ -1,23 +1,27 @@
-# Release Guide
+# 发布指南
 
-This repository now uses a single release source of truth:
+本仓库使用以下发布资源：
 
-- Root changelog: [../CHANGELOG.md](../CHANGELOG.md)
-- Version docs: [releases/README.md](releases/README.md)
-- Workflow: [../.github/workflows/release.yml](../.github/workflows/release.yml)
+- 根目录变更日志：[../CHANGELOG.md](../CHANGELOG.md)
+- 版本文档：[releases/README.md](releases/README.md)
+- 工作流：[../.github/workflows/release.yml](../.github/workflows/release.yml)
 
-## User-facing Releases
+## 用户下载
 
-Download packaged builds from [GitHub Releases](https://github.com/iammm0/secbot/releases).
+从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载打包产物。
 
-Current release archives are named `secbot-<platform>.zip`. Inside the archive, the executable may still use the legacy `hackbot` binary name because the PyInstaller spec is still `hackbot.spec`.
+当前发布包命名为 `secbot-<platform>.zip`，也可通过 npm 安装：
 
-Typical extracted binaries:
+```bash
+# 全局安装
+npm install -g secbot
+secbot
 
-- Windows: `hackbot.exe`
-- Linux / macOS: `hackbot`
+# 或通过 npx 直接运行
+npx secbot
+```
 
-Create a `.env` file next to the executable before first launch. Minimal examples:
+在首次启动前创建 `.env` 文件。最小示例：
 
 ```env
 LLM_PROVIDER=deepseek
@@ -32,58 +36,57 @@ OLLAMA_MODEL=gemma3:1b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-Run the packaged binary:
+## 维护者流程
 
-- Windows: `hackbot.exe`
-- Linux / macOS: `chmod +x hackbot && ./hackbot`
+发布元数据来源：
 
-## Maintainer Flow
+- `package.json` 中的 `version` 字段
+- `CHANGELOG.md` 中的可读发布说明
 
-Release metadata is sourced from:
+GitHub Actions 工作流：
 
-- `pyproject.toml` for the package version
-- `CHANGELOG.md` for human-readable release notes
+1. 判断是否需要创建发布。
+2. 使用 `npm run build` 构建 TypeScript 后端。
+3. 打包发布产物并上传到 GitHub Release。
+4. 发布 npm 包（如配置）。
 
-`python-semantic-release` is configured in [../pyproject.toml](../pyproject.toml) and runs from the `main` and `beta` branches. The GitHub Actions workflow:
+## 本地发布任务
 
-1. Computes whether a release should be created.
-2. Builds platform packages with `uv` and PyInstaller.
-3. Generates `README_RELEASE.md` inside the packaged artifact from `CHANGELOG.md`.
-4. Uploads `secbot-<platform>.zip` files to the GitHub release.
-
-## Local Release Tasks
-
-Install dependencies:
+安装依赖：
 
 ```bash
-uv sync
-uv pip install pyinstaller
+npm install
 ```
 
-Build the packaged application:
+构建应用：
 
 ```bash
-uv run python -m PyInstaller hackbot.spec
+npm run build
 ```
 
-Generate versioned release docs from the root changelog:
+打包发布产物：
 
 ```bash
-python -m utils.release_docs version-docs --changelog CHANGELOG.md --output-dir docs/releases
+npm pack
 ```
 
-Generate a packaged release README manually:
+生成版本文档：
 
 ```bash
-python -m utils.release_docs package-readme \
+node scripts/release-docs.js version-docs --changelog CHANGELOG.md --output-dir docs/releases
+```
+
+生成打包产物的发布说明：
+
+```bash
+node scripts/release-docs.js package-readme \
   --changelog CHANGELOG.md \
-  --version v1.8.0 \
+  --version v2.0.0 \
   --platform windows-amd64 \
-  --output dist/hackbot/README_RELEASE.md
+  --output dist/README_RELEASE.md
 ```
 
-## Notes
+## 说明
 
-- There is no root `.env.example` yet, so release docs intentionally embed copyable `.env` snippets.
-- `pip install .` and GitHub Release artifacts do not provide the exact same runtime surface. The packaged release remains the best path for an out-of-the-box terminal experience.
-- The release archive name is now `secbot-*`, while the bundled executable still uses the historical `hackbot` name until the PyInstaller spec is renamed.
+- 仓库根目录没有 `.env.example`，因此发布文档中会嵌入可复制的 `.env` 片段。
+- `npm install -g secbot` 与 GitHub Release 打包产物提供的运行时表面可能存在差异。打包发布产物仍然是开箱即用终端体验的最佳途径。

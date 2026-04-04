@@ -2,7 +2,7 @@
 
 ## 概述
 
-本项目使用 SQLite 作为本地数据库，用于存储：
+本项目使用 SQLite 作为本地数据库（通过 better-sqlite3 驱动），用于存储：
 - 对话历史记录
 - 提示词链
 - 用户配置
@@ -14,31 +14,35 @@
 
 ### 1. 配置数据库路径
 
-在 `.env` 文件中配置 `DATABASE_URL`：
+在 `.env` 文件中配置 `DATABASE_PATH`：
 
 ```env
 # 相对路径（推荐，存储在项目根目录的 data 文件夹）
-DATABASE_URL=sqlite:///./data/m_bot.db
+DATABASE_PATH=./data/secbot.db
 
 # 绝对路径（Windows）
-DATABASE_URL=sqlite:///C:/path/to/m_bot.db
+DATABASE_PATH=C:/path/to/secbot.db
 
 # 绝对路径（Linux/Mac）
-DATABASE_URL=sqlite:////path/to/m_bot.db
+DATABASE_PATH=/path/to/secbot.db
 ```
 
-**如果不配置，默认使用**: `data/m_bot.db`
+**如果不配置，默认使用**: `data/secbot.db`
 
 ### 2. 数据库自动初始化
 
 首次运行时，数据库会自动创建并初始化所有表结构。无需手动操作。
 
-### 3. 测试数据库连接
+### 3. 验证数据库连接
 
-运行测试脚本验证数据库功能：
+启动后端后，通过 API 验证数据库功能：
 
 ```bash
-python test_sqlite_connection.py
+# 查看数据库统计
+curl http://127.0.0.1:8000/api/db/stats
+
+# 查看对话历史
+curl http://127.0.0.1:8000/api/db/history?limit=10
 ```
 
 ## 数据库结构
@@ -71,51 +75,50 @@ python test_sqlite_connection.py
 
 ## 使用示例
 
-### 在代码中使用 DatabaseManager
+### 在代码中使用 DatabaseService
 
-```python
-from database.manager import DatabaseManager
-from database.models import Conversation
-from datetime import datetime
+```typescript
+import { DatabaseService } from '../database/database.service';
 
-# 初始化数据库管理器
-db = DatabaseManager()
+// 通过 NestJS 依赖注入获取实例
+constructor(private readonly db: DatabaseService) {}
 
-# 保存对话
-conversation = Conversation(
-    agent_type="simple",
-    user_message="你好",
-    assistant_message="你好！有什么可以帮助你的吗？",
-    session_id="session-123",
-    timestamp=datetime.now()
-)
-db.save_conversation(conversation)
+// 保存对话
+await this.db.saveConversation({
+  agentType: 'secbot-cli',
+  userMessage: '你好',
+  assistantMessage: '你好！有什么可以帮助你的吗？',
+  sessionId: 'session-123',
+});
 
-# 获取对话历史
-conversations = db.get_conversations(agent_type="simple", limit=10)
+// 获取对话历史
+const conversations = await this.db.getConversations({
+  agentType: 'secbot-cli',
+  limit: 10,
+});
 
-# 获取统计信息
-stats = db.get_stats()
-print(f"对话记录数: {stats['conversations']}")
+// 获取统计信息
+const stats = await this.db.getStats();
+console.log(`对话记录数: ${stats.conversations}`);
 ```
 
-### CLI 命令
+### 通过 API 操作
 
 ```bash
 # 查看数据库统计
-python main.py db-stats
+curl http://127.0.0.1:8000/api/db/stats
 
 # 查看对话历史
-python main.py db-history --limit 10
+curl http://127.0.0.1:8000/api/db/history?limit=10
 
 # 清空对话历史
-python main.py db-clear --yes
+curl -X DELETE http://127.0.0.1:8000/api/db/history
 ```
 
 ## 数据库文件位置
 
-- **默认位置**: `项目根目录/data/m_bot.db`
-- **自定义位置**: 通过 `DATABASE_URL` 环境变量配置
+- **默认位置**: `项目根目录/data/secbot.db`
+- **自定义位置**: 通过 `DATABASE_PATH` 环境变量配置
 
 ## 备份和恢复
 
@@ -123,20 +126,20 @@ python main.py db-clear --yes
 
 ```bash
 # Windows
-copy data\m_bot.db backup\m_bot_backup.db
+copy data\secbot.db backup\secbot_backup.db
 
 # Linux/Mac
-cp data/m_bot.db backup/m_bot_backup.db
+cp data/secbot.db backup/secbot_backup.db
 ```
 
 ### 恢复数据库
 
 ```bash
 # Windows
-copy backup\m_bot_backup.db data\m_bot.db
+copy backup\secbot_backup.db data\secbot.db
 
 # Linux/Mac
-cp backup/m_bot_backup.db data/m_bot.db
+cp backup/secbot_backup.db data/secbot.db
 ```
 
 ## 注意事项
@@ -166,4 +169,4 @@ cp backup/m_bot_backup.db data/m_bot.db
 - 使用备份文件恢复
 - 或删除数据库文件，系统会在下次运行时自动重建
 
-**说明**：本项目仅使用 SQLite 作为数据库，不支持迁移到其他数据库类型。
+**说明**：本项目仅使用 SQLite（better-sqlite3）作为数据库，不支持迁移到其他数据库类型。

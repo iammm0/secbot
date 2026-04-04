@@ -19,10 +19,15 @@
 
 ## 依赖关系
 
-- 继承 `tools.base.BaseTool`
-- 被 `tools.pentest.security` 引入为 `WEB_TOOLS`
+- 继承 `BaseTool`（`server/src/modules/tools/core/base-tool.ts`）
+- 通过 `server/src/modules/tools/security/index.ts` 导出，由 `ToolsService` 自动发现与注册
 
 ## 使用示例
+
+```typescript
+// Agent 调用示例
+const result = await wafDetectTool.execute({ url: 'https://example.com' });
+```
 
 ```
 用户: 检测 https://example.com 的 WAF

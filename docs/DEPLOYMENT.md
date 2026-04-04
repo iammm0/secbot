@@ -1,12 +1,12 @@
 # Secbot 部署指南
 
-本文档聚焦当前仓库已存在且可维护的部署方式：**Python 后端服务**。`terminal-ui` 适合本地交互使用，移动端和桌面端可独立连接这个后端。
+本文档聚焦当前仓库已存在且可维护的部署方式：**NestJS 后端服务**。`terminal-ui` 适合本地交互使用，移动端和桌面端可独立连接这个后端。
 
 ## 当前部署建议
 
-- **本地交互**：使用 `python main.py` 或 `uv run secbot`
-- **长期运行后端**：使用 `uv run secbot --backend`、`python -m router.main`，再由移动端、桌面端或自定义客户端调用 API
-- **二进制分发**：优先使用 GitHub Release 中的现成 zip 包
+- **本地交互**：使用 `npm start` 或 `npm run start:stack`
+- **长期运行后端**：使用 `npm run dev` 或 `node server/dist/main.js`，再由移动端、桌面端或自定义客户端调用 API
+- **二进制分发**：优先使用 GitHub Release 中的现成打包产物
 
 当前仓库**没有维护中的 Dockerfile / docker-compose 产物**。如果你需要容器化部署，请先阅读 [DOCKER_SETUP.md](DOCKER_SETUP.md)。
 
@@ -17,16 +17,20 @@
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
-uv sync
+npm install
 ```
 
-如果希望本地注册命令入口，也可以额外执行：
+> 要求 Node.js 18+ 和 npm。
+
+### 2. 构建
 
 ```bash
-uv pip install -e .
+npm run build
 ```
 
-### 2. 配置 `.env`
+构建产物输出到 `server/dist/`。
+
+### 3. 配置 `.env`
 
 仓库根目录没有 `.env.example`，请手动创建 `.env`。最小示例：
 
@@ -46,21 +50,31 @@ OLLAMA_MODEL=gemma3:1b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-### 3. 启动后端
+### 4. 启动后端
+
+开发模式（tsx watch 热重载）：
 
 ```bash
-uv run secbot --backend
+npm run dev
 ```
 
-或：
+生产模式：
 
 ```bash
-python -m router.main
+npm run build
+node server/dist/main.js
+```
+
+或使用一键命令：
+
+```bash
+npm start
 ```
 
 默认情况下：
 
 - 普通模式监听 `0.0.0.0:8000`
+- 端口可通过 `PORT` 环境变量配置
 - 桌面嵌入模式可通过 `SECBOT_DESKTOP=1` 切换到 `127.0.0.1:8000`
 
 ## 二、环境变量说明
@@ -69,6 +83,7 @@ python -m router.main
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
+| `PORT` | 监听端口 | `8000` |
 | `LLM_PROVIDER` | 当前推理后端 | `deepseek` |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | 无 |
 | `DEEPSEEK_BASE_URL` | DeepSeek Base URL | `https://api.deepseek.com` |
@@ -76,26 +91,24 @@ python -m router.main
 | `OLLAMA_BASE_URL` | Ollama 地址 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama 默认模型 | `gemma3:1b` |
 | `OLLAMA_EMBEDDING_MODEL` | Ollama 嵌入模型 | `nomic-embed-text` |
-| `DATABASE_URL` | SQLite 连接串 | `sqlite:///./data/secbot.db` |
 | `LOG_LEVEL` | 日志级别 | `INFO` |
 | `SECBOT_SERVER_HOST` | 覆盖监听地址 | 自动推导 |
 | `SECBOT_SERVER_PORT` | 覆盖监听端口 | `8000` |
-| `SECBOT_SERVER_RELOAD` | 是否启用热重载 | 桌面模式默认关，其它默认开 |
 
 ## 三、数据与日志
 
 ### SQLite 数据库
 
-默认 `DATABASE_URL` 为：
+后端使用 better-sqlite3 驱动，数据库文件默认位于：
 
 ```text
-sqlite:///./data/secbot.db
+data/secbot.db
 ```
 
-需要注意的是，当前实现会把相对路径解析到 `hackbot_config/` 包目录下。因此生产环境更建议显式指定**绝对路径**，例如：
+生产环境建议显式指定**绝对路径**，例如：
 
 ```env
-DATABASE_URL=sqlite:////srv/secbot/data/secbot.db
+DATABASE_PATH=/srv/secbot/data/secbot.db
 ```
 
 ### 日志
@@ -119,17 +132,18 @@ TUI / 启动器在源码模式下还可能写入：
 
 ```ini
 [Unit]
-Description=Secbot FastAPI Backend
+Description=Secbot NestJS Backend
 After=network.target
 
 [Service]
 Type=simple
 User=secbot
 WorkingDirectory=/srv/secbot
-Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/usr/bin/env uv run secbot --backend
+ExecStart=/usr/bin/node /srv/secbot/server/dist/main.js
 Restart=always
 RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=8000
 
 [Install]
 WantedBy=multi-user.target
@@ -160,21 +174,14 @@ curl http://127.0.0.1:8000/api/system/info
 也可以直接打开：
 
 - `http://127.0.0.1:8000/docs`
-- `http://127.0.0.1:8000/redoc`
 
 ## 六、更新流程
 
 ```bash
 cd /srv/secbot
 git pull
-uv sync
-sudo systemctl restart secbot
-```
-
-若你使用的是安装式部署：
-
-```bash
-uv pip install -e .
+npm install
+npm run build
 sudo systemctl restart secbot
 ```
 
@@ -182,7 +189,7 @@ sudo systemctl restart secbot
 
 ### 1. 端口 8000 被占用
 
-`router.main` 启动前会主动检查端口占用。若报错，请先结束占用进程，再重启服务。
+后端启动前会主动检查端口占用。若报错，请先结束占用进程，再重启服务。也可通过 `PORT` 环境变量更换端口。
 
 ### 2. 前端能打开但接口失败
 

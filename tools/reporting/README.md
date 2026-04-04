@@ -12,10 +12,15 @@
 
 ## 依赖关系
 
-- 继承 `tools.base.BaseTool`
-- 被 `tools.pentest.security` 引入为 `REPORTING_TOOLS`
+- 继承 `BaseTool`（`server/src/modules/tools/core/base-tool.ts`）
+- 通过 `server/src/modules/tools/reporting/index.ts` 导出，由 `ToolsService` 自动发现与注册
 
 ## 使用示例
+
+```typescript
+// Agent 调用示例
+const result = await reportGeneratorTool.execute({ format: 'markdown', content: scanResults });
+```
 
 ```
 用户: 生成本次扫描的 Markdown 报告

@@ -1,6 +1,6 @@
 # Secbot 移动应用文档
 
-`app/` 目录是基于 **Expo + React Native** 的移动端工程，同时支持 iOS、Android 与 Web 调试。它通过 REST + SSE 调用 Python 后端。
+`app/` 目录是基于 **Expo + React Native** 的移动端工程，同时支持 iOS、Android 与 Web 调试。它通过 REST + SSE 调用 NestJS 后端。
 
 ## 技术栈
 
@@ -90,8 +90,17 @@ app/
 ### 1. 先启动后端
 
 ```bash
-uv run secbot --backend
+# 安装依赖（仅首次）
+npm install
+
+# 开发模式启动 NestJS 后端
+npm run dev
+
+# 或生产模式
+npm start
 ```
+
+后端默认监听端口 `8000`，可通过环境变量 `PORT` 修改。
 
 ### 2. 启动 Expo
 

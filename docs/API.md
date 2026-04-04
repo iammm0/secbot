@@ -1,22 +1,21 @@
 # Secbot API 接口文档
 
-本文档对齐当前 `router/` 里的 FastAPI 路由实现，覆盖 REST 与 SSE 两类接口。
+本文档对齐当前 `server/src/modules/` 里的 NestJS 路由实现，覆盖 REST 与 SSE 两类接口。
 
 ## 快速调试
 
 ### 启动后端
 
 ```bash
-uv run secbot --backend
+npm run dev
 # 或
-python -m router.main
+npm run build && node server/dist/main.js
 ```
 
 默认地址：
 
 - Base URL：`http://127.0.0.1:8000`
 - Swagger UI：`http://127.0.0.1:8000/docs`
-- ReDoc：`http://127.0.0.1:8000/redoc`
 - 健康检查：`GET /health`
 
 ### 最小联调命令
@@ -180,7 +179,7 @@ curl -X POST http://127.0.0.1:8000/api/chat/sync \
 
 - 操作系统
 - 架构
-- Python 版本
+- Node.js 版本
 - 主机名
 - 用户名
 

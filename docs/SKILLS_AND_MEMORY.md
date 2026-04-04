@@ -1,140 +1,150 @@
-# Skills and Memory System
+# 技能与记忆系统
 
-Hackbot provides two powerful systems for knowledge management and context retention:
+Secbot 提供两套知识管理与上下文保留机制：
 
-## Skills System
+## 技能系统
 
-Markdown-based skills following the OpenAI Agent Skills standard.
+基于 Markdown 的技能体系，遵循 OpenAI Agent Skills 标准。
 
-### Directory Structure
+### 目录结构
 
 ```
 skills/
-├── base/                      # Base skills
+├── base/                      # 基础技能
 │   └── nmap-usage/
-│       ├── SKILL.md          # Skill manifest + instructions
-│       ├── scripts/          # Optional scripts
-│       ├── references/       # Optional references
-│       └── assets/           # Optional assets
-├── penetration/              # Penetration testing skills
-├── enumeration/              # Enumeration skills
-├── exploitation/             # Exploitation skills
-└── reporting/                # Reporting skills
+│       ├── SKILL.md          # 技能清单 + 说明
+│       ├── scripts/          # 可选脚本
+│       ├── references/       # 可选参考资料
+│       └── assets/           # 可选资源文件
+├── penetration/              # 渗透测试技能
+├── enumeration/              # 枚举技能
+├── exploitation/             # 漏洞利用技能
+└── reporting/                # 报告技能
 ```
 
-### SKILL.md Format
+### SKILL.md 格式
 
 ```markdown
 ---
 name: skill-name
-description: Explain when this skill should trigger
+description: 说明该技能的触发时机
 version: "1.0.0"
-author: "Author name"
+author: "作者名"
 tags: ["tag1", "tag2"]
 triggers: ["keyword1", "keyword2"]
 prerequisites: ["requirement1"]
 ---
 
-# Skill Instructions
+# 技能说明
 
-Your skill content here...
+技能内容……
 ```
 
-### Usage
+### 使用方式
 
-```python
-from skills.loader import SkillLoader
+技能系统由 `server/src/modules/skills/` 中的 SkillsService 管理：
 
-loader = SkillLoader(["./skills"])
-skills = loader.load_all()
+```typescript
+import { SkillsService } from './skills/skills.service';
 
-# Get skill by name
-skill = loader.get_skill("nmap-usage")
+// 通过 NestJS 依赖注入获取实例
+constructor(private readonly skills: SkillsService) {}
 
-# Get skills by trigger
-matched = loader.get_skills_by_triggers("scan ports")
+// 获取指定技能
+const skill = this.skills.getSkill('nmap-usage');
 
-# List all skills
-for skill_info in loader.list_skills():
-    print(skill_info["name"], skill_info["description"])
+// 根据触发词匹配技能
+const matched = this.skills.getSkillsByTriggers('scan ports');
+
+// 列出所有技能
+const allSkills = this.skills.listSkills();
 ```
 
 ---
 
-## Memory System
+## 记忆系统
 
-Three-layer memory architecture inspired by OpenAI Agents SDK and CrewAI.
+三层记忆架构，灵感来自 OpenAI Agents SDK 与 CrewAI。
 
-### Architecture
+### 架构
 
 ```
 MemoryManager
-├── ShortTermMemory    # Session context (deque, auto-trim)
-├── EpisodicMemory     # Cross-session events (JSON file)
-└── LongTermMemory    # Persistent knowledge (JSON file)
+├── ShortTermMemory    # 会话上下文（内存队列，自动裁剪）
+├── EpisodicMemory     # 跨会话事件（JSON 文件）
+└── LongTermMemory     # 持久化知识（JSON 文件）
 ```
 
-### Usage
+### 使用方式
 
-```python
-from core.memory.manager import MemoryManager
+记忆系统由 `server/src/modules/memory/` 中的 MemoryService 管理：
 
-memory = MemoryManager()
+```typescript
+import { MemoryService } from './memory/memory.service';
 
-# Remember something
-await memory.remember(
-    content="Target 192.168.1.10 has port 22 open",
-    memory_type="episodic",
-    importance=0.7,
-    target="192.168.1.10"
-)
+// 通过 NestJS 依赖注入获取实例
+constructor(private readonly memory: MemoryService) {}
 
-# Recall memories
-memories = await memory.recall("192.168.1.10")
+// 记住内容
+await this.memory.remember({
+  content: 'Target 192.168.1.10 has port 22 open',
+  memoryType: 'episodic',
+  importance: 0.7,
+  target: '192.168.1.10',
+});
 
-# Get context for agent
-context = await memory.get_context_for_agent("target information")
+// 回忆
+const memories = await this.memory.recall('192.168.1.10');
 
-# Distill from conversation
-await memory.distill_from_conversation(
-    conversation=history,
-    summary="Scanned target, found SSH service"
-)
+// 获取智能体上下文
+const context = await this.memory.getContextForAgent('target information');
+
+// 从对话中提炼
+await this.memory.distillFromConversation({
+  conversation: history,
+  summary: 'Scanned target, found SSH service',
+});
 ```
 
-### Memory Types
+### 记忆类型
 
-| Type | Storage | Use Case |
-|------|---------|----------|
-| `short_term` | In-memory deque | Current session context |
-| `episodic` | JSON file | Past events and experiences |
-| `long_term` | JSON file | Persistent knowledge |
+| 类型 | 存储方式 | 用途 |
+|------|---------|------|
+| `short_term` | 内存队列 | 当前会话上下文 |
+| `episodic` | JSON 文件 | 历史事件与经验 |
+| `long_term` | JSON 文件 | 持久化知识 |
 
 ---
 
-## Integration Example
+## 集成示例
 
-```python
-from skills.loader import SkillLoader
-from core.memory.manager import MemoryManager
+```typescript
+import { SkillsService } from './skills/skills.service';
+import { MemoryService } from './memory/memory.service';
 
-class HackbotAgent:
-    def __init__(self):
-        self.skills = SkillLoader(["./skills"]).load_all()
-        self.memory = MemoryManager()
-    
-    async def process(self, message: str):
-        # Get relevant skills
-        relevant_skills = self.skills.get_skills_by_triggers(message)
-        
-        # Get memory context
-        context = await self.memory.get_context_for_agent(message)
-        
-        # Build prompt with skills + memory
-        prompt = self._build_prompt(message, relevant_skills, context)
-        
-        # Process and remember
-        await self.memory.remember(message, "short_term")
-        
-        return response
+export class AgentService {
+  constructor(
+    private readonly skills: SkillsService,
+    private readonly memory: MemoryService,
+  ) {}
+
+  async process(message: string) {
+    // 获取相关技能
+    const relevantSkills = this.skills.getSkillsByTriggers(message);
+
+    // 获取记忆上下文
+    const context = await this.memory.getContextForAgent(message);
+
+    // 组合提示词
+    const prompt = this.buildPrompt(message, relevantSkills, context);
+
+    // 处理并记忆
+    await this.memory.remember({
+      content: message,
+      memoryType: 'short_term',
+    });
+
+    return response;
+  }
+}
 ```
