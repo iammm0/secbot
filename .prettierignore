@@ -1,0 +1,8 @@
+node_modules/
+server/dist/
+terminal-ui/dist/
+desktop/dist/
+desktop/src-tauri/
+app/.expo/
+*.tgz
+*.md
