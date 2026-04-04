@@ -8,7 +8,7 @@ use tauri::{AppHandle, RunEvent};
 
 const API_INFO: &str = "http://127.0.0.1:8000/api/system/info";
 
-/// 由本进程拉起的 Python 后端子进程（若端口上已有服务则不会写入）
+/// Backend child process started by desktop (if backend is not already healthy).
 pub struct BackendChild(pub Arc<Mutex<Option<Child>>>);
 
 fn backend_healthy() -> bool {
@@ -47,7 +47,9 @@ fn resolve_project_root() -> Option<PathBuf> {
 }
 
 fn is_secbot_root(p: &Path) -> bool {
-    p.join("pyproject.toml").is_file() && p.join("router").join("main.py").is_file()
+    p.join("package.json").is_file()
+        && (p.join("server").join("src").join("main.ts").is_file()
+            || p.join("server").join("dist").join("main.js").is_file())
 }
 
 fn walk_up_for_root(mut dir: PathBuf) -> Option<PathBuf> {
@@ -60,101 +62,131 @@ fn walk_up_for_root(mut dir: PathBuf) -> Option<PathBuf> {
     None
 }
 
-fn spawn_python_backend(root: &Path) -> std::io::Result<Child> {
-    if let Ok(custom) = std::env::var("SECBOT_PYTHON") {
-        let exe = custom.trim();
-        if !exe.is_empty() {
-            let mut cmd = Command::new(exe);
-            cmd.args(["-m", "router.main"]);
-            cmd.current_dir(root);
-            cmd.env("SECBOT_DESKTOP", "1");
-            cmd.stdin(Stdio::null());
-            cmd.stdout(Stdio::null());
-            cmd.stderr(Stdio::null());
-            #[cfg(windows)]
-            {
-                use std::os::windows::process::CommandExt;
-                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-                cmd.creation_flags(CREATE_NO_WINDOW);
-            }
-            if let Ok(c) = cmd.spawn() {
-                return Ok(c);
+fn spawn_custom_backend_cmd(root: &Path, raw_cmd: &str) -> std::io::Result<Child> {
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = Command::new("cmd");
+        c.args(["/C", raw_cmd]);
+        c
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = {
+        let mut c = Command::new("sh");
+        c.args(["-lc", raw_cmd]);
+        c
+    };
+
+    cmd.current_dir(root);
+    cmd.env("SECBOT_DESKTOP", "1");
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    cmd.spawn()
+}
+
+fn spawn_node_backend(root: &Path) -> std::io::Result<Child> {
+    if let Ok(custom) = std::env::var("SECBOT_BACKEND_CMD") {
+        let raw = custom.trim();
+        if !raw.is_empty() {
+            if let Ok(child) = spawn_custom_backend_cmd(root, raw) {
+                return Ok(child);
             }
         }
     }
 
-    let candidates: &[(&str, &[&str])] = if cfg!(target_os = "windows") {
-        &[
-            ("python", &["-m", "router.main"]),
-            ("py", &["-3", "-m", "router.main"]),
-        ]
+    let dist_server = root.join("server").join("dist").join("main.js");
+
+    let mut candidates: Vec<(&str, Vec<&str>)> = Vec::new();
+    if dist_server.is_file() {
+        candidates.push(("node", vec!["server/dist/main.js"]));
+    }
+
+    if cfg!(target_os = "windows") {
+        candidates.push(("npm.cmd", vec!["run", "start"]));
+        candidates.push(("npm.cmd", vec!["run", "dev"]));
     } else {
-        &[
-            ("python3", &["-m", "router.main"]),
-            ("python", &["-m", "router.main"]),
-        ]
-    };
+        candidates.push(("npm", vec!["run", "start"]));
+        candidates.push(("npm", vec!["run", "dev"]));
+    }
+
     for (exe, args) in candidates {
         let mut cmd = Command::new(exe);
-        cmd.args(*args);
+        cmd.args(args);
         cmd.current_dir(root);
         cmd.env("SECBOT_DESKTOP", "1");
         cmd.stdin(Stdio::null());
         cmd.stdout(Stdio::null());
         cmd.stderr(Stdio::null());
+
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
+
         match cmd.spawn() {
             Ok(c) => return Ok(c),
             Err(e) if e.kind() == ErrorKind::NotFound => continue,
             Err(e) => return Err(e),
         }
     }
+
     Err(Error::new(
         ErrorKind::NotFound,
-        "未找到 Python 解释器（已尝试 python / py -3 / python3）",
+        "Unable to start backend. Tried node and npm commands.",
     ))
 }
 
 fn ensure_backend_background(child_slot: Arc<Mutex<Option<Child>>>) {
     std::thread::spawn(move || {
         if backend_healthy() {
-            log::info!("后端已在 127.0.0.1:8000 运行，跳过拉起");
+            log::info!("Backend already healthy at 127.0.0.1:8000, skipping spawn");
             return;
         }
+
         let Some(root) = resolve_project_root() else {
             log::error!(
-                "无法定位 Secbot 项目根（需包含 pyproject.toml 与 router/main.py）。可设置环境变量 SECBOT_PROJECT_ROOT。"
+                "Cannot locate Secbot project root (need package.json + server entrypoint). Set SECBOT_PROJECT_ROOT if needed."
             );
             return;
         };
-        log::info!("正在从 {:?} 拉起 Python 后端…", root);
-        let child = match spawn_python_backend(&root) {
+
+        log::info!("Starting Node backend from {:?}", root);
+        let child = match spawn_node_backend(&root) {
             Ok(c) => c,
             Err(e) => {
-                log::error!("拉起后端失败: {}", e);
+                log::error!("Failed to start backend: {}", e);
                 return;
             }
         };
+
         let pid = child.id();
         if let Ok(mut g) = child_slot.lock() {
             *g = Some(child);
         }
+
         for i in 0..120 {
             if backend_healthy() {
-                log::info!("后端已就绪 (pid {})", pid);
+                log::info!("Backend is healthy (pid {})", pid);
                 return;
             }
             std::thread::sleep(Duration::from_millis(500));
             if i == 59 {
-                log::warn!("后端仍在启动中，请稍候…");
+                log::warn!("Backend is still starting...");
             }
         }
-        log::error!("后端在超时时间内未响应 /api/system/info");
+
+        log::error!("Backend did not become healthy in time (/api/system/info timeout)");
     });
 }
 
@@ -163,7 +195,7 @@ fn kill_backend_slot(slot: &Arc<Mutex<Option<Child>>>) {
         if let Some(mut c) = g.take() {
             let _ = c.kill();
             let _ = c.wait();
-            log::info!("已结束后台 Python 进程");
+            log::info!("Stopped desktop-started backend process");
         }
     }
 }
@@ -176,10 +208,10 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .manage(BackendChild(child_slot))
-        .setup(move |_app| {
+        .setup(move |app| {
             ensure_backend_background(slot_for_thread);
             if cfg!(debug_assertions) {
-                _app.handle().plugin(
+                app.handle().plugin(
                     tauri_plugin_log::Builder::default()
                         .level(log::LevelFilter::Info)
                         .build(),

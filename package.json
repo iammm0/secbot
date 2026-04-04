@@ -1,0 +1,66 @@
+﻿{
+  "name": "secbot",
+  "version": "2.0.0",
+  "description": "Secbot pure TypeScript security automation backend and CLI.",
+  "type": "commonjs",
+  "private": false,
+  "main": "server/dist/main.js",
+  "bin": {
+    "secbot": "npm-bin/secbot.js",
+    "secbot-server": "npm-bin/secbot-server.js"
+  },
+  "files": [
+    "server/dist",
+    "README.md",
+    "README_CN.md",
+    "README_EN.md",
+    "LICENSE",
+    "docs/SECURITY_WARNING.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('server/dist',{recursive:true,force:true})\"",
+    "build": "tsc -p server/tsconfig.json",
+    "dev": "tsx watch server/src/main.ts",
+    "start": "node server/dist/main.js",
+    "start:stack": "node scripts/start_stack.js",
+    "start:tui": "npm --prefix terminal-ui run tui",
+    "prepack": "npm run build",
+    "pack:npm": "npm pack",
+    "release:build": "npm run clean && npm run build",
+    "release:pack": "npm run release:build && npm pack",
+    "release:verify": "node scripts/verify_release_package.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "security",
+    "pentest",
+    "agent",
+    "typescript",
+    "nestjs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iammm0/secbot.git"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "better-sqlite3": "^11.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.8.3"
+  }
+}

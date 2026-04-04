@@ -1,7 +1,10 @@
 @echo off
-REM 在新 CMD 窗口中启动 Secbot CLI（保证有真实 TTY，Ink 才能工作）
-REM 结束后 pause 便于看到报错
+setlocal
 pushd "%~dp0.."
-start "Secbot CLI" cmd /k "cd /d %CD% && (uv run python main.py & echo. & echo 按任意键关闭窗口... & pause)"
+
+echo Starting Secbot TS stack in new terminal window...
+start "Secbot CLI" cmd /k "cd /d %CD% && npm.cmd run start:stack"
+
 popd
+endlocal
 exit /b 0
