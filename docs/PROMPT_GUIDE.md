@@ -10,7 +10,7 @@
 
 ## 基本使用
 
-本程序无参数启动即进入交互模式（`python main.py` 或 `secbot`），交互模式会占据整个终端。在交互界面内可：
+启动 Secbot 后进入交互模式（`npm start` 或 `npm run start:stack`），交互模式会占据整个终端。在交互界面内可：
 
 1. **使用自定义提示词 / 模板 / 链**：通过界面内的模型或提示配置、或斜杠命令（如 `/model`、`/prompt-list`）进行设置。
 2. **查看可用模板与链**：在交互模式中输入 `/prompt-list` 查看已注册的模板和提示词链。
@@ -49,13 +49,6 @@
     }
   ]
 }
-```
-
-然后加载：
-
-```bash
-python main.py prompt-load prompts/my_chain.json
-python main.py chat "解释Python" --prompt-chain expert_assistant
 ```
 
 ### 使用YAML文件创建
@@ -100,7 +93,7 @@ nodes:
 
 ## 在交互模式中使用
 
-无参数启动即进入交互模式（`python main.py` 或 `secbot`）。在交互界面内可通过斜杠命令或模型/提示配置使用提示词、模板或提示词链，例如使用 `/model` 选择后端后，在对话中或相应设置里指定自定义提示词、模板（如 expert）或链（如 expert,technical）。具体以当前界面提供的命令为准；输入 `/` 后回车可查看全部命令。
+启动 Secbot（`npm start` 或 `npm run start:stack`）进入交互模式。在交互界面内可通过斜杠命令或模型/提示配置使用提示词、模板或提示词链，例如使用 `/model` 选择后端后，在对话中或相应设置里指定自定义提示词、模板（如 expert）或链（如 expert,technical）。具体以当前界面提供的命令为准；输入 `/` 后回车可查看全部命令。
 
 ## 提示词链最佳实践
 
@@ -125,7 +118,7 @@ nodes:
 直接包含提示词内容：
 
 ```
-你是一个专业的Python编程助手。
+你是一个专业的安全领域编程助手。
 请用简洁明了的语言回答问题。
 提供代码示例时要确保可运行。
 ```
@@ -156,4 +149,3 @@ nodes:
 2. 如果多个选项同时指定，优先级：`prompt_file` > `prompt_chain` > `prompt_template` > `prompt`
 3. 提示词过长可能影响性能，建议控制在合理长度
 4. 可以保存提示词链到文件以便重复使用
-

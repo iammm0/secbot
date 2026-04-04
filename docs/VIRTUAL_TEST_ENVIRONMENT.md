@@ -23,9 +23,9 @@
 
 - **推荐版本**：Ubuntu 22.04 LTS。
 - **建议安装**：
-  - **SSH**：便于远程控制与授权测试  
+  - **SSH**：便于远程控制与授权测试
     `sudo apt update && sudo apt install -y openssh-server`
-  - **可选 Web 服务**：用于 Web 类 prompt（端口扫描、漏洞扫描、目录扫描等）  
+  - **可选 Web 服务**：用于 Web 类 prompt（端口扫描、漏洞扫描、目录扫描等）
     `sudo apt install -y nginx` 或 `sudo apt install -y apache2`
 - 记录目标机 IP（在虚拟机内执行 `ip a` 或 `hostname -I`），下文示例中统一用 `192.168.56.10` 表示，请自行替换。
 
@@ -43,14 +43,21 @@ ping -c 2 192.168.56.10
 
 ## 二、Secbot 前置准备
 
-### 2.1 启动 Secbot
+### 2.1 安装与启动 Secbot
 
 ```bash
-# 在项目根目录下
-uv run secbot
+# 克隆并安装
+git clone https://github.com/iammm0/secbot.git
+cd secbot
+npm install
+
+# 启动（后端 + TUI）
+npm start
 # 或
-python main.py
+npm run start:stack
 ```
+
+> 要求 Node.js 18+ 和 npm。
 
 启动后进入交互式界面，底部有输入框。
 

@@ -1,168 +1,67 @@
-# TypeScript Migration Status
+# TypeScript 迁移状态
 
-This document tracks the Python-to-TypeScript rewrite progress.
+本文档记录 Python → TypeScript 的重写进度。
 
-## Completed
+## 迁移状态：已完成
 
-- TypeScript backend skeleton (`server/src`) with NestJS modules:
-  - chat
-  - agents
-  - database
-  - defense
-  - network
-  - system
-  - sessions
-- Tool execution API in TS:
-  - `GET /api/tools`
-  - `POST /api/tools/execute`
-- Agent tool wiring:
-  - Chat service now injects `ToolsService` and passes real tool lists to Hackbot/SuperHackbot.
-- Session management migrated to TS:
-  - `server/src/modules/sessions/sessions.service.ts` now provides create/get/update/close/list logic
-  - `api/sessions` endpoints support command and file-transfer activity recording
-- Authorization management migrated to TS:
-  - `server/src/modules/network/network.service.ts` now persists authorizations to `data/authorizations.json`
-  - active/revoked/expired status and expiration checks are implemented
-- Network discovery baseline migrated to TS:
-  - CIDR host expansion and concurrent common-port probing are implemented
-  - reverse DNS hostname resolution is included
-  - MAC address enrichment (ARP) and OS heuristic detection (TTL + ports) are included
-- Remote control orchestration migrated to TS:
-  - `network` module now provides connect/execute/upload/download/disconnect APIs
-  - active remote session pool is implemented in `remote-control.service.ts`
-- Crawler scheduler/realtime baseline migrated to TS:
-  - new `crawler` module provides task queue, batch execution, monitor tasks and change checks
-  - monitor loop and event tracking are implemented in `crawler.service.ts`
-- Memory subsystem migrated to TS:
-  - new `memory` module provides short-term / episodic / long-term memory management
-  - recall/context/distill/stats APIs are available under `api/memory`
-  - SQLite-based vector storage manager is implemented for memory embeddings retrieval
-- Vulnerability database subsystem migrated to TS baseline:
-  - new `vuln-db` module provides unified vulnerability schema and query APIs
-  - adapters for CVE / NVD / Exploit-DB / MITRE ATT&CK are implemented
-  - vulnerability vector index and semantic search baseline are implemented
-- Security tools migrated to TS (19):
-  - `port_scan`
-  - `service_detect`
-  - `vuln_scan`
-  - `recon`
-  - `dns_lookup`
-  - `whois_lookup`
-  - `http_request`
-  - `header_analyze`
-  - `cors_check`
-  - `ssl_analyze`
-  - `subdomain_enum`
-  - `tech_detect`
-  - `dir_bruteforce`
-  - `waf_detect`
-  - `jwt_analyze`
-  - `param_fuzzer`
-  - `ssrf_detect`
-  - `attack_test`
-  - `exploit`
-- Defense tools migrated to TS (5):
-  - `defense_scan`
-  - `self_vuln_scan`
-  - `network_analyze`
-  - `intrusion_detect`
-  - `system_info`
-- Utility tools migrated to TS (10):
-  - `hash_tool`
-  - `encode_decode`
-  - `ip_geolocation`
-  - `file_analyze`
-  - `cve_lookup`
-  - `log_analyze`
-  - `password_audit`
-  - `secret_scanner`
-  - `dependency_audit`
-  - `payload_generator`
-- Protocol tools migrated to TS (4):
-  - `mysql_probe`
-  - `redis_probe`
-  - `smb_enum`
-  - `snmp_query`
-- OSINT tools migrated to TS (4):
-  - `shodan_query`
-  - `virustotal_check`
-  - `cert_transparency`
-  - `credential_leak_check`
-- Cloud tools migrated to TS (3):
-  - `cloud_metadata_detect`
-  - `s3_bucket_enum`
-  - `container_info`
-- Reporting tools migrated to TS (1):
-  - `report_generator`
-- Control tools migrated to TS (2):
-  - `execute_command`
-  - `terminal_session`
-- Web research tools migrated to TS (5):
-  - `smart_search`
-  - `page_extract`
-  - `deep_crawl`
-  - `api_client`
-  - `web_research`
-- Crawler tool migrated to TS (1):
-  - `web_crawler`
-- Legacy Python cleanup completed for migrated attack/exploit path:
-  - removed `tools/pentest/security/attack_test_tool.py`
-  - removed `tools/pentest/security/exploit_tool.py`
-  - removed `scanner/attack_tester.py`
-- Legacy Python cleanup completed for migrated defense tools:
-  - removed `tools/defense/defense_scan_tool.py`
-  - removed `tools/defense/self_vuln_scan_tool.py`
-  - removed `tools/defense/network_analyze_tool.py`
-  - removed `tools/defense/intrusion_detect_tool.py`
-  - removed `tools/defense/system_info_tool.py`
-- Legacy Python cleanup completed for migrated exploit runtime:
-  - removed `tools/offense/exploit/exploit_engine.py`
-  - removed `tools/offense/exploit/sqlmap_wrapper.py`
-  - removed `tools/offense/exploit/nuclei_wrapper.py`
-  - removed `tools/offense/exploit/msf_wrapper.py`
-  - removed `tools/offense/exploit/web_exploits.py`
-  - removed `tools/offense/exploit/network_exploits.py`
-  - removed `tools/offense/exploit/post_exploitation.py`
-  - removed `tools/offense/exploit/sandbox.py`
-  - Python `core/attack_chain` fallback path now uses TS-migration placeholders (no direct old exploit module import).
-- Legacy Python cleanup completed for migrated control runtime:
-  - removed `tools/offense/control/command_tool.py`
-  - removed `tools/offense/control/terminal_tool.py`
-  - Python `tools/offense/control/__init__.py` now provides migration compatibility placeholders.
-- Legacy Python cleanup completed for migrated controller runtime:
-  - removed `controller/authorization.py`
-  - removed `controller/network_discovery.py`
-  - removed `controller/remote_control.py`
-  - removed `controller/session_manager.py`
-  - Python `controller/controller.py` now provides migration compatibility behavior for legacy router paths.
-- Legacy Python cleanup completed for migrated system tool runtime:
-  - removed `tools/system_tool.py`
-- Legacy Python cleanup completed for migrated scanner runtime:
-  - removed `scanner/port_scanner.py`
-  - removed `scanner/service_detector.py`
-  - removed `scanner/vulnerability_scanner.py`
-  - Python `tools/pentest/security/{port_scan,service_detect,vuln_scan}_tool.py` now provide TS-migration compatibility shims.
-  - Python `core/attack_chain/reconnaissance.py` and `core/attack_chain/attack_chain.py` no longer import legacy `scanner.*` modules.
-- Full Python source decommission completed in working tree:
-  - removed all remaining Git-tracked `*.py` files from the repository working tree
-  - TypeScript backend build and tool execution smoke checks remain green after removal
+Python 到 TypeScript 的代码迁移已于 v2.0.0 版本**全部完成**。所有 `.py` 文件已从仓库工作树中移除，后端完全运行在 NestJS (TypeScript) 上。
 
-## In Progress / Pending
+### 后端模块（全部已迁移）
 
-- Remaining Python tool families not yet ported:
-  - none
-- Remaining Python backend domains requiring parity verification:
-  - crawler browser-render parity (Selenium/Playwright equivalent path)
-  - controller fine-grained orchestration parity and edge-case handling
-  - memory/vuln-db online adapter robustness and enrichment depth
-  - exploit wrapper robustness (deeper external-tool/session parity in TS)
-- Final cleanup step (after parity):
-  - finalize commit/release packaging after TS-only validation.
+| 模块 | 路径 | 状态 |
+|------|------|------|
+| ChatModule | `server/src/modules/chat/` | 已完成 |
+| AgentsModule | `server/src/modules/agents/` | 已完成 |
+| ToolsModule | `server/src/modules/tools/` | 已完成 |
+| DatabaseModule | `server/src/modules/database/` | 已完成 |
+| MemoryModule | `server/src/modules/memory/` | 已完成 |
+| VulnDbModule | `server/src/modules/vuln-db/` | 已完成 |
+| NetworkModule | `server/src/modules/network/` | 已完成 |
+| DefenseModule | `server/src/modules/defense/` | 已完成 |
+| SessionsModule | `server/src/modules/sessions/` | 已完成 |
+| SystemModule | `server/src/modules/system/` | 已完成 |
+| CrawlerModule | `server/src/modules/crawler/` | 已完成 |
+| HealthModule | `server/src/modules/health/` | 已完成 |
 
-## Validation Notes
+### 工具（54 个，全部已迁移）
 
-- Current TS code builds with:
-  - `npm run build`
-- Tool service currently reports:
-  - 54 total tools
-  - 19 security + 5 defense + 10 utility + 4 protocol + 4 osint + 3 cloud + 1 reporting + 2 control + 1 crawler + 5 web_research
+| 分类 | 数量 | 工具 |
+|------|------|------|
+| Security | 19 | port_scan, service_detect, vuln_scan, recon, dns_lookup, whois_lookup, http_request, header_analyze, cors_check, ssl_analyze, subdomain_enum, tech_detect, dir_bruteforce, waf_detect, jwt_analyze, param_fuzzer, ssrf_detect, attack_test, exploit |
+| Defense | 5 | defense_scan, self_vuln_scan, network_analyze, intrusion_detect, system_info |
+| Utility | 10 | hash_tool, encode_decode, ip_geolocation, file_analyze, cve_lookup, log_analyze, password_audit, secret_scanner, dependency_audit, payload_generator |
+| Protocol | 4 | mysql_probe, redis_probe, smb_enum, snmp_query |
+| OSINT | 4 | shodan_query, virustotal_check, cert_transparency, credential_leak_check |
+| Cloud | 3 | cloud_metadata_detect, s3_bucket_enum, container_info |
+| Reporting | 1 | report_generator |
+| Control | 2 | execute_command, terminal_session |
+| Crawler | 1 | web_crawler |
+| Web Research | 5 | smart_search, page_extract, deep_crawl, api_client, web_research |
+
+### 文档与配置（v2.0.0 同步更新）
+
+- README.md / README_CN.md / README_EN.md — 已重写为 TypeScript/NestJS 版本
+- AGENT.md — 已重写为 NestJS 架构描述
+- docs/ 目录所有文档 — 已移除 Python 引用
+- tools/ 目录所有 README — 已对齐 TS 模块路径
+- .gitignore — 已重写为 Node/TS 项目标准
+- 新增 ESLint / Prettier / vitest 配置
+- 新增 CI 工作流（.github/workflows/ci.yml）
+- package.json scripts 已完善（lint/format/test/typecheck）
+
+## 待优化事项
+
+以下为功能完整性和鲁棒性方面的后续改进，不影响当前 TS 后端的正常运行：
+
+- 爬虫浏览器渲染路径（Selenium/Playwright 等效方案）
+- 控制器精细编排的 edge case 处理
+- 记忆/漏洞数据库在线适配器的鲁棒性与数据深度
+- 漏洞利用包装器的外部工具/会话兼容性深化
+- 测试覆盖率提升
+
+## 验证信息
+
+- 构建命令：`npm run build`
+- 类型检查：`npm run typecheck`
+- 代码检查：`npm run lint`
+- 工具总数：54（通过 `GET /api/tools` 验证）

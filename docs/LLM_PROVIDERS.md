@@ -1,17 +1,17 @@
 # 推理后端与 API 兼容说明
 
-Secbot 当前通过 `utils/model_selector.py` 维护多厂商推理后端注册表，并支持在 CLI、TUI、移动端、桌面端共用同一套配置接口。
+Secbot 通过 `server/src/modules/system/` 中的 SystemModule 维护多厂商推理后端注册表，并支持在 CLI、TUI、移动端、桌面端共用同一套配置接口。
 
 ## 切换方式
 
-- **CLI**：运行 `secbot model`、`secbot-cli model` 或 `uv run secbot model`
 - **TUI**：输入 `/model`
 - **API**：调用 `/api/system/config/*`
 - **环境变量**：设置 `LLM_PROVIDER` 与对应厂商变量
+- **CLI**：`npx secbot` 启动后在交互界面切换
 
 说明：
 
-- 若你已经通过 CLI / TUI 把配置持久化到 SQLite，则 SQLite 中的值会优先于环境变量
+- 若你已经通过 TUI 把配置持久化到 SQLite，则 SQLite 中的值会优先于环境变量
 - 某些厂商既需要 API Key，也需要自定义 Base URL
 
 ## 已支持的厂商
@@ -102,7 +102,7 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
 ### 2. 豆包
 
-`doubao` 的“模型名”一般填火山方舟中的 **Endpoint ID**，不是自然语言模型别名。
+`doubao` 的"模型名"一般填火山方舟中的 **Endpoint ID**，不是自然语言模型别名。
 
 ### 3. Azure OpenAI
 
@@ -121,4 +121,4 @@ https://<resource-name>.openai.azure.com/openai/v1
 ## 注意事项
 
 - 厂商侧模型与 Base URL 可能会变化，文档只保证与当前代码的配置逻辑一致
-- 如果要看默认模型建议值，请以 `utils/model_selector.py` 中的 `PROVIDER_REGISTRY` 为准
+- 如果要看默认模型建议值，请以 `server/src/modules/system/system.service.ts` 中的 `PROVIDER_REGISTRY` 为准

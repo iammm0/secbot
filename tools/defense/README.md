@@ -16,11 +16,16 @@
 
 ## 依赖关系
 
-- 继承 `tools.base.BaseTool`
-- 被 `tools.pentest.security` 引入为 `DEFENSE_TOOLS`
-- 部分工具可能依赖 root 权限（如网络分析）
+- 继承 `BaseTool`（`server/src/modules/tools/core/base-tool.ts`）
+- 通过 `server/src/modules/tools/defense/index.ts` 导出，由 `ToolsService` 自动发现与注册
+- 部分工具可能依赖管理员权限（如网络分析）
 
 ## 使用示例
+
+```typescript
+// Agent 调用示例
+const result = await systemInfoTool.execute({});
+```
 
 ```
 用户: 检查本机系统信息
@@ -30,4 +35,4 @@ Agent: 调用 system_info()
 ## 安全与权限
 
 - `system_info`、`network_analyze` 为瞬时工具，完成后在 UI 中可折叠
-- 部分防御扫描可能需要 root 权限
+- 部分防御扫描可能需要管理员权限

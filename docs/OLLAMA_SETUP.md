@@ -45,7 +45,7 @@ ollama run gemma3:1b "你好"
 
 ## 四、配置 Secbot
 
-在项目根目录或发布包目录创建 `.env`：
+在项目根目录创建 `.env`：
 
 ```env
 LLM_PROVIDER=ollama
@@ -61,21 +61,23 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
 ## 五、启动方式
 
-### 完整终端模式
+### 完整启动（后端 + TUI）
 
 ```bash
-python main.py
-# 或
-uv run secbot
+npm run start:stack
 ```
 
 ### 仅启动后端 API
 
 ```bash
-uv run secbot --backend
-# 或
-python -m router.main
+# 开发模式
+npm run dev
+
+# 生产模式
+npm start
 ```
+
+后端默认监听端口 `8000`，可通过环境变量 `PORT` 修改。
 
 ## 六、在 UI 中检查 Ollama
 

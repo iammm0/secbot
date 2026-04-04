@@ -30,9 +30,9 @@
 - **弹窗内**：
   1. 先请求 `GET /api/system/config` 得到 `llm_provider`、`ollama_model`、`ollama_base_url`。
   2. 当进入「Ollama」详情（或当前提供商为 Ollama）时，请求 `GET /api/system/ollama-models`。
-- **后端 `/api/system/ollama-models`**：
+- **后端 `/api/system/ollama-models`**（NestJS `SystemModule`）：
   - 使用 `OLLAMA_BASE_URL`（缺省 `http://localhost:11434`）。
-  - 先调用 `check_ollama_running(url)`：GET `{url}/api/tags`，3 秒超时，200 即视为服务可用。
+  - 由 `SystemService.getOllamaModels()` 处理：GET `{url}/api/tags`，3 秒超时，200 即视为服务可用。
   - 不可达则返回 `error`（如「无法连接 Ollama 服务…」），前端显示为「本地模型列表: …」。
   - 可达则拉取模型列表；若默认模型不在列表中则后台拉取并返回 `pulling_model`。
 - **修改方式**：Ollama 的默认模型和地址需在项目根目录 `.env` 中设置 `OLLAMA_MODEL`、`OLLAMA_BASE_URL` 后重启后端生效；TUI 内仅展示与只读。

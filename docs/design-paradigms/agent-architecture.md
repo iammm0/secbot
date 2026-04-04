@@ -4,8 +4,17 @@
 
 ## 1. 基类抽象与消息模型
 
-- **基类**：用抽象基类定义统一接口（如 `process(user_input, **kwargs) -> str`），子类实现具体逻辑。系统提示词、对话历史、记忆可放在基类，由子类按需覆盖默认实现。
-- **消息模型**：使用 Pydantic 或 dataclass 定义 `AgentMessage(role, content, metadata)`，便于序列化、日志与持久化。`role` 建议固定为 `user` / `assistant` / `system`。
+- **基类**：用抽象类或接口定义统一接口（如 `process(userInput: string, options?: Record<string, unknown>): Promise<string>`），子类实现具体逻辑。系统提示词、对话历史、记忆可放在基类，由子类按需覆盖默认实现。
+- **消息模型**：使用 TypeScript `interface` 或 `class` 定义消息结构，便于序列化、日志与持久化：
+
+```typescript
+interface AgentMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+```
+
 - **历史与记忆分离**：对话历史（当前会话轮次）与长期记忆（跨会话）建议用不同字段或不同管理器，避免混用导致难以做记忆摘要或裁剪。
 
 ## 2. 路由分发
@@ -14,7 +23,7 @@
 - **实现方式**：
   - 关键词列表：问候、帮助、介绍类 → 轻量 Q&A；操作类动词（扫描、执行、分析等）→ 规划/执行流。
   - 规则顺序：先匹配问候/再见，再匹配问答类关键词，再根据长度与操作词判定；短句且无操作词可默认走 Q&A，减少误判。
-- **类型**：路由结果用 `Literal["qa", "technical"]` 等明确类型，便于上层分支与测试。
+- **类型**：路由结果用 TypeScript 字面量联合类型（如 `type RouteResult = 'qa' | 'technical'`）明确表达，便于上层分支与测试。
 
 ## 3. 多智能体分工
 
@@ -27,13 +36,32 @@
 
 ## 4. 依赖注入与获取智能体
 
-- 上层（CLI / API）持有一个 `get_agent(agent_type)`，内部按类型懒加载并缓存实例，避免进程内重复创建。
-- 审计、记忆、DB 等可注入到 Agent 构造函数或 setter，便于测试时替换为 mock。
+- 上层（TUI / API）通过 NestJS 的依赖注入获取 Agent 实例，内部按类型懒加载并缓存，避免进程内重复创建。
+
+```typescript
+@Injectable()
+export class AgentFactory {
+  private agents = new Map<string, BaseAgent>();
+
+  getAgent(agentType: string): BaseAgent {
+    if (!this.agents.has(agentType)) {
+      this.agents.set(agentType, this.createAgent(agentType));
+    }
+    return this.agents.get(agentType)!;
+  }
+
+  private createAgent(agentType: string): BaseAgent {
+    // 按类型创建对应的 Agent 实例
+  }
+}
+```
+
+- 审计、记忆、DB 等可通过 NestJS 模块注入到 Agent 构造函数，便于测试时替换为 mock。
 
 ## 5. 可复用要点小结
 
-- 抽象基类 + 统一 `process` 接口。
-- 消息模型标准化（role/content/metadata）。
+- 抽象基类 / 接口 + 统一 `process` 方法。
+- 消息模型标准化（`role` / `content` / `metadata`），使用 TypeScript `interface` 定义。
 - 路由按「问答 vs 技术/执行」分流，规则可配置、可测试。
 - 多智能体各司其职：Q&A / Planner / Core / Summary。
-- 智能体实例懒加载 + 缓存，依赖通过构造函数或 get_agent 注入。
+- 智能体实例懒加载 + 缓存，依赖通过 NestJS 依赖注入管理。

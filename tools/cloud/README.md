@@ -14,11 +14,16 @@
 
 ## 依赖关系
 
-- 继承 `tools.base.BaseTool`
-- 被 `tools.pentest.security` 引入为 `CLOUD_TOOLS`
+- 继承 `BaseTool`（`server/src/modules/tools/core/base-tool.ts`）
+- 通过 `server/src/modules/tools/cloud/index.ts` 导出，由 `ToolsService` 自动发现与注册
 - 云元数据探测依赖运行在云实例内
 
 ## 使用示例
+
+```typescript
+// Agent 调用示例
+const result = await containerInfoTool.execute({});
+```
 
 ```
 用户: 检测当前是否在容器中运行

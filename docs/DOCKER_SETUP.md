@@ -14,15 +14,15 @@
 
 如果你的目标是稳定运行后端，请优先使用：
 
-- `uv run secbot --backend`
-- `python -m router.main`
+- `npm start`（一键启动）
+- `node server/dist/main.js`（生产模式）
 - systemd / supervisor / pm2 等宿主机进程管理方案
 
 具体见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
 ## SQLite 说明
 
-当前项目只依赖 **SQLite**，不需要额外启动：
+当前项目只依赖 **SQLite**（通过 better-sqlite3），不需要额外启动：
 
 - Redis
 - ChromaDB
@@ -39,11 +39,31 @@
 
 建议把容器化范围限制在**后端 API**，并显式配置：
 
-- Python 运行时
-- `uv sync` 安装依赖
+- Node.js 18+ 运行时（推荐使用 `node:18-alpine` 基础镜像）
+- `npm install` 安装依赖
+- `npm run build` 构建 TypeScript
 - `.env` 注入
-- `DATABASE_URL` 绝对路径
+- `DATABASE_PATH` 绝对路径
 - 挂载 SQLite 数据目录与日志目录
+
+参考 Dockerfile 示例：
+
+```dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY . .
+RUN npm run build
+
+EXPOSE 8000
+ENV PORT=8000
+
+CMD ["node", "server/dist/main.js"]
+```
 
 同时请注意：
 
@@ -52,4 +72,4 @@
 
 ## 文档边界
 
-为了避免误导，本文档不再提供未经验证的 `docker build`、`docker-compose up` 示例命令。若后续仓库重新引入并维护容器化产物，再补充正式说明。
+若后续仓库重新引入并维护容器化产物，再补充正式说明。

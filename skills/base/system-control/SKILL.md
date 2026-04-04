@@ -24,7 +24,7 @@ This skill provides a unified interface for system operations during security as
 
 #### list_files
 List files in a directory.
-```python
+```json
 {
     "action": "list_files",
     "path": "C:\\temp",
@@ -34,7 +34,7 @@ List files in a directory.
 
 #### read_file
 Read file contents.
-```python
+```json
 {
     "action": "read_file",
     "file_path": "C:\\notes\\info.txt"
@@ -43,7 +43,7 @@ Read file contents.
 
 #### write_file
 Write content to file.
-```python
+```json
 {
     "action": "write_file",
     "file_path": "C:\\output\\findings.txt",
@@ -53,7 +53,7 @@ Write content to file.
 
 #### create_directory
 Create new directory.
-```python
+```json
 {
     "action": "create_directory",
     "dir_path": "C:\\temp\\scan_results"
@@ -62,7 +62,7 @@ Create new directory.
 
 #### delete_file / delete_directory
 Delete files or directories.
-```python
+```json
 {
     "action": "delete_file",
     "file_path": "C:\\temp\\temp.txt"
@@ -71,7 +71,7 @@ Delete files or directories.
 
 #### copy_file / move_file
 Copy or move files.
-```python
+```json
 {
     "action": "copy_file",
     "src": "C:\\source\\file.txt",
@@ -81,7 +81,7 @@ Copy or move files.
 
 #### get_file_info
 Get file metadata.
-```python
+```json
 {
     "action": "get_file_info",
     "file_path": "C:\\Windows\\notepad.exe"
@@ -92,20 +92,22 @@ Get file metadata.
 
 #### list_processes
 List all running processes.
-```python
+```json
 {
     "action": "list_processes"
 }
-# Optional: filter by name
+```
+Optional: filter by name
+```json
 {
     "action": "list_processes",
-    "filter_name": "python"
+    "filter_name": "svchost"
 }
 ```
 
 #### get_process_info
 Get detailed process information.
-```python
+```json
 {
     "action": "get_process_info",
     "pid": 1234
@@ -114,7 +116,7 @@ Get detailed process information.
 
 #### kill_process
 Terminate a process.
-```python
+```json
 {
     "action": "kill_process",
     "pid": 1234
@@ -125,7 +127,7 @@ Terminate a process.
 
 #### get_cpu_info
 Get CPU details.
-```python
+```json
 {
     "action": "get_cpu_info"
 }
@@ -133,7 +135,7 @@ Get CPU details.
 
 #### get_memory_info
 Get memory usage.
-```python
+```json
 {
     "action": "get_memory_info"
 }
@@ -141,7 +143,7 @@ Get memory usage.
 
 #### get_disk_info
 Get disk partition information.
-```python
+```json
 {
     "action": "get_disk_info"
 }
@@ -149,7 +151,7 @@ Get disk partition information.
 
 #### get_network_info
 Get network interface details.
-```python
+```json
 {
     "action": "get_network_info"
 }
@@ -159,7 +161,7 @@ Get network interface details.
 
 #### execute_command
 Execute system commands.
-```python
+```json
 {
     "action": "execute_command",
     "command": "ipconfig /all",
@@ -172,7 +174,7 @@ Execute system commands.
 
 #### get_env
 Get specific environment variable.
-```python
+```json
 {
     "action": "get_env",
     "key": "PATH"
@@ -181,7 +183,7 @@ Get specific environment variable.
 
 #### set_env
 Set environment variable.
-```python
+```json
 {
     "action": "set_env",
     "key": "TEST_VAR",
@@ -191,7 +193,7 @@ Set environment variable.
 
 #### list_env
 List all environment variables.
-```python
+```json
 {
     "action": "list_env"
 }
@@ -201,7 +203,7 @@ List all environment variables.
 
 #### get_current_directory
 Get current working directory.
-```python
+```json
 {
     "action": "get_current_directory"
 }
@@ -209,7 +211,7 @@ Get current working directory.
 
 #### change_directory
 Change working directory.
-```python
+```json
 {
     "action": "change_directory",
     "path": "C:\\temp"
@@ -218,7 +220,7 @@ Change working directory.
 
 #### path_exists
 Check if path exists.
-```python
+```json
 {
     "action": "path_exists",
     "path": "C:\\Windows"
@@ -228,158 +230,91 @@ Check if path exists.
 ## Security Testing Workflows
 
 ### Initial Reconnaissance
-```python
-# 1. System overview
-action="get_system_info"
-action="get_cpu_info"
-action="get_memory_info"
-
-# 2. Network configuration
-action="get_network_info"
-
-# 3. Disk overview
-action="get_disk_info"
-
-# 4. Current location
-action="get_current_directory"
+```json
+[
+    { "action": "get_system_info" },
+    { "action": "get_cpu_info" },
+    { "action": "get_memory_info" },
+    { "action": "get_network_info" },
+    { "action": "get_disk_info" },
+    { "action": "get_current_directory" }
+]
 ```
 
 ### Process Analysis
-```python
-# List all processes
-action="list_processes"
-
-# Find suspicious processes
-action="list_processes"
-filter_name="svchost"  # Check for anomalies
-
-# Investigate specific process
-action="get_process_info"
-pid=<suspicious_pid>
-
-# Terminate if needed (malware)
-action="kill_process"
-pid=<malware_pid>
+```json
+[
+    { "action": "list_processes" },
+    { "action": "list_processes", "filter_name": "svchost" },
+    { "action": "get_process_info", "pid": "<suspicious_pid>" },
+    { "action": "kill_process", "pid": "<malware_pid>" }
+]
 ```
 
 ### File System Exploration
-```python
-# List user directories
-action="list_files"
-path="C:\\Users"
-recursive=false
-
-# Find interesting files
-action="list_files"
-path="C:\\"
-recursive=false  # Use carefully
-
-# Read configuration
-action="read_file"
-file_path="C:\\Windows\\System32\\drivers\\etc\\hosts"
-
-# Document findings
-action="write_file"
-file_path="C:\\temp\\findings.txt"
-content="Scan results..."
+```json
+[
+    { "action": "list_files", "path": "C:\\Users", "recursive": false },
+    { "action": "list_files", "path": "C:\\", "recursive": false },
+    { "action": "read_file", "file_path": "C:\\Windows\\System32\\drivers\\etc\\hosts" },
+    { "action": "write_file", "file_path": "C:\\temp\\findings.txt", "content": "Scan results..." }
+]
 ```
 
 ### Network Investigation
-```python
-# Get network interfaces
-action="get_network_info"
-
-# Execute network commands
-action="execute_command"
-command="netstat -ano"
-
-action="execute_command"
-command="arp -a"
-
-action="execute_command"
-command="ipconfig /all"
+```json
+[
+    { "action": "get_network_info" },
+    { "action": "execute_command", "command": "netstat -ano" },
+    { "action": "execute_command", "command": "arp -a" },
+    { "action": "execute_command", "command": "ipconfig /all" }
+]
 ```
 
 ### Privilege Escalation
-```python
-# Check current user
-action="execute_command"
-command="whoami /all"  # Windows
-
-action="execute_command"
-command="id"  # Linux
-
-# Check for admin access
-action="execute_command"
-command="net localgroup Administrators"
-
-# Service permissions
-action="execute_command"
-command="sc query"  # Windows
+```json
+[
+    { "action": "execute_command", "command": "whoami /all" },
+    { "action": "execute_command", "command": "id" },
+    { "action": "execute_command", "command": "net localgroup Administrators" },
+    { "action": "execute_command", "command": "sc query" }
+]
 ```
 
 ## Action Combinations for Complex Tasks
 
 ### 1. Comprehensive System Audit
-```python
-# Step 1: Basic info
-action="get_system_info"
-
-# Step 2: Processes
-action="list_processes"
-
-# Step 3: Network
-action="get_network_info"
-
-# Step 4: Disk
-action="get_disk_info"
-
-# Step 5: Environment
-action="list_env"
+```json
+[
+    { "action": "get_system_info" },
+    { "action": "list_processes" },
+    { "action": "get_network_info" },
+    { "action": "get_disk_info" },
+    { "action": "list_env" }
+]
 ```
 
 ### 2. Malware Investigation
-```python
-# Step 1: Find suspicious processes
-action="list_processes"
-filter_name="exe_name"
-
-# Step 2: Get process details
-action="get_process_info"
-pid=1234
-
-# Step 3: Check file location
-action="get_file_info"
-file_path="C:\\path\\to\\malware.exe"
-
-# Step 4: Document
-action="write_file"
-file_path="C:\\temp\\malware_analysis.txt"
-content="Analysis results..."
-
-# Step 5: Isolate/quarantine
-action="kill_process"
-pid=1234
+```json
+[
+    { "action": "list_processes", "filter_name": "exe_name" },
+    { "action": "get_process_info", "pid": 1234 },
+    { "action": "get_file_info", "file_path": "C:\\path\\to\\malware.exe" },
+    { "action": "write_file", "file_path": "C:\\temp\\malware_analysis.txt", "content": "Analysis results..." },
+    { "action": "kill_process", "pid": 1234 }
+]
 ```
 
 ### 3. Post-Exploitation Documentation
-```python
-# Step 1: System info
-action="get_system_info"
-action="get_cpu_info"
-action="get_memory_info"
-
-# Step 2: Network
-action="get_network_info"
-
-# Step 3: User context
-action="execute_command"
-command="whoami /all"
-
-# Step 4: Save report
-action="write_file"
-file_path="C:\\temp\\assessment_report.txt"
-content="Report content..."
+```json
+[
+    { "action": "get_system_info" },
+    { "action": "get_cpu_info" },
+    { "action": "get_memory_info" },
+    { "action": "get_network_info" },
+    { "action": "execute_command", "command": "whoami /all" },
+    { "action": "write_file", "file_path": "C:\\temp\\assessment_report.txt", "content": "Report content..." }
+]
 ```
 
 ## Best Practices
@@ -399,11 +334,18 @@ content="Report content..."
    - Log all operations for audit trail
 
 4. **Error Handling**
-   ```python
-   if result["success"]:
-       process(result["result"])
-   else:
-       handle_error(result.get("error"))
+   ```json
+   {
+       "success": true,
+       "result": "<operation result>"
+   }
+   ```
+   Or on failure:
+   ```json
+   {
+       "success": false,
+       "error": "error message"
+   }
    ```
 
 ## Common Error Codes
@@ -419,7 +361,7 @@ content="Report content..."
 ## Nested Parameters
 
 Some actions accept additional parameters in a `kwargs` object:
-```python
+```json
 {
     "action": "list_files",
     "kwargs": {

@@ -2,7 +2,7 @@
 
 ## 概述
 
-M-Bot 使用 SQLite 作为轻量级数据库，用于持久化存储以下信息：
+Secbot 使用 SQLite 作为轻量级数据库，通过 `better-sqlite3` 驱动进行数据访问，用于持久化存储以下信息：
 
 - **对话历史**：所有智能体的对话记录
 - **提示词链**：用户创建的提示词链配置
@@ -11,9 +11,23 @@ M-Bot 使用 SQLite 作为轻量级数据库，用于持久化存储以下信息
 
 ## 数据库位置
 
-数据库文件默认存储在：`data/m_bot.db`
+数据库文件默认存储在：`data/secbot.db`
 
-可以通过环境变量或配置修改数据库路径。
+可以通过环境变量 `DATABASE_PATH` 修改数据库路径。
+
+## 技术架构
+
+数据库模块位于 `server/src/modules/database/`，采用 NestJS 模块化设计：
+
+```text
+server/src/modules/database/
+├── database.module.ts      # DatabaseModule 模块定义
+├── database.service.ts     # DatabaseService 服务层
+└── dto/                    # 数据传输对象
+```
+
+- **DatabaseModule**：NestJS 模块，通过依赖注入提供 `DatabaseService`
+- **DatabaseService**：封装 `better-sqlite3` 操作，提供类型安全的数据库访问接口
 
 ## 数据表结构
 
@@ -65,15 +79,15 @@ M-Bot 使用 SQLite 作为轻量级数据库，用于持久化存储以下信息
 | updated_at | DATETIME | 更新时间 |
 | metadata | TEXT | 元数据（JSON） |
 
-## CLI 命令
+## API 接口
 
 ### 查看数据库统计
 
-```bash
-python main.py db-stats
+```text
+GET /api/db/stats
 ```
 
-显示：
+返回：
 - 对话记录数
 - 提示词链数
 - 用户配置数
@@ -82,82 +96,82 @@ python main.py db-stats
 
 ### 查看对话历史
 
-```bash
-# 查看最近的10条对话
-python main.py db-history
-
-# 查看指定数量的对话
-python main.py db-history --limit 20
-
-# 查看特定智能体的对话
-python main.py db-history --agent simple
-
-# 查看特定会话的对话
-python main.py db-history --session <session_id>
+```text
+GET /api/db/history?limit=10&agent=simple&session=<session_id>
 ```
+
+参数：
+- `limit`：返回条数（默认 10）
+- `agent`：按智能体类型过滤
+- `session`：按会话 ID 过滤
 
 ### 清空对话历史
 
-```bash
-# 清空所有对话（需要确认）
-python main.py db-clear --yes
-
-# 清空特定智能体的对话
-python main.py db-clear --agent simple --yes
-
-# 清空特定会话的对话
-python main.py db-clear --session <session_id> --yes
+```text
+DELETE /api/db/history?agent=simple&session=<session_id>
 ```
+
+参数：
+- `agent`：清空特定智能体的对话（可选）
+- `session`：清空特定会话的对话（可选）
+- 不带参数则清空全部
 
 ## 自动保存
 
 系统会自动保存以下信息：
 
 1. **对话历史**：每次智能体处理用户消息后，自动保存到数据库
-2. **提示词链**：使用 `prompt-create` 创建提示词链时，自动保存到数据库
+2. **提示词链**：使用提示词链创建功能时，自动保存到数据库
 3. **爬虫任务**：执行爬虫任务时，自动记录到数据库
 
 ## 编程接口
 
-### 使用 DatabaseManager
+### 使用 DatabaseService
 
-```python
-from database.manager import DatabaseManager
-from database.models import Conversation
+```typescript
+import { Injectable } from '@nestjs/common';
+import { DatabaseService } from '../database/database.service';
 
-# 初始化数据库管理器
-db = DatabaseManager()
+@Injectable()
+export class MyService {
+  constructor(private readonly db: DatabaseService) {}
 
-# 保存对话
-conversation = Conversation(
-    agent_type="simple",
-    user_message="你好",
-    assistant_message="你好！有什么可以帮助你的吗？"
-)
-db.save_conversation(conversation)
+  async saveConversation() {
+    this.db.run(
+      `INSERT INTO conversations (agent_type, user_message, assistant_message, session_id, timestamp)
+       VALUES (?, ?, ?, ?, datetime('now'))`,
+      ['simple', '你好', '你好！有什么可以帮助你的吗？', 'session-123']
+    );
+  }
 
-# 获取对话历史
-conversations = db.get_conversations(agent_type="simple", limit=10)
+  getConversations(agentType: string, limit: number = 10) {
+    return this.db.all(
+      'SELECT * FROM conversations WHERE agent_type = ? ORDER BY timestamp DESC LIMIT ?',
+      [agentType, limit]
+    );
+  }
 
-# 获取统计信息
-stats = db.get_stats()
+  getStats() {
+    const conversations = this.db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM conversations'
+    );
+    return { conversations: conversations?.count ?? 0 };
+  }
+}
 ```
 
-### 使用 DatabaseMemory
+### 在模块中注入
 
-```python
-from database.manager import DatabaseManager
-from core.memory.database_memory import DatabaseMemory
+```typescript
+import { Module } from '@nestjs/common';
+import { DatabaseModule } from '../database/database.module';
+import { MyService } from './my.service';
 
-# 创建数据库记忆
-db = DatabaseManager()
-memory = DatabaseMemory(db, agent_type="simple", session_id="session-123")
-
-# 保存对话
-await memory.save_conversation("用户消息", "助手回复")
-
-# 获取历史
-messages = await memory.get(limit=10)
+@Module({
+  imports: [DatabaseModule],
+  providers: [MyService],
+})
+export class MyModule {}
 ```
 
 ## 数据备份
@@ -166,35 +180,34 @@ SQLite 数据库是单个文件，备份非常简单：
 
 ```bash
 # 备份数据库
-cp data/m_bot.db data/m_bot.db.backup
+cp data/secbot.db data/secbot.db.backup
 
 # 恢复数据库
-cp data/m_bot.db.backup data/m_bot.db
+cp data/secbot.db.backup data/secbot.db
 ```
 
 ## 数据清理
 
-### 清理旧对话
+### 通过 API 清理
 
-可以通过编程方式清理指定日期之前的对话：
+```bash
+# 清空全部对话历史
+curl -X DELETE http://localhost:8000/api/db/history
 
-```python
-from datetime import datetime, timedelta
-from database.manager import DatabaseManager
+# 清空特定智能体的对话
+curl -X DELETE http://localhost:8000/api/db/history?agent=simple
 
-db = DatabaseManager()
-
-# 删除30天前的对话
-cutoff_date = datetime.now() - timedelta(days=30)
-count = db.delete_conversations(before_date=cutoff_date)
-print(f"删除了 {count} 条对话记录")
+# 清空特定会话的对话
+curl -X DELETE http://localhost:8000/api/db/history?session=session-123
 ```
 
-### 清理特定会话
+### 通过代码清理
 
-```python
-# 删除特定会话的所有对话
-count = db.delete_conversations(session_id="session-123")
+```typescript
+import { DatabaseService } from '../database/database.service';
+
+// 在 Service 中注入 DatabaseService 后使用
+this.db.run('DELETE FROM conversations WHERE timestamp < datetime("now", "-30 days")');
 ```
 
 ## 性能优化
@@ -209,4 +222,3 @@ count = db.delete_conversations(session_id="session-123")
 2. 数据库文件会随着使用增长，建议定期备份
 3. 删除操作不可恢复，请谨慎使用
 4. 大量数据时，考虑使用 `limit` 参数限制查询结果
-
