@@ -1,7 +1,7 @@
 {
   "name": "secbot-terminal-ui",
   "version": "1.0.0",
-  "description": "TypeScript terminal TUI for Secbot (Ink), connects to Python backend via HTTP/SSE",
+  "description": "TypeScript terminal TUI for Secbot (Ink), connects to NestJS backend via HTTP/SSE",
   "private": true,
   "type": "module",
   "main": "dist/cli.js",
