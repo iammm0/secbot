@@ -20,7 +20,7 @@ export class SystemInfoResponseDto {
   processor!: string;
 
   @IsString()
-  pythonVersion!: string;
+  nodeVersion!: string;
 
   @IsString()
   hostname!: string;

@@ -316,7 +316,7 @@ export default function App() {
         const info = await fetchJson<SystemInfoResponse>("/api/system/info");
         if (!cancelled) {
           setBackendOk(true);
-          setHostInfo(`${info.hostname} · ${info.python_version}`);
+          setHostInfo(`${info.hostname} · ${info.node_version}`);
         }
       } catch {
         if (!cancelled) {
