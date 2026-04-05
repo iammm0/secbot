@@ -1,7 +1,7 @@
 /**
  * 多会话选择 — /sessions 弹出，↑↓ 选择，Enter 切换
  */
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { useDialog } from "../contexts/DialogContext.js";
 import { useTheme } from "../contexts/ThemeContext.js";
@@ -25,28 +25,33 @@ export function SessionSelectDialog({
     return idx >= 0 ? idx : 0;
   });
 
-  useInput((_input, key) => {
-    if (key.escape) {
-      pop();
-      return;
-    }
-    if (key.upArrow) {
-      setSelectedIndex((i) => Math.max(0, i - 1));
-      return;
-    }
-    if (key.downArrow) {
-      setSelectedIndex((i) => Math.min(sessions.length - 1, i + 1));
-      return;
-    }
-    if (key.return) {
-      const sel = sessions[selectedIndex];
-      if (sel) {
-        onSelect(sel.id);
-        toast.show({ message: `已切换到：${sel.label}`, variant: "success" });
+  const handleInput = useCallback(
+    (_input: string, key: { escape?: boolean; upArrow?: boolean; downArrow?: boolean; return?: boolean }) => {
+      if (key.escape) {
         pop();
+        return;
       }
-    }
-  });
+      if (key.upArrow) {
+        setSelectedIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setSelectedIndex((i) => Math.min(sessions.length - 1, i + 1));
+        return;
+      }
+      if (key.return) {
+        const sel = sessions[selectedIndex];
+        if (sel) {
+          onSelect(sel.id);
+          toast.show({ message: `已切换到：${sel.label}`, variant: "success" });
+          pop();
+        }
+      }
+    },
+    [onSelect, pop, selectedIndex, sessions, toast],
+  );
+
+  useInput(handleInput);
 
   if (sessions.length === 0) {
     return (

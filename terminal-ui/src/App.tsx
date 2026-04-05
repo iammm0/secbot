@@ -247,6 +247,11 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
     const hasOpenDialog = dialog.stack.length > 0;
+    // 有弹窗时在本层统一关顶层（避免子组件 useInput 在部分终端/重渲染下未收到 Esc）
+    if (hasOpenDialog && key.escape) {
+      dialog.pop();
+      return;
+    }
     if (keybind.match('exit', evt)) {
       if (hasOpenDialog) {
         dialog.clear();
