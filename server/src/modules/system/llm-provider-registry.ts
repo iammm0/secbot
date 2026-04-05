@@ -280,3 +280,19 @@ const REGISTRY_BY_ID = new Map(LLM_PROVIDER_REGISTRY.map((e) => [e.id, e]));
 export function getDefaultOpenAICompatBaseUrl(providerId: string): string | undefined {
   return REGISTRY_BY_ID.get(providerId.toLowerCase())?.defaultOpenAICompatBaseUrl;
 }
+
+/** 当未设置 LLM_API_KEY 时，回退读取各厂商文档中的标准环境变量 */
+export function getEnvBackedApiKey(providerId: string): string {
+  const entry = REGISTRY_BY_ID.get(providerId.toLowerCase());
+  const envName = entry?.apiKeyEnv;
+  if (!envName) return '';
+  return (process.env[envName] ?? '').trim();
+}
+
+/** 当未设置 LLM_BASE_URL 时，回退读取各厂商的 Base URL 环境变量 */
+export function getEnvBackedBaseUrl(providerId: string): string {
+  const entry = REGISTRY_BY_ID.get(providerId.toLowerCase());
+  const envName = entry?.baseUrlEnv;
+  if (!envName) return '';
+  return (process.env[envName] ?? '').trim();
+}
