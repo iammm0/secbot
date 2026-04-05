@@ -11,7 +11,11 @@ import React from "react";
 import { createSimpleContext } from "./helper.js";
 import { useChat } from "../useChat.js";
 import type { StreamState } from "../types.js";
-import type { PendingRootRequest, HistoryItem } from "../useChat.js";
+import type {
+  PendingRootRequest,
+  HistoryItem,
+  SessionListEntry,
+} from "../useChat.js";
 
 export interface SyncContextValue {
   streaming: boolean;
@@ -30,6 +34,10 @@ export interface SyncContextValue {
   >;
   sendMessage: (message: string, mode: "ask" | "agent", agent: string) => void;
   setRESTOutput: (text: string | null) => void;
+  activeSessionId: string;
+  sessionList: SessionListEntry[];
+  switchSession: (sessionId: string) => void;
+  newSession: () => void;
 }
 
 const { Context, use: useSync } = createSimpleContext<SyncContextValue>("Sync");
@@ -50,6 +58,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setPendingRootRequest: value.setPendingRootRequest,
         sendMessage: value.sendMessage,
         setRESTOutput: value.setRESTOutput,
+        activeSessionId: value.activeSessionId,
+        sessionList: value.sessionList,
+        switchSession: value.switchSession,
+        newSession: value.newSession,
       }}
     >
       {children}

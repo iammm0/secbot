@@ -31,15 +31,18 @@ import { ModelConfigDialog } from "../components/ModelConfigDialog.js";
 import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
+import { SessionSelectDialog } from "../components/SessionSelectDialog.js";
 
 /** 底部状态栏：SECBOT 固定绿色，无定时器，避免全屏下周期性重绘底部区域 */
 function SessionStatusBar({
   mode,
   agent,
+  sessionLabel,
   theme,
 }: {
   mode: string;
   agent: string;
+  sessionLabel: string;
   theme: Pick<ThemeColors, "textMuted" | "success">;
 }) {
   return (
@@ -58,7 +61,7 @@ function SessionStatusBar({
         </Text>
         <Text color={theme.textMuted}>
           {" "}
-          · {mode} · {agent}
+          · {sessionLabel} · {mode} · {agent}
         </Text>
       </Text>
     </Box>
@@ -106,8 +109,16 @@ export function SessionView({
     setPendingRootRequest,
     sendMessage,
     setRESTOutput,
+    sessionList,
+    switchSession,
+    newSession,
   } = sync;
   const { mode, agent, setMode, setAgent } = local;
+
+  const activeSessionLabel = useMemo(() => {
+    const hit = sessionList.find((s) => s.isActive);
+    return hit?.label ?? "会话";
+  }, [sessionList]);
 
   const blocks = useMemo(
     () =>
@@ -298,9 +309,45 @@ export function SessionView({
           close();
         },
       }),
+      register({
+        title: "新建空白会话",
+        value: "/new-session",
+        category: "会话",
+        slash: "/new-session",
+        onSelect: ({ close }) => {
+          newSession();
+          toast.show({ message: "已新建空白会话", variant: "success" });
+          close();
+        },
+      }),
+      register({
+        title: "切换会话",
+        value: "/sessions",
+        category: "会话",
+        slash: "/sessions",
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <SessionSelectDialog
+              sessions={sessionList}
+              onSelect={(id) => switchSession(id)}
+            />,
+          );
+        },
+      }),
     ];
     return () => unregs.forEach((u) => u());
-  }, [register, maxScroll, scrollableHeight, scrollToNextBlock]);
+  }, [
+    register,
+    maxScroll,
+    scrollableHeight,
+    scrollToNextBlock,
+    newSession,
+    switchSession,
+    sessionList,
+    dialog,
+    toast,
+  ]);
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
@@ -577,7 +624,12 @@ export function SessionView({
       </Box>
 
       {/* 底部状态栏 — SECBOT（固定绿色）· mode · agent */}
-      <SessionStatusBar mode={mode} agent={agent} theme={theme} />
+      <SessionStatusBar
+        mode={mode}
+        agent={agent}
+        sessionLabel={activeSessionLabel}
+        theme={theme}
+      />
 
       {/* 统计与快捷键 — 置于最底部 */}
       <Box

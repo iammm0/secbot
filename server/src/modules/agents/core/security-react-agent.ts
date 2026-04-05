@@ -4,6 +4,8 @@ import { EventBus, EventType, BusEvent } from '../../../common/event-bus';
 import { ChatMessage } from '../../../common/types';
 import { LLMProvider, createLLM, LLMConfig } from '../../../common/llm';
 import { TodoItem } from '../../../common/types';
+import { validateToolInvocation } from './tool-action-validate';
+import { formatExecuteCommandObservation } from './observation-format';
 
 interface ReActStep {
   type: 'thought' | 'action' | 'observation';
@@ -127,8 +129,33 @@ export class SecurityReActAgent extends BaseAgent {
         iteration,
       });
 
+      const paramErr = validateToolInvocation(action.tool, action.params);
+      if (paramErr) {
+        const observation = `[参数错误] ${paramErr}`;
+        this._reactHistory.push({
+          type: 'observation',
+          content: observation,
+          iteration,
+        });
+        onEvent?.({
+          type: EventType.EXEC_RESULT,
+          data: {
+            agent: this.name,
+            iteration,
+            tool: action.tool,
+            success: false,
+            observation,
+          },
+          timestamp: new Date(),
+          iteration,
+        });
+        messages.push({ role: 'assistant', content: thought });
+        messages.push({ role: 'user', content: `Observation: ${observation}` });
+        continue;
+      }
+
       const result = await this.executeTool(action.tool, action.params);
-      const observation = this.formatObservation(result);
+      const observation = this.formatObservation(result, action.tool);
 
       this._reactHistory.push({
         type: 'observation',
@@ -177,13 +204,24 @@ export class SecurityReActAgent extends BaseAgent {
     }
 
     try {
-      const parsed = JSON.parse(actionMatch[1]);
-      if (typeof parsed.tool === 'string' && parsed.params !== undefined) {
-        return {
-          tool: parsed.tool,
-          params: parsed.params as Record<string, unknown>,
-        };
+      const parsed = JSON.parse(actionMatch[1]) as {
+        tool?: string;
+        params?: Record<string, unknown>;
+      };
+      if (typeof parsed.tool !== 'string') {
+        return null;
       }
+      let params: Record<string, unknown> =
+        parsed.params !== undefined && parsed.params !== null
+          ? (parsed.params as Record<string, unknown>)
+          : {};
+      if (typeof params !== 'object' || Array.isArray(params)) {
+        return null;
+      }
+      return {
+        tool: parsed.tool.trim(),
+        params,
+      };
     } catch {
       /* malformed JSON — treat as no action */
     }
@@ -212,9 +250,24 @@ export class SecurityReActAgent extends BaseAgent {
     }
   }
 
-  formatObservation(result: ToolResult): string {
+  formatObservation(result: ToolResult, toolName?: string): string {
     if (!result.success) {
+      if (
+        toolName === 'execute_command' &&
+        result.result &&
+        typeof result.result === 'object' &&
+        !Array.isArray(result.result)
+      ) {
+        const cmd = String((result.result as Record<string, unknown>).command ?? '');
+        if (cmd) {
+          return `[错误] 命令: ${cmd}\n${result.error ?? '未知错误'}`;
+        }
+      }
       return `[错误] ${result.error ?? '未知错误'}`;
+    }
+
+    if (toolName === 'execute_command' && result.result && typeof result.result === 'object') {
+      return formatExecuteCommandObservation(result.result as Record<string, unknown>);
     }
 
     if (typeof result.result === 'string') {
@@ -243,7 +296,9 @@ export class SecurityReActAgent extends BaseAgent {
       `可用工具:\n${this.getToolsDescription()}\n\n` +
       `请使用以下格式回答:\n` +
       `Thought: 分析该子任务需要使用的工具和参数\n` +
-      `Action: {"tool": "工具名称", "params": {"参数名": "参数值"}}`;
+      `Action: {"tool": "工具名称", "params": {"参数名": "参数值"}}\n` +
+      `（禁止省略 params 或留空对象，除非工具为 system_info / network_analyze；` +
+      `execute_command 必须提供 command。）`;
 
     const messages: ChatMessage[] = [
       { role: 'system', content: this.buildSystemMessage() },
@@ -284,6 +339,24 @@ export class SecurityReActAgent extends BaseAgent {
       iteration: 0,
     });
 
+    const paramErr = validateToolInvocation(action.tool, action.params);
+    if (paramErr) {
+      const observation = `[参数错误] ${paramErr}`;
+      onEvent?.({
+        type: EventType.EXEC_RESULT,
+        data: {
+          agent: this.name,
+          todoId: todo.id,
+          tool: action.tool,
+          success: false,
+          observation,
+        },
+        timestamp: new Date(),
+        iteration: 0,
+      });
+      return { todoId: todo.id, success: false, error: paramErr };
+    }
+
     const result = await this.executeTool(action.tool, action.params);
 
     onEvent?.({
@@ -293,7 +366,7 @@ export class SecurityReActAgent extends BaseAgent {
         todoId: todo.id,
         tool: action.tool,
         success: result.success,
-        observation: this.formatObservation(result),
+        observation: this.formatObservation(result, action.tool),
       },
       timestamp: new Date(),
       iteration: 0,
@@ -322,7 +395,10 @@ export class SecurityReActAgent extends BaseAgent {
       `回答格式:\n` +
       `当你需要使用工具时:\n` +
       `Thought: 我需要...\n` +
-      `Action: {"tool": "tool_name", "params": {"key": "value"}}\n\n` +
+      `Action: {"tool": "tool_name", "params": {"key": "value"}}\n` +
+      `（params 必须是含至少一个有效字段的对象；` +
+      `execute_command 必须含非空字符串 "command"；` +
+      `仅 system_info / network_analyze 允许无参或空对象。）\n\n` +
       `当你已经得出最终答案时:\n` +
       `Thought: 我已经获得了足够的信息。\n` +
       `Final Answer: 你的最终回答内容`

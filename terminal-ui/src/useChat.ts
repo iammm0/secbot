@@ -11,7 +11,7 @@
  *  4. Typewriter 效果：response 事件到达后，以 ~50 字符/帧（@16ms）逐步揭示，
  *     即便后端一次性返回全文，TUI 也能呈现流式打字感。
  */
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { connectSSE } from "./sse.js";
 import { TRANSIENT_TOOLS } from "./streamConstants.js";
 import { buildObservationBody } from "./toolObservation.js";
@@ -46,6 +46,68 @@ function resetStreamState(): StreamState {
     actions: [],
     timeline: [],
   };
+}
+
+// ─── 多会话快照 ────────────────────────────────────────────────────────────────
+
+interface ChatSessionSnapshot {
+  history: HistoryItem[];
+  streamState: StreamState;
+  currentUserMessage: string;
+  currentSentAt: number;
+  currentCompletedAt: number;
+  apiOutput: string | null;
+}
+
+function cloneStreamState(s: StreamState): StreamState {
+  return {
+    ...s,
+    thoughtChunks: new Map(s.thoughtChunks),
+    actions: s.actions.map((a) => ({ ...a })),
+    timeline: s.timeline.map((t) => ({
+      ...t,
+      ...(t.todos
+        ? { todos: t.todos.map((x) => ({ ...x })) }
+        : {}),
+    })),
+    planning: s.planning
+      ? {
+          ...s.planning,
+          todos: s.planning.todos.map((x) => ({ ...x })),
+        }
+      : null,
+  };
+}
+
+function cloneHistory(items: HistoryItem[]): HistoryItem[] {
+  return items.map((h) => ({
+    ...h,
+    streamState: cloneStreamState(h.streamState),
+  }));
+}
+
+function takeSnapshot(
+  history: HistoryItem[],
+  streamState: StreamState,
+  currentUserMessage: string,
+  currentSentAt: number,
+  currentCompletedAt: number,
+  apiOutput: string | null,
+): ChatSessionSnapshot {
+  return {
+    history: cloneHistory(history),
+    streamState: cloneStreamState(streamState),
+    currentUserMessage,
+    currentSentAt,
+    currentCompletedAt,
+    apiOutput,
+  };
+}
+
+export interface SessionListEntry {
+  id: string;
+  label: string;
+  isActive: boolean;
 }
 
 // ─── 类型 ──────────────────────────────────────────────────────────────────────
@@ -104,9 +166,44 @@ export function useChat() {
   /** 按 step_key（子任务 todo / ReAct 轮次）关联推理时间线项，避免并行子任务共用 iteration 时串台 */
   const activeThoughtIdByStepRef = useRef<Map<string, string>>(new Map());
 
+  /** 多会话（客户端隔离对话上下文） */
+  const activeSessionIdRef = useRef<string>("default");
+  const sessionOrderRef = useRef<string[]>(["default"]);
+  const bucketsRef = useRef<Map<string, ChatSessionSnapshot>>(new Map());
+  const sessionLabelsRef = useRef<Map<string, string>>(
+    new Map([["default", "默认会话"]]),
+  );
+  const historyRef = useRef<HistoryItem[]>([]);
+  const currentUserSnapRef = useRef<string>("");
+  const currentCompletedAtSnapRef = useRef<number>(0);
+  const apiOutputSnapRef = useRef<string | null>(null);
+
+  const [activeSessionId, setActiveSessionId] = useState("default");
+  const [sessionListVersion, setSessionListVersion] = useState(0);
+
   useEffect(() => {
     streamStateRef.current = streamState;
   }, [streamState]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  useEffect(() => {
+    currentUserSnapRef.current = currentUserMessage;
+  }, [currentUserMessage]);
+
+  useEffect(() => {
+    currentCompletedAtSnapRef.current = currentCompletedAt;
+  }, [currentCompletedAt]);
+
+  useEffect(() => {
+    apiOutputSnapRef.current = apiOutput;
+  }, [apiOutput]);
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   // ── 辅助 ─────────────────────────────────────────────────────────────────────
 
@@ -188,6 +285,99 @@ export function useChat() {
     [clearTypewriter, upsertTimelineItem],
   );
 
+  const switchSession = useCallback(
+    (sessionId: string) => {
+      if (sessionId === activeSessionIdRef.current) return;
+      abortRef.current?.abort();
+      clearTypewriter();
+      setStreaming(false);
+
+      bucketsRef.current.set(
+        activeSessionIdRef.current,
+        takeSnapshot(
+          historyRef.current,
+          streamStateRef.current,
+          currentUserSnapRef.current,
+          currentSentAtRef.current,
+          currentCompletedAtSnapRef.current,
+          apiOutputSnapRef.current,
+        ),
+      );
+
+      activeSessionIdRef.current = sessionId;
+      setActiveSessionId(sessionId);
+
+      const next = bucketsRef.current.get(sessionId);
+      if (next) {
+        setHistory(next.history);
+        setStreamState(next.streamState);
+        setCurrentUserMessage(next.currentUserMessage);
+        setCurrentSentAt(next.currentSentAt);
+        setCurrentCompletedAt(next.currentCompletedAt);
+        setApiOutput(next.apiOutput);
+      } else {
+        setHistory([]);
+        setStreamState(resetStreamState());
+        setCurrentUserMessage("");
+        setCurrentSentAt(0);
+        setCurrentCompletedAt(0);
+        setApiOutput(null);
+      }
+      thoughtSeqRef.current = 0;
+      activeThoughtIdByStepRef.current = new Map();
+      currentUserMessageRef.current = "";
+      currentSentAtRef.current = 0;
+      completedAtRef.current = 0;
+    },
+    [clearTypewriter],
+  );
+
+  const newSession = useCallback(() => {
+    abortRef.current?.abort();
+    clearTypewriter();
+    setStreaming(false);
+
+    bucketsRef.current.set(
+      activeSessionIdRef.current,
+      takeSnapshot(
+        historyRef.current,
+        streamStateRef.current,
+        currentUserSnapRef.current,
+        currentSentAtRef.current,
+        currentCompletedAtSnapRef.current,
+        apiOutputSnapRef.current,
+      ),
+    );
+
+    const id = `s-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    sessionOrderRef.current = [...sessionOrderRef.current, id];
+    sessionLabelsRef.current.set(id, "新会话");
+    activeSessionIdRef.current = id;
+    setActiveSessionId(id);
+
+    setHistory([]);
+    setStreamState(resetStreamState());
+    setCurrentUserMessage("");
+    setCurrentSentAt(0);
+    setCurrentCompletedAt(0);
+    setApiOutput(null);
+    thoughtSeqRef.current = 0;
+    activeThoughtIdByStepRef.current = new Map();
+    currentUserMessageRef.current = "";
+    currentSentAtRef.current = 0;
+    completedAtRef.current = 0;
+    setSessionListVersion((v) => v + 1);
+  }, [clearTypewriter]);
+
+  const sessionList = useMemo((): SessionListEntry[] => {
+    void sessionListVersion;
+    return sessionOrderRef.current.map((id) => ({
+      id,
+      label: sessionLabelsRef.current.get(id) ?? id,
+      isActive: id === activeSessionId,
+    }));
+  }, [activeSessionId, sessionListVersion]);
+
   // ── 发送消息 ──────────────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(
@@ -195,6 +385,15 @@ export function useChat() {
       // 取消正在进行的请求与 typewriter
       abortRef.current?.abort();
       clearTypewriter();
+
+      const sid = activeSessionIdRef.current;
+      if (
+        sessionLabelsRef.current.get(sid) === "新会话" &&
+        message.trim().length > 0
+      ) {
+        sessionLabelsRef.current.set(sid, message.trim().slice(0, 48));
+        setSessionListVersion((v) => v + 1);
+      }
 
       // ── 将上一轮已完成的对话推入历史 ──────────────────────────────────────────
       // 使用 currentUserMessageRef（上一条用户消息）而不是 message（新消息），
@@ -383,14 +582,22 @@ export function useChat() {
                 break;
               }
 
-              case "action_start":
+              case "action_start": {
+                const tool = (data.tool as string) ?? "";
+                const params =
+                  (data.params as Record<string, unknown>) ?? {};
+                let body = "状态: 执行中";
+                if (tool === "execute_command") {
+                  const cmd = String(params.command ?? "").trim();
+                  if (cmd) body = `命令: ${cmd}\n${body}`;
+                }
                 setStreamState((s) => ({
                   ...s,
                   actions: [
                     ...s.actions,
                     {
-                      tool: (data.tool as string) ?? "",
-                      params: (data.params as Record<string, unknown>) ?? {},
+                      tool,
+                      params,
                       viewType: ((data.view_type as string) ?? "raw") as
                         | "raw"
                         | "summary",
@@ -399,16 +606,18 @@ export function useChat() {
                   timeline: [
                     ...s.timeline,
                     {
-                      id: `action-${s.actions.length}-${(data.tool as string) ?? "tool"}`,
+                      id: `action-${s.actions.length}-${tool || "tool"}`,
                       type: "action",
-                      title: `工具调用 · ${(data.tool as string) ?? "unknown"}`,
-                      body: `状态: 执行中`,
-                      tool: (data.tool as string) ?? "",
+                      title: `工具调用 · ${tool || "unknown"}`,
+                      body,
+                      tool,
+                      params,
                       status: "running",
                     },
                   ],
                 }));
                 break;
+              }
 
               case "action_result": {
                 const toolName = (data.tool as string) ?? "";
@@ -451,7 +660,14 @@ export function useChat() {
                   if (timelineIdx >= 0) {
                     const realIdx = timeline.length - 1 - timelineIdx;
                     const ok = Boolean(data.success);
-                    const line = `状态: ${ok ? "完成" : "失败"}${
+                    const prev = timeline[realIdx];
+                    const p = prev.params;
+                    let prefix = "";
+                    if (toolName === "execute_command" && p) {
+                      const cmd = String(p.command ?? "").trim();
+                      if (cmd) prefix = `命令: ${cmd}\n`;
+                    }
+                    const line = `${prefix}状态: ${ok ? "完成" : "失败"}${
                       data.error ? `\n错误: ${String(data.error)}` : ""
                     }`;
                     timeline[realIdx] = {
@@ -639,5 +855,9 @@ export function useChat() {
     sendMessage,
     stopStream,
     setRESTOutput,
+    activeSessionId,
+    sessionList,
+    switchSession,
+    newSession,
   };
 }
