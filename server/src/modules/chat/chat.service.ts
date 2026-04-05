@@ -2,21 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventBus, EventType, BusEvent } from '../../common/event-bus';
 import {
-  ChatMessage,
   RouteType,
   Session,
   createSession,
   addSessionMessage,
   MessageRole,
-  PlanResult,
   TodoItem,
-  createTodoItem,
-  TodoStatus,
-  markTodoInProgress,
-  markTodoCompleted,
   InteractionSummary,
 } from '../../common/types';
-import { createLLM, LLMProvider } from '../../common/llm';
 import { route, routeWithLLM } from '../agents/core/agent-router';
 import { QAAgent } from '../agents/core/qa-agent';
 import { PlannerAgent } from '../agents/core/planner-agent';
@@ -69,6 +62,26 @@ function buildStreamSummaryPayload(summary: InteractionSummary): {
       : '') ||
     '详情见上方「安全报告」。';
   return { report, response };
+}
+
+/** 推送规划块（可多次：首屏总规划 + 中途穿插规划），与终端时间线对齐 */
+function emitPlanningSse(
+  emit: (name: string, data: Record<string, unknown>) => void,
+  planSummary: string,
+  todos: TodoItem[],
+  scope: 'master' | 'adaptive',
+): void {
+  if (todos.length === 0) return;
+  emit('planning', {
+    content: planSummary,
+    summary: planSummary,
+    scope,
+    todos: todos.map((t) => ({
+      id: t.id,
+      content: t.content,
+      status: t.status,
+    })),
+  });
 }
 
 @Injectable()
@@ -140,14 +153,7 @@ export class ChatService {
     emit('phase', { phase: 'planning', detail: '正在分析任务...' });
     const planResult = await this.plannerAgent.plan(message);
     if (planResult.todos.length > 0) {
-      emit('planning', {
-        summary: planResult.planSummary,
-        todos: planResult.todos.map((t) => ({
-          id: t.id,
-          content: t.content,
-          status: t.status,
-        })),
-      });
+      emitPlanningSse(emit, planResult.planSummary, planResult.todos, 'master');
     }
 
     if (planResult.directResponse) {
@@ -196,23 +202,44 @@ export class ChatService {
       }
     };
 
+    let todosForSummary = [...planResult.todos];
+
     if (planResult.todos.length > 1) {
       const executor = new TaskExecutor(planResult, selectedAgent, this.eventBus);
-      await executor.run(message, onAgentEvent);
+      const firstRun = await executor.run(message, onAgentEvent);
+
+      /** 默认开启穿插规划；设置 SECBOT_ADAPTIVE_REPLAN=0 或 false 可关闭 */
+      const adaptiveOff =
+        process.env.SECBOT_ADAPTIVE_REPLAN === '0' ||
+        process.env.SECBOT_ADAPTIVE_REPLAN === 'false';
+
+      if (!adaptiveOff && firstRun.cancelledCount > 0) {
+        emit('phase', { phase: 'planning', detail: '穿插规划：根据未成功子任务补充方案…' });
+        const adaptivePrompt =
+          `${message}\n\n【穿插规划】上一阶段有 ${firstRun.cancelledCount} 个子任务未成功。请仅输出需要补充执行的新子任务 JSON 数组（新 id 建议 followup-1、followup-2）；若无须补充则输出 []。\n\n阶段摘要（节选）：\n${firstRun.summary.slice(0, 4000)}`;
+        const subPlan = await this.plannerAgent.plan(adaptivePrompt);
+        if (subPlan.todos.length > 0 && !subPlan.directResponse) {
+          emitPlanningSse(emit, subPlan.planSummary, subPlan.todos, 'adaptive');
+          todosForSummary = [...todosForSummary, ...subPlan.todos];
+          emit('phase', { phase: 'executing', detail: '执行穿插任务…' });
+          const followUpExecutor = new TaskExecutor(subPlan, selectedAgent, this.eventBus);
+          await followUpExecutor.run(message, onAgentEvent);
+        }
+      }
     } else {
       await selectedAgent.process(message, { onEvent: onAgentEvent });
     }
 
     emit('phase', { phase: 'summarizing', detail: '正在生成报告...' });
     const summary = await this.summaryAgent.summarizeInteraction(message, {
-      todos: planResult.todos,
+      todos: todosForSummary,
       thoughts: selectedAgent.reactHistory
         .filter((s) => s.type === 'thought')
         .map((s) => s.content),
       observations: selectedAgent.reactHistory
         .filter((s) => s.type === 'observation')
         .map((s) => s.content),
-      mode: planResult.todos.length <= 1 ? 'brief' : 'full',
+      mode: todosForSummary.length <= 1 ? 'brief' : 'full',
     });
 
     const streamPayload = buildStreamSummaryPayload(summary);

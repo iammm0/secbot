@@ -230,9 +230,11 @@ export function streamStateToBlocks(
     lineStart = lineEnd;
   }
 
-  // ── 规划 ─────────────────────────────────────────────────────────────────────
+  // ── 规划（兼容旧状态：仅当时间线中尚无规划块时，用顶层 planning 渲染一次）──
 
-  if (planning) {
+  const hasTimelinePlanning = timeline.some((x) => x.type === "planning");
+
+  if (planning && !hasTimelinePlanning) {
     const todos =
       planning.todos?.map((t) => ({ content: t.content, status: t.status })) ??
       [];
@@ -271,6 +273,39 @@ export function streamStateToBlocks(
 
     let timelineEmitted = 0;
     for (const item of nonFinal) {
+      if (item.type === "planning") {
+        if (timelineEmitted++ > 0) addVisualGap();
+        const todos =
+          item.todos?.map((t) => ({ content: t.content, status: t.status })) ??
+          [];
+        const planningText = (item.body || "").trim();
+        const hasPlanningText = planningText.length > 0;
+        const body = hasPlanningText
+          ? planningText
+          : todos.length === 0
+            ? "规划中…"
+            : "";
+        const planningLineCount =
+          1 +
+          (body ? Math.max(1, body.split("\n").length) : 0) +
+          todos.length;
+        const lineEnd = lineStart + planningLineCount;
+        const blockTitle =
+          item.title?.trim() ||
+          (item.planScope === "adaptive" ? "穿插规划" : "规划");
+        blocks.push({
+          id: item.id,
+          type: "planning",
+          title: blockTitle,
+          body,
+          lineStart,
+          lineEnd,
+          todos,
+        });
+        lineStart = lineEnd;
+        continue;
+      }
+
       if (item.type === "thought") {
         const extracted = extractThoughtOnly(item.body || "");
         const trimmed = extracted.trim();
