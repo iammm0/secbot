@@ -6,6 +6,10 @@ import { LLMProvider, createLLM, LLMConfig } from '../../../common/llm';
 import { TodoItem } from '../../../common/types';
 import { validateToolInvocation } from './tool-action-validate';
 import { formatExecuteCommandObservation } from './observation-format';
+import {
+  type ClientShellPayload,
+  formatClientShellContextBlock,
+} from './client-shell-context.js';
 
 interface ReActStep {
   type: 'thought' | 'action' | 'observation';
@@ -63,8 +67,9 @@ export class SecurityReActAgent extends BaseAgent {
     this._reactHistory = [];
     this.addMessage('user', userInput);
 
+    const clientShell = options?.client_shell as ClientShellPayload | undefined;
     const messages: ChatMessage[] = [
-      { role: 'system', content: this.buildSystemMessage() },
+      { role: 'system', content: this.buildSystemMessage(clientShell) },
       ...this.getConversationHistory().map(
         (m: AgentMessage): ChatMessage => ({
           role: m.role as ChatMessage['role'],
@@ -300,8 +305,9 @@ export class SecurityReActAgent extends BaseAgent {
       `（禁止省略 params 或留空对象，除非工具为 system_info / network_analyze；` +
       `execute_command 必须提供 command。）`;
 
+    const clientShell = options?.client_shell as ClientShellPayload | undefined;
     const messages: ChatMessage[] = [
-      { role: 'system', content: this.buildSystemMessage() },
+      { role: 'system', content: this.buildSystemMessage(clientShell) },
       { role: 'user', content: prompt },
     ];
 
@@ -386,9 +392,11 @@ export class SecurityReActAgent extends BaseAgent {
     return match ? match[1].trim() : null;
   }
 
-  private buildSystemMessage(): string {
+  private buildSystemMessage(clientShell?: ClientShellPayload): string {
+    const shellBlock = formatClientShellContextBlock(clientShell);
     return (
       `${this.systemPrompt}\n\n` +
+      (shellBlock ? `${shellBlock}\n\n` : '') +
       `你是一个ReAct (Reasoning + Acting) 安全测试代理。` +
       `请使用 Think -> Action -> Observation 循环来完成任务。\n\n` +
       `可用工具:\n${this.getToolsDescription()}\n\n` +

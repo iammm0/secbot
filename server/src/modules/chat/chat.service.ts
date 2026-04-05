@@ -116,7 +116,7 @@ export class ChatService {
     body: ChatRequestDto,
     onSSEEvent?: (eventName: string, data: Record<string, unknown>) => void,
   ): Promise<string> {
-    const { message, mode, agent: agentType } = body;
+    const { message, mode, agent: agentType, client_shell: clientShell } = body;
     const forceQA = mode === 'ask';
     const forceAgent = mode === 'agent';
 
@@ -206,7 +206,7 @@ export class ChatService {
 
     if (planResult.todos.length > 1) {
       const executor = new TaskExecutor(planResult, selectedAgent, this.eventBus);
-      const firstRun = await executor.run(message, onAgentEvent);
+      const firstRun = await executor.run(message, onAgentEvent, clientShell);
 
       /** 默认开启穿插规划；设置 SECBOT_ADAPTIVE_REPLAN=0 或 false 可关闭 */
       const adaptiveOff =
@@ -223,11 +223,11 @@ export class ChatService {
           todosForSummary = [...todosForSummary, ...subPlan.todos];
           emit('phase', { phase: 'executing', detail: '执行穿插任务…' });
           const followUpExecutor = new TaskExecutor(subPlan, selectedAgent, this.eventBus);
-          await followUpExecutor.run(message, onAgentEvent);
+          await followUpExecutor.run(message, onAgentEvent, clientShell);
         }
       }
     } else {
-      await selectedAgent.process(message, { onEvent: onAgentEvent });
+      await selectedAgent.process(message, { onEvent: onAgentEvent, client_shell: clientShell });
     }
 
     emit('phase', { phase: 'summarizing', detail: '正在生成报告...' });
@@ -256,7 +256,7 @@ export class ChatService {
       return { response: answer, agent: 'qa' };
     }
     const selectedAgent = this.agents[body.agent] ?? this.agents['hackbot'];
-    const response = await selectedAgent.process(body.message);
+    const response = await selectedAgent.process(body.message, { client_shell: body.client_shell });
     return { response, agent: body.agent ?? 'hackbot' };
   }
 

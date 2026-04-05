@@ -3,6 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { constants as fsConstants, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { BaseTool, ToolResult } from '../core/base-tool';
+import {
+  shellProfile,
+  validateCommandAgainstShell,
+  type ShellExecutionProfile,
+  type ShellKind,
+} from './shell-command-guard.js';
 
 const OUTPUT_SENTINEL = '__SECBOT_CMD_DONE__';
 const SESSION_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
@@ -17,6 +23,7 @@ class TerminalSession {
   private process: ChildProcessWithoutNullStreams | null = null;
   private outputBuffer = '';
   private queue: Promise<unknown> = Promise.resolve();
+  private shellProfile!: ShellExecutionProfile;
   lastActive = Date.now();
 
   constructor(
@@ -32,9 +39,14 @@ class TerminalSession {
     return this.process?.pid ?? null;
   }
 
+  getShellProfile(): ShellExecutionProfile {
+    return this.shellProfile;
+  }
+
   async start(): Promise<string> {
     const resolvedCwd = await TerminalSession.resolveCwd(this.cwd);
     const shell = this.getShellSpec();
+    this.shellProfile = shellProfile(shell.kind, shell.label);
 
     this.process = spawn(shell.command, shell.args, {
       cwd: resolvedCwd,
@@ -50,7 +62,7 @@ class TerminalSession {
     this.lastActive = Date.now();
     await sleep(250);
     const banner = this.drainBuffer();
-    const prefix = `Terminal session started (shell=${shell.label}, pid=${this.pid ?? 'n/a'})`;
+    const prefix = `Terminal session started (shell=${shell.label}, kind=${shell.kind}, pid=${this.pid ?? 'n/a'})`;
     return banner ? `${prefix}\n${banner}` : prefix;
   }
 
@@ -168,16 +180,20 @@ class TerminalSession {
     return text;
   }
 
-  private getShellSpec(): { command: string; args: string[]; label: string } {
+  private getShellSpec(): { command: string; args: string[]; label: string; kind: ShellKind } {
     if (process.platform === 'win32') {
-      return { command: process.env.COMSPEC || 'cmd.exe', args: [], label: 'cmd.exe' };
+      const comspec = process.env.COMSPEC || 'cmd.exe';
+      const lower = comspec.toLowerCase();
+      const kind: ShellKind =
+        lower.includes('powershell') || lower.endsWith('pwsh.exe') ? 'powershell' : 'cmd';
+      return { command: comspec, args: [], label: path.basename(comspec), kind };
     }
     if (process.platform === 'darwin') {
       const shell = process.env.SHELL || '/bin/zsh';
-      return { command: shell, args: [], label: path.basename(shell) };
+      return { command: shell, args: [], label: path.basename(shell), kind: 'posix' };
     }
     const shell = process.env.SHELL || '/bin/bash';
-    return { command: shell, args: [], label: path.basename(shell) };
+    return { command: shell, args: [], label: path.basename(shell), kind: 'posix' };
   }
 
   static async resolveCwd(cwd?: string): Promise<string | undefined> {
@@ -210,7 +226,9 @@ export class TerminalSessionTool extends BaseTool {
   constructor() {
     super(
       'terminal_session',
-      'Persistent terminal sessions for open/exec/read/close/list and optional external terminal launch.',
+      'Persistent terminal sessions: open/exec/read/close/list; optional open_external. ' +
+        'action=open 返回的 shell_profile 为后端真实会话 shell（由 COMSPEC/SHELL 决定）；exec 的 command 须与之语法一致。' +
+        'open_external 仅打开本机窗口，返回值中的 shell_profile 用于提示用户手写命令的环境。',
     );
   }
 
@@ -263,7 +281,9 @@ export class TerminalSessionTool extends BaseTool {
       result: {
         session_id: sessionId,
         message,
-        hint: 'Use action=exec with this session_id to run commands.',
+        shell_profile: session.getShellProfile(),
+        hint:
+          'Use action=exec with this session_id; command syntax must match shell_profile.kind (cmd / powershell / posix).',
         read_only_for_user: true,
       },
     };
@@ -293,12 +313,19 @@ export class TerminalSessionTool extends BaseTool {
       };
     }
 
+    const extShellProfile: ShellExecutionProfile =
+      process.platform === 'win32'
+        ? shellProfile('powershell', opened.shell_name)
+        : shellProfile('posix', `${opened.shell_name}（默认登录 shell）`);
+
     return {
       success: true,
       result: {
         message: `Opened a new external terminal window (${opened.shell_name}).`,
         initial_command: initialCommand || null,
-        hint: 'Use action=open for an in-process terminal session controlled by this tool.',
+        shell_profile: extShellProfile,
+        hint:
+          '外部窗口不由本工具注入 exec；若要在会话内自动执行请用 action=open。手写命令时请按 shell_profile 语法。',
       },
     };
   }
@@ -340,6 +367,19 @@ export class TerminalSessionTool extends BaseTool {
     if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) timeoutSec = 30;
     timeoutSec = Math.min(timeoutSec, 120);
 
+    const mismatch = validateCommandAgainstShell(command, session.getShellProfile());
+    if (mismatch) {
+      return {
+        success: false,
+        result: {
+          session_id: sessionId,
+          shell_profile: session.getShellProfile(),
+          command,
+        },
+        error: mismatch,
+      };
+    }
+
     try {
       const output = await session.execute(command, Math.floor(timeoutSec * 1000));
       return {
@@ -348,6 +388,7 @@ export class TerminalSessionTool extends BaseTool {
           session_id: sessionId,
           command,
           output,
+          shell_profile: session.getShellProfile(),
         },
       };
     } catch (error) {
@@ -382,6 +423,7 @@ export class TerminalSessionTool extends BaseTool {
         session_id: sessionId,
         output: output || '(no new output)',
         alive: session.alive,
+        shell_profile: session.getShellProfile(),
       },
     };
   }
@@ -410,6 +452,7 @@ export class TerminalSessionTool extends BaseTool {
       alive: session.alive,
       idle_seconds: Math.round((Date.now() - session.lastActive) / 100) / 10,
       pid: session.pid,
+      shell_profile: session.getShellProfile(),
     }));
     return {
       success: true,

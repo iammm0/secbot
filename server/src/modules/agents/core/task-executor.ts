@@ -9,6 +9,7 @@ import {
   markTodoCompleted,
   markTodoCancelled,
 } from '../../../common/types';
+import type { ClientShellPayload } from './client-shell-context.js';
 
 type OnEventCallback = (event: BusEvent) => void;
 
@@ -28,6 +29,7 @@ export class TaskExecutor {
   async run(
     userInput: string,
     onEvent?: OnEventCallback,
+    clientShell?: ClientShellPayload,
   ): Promise<{ summary: string; cancelledCount: number }> {
     const layers = this.planner.getExecutionOrder(this.plan.todos);
     const results: string[] = [];
@@ -75,6 +77,7 @@ export class TaskExecutor {
         try {
           const result = (await this.agent.executeTodo(todo, userInput, {
             onEvent,
+            client_shell: clientShell,
           })) as {
             success?: boolean;
             error?: string;
