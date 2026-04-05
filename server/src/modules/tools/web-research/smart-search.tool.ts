@@ -1,6 +1,6 @@
 import { createLLM } from '../../../common/llm';
 import { BaseTool, ToolResult } from '../core/base-tool';
-import { cleanHtmlToText, extractLinks, extractTitle } from './html-utils';
+import { cleanHtmlToText } from './html-utils';
 
 type SearchResult = {
   title: string;

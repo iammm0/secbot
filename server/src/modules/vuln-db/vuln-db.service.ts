@@ -7,7 +7,7 @@ import {
   MitreAttackAdapter,
   NvdAdapter,
 } from './adapters';
-import { ScanVulnMapping, UnifiedVuln, VulnSource } from './schema';
+import { ScanVulnMapping, UnifiedVuln } from './schema';
 import { VulnVectorStore } from './vuln-vector-store.service';
 
 const CVE_PATTERN = /CVE-\d{4}-\d{4,}/gi;

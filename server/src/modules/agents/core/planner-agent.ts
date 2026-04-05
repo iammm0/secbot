@@ -72,7 +72,7 @@ export class PlannerAgent extends BaseAgent {
     while (remaining.size > 0) {
       const currentLayer: TodoItem[] = [];
 
-      for (const [id, todo] of remaining) {
+      for (const [, todo] of remaining) {
         const depsResolved = todo.dependsOn.every(
           (dep) => completed.has(dep) || !remaining.has(dep),
         );
