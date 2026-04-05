@@ -14,6 +14,7 @@ import { ModelConfigDialog } from './components/ModelConfigDialog.js';
 import { LogLevelDialog } from './components/LogLevelDialog.js';
 import { RestResultDialog } from './components/RestResultDialog.js';
 import { AgentSelectDialog } from './components/AgentSelectDialog.js';
+import { SessionSelectDialog } from './components/SessionSelectDialog.js';
 import { HELP_TOOLS_TEXT } from './slash.js';
 import { HomeView } from './views/HomeView.js';
 import { SessionView } from './views/SessionView.js';
@@ -90,7 +91,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   const { route } = useRoute();
   const sync = useSync();
   const local = useLocal();
-  const { sendMessage, setRESTOutput } = sync;
+  const { sendMessage, setRESTOutput, newSession, switchSession, sessionList } = sync;
   const { mode, agent, setMode } = local;
 
   useEffect(() => {
@@ -109,6 +110,32 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
       register({ title: 'Ask 模式', value: '/ask', category: '会话', slash: '/ask', onSelect: ({ close }) => { setMode('ask'); toast.show({ message: '已切换到问答模式', variant: 'success' }); close(); } }),
       register({ title: '任务模式', value: '/task', category: '会话', slash: '/task', onSelect: ({ close }) => { setMode('agent'); toast.show({ message: '已切换到任务模式', variant: 'success' }); close(); } }),
       register({ title: '切换智能体', value: '/agent', category: '会话', slash: '/agent', onSelect: ({ close }) => { close(); dialog.replace(<AgentSelectDialog />); } }),
+      register({
+        title: '新建空白会话',
+        value: '/new-session',
+        category: '会话',
+        slash: '/new-session',
+        onSelect: ({ close }) => {
+          newSession();
+          toast.show({ message: '已新建空白会话', variant: 'success' });
+          close();
+        },
+      }),
+      register({
+        title: '切换会话',
+        value: '/sessions',
+        category: '会话',
+        slash: '/sessions',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <SessionSelectDialog
+              sessions={sessionList}
+              onSelect={(id) => switchSession(id)}
+            />,
+          );
+        },
+      }),
       register({
         title: '帮助（集成安全工具）',
         value: '/help',
@@ -215,7 +242,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
       }),
     ];
     return () => { unregs.forEach((u) => u()); };
-  }, [register, setRESTOutput, setMode, dialog, toast]);
+  }, [register, setRESTOutput, setMode, dialog, toast, newSession, switchSession, sessionList]);
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);

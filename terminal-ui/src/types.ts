@@ -39,6 +39,8 @@ export interface StreamTimelineItem {
   error?: string;
   result?: unknown;
   status?: "running" | "done";
+  /** 工具调用块：与 action_start 同源，便于结束时仍显示 execute_command 等参数 */
+  params?: Record<string, unknown>;
 }
 
 /** 流式状态：用于 UI 展示 */
