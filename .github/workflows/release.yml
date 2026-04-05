@@ -1,9 +1,16 @@
+# 自动发布（以 2.0.0 为例）
+# 1. 确认根目录 package.json 的 version 与即将打的标签一致（如 2.0.0 对应标签 v2.0.0）。
+# 2. 在仓库 Settings → Secrets and variables → Actions 中配置 NPM_TOKEN（npm 侧「Access Token」，
+#    类型选 Automation，并具备该包的 publish 权限；若包名尚未占用，请先在 npm 网页注册）。
+# 3. git tag v2.0.0 && git push origin v2.0.0
+#    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm publish。
+
 name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
   workflow_dispatch:
 
 permissions:
@@ -19,11 +26,26 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Match package.json version to git tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -e
+          REF_NAME="${GITHUB_REF_NAME#refs/tags/}"
+          REF_NAME="${REF_NAME#v}"
+          PKG_VER="$(node -p "require('./package.json').version")"
+          if [ "$REF_NAME" != "$PKG_VER" ]; then
+            echo "::error::package.json version is $PKG_VER but tag resolves to $REF_NAME (expected v$PKG_VER)"
+            exit 1
+          fi
+
+      - name: CI checks
+        run: npm run typecheck && npm run lint && npm run format:check && npm test
 
       - name: Build package
         run: npm run release:pack
@@ -35,6 +57,7 @@ jobs:
           path: secbot-*.tgz
 
   upload-assets:
+    name: GitHub Release assets
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
@@ -45,9 +68,33 @@ jobs:
           name: secbot-npm-package
           path: artifacts
 
-      - name: Upload release assets
+      - name: Create or update release and upload .tgz
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*.tgz
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-npm:
+    name: Publish to npm registry
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js for npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish to npm
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
