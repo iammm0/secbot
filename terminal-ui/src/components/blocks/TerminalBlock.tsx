@@ -4,6 +4,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { useTheme } from '../../contexts/ThemeContext.js';
+import { renderMarkdown } from '../../renderMarkdown.js';
 
 interface TerminalBlockProps {
   title?: string;
@@ -13,7 +14,8 @@ interface TerminalBlockProps {
 
 export function TerminalBlock({ title = '终端', body, noMargin }: TerminalBlockProps) {
   const theme = useTheme();
-  const lines = (body || '').split('\n');
+  const rendered = renderMarkdown(body || ' ');
+  const lines = rendered.split('\n');
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 2}>
       {title ? <Text color={theme.textMuted}>{title}</Text> : null}

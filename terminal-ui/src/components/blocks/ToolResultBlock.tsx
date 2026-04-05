@@ -14,9 +14,10 @@ interface ToolResultBlockProps {
 
 export function ToolResultBlock({ title = '工具结果', body, noMargin, isPlaceholder }: ToolResultBlockProps) {
   const theme = useTheme();
+  const head = title === '工具结果' ? `${title}（原始）` : title;
   return (
     <BlockCommon
-      title={`${title}（原始）`}
+      title={head}
       titleColor={theme.textMuted}
       body={body}
       bodyColor={isPlaceholder ? theme.textMuted : theme.text}

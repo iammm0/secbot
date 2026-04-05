@@ -18,6 +18,7 @@ import type { HistoryItem } from "./useChat.js";
 import { streamStateToBlocks } from "./contentBlocks.js";
 import { DiscriminatorPool } from "./blockDiscriminators/index.js";
 import { ContentBlock } from "./components/ContentBlock.js";
+import { TRANSIENT_TOOLS } from "./streamConstants.js";
 
 // ─── 常量 ──────────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ import { ContentBlock } from "./components/ContentBlock.js";
 const POOL_SIZE = 3;
 
 /** 完成后仅展示"完成"并在短暂延迟后从执行列表消失的工具 */
-const TRANSIENT_TOOL_NAMES = new Set(["system_info", "network_analyze"]);
+const TRANSIENT_TOOL_NAMES = TRANSIENT_TOOLS;
 const TRANSIENT_DISMISS_MS = 2000;
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────

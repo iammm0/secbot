@@ -98,6 +98,8 @@ export type BlockRenderType =
   | "key_value"
   | "diff"
   | "terminal"
+  | "exploring"
+  | "spacer"
   | "security"
   | "tool_result"
   | "exception"
