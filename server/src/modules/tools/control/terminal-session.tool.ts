@@ -282,8 +282,7 @@ export class TerminalSessionTool extends BaseTool {
         session_id: sessionId,
         message,
         shell_profile: session.getShellProfile(),
-        hint:
-          'Use action=exec with this session_id; command syntax must match shell_profile.kind (cmd / powershell / posix).',
+        hint: 'Use action=exec with this session_id; command syntax must match shell_profile.kind (cmd / powershell / posix).',
         read_only_for_user: true,
       },
     };
@@ -324,8 +323,7 @@ export class TerminalSessionTool extends BaseTool {
         message: `Opened a new external terminal window (${opened.shell_name}).`,
         initial_command: initialCommand || null,
         shell_profile: extShellProfile,
-        hint:
-          '外部窗口不由本工具注入 exec；若要在会话内自动执行请用 action=open。手写命令时请按 shell_profile 语法。',
+        hint: '外部窗口不由本工具注入 exec；若要在会话内自动执行请用 action=open。手写命令时请按 shell_profile 语法。',
       },
     };
   }

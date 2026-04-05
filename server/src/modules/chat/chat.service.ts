@@ -52,14 +52,14 @@ function buildStreamSummaryPayload(summary: InteractionSummary): {
   if (tail) parts.push(`## 总结\n${tail}`);
   let report = parts.join('\n\n');
   if (!report.trim()) {
-    report = summary.rawReport?.trim() ? summary.rawReport.slice(0, 12_000) : '（未能生成摘要，请查看服务端日志。）';
+    report = summary.rawReport?.trim()
+      ? summary.rawReport.slice(0, 12_000)
+      : '（未能生成摘要，请查看服务端日志。）';
   }
   /** 短收尾：详细章节已在「安全报告」块中展示，避免 TUI 再打一屏重复摘要 */
   const response =
     tail ||
-    (summary.keyFindings[0]?.trim()
-      ? `首要发现：${summary.keyFindings[0].trim()}`
-      : '') ||
+    (summary.keyFindings[0]?.trim() ? `首要发现：${summary.keyFindings[0].trim()}` : '') ||
     '详情见上方「安全报告」。';
   return { report, response };
 }
@@ -215,8 +215,7 @@ export class ChatService {
 
       if (!adaptiveOff && firstRun.cancelledCount > 0) {
         emit('phase', { phase: 'planning', detail: '穿插规划：根据未成功子任务补充方案…' });
-        const adaptivePrompt =
-          `${message}\n\n【穿插规划】上一阶段有 ${firstRun.cancelledCount} 个子任务未成功。请仅输出需要补充执行的新子任务 JSON 数组（新 id 建议 followup-1、followup-2）；若无须补充则输出 []。\n\n阶段摘要（节选）：\n${firstRun.summary.slice(0, 4000)}`;
+        const adaptivePrompt = `${message}\n\n【穿插规划】上一阶段有 ${firstRun.cancelledCount} 个子任务未成功。请仅输出需要补充执行的新子任务 JSON 数组（新 id 建议 followup-1、followup-2）；若无须补充则输出 []。\n\n阶段摘要（节选）：\n${firstRun.summary.slice(0, 4000)}`;
         const subPlan = await this.plannerAgent.plan(adaptivePrompt);
         if (subPlan.todos.length > 0 && !subPlan.directResponse) {
           emitPlanningSse(emit, subPlan.planSummary, subPlan.todos, 'adaptive');

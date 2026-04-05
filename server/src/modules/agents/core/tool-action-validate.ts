@@ -3,10 +3,7 @@
  */
 
 /** 允许 params 为空对象或无非空字段的工具（无需显式参数即可工作） */
-export const TOOLS_ALLOW_EMPTY_PARAMS = new Set<string>([
-  'system_info',
-  'network_analyze',
-]);
+export const TOOLS_ALLOW_EMPTY_PARAMS = new Set<string>(['system_info', 'network_analyze']);
 
 function countEffectiveKeys(params: Record<string, unknown>): number {
   return Object.keys(params).filter((k) => {

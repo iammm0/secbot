@@ -27,8 +27,8 @@
     "start:latest": "node scripts/start_latest.js",
     "start:tui": "npm --prefix terminal-ui run tui",
     "typecheck": "tsc -p server/tsconfig.json --noEmit",
-    "lint": "eslint server/src/",
-    "lint:fix": "eslint server/src/ --fix",
+    "lint": "eslint server/src/ -f unix",
+    "lint:fix": "eslint server/src/ -f unix --fix",
     "format": "prettier --write \"server/src/**/*.ts\"",
     "format:check": "prettier --check \"server/src/**/*.ts\"",
     "test": "vitest run",
@@ -41,7 +41,7 @@
     "release:verify": "node scripts/verify_release_package.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "keywords": [
     "security",
@@ -77,6 +77,7 @@
     "@typescript-eslint/parser": "^8.58.0",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-formatter-unix": "^9.0.1",
     "prettier": "^3.8.1",
     "tsx": "^4.20.6",
     "typescript": "^5.8.3",
