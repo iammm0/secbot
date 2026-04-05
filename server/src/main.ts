@@ -26,12 +26,10 @@ async function bootstrap() {
 
   const port = process.env.PORT ? Number(process.env.PORT) : 8000;
   await app.listen(port);
-  // eslint-disable-next-line no-console
   console.log(`Secbot backend listening on http://localhost:${port}`);
 }
 
 bootstrap().catch((error) => {
-  // eslint-disable-next-line no-console
   console.error('Failed to bootstrap NestJS application', error);
   process.exit(1);
 });

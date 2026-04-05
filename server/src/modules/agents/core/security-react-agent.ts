@@ -1,8 +1,8 @@
 import { BaseAgent, AgentMessage } from './base-agent';
 import { BaseTool, ToolResult } from '../../tools/core/base-tool';
-import { EventBus, EventType, BusEvent } from '../../../common/event-bus';
+import { EventType, BusEvent } from '../../../common/event-bus';
 import { ChatMessage } from '../../../common/types';
-import { LLMProvider, createLLM, LLMConfig } from '../../../common/llm';
+import { LLMProvider, createLLM } from '../../../common/llm';
 import { TodoItem } from '../../../common/types';
 import { validateToolInvocation } from './tool-action-validate';
 import { formatExecuteCommandObservation } from './observation-format';

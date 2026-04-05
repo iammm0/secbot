@@ -3,7 +3,6 @@ import { PlannerAgent } from './planner-agent';
 import { EventBus, EventType, BusEvent } from '../../../common/event-bus';
 import {
   PlanResult,
-  TodoItem,
   TodoStatus,
   markTodoInProgress,
   markTodoCompleted,

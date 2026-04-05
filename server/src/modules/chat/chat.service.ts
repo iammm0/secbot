@@ -5,8 +5,6 @@ import {
   RouteType,
   Session,
   createSession,
-  addSessionMessage,
-  MessageRole,
   TodoItem,
   InteractionSummary,
 } from '../../common/types';
