@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { BaseTool, ToolResult } from '../core/base-tool';
+import { executeCommandShellProfile, validateCommandAgainstShell } from './shell-command-guard.js';
 
 function adaptCommandForPlatform(command: string): string {
   if (process.platform !== 'darwin') {
@@ -16,7 +17,12 @@ function adaptCommandForPlatform(command: string): string {
 
 export class ExecuteCommandTool extends BaseTool {
   constructor() {
-    super('execute_command', 'Execute system shell commands with timeout and output capture.');
+    super(
+      'execute_command',
+      'Execute shell commands on the backend host with timeout. ' +
+        'Windows: always via cmd.exe /d /s /c (CMD syntax). ' +
+        'Unix: via login shell -lc (POSIX). Command must match that environment; see also terminal_session.',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
@@ -32,6 +38,14 @@ export class ExecuteCommandTool extends BaseTool {
     }
 
     const command = adaptCommandForPlatform(rawCommand);
+
+    if (shell) {
+      const profile = executeCommandShellProfile();
+      const mismatch = validateCommandAgainstShell(command, profile);
+      if (mismatch) {
+        return { success: false, result: { command, shell_profile: profile }, error: mismatch };
+      }
+    }
 
     try {
       const result = await this.execute(command, shell, timeoutMs, cwd, stdinData);

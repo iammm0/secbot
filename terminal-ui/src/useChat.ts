@@ -12,6 +12,7 @@
  *     即便后端一次性返回全文，TUI 也能呈现流式打字感。
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { buildClientShellPayload } from "./clientShell.js";
 import { connectSSE } from "./sse.js";
 import { TRANSIENT_TOOLS } from "./streamConstants.js";
 import { buildObservationBody } from "./toolObservation.js";
@@ -427,7 +428,12 @@ export function useChat() {
       // ── 建立 SSE 连接 ─────────────────────────────────────────────────────────
       const controller = connectSSE(
         "/api/chat",
-        { message, mode, agent } as Record<string, unknown>,
+        {
+          message,
+          mode,
+          agent,
+          client_shell: buildClientShellPayload(),
+        } as Record<string, unknown>,
         {
           onEvent(ev: SSEEvent) {
             let { event, data } = ev;

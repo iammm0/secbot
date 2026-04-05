@@ -14,6 +14,13 @@ export interface ChatRequest {
   agent?: string;
   prompt?: string | null;
   model?: string | null;
+  /** 可选：随 TUI 上报，与后端 ChatRequestDto.client_shell 对齐 */
+  client_shell?: {
+    platform?: string;
+    shell?: string;
+    comspec?: string;
+    terminal_profile?: string;
+  };
 }
 
 export type TimelineItemType =
