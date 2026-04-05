@@ -99,7 +99,8 @@ export function useChat() {
   /** Typewriter 定时器，新消息到来时需要清理上一个 */
   const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const thoughtSeqRef = useRef<number>(0);
-  const activeThoughtIdByIterationRef = useRef<Map<number, string>>(new Map());
+  /** 按 step_key（子任务 todo / ReAct 轮次）关联推理时间线项，避免并行子任务共用 iteration 时串台 */
+  const activeThoughtIdByStepRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     streamStateRef.current = streamState;
@@ -213,7 +214,7 @@ export function useChat() {
       currentSentAtRef.current = now;
       completedAtRef.current = 0;
       thoughtSeqRef.current = 0;
-      activeThoughtIdByIterationRef.current = new Map();
+      activeThoughtIdByStepRef.current = new Map();
 
       setCurrentUserMessage(message);
       setCurrentSentAt(now);
@@ -254,13 +255,15 @@ export function useChat() {
               case "thought_start":
                 setStreamState((s) => ({
                   ...(function () {
-                    const it = (data.iteration as number) ?? 1;
+                    const it = Number(data.iteration ?? 1);
+                    const stepKey =
+                      (data.step_key as string) || `iter-${it}`;
                     thoughtSeqRef.current += 1;
-                    const thoughtId = `thought-${it}-${thoughtSeqRef.current}`;
-                    activeThoughtIdByIterationRef.current.set(it, thoughtId);
+                    const thoughtId = `thought-${stepKey}-${thoughtSeqRef.current}`;
+                    activeThoughtIdByStepRef.current.set(stepKey, thoughtId);
                     const nextThoughtChunks = new Map(s.thoughtChunks);
-                    // 新一轮相同 iteration 的推理开始时，重置该 iteration 的分片缓存，避免串台
-                    nextThoughtChunks.set(it, "");
+                    // 新一轮相同 step 的推理开始时，重置该 step 的分片缓存，避免串台
+                    nextThoughtChunks.set(stepKey, "");
                     return {
                       ...s,
                       thought: {
@@ -282,14 +285,17 @@ export function useChat() {
                 break;
 
               case "thought_chunk": {
-                const it = (data.iteration as number) ?? 1;
+                const it = Number(data.iteration ?? 1);
+                const stepKey =
+                  (data.step_key as string) || `iter-${it}`;
                 const chunk = (data.chunk as string) ?? "";
                 const thoughtId =
-                  activeThoughtIdByIterationRef.current.get(it) ?? `thought-${it}`;
+                  activeThoughtIdByStepRef.current.get(stepKey) ??
+                  `thought-${stepKey}`;
                 setStreamState((s) => {
                   const next = new Map(s.thoughtChunks);
-                  next.set(it, (next.get(it) ?? "") + chunk);
-                  const thoughtBody = next.get(it) ?? "";
+                  next.set(stepKey, (next.get(stepKey) ?? "") + chunk);
+                  const thoughtBody = next.get(stepKey) ?? "";
                   return {
                     ...s,
                     thoughtChunks: next,
@@ -311,10 +317,12 @@ export function useChat() {
               }
 
               case "thought": {
-                const tIt = (data.iteration as number) ?? 1;
+                const tIt = Number(data.iteration ?? 1);
+                const stepKey =
+                  (data.step_key as string) || `iter-${tIt}`;
                 const tId =
-                  activeThoughtIdByIterationRef.current.get(tIt) ??
-                  `thought-${tIt}`;
+                  activeThoughtIdByStepRef.current.get(stepKey) ??
+                  `thought-${stepKey}`;
                 setStreamState((s) => {
                   const existing = s.timeline.find((t) => t.id === tId);
                   if (existing?.status === "done") return s;
@@ -334,7 +342,7 @@ export function useChat() {
                         body:
                           (data.content as string) ??
                           prev?.body ??
-                          s.thoughtChunks.get(tIt) ??
+                          s.thoughtChunks.get(stepKey) ??
                           "",
                         iteration: tIt,
                         status: "done",
@@ -342,7 +350,7 @@ export function useChat() {
                     ),
                   };
                 });
-                activeThoughtIdByIterationRef.current.delete(tIt);
+                activeThoughtIdByStepRef.current.delete(stepKey);
                 break;
               }
 

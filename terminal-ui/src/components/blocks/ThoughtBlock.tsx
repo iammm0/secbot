@@ -33,15 +33,13 @@ export function ThoughtBlock({ title, body, noMargin }: ThoughtBlockProps) {
         </Text>
       ) : null}
 
-      {/* 正文：每行前缀 ┊，dim gray */}
+      {/* 正文：前缀弱化；正文用默认前景色，避免 Windows 控制台 dim+gray 几乎不可读 */}
       {lines.map((line, i) => (
         <Box key={i} flexDirection="row">
           <Text dimColor color={theme.textMuted}>
             {"┊ "}
           </Text>
-          <Text dimColor color={theme.textMuted}>
-            {line || " "}
-          </Text>
+          <Text color={theme.text}>{line || " "}</Text>
         </Box>
       ))}
     </Box>

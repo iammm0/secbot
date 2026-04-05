@@ -28,6 +28,49 @@ import { TaskExecutor } from '../agents/core/task-executor';
 import { ChatRequestDto, ChatResponseDto } from './dto/chat.dto';
 import { ToolsService } from '../tools/tools.service';
 
+/** 与 SecurityReActAgent 中 THINK/EXEC 事件的 step 关联键一致，避免并行子任务共用 iteration 导致前端时间线串台 */
+function sseStepKey(data: Record<string, unknown>, iteration: number): string {
+  const todoId = data['todoId'];
+  if (todoId !== undefined && todoId !== null && String(todoId).length > 0) {
+    return `todo-${todoId}`;
+  }
+  return `iter-${iteration}`;
+}
+
+/** CLI 流式输出用：结构化精炼报告 + 较短最终回复，避免刷屏 */
+function buildStreamSummaryPayload(summary: InteractionSummary): {
+  report: string;
+  response: string;
+} {
+  const findings = summary.keyFindings
+    .slice(0, 6)
+    .map((l) => `- ${l}`)
+    .join('\n');
+  const recs = summary.recommendations
+    .slice(0, 6)
+    .map((l) => `- ${l}`)
+    .join('\n');
+  const parts: string[] = [];
+  const head = summary.taskSummary?.trim();
+  if (head) parts.push(`## 摘要\n${head}`);
+  if (findings) parts.push(`## 关键发现\n${findings}`);
+  if (recs) parts.push(`## 修复建议\n${recs}`);
+  const tail = summary.overallConclusion?.trim();
+  if (tail) parts.push(`## 总结\n${tail}`);
+  let report = parts.join('\n\n');
+  if (!report.trim()) {
+    report = summary.rawReport?.trim() ? summary.rawReport.slice(0, 12_000) : '（未能生成摘要，请查看服务端日志。）';
+  }
+  /** 短收尾：详细章节已在「安全报告」块中展示，避免 TUI 再打一屏重复摘要 */
+  const response =
+    tail ||
+    (summary.keyFindings[0]?.trim()
+      ? `首要发现：${summary.keyFindings[0].trim()}`
+      : '') ||
+    '详情见上方「安全报告」。';
+  return { report, response };
+}
+
 @Injectable()
 export class ChatService {
   private eventBus = new EventBus();
@@ -120,34 +163,44 @@ export class ChatService {
       const t = event.type;
       const d = event.data;
       if (t === EventType.THINK_START) {
-        emit('thought_start', { iteration: d['iteration'] ?? 1 });
+        const iteration = Number(d['iteration'] ?? 1);
+        emit('thought_start', {
+          iteration,
+          step_key: sseStepKey(d, iteration),
+          task: d['task'] as string | undefined,
+        });
       } else if (t === EventType.THINK_END) {
+        const iteration = Number(d['iteration'] ?? 1);
         emit('thought', {
           content: d['thought'] ?? '',
-          iteration: d['iteration'] ?? 1,
+          iteration,
+          step_key: sseStepKey(d, iteration),
         });
       } else if (t === EventType.EXEC_START) {
+        const iteration = Number(d['iteration'] ?? 1);
         emit('action_start', {
           tool: d['tool'] ?? '',
           params: d['params'] ?? {},
-          iteration: d['iteration'] ?? 1,
+          iteration,
+          step_key: sseStepKey(d, iteration),
         });
       } else if (t === EventType.EXEC_RESULT) {
+        const iteration = Number(d['iteration'] ?? 1);
         emit('action_result', {
           tool: d['tool'] ?? '',
           success: d['success'] ?? true,
           result: d['observation'] ?? '',
-          iteration: d['iteration'] ?? 1,
+          iteration,
+          step_key: sseStepKey(d, iteration),
         });
       }
     };
 
-    let response: string;
     if (planResult.todos.length > 1) {
       const executor = new TaskExecutor(planResult, selectedAgent, this.eventBus);
-      response = await executor.run(message, onAgentEvent);
+      await executor.run(message, onAgentEvent);
     } else {
-      response = await selectedAgent.process(message, { onEvent: onAgentEvent });
+      await selectedAgent.process(message, { onEvent: onAgentEvent });
     }
 
     emit('phase', { phase: 'summarizing', detail: '正在生成报告...' });
@@ -162,13 +215,12 @@ export class ChatService {
       mode: planResult.todos.length <= 1 ? 'brief' : 'full',
     });
 
-    if (summary.rawReport) {
-      emit('report', { content: summary.rawReport });
-    }
+    const streamPayload = buildStreamSummaryPayload(summary);
+    emit('report', { content: streamPayload.report });
 
-    emit('response', { content: response, agent: agentType });
+    emit('response', { content: streamPayload.response, agent: agentType });
     emit('done', {});
-    return response;
+    return streamPayload.response;
   }
 
   async chatSync(body: ChatRequestDto): Promise<ChatResponseDto> {

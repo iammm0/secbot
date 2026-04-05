@@ -15,7 +15,14 @@ import type { ContentBlock } from "./types.js";
 const MAX_RESULT_LINES = 24;
 
 /** 完成后仅标识"完成"并随后消失、且不渲染其输出内容的工具 */
-const TRANSIENT_TOOLS = new Set<string>(["system_info", "network_analyze"]);
+const TRANSIENT_TOOLS = new Set<string>([
+  "system_info",
+  "network_analyze",
+  "report_generator",
+]);
+
+/** 安全报告块最大行数（略宽于工具结果，仍防止刷屏） */
+const MAX_REPORT_LINES = 48;
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────
 
@@ -119,6 +126,7 @@ export function streamStateToBlocks(
     actions,
     error,
     timeline,
+    report,
   } = streamState;
 
   const dismissed = dismissedTransientTools ?? new Set<string>();
@@ -212,11 +220,16 @@ export function streamStateToBlocks(
     lineStart = lineEnd;
   }
 
-  // ── 时间线渲染（按事件发生顺序）───────────────────────────────────────────────
+  // ── 时间线渲染（按事件发生顺序）；final 排在精炼「安全报告」之后，顺序与 SSE 一致 ──
   if (timeline.length > 0) {
-    for (const item of timeline) {
+    const nonFinal = timeline.filter((x) => x.type !== "final");
+    const finals = timeline.filter((x) => x.type === "final");
+
+    for (const item of nonFinal) {
       if (item.type === "thought") {
-        const extracted = extractThoughtOnly(item.body || "…");
+        const extracted = extractThoughtOnly(item.body || "");
+        const trimmed = extracted.trim();
+        if (!trimmed || trimmed === "…") continue;
         addBlock(
           item.id,
           "thought",
@@ -259,7 +272,18 @@ export function streamStateToBlocks(
         );
         continue;
       }
+    }
 
+    if (report?.trim()) {
+      addBlock(
+        "stream-report",
+        "report",
+        "安全报告",
+        truncateBody(report.trim(), MAX_REPORT_LINES),
+      );
+    }
+
+    for (const item of finals) {
       if (item.type === "final") {
         addBlock(
           item.id,
@@ -276,6 +300,14 @@ export function streamStateToBlocks(
     }
   } else {
     // 兼容旧结构：无 timeline 时退回到 content。
+    if (report?.trim()) {
+      addBlock(
+        "stream-report",
+        "report",
+        "安全报告",
+        truncateBody(report.trim(), MAX_REPORT_LINES),
+      );
+    }
     if (actions.length > 0) {
       const filtered = actions.filter(
         (a) => !TRANSIENT_TOOLS.has(a.tool) || !dismissed.has(a.tool),
