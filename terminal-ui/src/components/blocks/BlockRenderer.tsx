@@ -28,6 +28,8 @@ import { LinkBlock } from "./LinkBlock.js";
 import { KeyValueBlock } from "./KeyValueBlock.js";
 import { DiffBlock } from "./DiffBlock.js";
 import { TerminalBlock } from "./TerminalBlock.js";
+import { ExploringBlock } from "./ExploringBlock.js";
+import { SpacerBlock } from "./SpacerBlock.js";
 import { SecurityBlock } from "./SecurityBlock.js";
 import { ToolResultBlock } from "./ToolResultBlock.js";
 import { ExceptionBlock } from "./ExceptionBlock.js";
@@ -191,6 +193,16 @@ export function BlockRenderer({ block, noMargin }: BlockRendererProps) {
           noMargin={noMargin}
         />
       );
+    case "exploring":
+      return (
+        <ExploringBlock
+          title={block.title}
+          body={block.body}
+          noMargin={noMargin}
+        />
+      );
+    case "spacer":
+      return <SpacerBlock body={block.body} noMargin={noMargin} />;
     case "security":
       return (
         <SecurityBlock

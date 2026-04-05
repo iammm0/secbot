@@ -10,7 +10,7 @@ export const byTypeDiscriminator: BlockDiscriminator = (block) => {
     'api', 'phase', 'error', 'planning', 'thought', 'actions',
     'content', 'report', 'response', 'user_message', 'warning', 'summary', 'code',
     'json', 'table', 'bullet', 'numbered', 'quote', 'heading', 'divider',
-    'link', 'key_value', 'diff', 'terminal', 'security', 'tool_result',
+    'link', 'key_value', 'diff', 'terminal', 'exploring', 'spacer', 'security', 'tool_result',
     'exception', 'suggestion', 'success', 'info',
   ];
   if (known.includes(block.type)) return block.type;

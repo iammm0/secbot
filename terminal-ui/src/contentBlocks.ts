@@ -8,18 +8,21 @@
  */
 import type { StreamState } from "./types.js";
 import type { ContentBlock } from "./types.js";
+import type { BlockRenderType } from "./types.js";
+import {
+  INTER_BLOCK_GAP_LINES,
+  TRANSIENT_TOOLS,
+  EXPLORING_TOOLS,
+  TERMINAL_TOOLS,
+} from "./streamConstants.js";
 
 // ─── 常量 ──────────────────────────────────────────────────────────────────────
 
 /** 执行结果类块最大展示行数，超出省略，避免刷屏 */
 const MAX_RESULT_LINES = 24;
 
-/** 完成后仅标识"完成"并随后消失、且不渲染其输出内容的工具 */
-const TRANSIENT_TOOLS = new Set<string>([
-  "system_info",
-  "network_analyze",
-  "report_generator",
-]);
+/** 工具观察块可稍长，仍设上限 */
+const MAX_OBSERVATION_LINES = 32;
 
 /** 安全报告块最大行数（略宽于工具结果，仍防止刷屏） */
 const MAX_REPORT_LINES = 48;
@@ -96,6 +99,25 @@ function extractThoughtOnly(raw: string): string {
   return afterThought.trim() || text;
 }
 
+function observationResolvedType(tool?: string): BlockRenderType | undefined {
+  if (tool && EXPLORING_TOOLS.has(tool)) return "exploring";
+  if (tool && TERMINAL_TOOLS.has(tool)) return "terminal";
+  return undefined;
+}
+
+function observationTitle(
+  tool?: string,
+  iteration?: number,
+  fallbackTitle?: string,
+): string {
+  const iterSuffix = iteration ? ` #${iteration}` : "";
+  if (tool && EXPLORING_TOOLS.has(tool)) return `探索 · ${tool}${iterSuffix}`;
+  if (tool && TERMINAL_TOOLS.has(tool)) return `终端 · ${tool}${iterSuffix}`;
+  if (fallbackTitle?.trim()) return fallbackTitle;
+  if (tool) return `观察 · ${tool}${iterSuffix}`;
+  return `观察${iterSuffix}`;
+}
+
 // ─── 主函数 ────────────────────────────────────────────────────────────────────
 
 /**
@@ -142,13 +164,31 @@ export function streamStateToBlocks(
 
   // ── 内部辅助：添加正文块 ───────────────────────────────────────────────────────
 
+  function addVisualGap(): void {
+    const n = INTER_BLOCK_GAP_LINES;
+    if (n <= 0) return;
+    const gapBody = Array.from({ length: n }, () => " ").join("\n");
+    const lineCount = blockLines(undefined, gapBody);
+    blocks.push({
+      id: `vgap-${lineStart}-${blocks.length}`,
+      type: "spacer",
+      body: gapBody,
+      lineStart,
+      lineEnd: lineStart + lineCount,
+    });
+    lineStart += lineCount;
+  }
+
   function addBlock(
     id: string,
     type: ContentBlock["type"],
     title: string,
     body: string,
     extra?: Partial<
-      Pick<ContentBlock, "completedAt" | "durationMs" | "sentAt">
+      Pick<
+        ContentBlock,
+        "completedAt" | "durationMs" | "sentAt" | "resolvedType"
+      >
     >,
   ): void {
     const lineCount = blockLines(title, body);
@@ -225,11 +265,17 @@ export function streamStateToBlocks(
     const nonFinal = timeline.filter((x) => x.type !== "final");
     const finals = timeline.filter((x) => x.type === "final");
 
+    if (nonFinal.length > 0 && blocks.length > 0) {
+      addVisualGap();
+    }
+
+    let timelineEmitted = 0;
     for (const item of nonFinal) {
       if (item.type === "thought") {
         const extracted = extractThoughtOnly(item.body || "");
         const trimmed = extracted.trim();
         if (!trimmed || trimmed === "…") continue;
+        if (timelineEmitted++ > 0) addVisualGap();
         addBlock(
           item.id,
           "thought",
@@ -243,6 +289,7 @@ export function streamStateToBlocks(
         if (item.tool && TRANSIENT_TOOLS.has(item.tool) && item.status === "done") {
           if (dismissed.has(item.tool)) continue;
         }
+        if (timelineEmitted++ > 0) addVisualGap();
         const statusLine =
           item.status === "done"
             ? item.success === false
@@ -260,21 +307,23 @@ export function streamStateToBlocks(
       }
 
       if (item.type === "observation") {
-        const obsLabel = item.title
-          || (item.tool
-            ? `观察 · ${item.tool}${item.iteration ? ` #${item.iteration}` : ""}`
-            : "总结观察");
+        if (timelineEmitted++ > 0) addVisualGap();
+        const baseTitle = item.title
+          || (item.tool ? `观察 · ${item.tool}` : "总结观察");
+        const obsLabel = observationTitle(item.tool, item.iteration, baseTitle);
         addBlock(
           item.id,
-          "content",
+          "tool_result",
           obsLabel,
-          truncateBody(item.body || "…", MAX_RESULT_LINES),
+          truncateBody(item.body || "…", MAX_OBSERVATION_LINES),
+          { resolvedType: observationResolvedType(item.tool) },
         );
         continue;
       }
     }
 
     if (report?.trim()) {
+      if (timelineEmitted > 0 || blocks.length > 0) addVisualGap();
       addBlock(
         "stream-report",
         "report",
@@ -285,6 +334,7 @@ export function streamStateToBlocks(
 
     for (const item of finals) {
       if (item.type === "final") {
+        if (blocks.length > 0) addVisualGap();
         addBlock(
           item.id,
           "summary",

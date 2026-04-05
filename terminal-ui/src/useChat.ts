@@ -13,6 +13,8 @@
  */
 import { useState, useCallback, useRef, useEffect } from "react";
 import { connectSSE } from "./sse.js";
+import { TRANSIENT_TOOLS } from "./streamConstants.js";
+import { buildObservationBody } from "./toolObservation.js";
 import type {
   ChatRequest,
   ChatMode,
@@ -434,6 +436,30 @@ export function useChat() {
                       result: data.result,
                       status: "done",
                     };
+                    if (!TRANSIENT_TOOLS.has(toolName)) {
+                      const obsBody = buildObservationBody(
+                        toolName,
+                        data.result,
+                        ok,
+                        data.error !== undefined
+                          ? String(data.error)
+                          : undefined,
+                      );
+                      timeline.splice(realIdx + 1, 0, {
+                        id: `obs-${toolName}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+                        type: "observation",
+                        title: `观察 · ${toolName}`,
+                        body: obsBody,
+                        tool: toolName,
+                        status: "done",
+                        success: ok,
+                        error:
+                          data.error !== undefined
+                            ? String(data.error)
+                            : undefined,
+                        result: data.result,
+                      });
+                    }
                   }
                   return { ...s, actions, timeline };
                 });
