@@ -17,7 +17,17 @@ const SUMMARY_SYSTEM_PROMPT =
   '1. 语言简洁专业，使用中文。\n' +
   '2. 包含任务概述、关键发现、风险评估、修复建议和总结。\n' +
   '3. 关键发现需要按严重程度排序（高危 > 中危 > 低危 > 信息）。\n' +
-  '4. 修复建议要具体可操作，而非泛泛而谈。';
+  '4. 修复建议要具体可操作，而非泛泛而谈。\n' +
+  '5. 全文控制在约 600–1200 汉字；用要点归纳，禁止大段粘贴原始 JSON、进程列表或完整配置文件。';
+
+const MAX_THOUGHT_CHARS = 1_200;
+const MAX_OBS_CHARS = 2_500;
+
+function clipForSummary(text: string, maxChars: number): string {
+  const t = text.trim();
+  if (t.length <= maxChars) return t;
+  return `${t.slice(0, maxChars)}\n…（已截断，原文约 ${t.length} 字符）`;
+}
 
 export class SummaryAgent extends BaseAgent {
   private readonly llm: LLMProvider;
@@ -103,16 +113,23 @@ export class SummaryAgent extends BaseAgent {
     }
 
     if (options?.thoughts?.length) {
-      parts.push(`## 分析思路\n${options.thoughts.map((t, i) => `${i + 1}. ${t}`).join('\n')}`);
+      const lines = options.thoughts.map(
+        (t, i) => `${i + 1}. ${clipForSummary(t, MAX_THOUGHT_CHARS)}`,
+      );
+      parts.push(`## 分析思路\n${lines.join('\n')}`);
     }
 
     if (options?.observations?.length) {
-      parts.push(`## 观察结果\n${options.observations.map((o, i) => `${i + 1}. ${o}`).join('\n')}`);
+      const lines = options.observations.map(
+        (o, i) => `${i + 1}. ${clipForSummary(o, MAX_OBS_CHARS)}`,
+      );
+      parts.push(`## 观察结果\n${lines.join('\n')}`);
     }
 
     if (options?.toolResults?.length) {
       const toolLines = options.toolResults.map(
-        (r) => `- **${r.tool}**: ${r.success ? '成功' : '失败'} — ${r.result}`,
+        (r) =>
+          `- **${r.tool}**: ${r.success ? '成功' : '失败'} — ${clipForSummary(String(r.result ?? ''), MAX_OBS_CHARS)}`,
       );
       parts.push(`## 工具执行结果\n${toolLines.join('\n')}`);
     }

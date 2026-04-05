@@ -41,7 +41,8 @@ export interface StreamState {
     todos: Array<{ content: string; status?: string }>;
   } | null;
   thought: { iteration: number; content: string } | null;
-  thoughtChunks: Map<number, string>;
+  /** 推理流分片正文，键为后端 step_key（或 iter-N），避免并行子任务 iteration 重复时覆盖 */
+  thoughtChunks: Map<string, string>;
   actions: Array<{
     tool: string;
     params: Record<string, unknown>;
