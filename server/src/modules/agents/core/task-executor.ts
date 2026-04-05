@@ -25,10 +25,14 @@ export class TaskExecutor {
     this.planner = new PlannerAgent();
   }
 
-  async run(userInput: string, onEvent?: OnEventCallback): Promise<string> {
+  async run(
+    userInput: string,
+    onEvent?: OnEventCallback,
+  ): Promise<{ summary: string; cancelledCount: number }> {
     const layers = this.planner.getExecutionOrder(this.plan.todos);
     const results: string[] = [];
     let currentTodos = [...this.plan.todos];
+    let cancelledCount = 0;
 
     this.eventBus.emitSimple(EventType.PLAN_START, {
       totalTodos: currentTodos.length,
@@ -69,12 +73,28 @@ export class TaskExecutor {
         });
 
         try {
-          const result = await this.agent.executeTodo(todo, userInput, {
+          const result = (await this.agent.executeTodo(todo, userInput, {
             onEvent,
-          });
+          })) as {
+            success?: boolean;
+            error?: string;
+            result?: unknown;
+            todoId?: string;
+          };
 
+          const ok = result.success !== false && !result.error;
           const resultText =
             typeof result.result === 'string' ? result.result : JSON.stringify(result.result ?? '');
+
+          if (!ok) {
+            cancelledCount += 1;
+            currentTodos = currentTodos.map((t) => (t.id === todo.id ? markTodoCancelled(t) : t));
+            this.eventBus.emitSimple(EventType.ERROR, {
+              todoId: todo.id,
+              error: result.error ?? '子任务未成功完成',
+            });
+            return `[${todo.id}] ${todo.content}\n失败: ${result.error ?? '工具或执行未成功'}`;
+          }
 
           currentTodos = currentTodos.map((t) =>
             t.id === todo.id ? markTodoCompleted(t, resultText) : t,
@@ -82,13 +102,14 @@ export class TaskExecutor {
 
           this.eventBus.emitSimple(EventType.EXEC_RESULT, {
             todoId: todo.id,
-            success: result.success,
+            success: true,
             result: resultText,
           });
 
           return `[${todo.id}] ${todo.content}\n结果: ${resultText}`;
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
+          cancelledCount += 1;
 
           currentTodos = currentTodos.map((t) => (t.id === todo.id ? markTodoCancelled(t) : t));
 
@@ -128,6 +149,6 @@ export class TaskExecutor {
       iteration: 0,
     });
 
-    return summary;
+    return { summary, cancelledCount };
   }
 }

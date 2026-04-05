@@ -240,19 +240,46 @@ export function useChat() {
               case "connected":
                 break;
 
-              case "planning":
+              case "planning": {
+                const text =
+                  ((data.content as string) ||
+                    (data.summary as string) ||
+                    "") ?? "";
+                const todosRaw =
+                  (data.todos as Array<{
+                    content: string;
+                    status?: string;
+                  }>) ?? [];
+                const todos = todosRaw.map((t) => ({
+                  content: t.content,
+                  status: t.status,
+                }));
+                const scopeRaw = String(data.scope ?? "master").toLowerCase();
+                const planScope: "master" | "adaptive" =
+                  scopeRaw === "adaptive" ? "adaptive" : "master";
+                const title = planScope === "adaptive" ? "穿插规划" : "规划";
+                const planId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
                 setStreamState((s) => ({
                   ...s,
                   planning: {
-                    content: (data.content as string) ?? "",
-                    todos:
-                      (data.todos as Array<{
-                        content: string;
-                        status?: string;
-                      }>) ?? [],
+                    content: text,
+                    todos,
                   },
+                  timeline: [
+                    ...s.timeline,
+                    {
+                      id: planId,
+                      type: "planning",
+                      title,
+                      body: text,
+                      todos,
+                      planScope,
+                      status: "done",
+                    },
+                  ],
                 }));
                 break;
+              }
 
               case "thought_start":
                 setStreamState((s) => ({

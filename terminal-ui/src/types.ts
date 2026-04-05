@@ -16,7 +16,12 @@ export interface ChatRequest {
   model?: string | null;
 }
 
-export type TimelineItemType = "thought" | "action" | "observation" | "final";
+export type TimelineItemType =
+  | "thought"
+  | "action"
+  | "observation"
+  | "final"
+  | "planning";
 
 /** 按事件发生顺序记录的时间线项，用于 TUI 顺序渲染 */
 export interface StreamTimelineItem {
@@ -24,6 +29,10 @@ export interface StreamTimelineItem {
   type: TimelineItemType;
   title: string;
   body: string;
+  /** 规划块：待办列表（与 planning SSE 一致） */
+  todos?: Array<{ content: string; status?: string }>;
+  /** master=首轮总规划；adaptive=执行过程中穿插的补充规划 */
+  planScope?: "master" | "adaptive";
   iteration?: number;
   tool?: string;
   success?: boolean;
