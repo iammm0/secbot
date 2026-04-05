@@ -34,8 +34,7 @@ export function executeCommandShellProfile(): ShellExecutionProfile {
   if (process.platform === 'win32') {
     return shellProfile('cmd', 'cmd.exe (/d /s /c)');
   }
-  const sh =
-    process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+  const sh = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
   const base = sh.split(/[/\\]/).pop() ?? sh;
   return shellProfile('posix', `${base} (-lc)`);
 }
@@ -44,7 +43,9 @@ function looksLikePowerShellCommand(c: string): boolean {
   if (/^\s*(powershell|pwsh)\s/i.test(c)) return false;
   if (/\$env:[A-Za-z_]/i.test(c)) return true;
   if (/\bGet-[A-Za-z][A-Za-z0-9-]*\b/.test(c)) return true;
-  if (/\b(Select-Object|Where-Object|ForEach-Object|Write-Host|Out-File|Invoke-Expression)\b/.test(c)) {
+  if (
+    /\b(Select-Object|Where-Object|ForEach-Object|Write-Host|Out-File|Invoke-Expression)\b/.test(c)
+  ) {
     return true;
   }
   return false;

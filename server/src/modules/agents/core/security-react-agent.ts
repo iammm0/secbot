@@ -6,10 +6,7 @@ import { LLMProvider, createLLM, LLMConfig } from '../../../common/llm';
 import { TodoItem } from '../../../common/types';
 import { validateToolInvocation } from './tool-action-validate';
 import { formatExecuteCommandObservation } from './observation-format';
-import {
-  type ClientShellPayload,
-  formatClientShellContextBlock,
-} from './client-shell-context.js';
+import { type ClientShellPayload, formatClientShellContextBlock } from './client-shell-context.js';
 
 interface ReActStep {
   type: 'thought' | 'action' | 'observation';
