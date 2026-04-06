@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"secbot/internal/memory"
+	"secbot/internal/models"
 	"secbot/internal/patterns"
 	"secbot/pkg/event"
 	"secbot/pkg/logger"
@@ -13,7 +14,6 @@ import (
 	"github.com/tmc/langchaingo/tools"
 )
 
-// HackbotAgent 是主安全 agent，使用 SecurityReAct 模式执行安全任务
 type HackbotAgent struct {
 	BaseAgent
 	llm   llms.Model
@@ -24,8 +24,9 @@ type HackbotAgent struct {
 func NewHackbotAgent(llm llms.Model, toolList []tools.Tool, mem *memory.Manager, bus *event.Bus) *HackbotAgent {
 	return &HackbotAgent{
 		BaseAgent: BaseAgent{
-			AgentName: "secbot",
-			Memory:    mem,
+			AgentName:     "Hackbot",
+			AgentTypeName: "secbot-cli",
+			Memory:        mem,
 		},
 		llm:   llm,
 		tools: toolList,
@@ -33,10 +34,14 @@ func NewHackbotAgent(llm llms.Model, toolList []tools.Tool, mem *memory.Manager,
 	}
 }
 
-func (h *HackbotAgent) Process(ctx context.Context, input string) (string, error) {
+func (h *HackbotAgent) Process(ctx context.Context, input string, opts *models.ProcessOptions) (string, error) {
 	logger.Infof("[HackbotAgent] 处理请求: %s", truncateStr(input, 100))
 
 	h.bus.EmitSimple(event.AgentThinking, "message", "正在分析安全任务...")
+
+	if opts != nil && opts.OnEvent != nil {
+		opts.OnEvent("thought_start", map[string]any{"iteration": 1, "agent": h.AgentTypeName})
+	}
 
 	h.Memory.AddUserMessage(input)
 
@@ -49,14 +54,27 @@ func (h *HackbotAgent) Process(ctx context.Context, input string) (string, error
 
 	h.Memory.AddAssistantMessage(result)
 
+	if opts != nil && opts.OnEvent != nil {
+		opts.OnEvent("thought_end", map[string]any{"thought": "分析完成", "iteration": 1, "agent": h.AgentTypeName})
+	}
+
 	h.bus.EmitSimple(event.AgentResponse, "message", "安全分析完成")
 
 	return result, nil
 }
 
+func (h *HackbotAgent) ToolNames() []string {
+	names := make([]string, len(h.tools))
+	for i, t := range h.tools {
+		names[i] = t.Name()
+	}
+	return names
+}
+
 func truncateStr(s string, n int) string {
-	if len(s) <= n {
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
-	return s[:n] + "..."
+	return string(runes[:n]) + "..."
 }

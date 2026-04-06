@@ -4,17 +4,10 @@ import (
 	"context"
 	"strings"
 
-	"secbot/internal/patterns"
+	"secbot/internal/models"
+	"secbot/pkg/logger"
 
 	"github.com/tmc/langchaingo/llms"
-)
-
-type RequestType string
-
-const (
-	RequestGreeting  RequestType = "greeting"
-	RequestQA        RequestType = "qa"
-	RequestTechnical RequestType = "technical"
 )
 
 type IntentRouter struct {
@@ -25,15 +18,13 @@ func NewIntentRouter(llm llms.Model) *IntentRouter {
 	return &IntentRouter{llm: llm}
 }
 
-// Classify 使用 LLM 对用户输入进行意图分类
-func (r *IntentRouter) Classify(ctx context.Context, input string) RequestType {
-	// 规则路由：优先匹配明确模式
+func (r *IntentRouter) Classify(ctx context.Context, input string) models.RequestType {
 	lower := strings.ToLower(input)
 
 	greetings := []string{"你好", "hello", "hi", "嗨", "hey", "早上好", "晚上好", "good morning"}
 	for _, g := range greetings {
-		if strings.Contains(lower, g) && len(input) < 20 {
-			return RequestGreeting
+		if strings.Contains(lower, g) && len([]rune(input)) < 20 {
+			return models.RequestGreeting
 		}
 	}
 
@@ -43,31 +34,46 @@ func (r *IntentRouter) Classify(ctx context.Context, input string) RequestType {
 		"检测", "detect", "分析", "analyze", "安全", "security",
 		"http", "ssl", "证书", "header", "web", "ip", "网络",
 		"执行", "运行", "命令", "hash", "编码", "解码",
+		"巡检", "侦察", "recon", "信息收集", "子域名", "subdomain",
 	}
 	for _, kw := range techKeywords {
 		if strings.Contains(lower, kw) {
-			return RequestTechnical
+			return models.RequestTechnical
 		}
 	}
 
-	// LLM 路由作为后备
-	router := patterns.NewRouter(r.llm, []patterns.RouteCategory{
-		{Name: "technical", Description: "安全测试、网络扫描、渗透测试、系统命令等技术操作请求"},
-		{Name: "qa", Description: "安全知识问答、概念解释、最佳实践咨询"},
-		{Name: "greeting", Description: "打招呼、闲聊、问候"},
-	}, nil)
-
-	result, err := router.Route(ctx, input)
-	if err != nil {
-		return RequestQA
-	}
-
-	switch strings.ToLower(result.Category) {
+	category := r.classifyWithLLM(ctx, input)
+	switch category {
 	case "technical":
-		return RequestTechnical
+		return models.RequestTechnical
 	case "greeting":
-		return RequestGreeting
+		return models.RequestGreeting
+	case "qa":
+		return models.RequestQA
 	default:
-		return RequestQA
+		return models.RequestOther
 	}
+}
+
+func (r *IntentRouter) classifyWithLLM(ctx context.Context, input string) string {
+	prompt := `将以下输入分类到恰好一个类别中：
+
+- technical: 安全测试、网络扫描、渗透测试、系统命令等技术操作请求
+- qa: 安全知识问答、概念解释、最佳实践咨询
+- greeting: 打招呼、闲聊、问候
+- other: 与安全或电脑无关的话题
+
+输入: ` + input + `
+
+仅回复类别名称（technical/qa/greeting/other），不要回复其他内容。`
+
+	response, err := llms.GenerateFromSinglePrompt(ctx, r.llm, prompt,
+		llms.WithTemperature(0.0),
+		llms.WithMaxTokens(20),
+	)
+	if err != nil {
+		logger.Warnf("[IntentRouter] LLM 分类失败: %v, 默认 qa", err)
+		return "qa"
+	}
+	return strings.TrimSpace(strings.ToLower(response))
 }

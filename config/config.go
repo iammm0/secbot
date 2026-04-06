@@ -18,6 +18,7 @@ type Config struct {
 	Verbose     bool
 	LogLevel    string
 	LogFile     string
+	DatabaseURL string
 }
 
 func Load() *Config {
@@ -32,9 +33,12 @@ func Load() *Config {
 		Verbose:     envBoolOrDefault("VERBOSE", false),
 		LogLevel:    envOrDefault("LOG_LEVEL", "INFO"),
 		LogFile:     envOrDefault("LOG_FILE", "logs/agent.log"),
+		DatabaseURL: envOrDefault("DATABASE_URL", "data/secbot.db"),
 	}
 
-	switch strings.ToLower(cfg.LLMProvider) {
+	provider := strings.ToLower(cfg.LLMProvider)
+
+	switch provider {
 	case "deepseek":
 		if cfg.BaseURL == "" {
 			cfg.BaseURL = "https://api.deepseek.com/v1"
@@ -53,19 +57,28 @@ func Load() *Config {
 		if model := os.Getenv("OLLAMA_MODEL"); model != "" {
 			cfg.ModelName = model
 		}
+	default:
+		envKey := strings.ToUpper(provider) + "_API_KEY"
+		if key := os.Getenv(envKey); key != "" {
+			cfg.APIKey = key
+		}
+		envURL := strings.ToUpper(provider) + "_BASE_URL"
+		if url := os.Getenv(envURL); url != "" {
+			cfg.BaseURL = url
+		}
+		envModel := strings.ToUpper(provider) + "_MODEL"
+		if model := os.Getenv(envModel); model != "" {
+			cfg.ModelName = model
+		}
 	}
 
 	return cfg
 }
 
 func (c *Config) Validate() error {
-	valid := map[string]bool{"openai": true, "ollama": true, "deepseek": true}
 	provider := strings.ToLower(c.LLMProvider)
-	if !valid[provider] {
-		return fmt.Errorf("不支持的 LLM_PROVIDER: %q（支持: openai, ollama, deepseek）", c.LLMProvider)
-	}
 	if provider != "ollama" && c.APIKey == "" {
-		return fmt.Errorf("provider %q 需要配置 API Key", c.LLMProvider)
+		return fmt.Errorf("provider %q 需要配置 API Key (设置 %s_API_KEY 环境变量)", c.LLMProvider, strings.ToUpper(c.LLMProvider))
 	}
 	return nil
 }

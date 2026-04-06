@@ -8,14 +8,18 @@ import (
 )
 
 type Manager struct {
-	conversation *Store // 短期对话记忆
-	context      *Store // 长期上下文
+	conversation *Store          // 短期对话记忆
+	context      *Store          // 长期上下文
+	episodic     *EpisodicMemory // 情景记忆
+	longTerm     *LongTermMemory // 长期记忆
 }
 
 func NewManager() *Manager {
 	return &Manager{
 		conversation: NewStore(50),
 		context:      NewStore(200),
+		episodic:     NewEpisodicMemory("data"),
+		longTerm:     NewLongTermMemory("data"),
 	}
 }
 
@@ -74,6 +78,35 @@ func (m *Manager) ConversationLen() int {
 func (m *Manager) Clear() {
 	m.conversation.Clear()
 	m.context.Clear()
+}
+
+func (m *Manager) Remember(key, value string, importance float64) {
+	m.episodic.Save(key, value, importance)
+}
+
+func (m *Manager) Recall(key string) (string, bool) {
+	return m.episodic.Recall(key)
+}
+
+func (m *Manager) StoreLongTerm(category, content string) {
+	m.longTerm.Store(category, content)
+}
+
+func (m *Manager) RetrieveLongTerm(category string, limit int) []LongTermEntry {
+	return m.longTerm.Retrieve(category, limit)
+}
+
+func (m *Manager) GetContextForAgent(agentType string) string {
+	var sb strings.Builder
+	recent := m.conversation.Recent(5)
+	for _, msg := range recent {
+		sb.WriteString(fmt.Sprintf("[%s] %s\n", msg.Role, truncate(msg.Content, 100)))
+	}
+	findings := m.longTerm.Retrieve("findings", 3)
+	for _, f := range findings {
+		sb.WriteString(fmt.Sprintf("[记忆] %s\n", truncate(f.Content, 100)))
+	}
+	return sb.String()
 }
 
 func truncate(s string, maxLen int) string {
