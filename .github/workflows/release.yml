@@ -6,7 +6,9 @@
 #    · 或 Classic Token：类型必须选 Automation（勿用需 OTP 的 Publish 类令牌）。
 #    权限须覆盖 @opensec；GitHub Secret 名仍为 NPM_TOKEN。
 # 3. git tag v2.0.0 && git push origin v2.0.0
-#    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm publish。
+#    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm publish（npmjs）+
+#    GitHub Packages（仓库 Settings → Packages 可见；包名为 @<仓库所有者>/secbot，与 @opensec/secbot 并存）。
+#    工作流 permissions 需含 packages: write（已配置）；使用 GITHUB_TOKEN 认证 npm.pkg.github.com。
 
 name: Release
 
@@ -18,6 +20,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   build:
@@ -106,3 +109,36 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-github-packages:
+    name: Publish to GitHub Packages
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      # GitHub Packages 要求作用域小写，与 apply-github-packages-name.js 中 pkg.name 一致
+      - name: Normalize npm scope owner (lowercase)
+        run: echo "NPM_SCOPE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Set up Node.js for GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '${{ env.NPM_SCOPE_OWNER }}'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply scoped name for GitHub Packages registry
+        run: node scripts/apply-github-packages-name.js
+        env:
+          GITHUB_REPOSITORY_OWNER: ${{ env.NPM_SCOPE_OWNER }}
+
+      - name: Publish to GitHub Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -49,8 +49,13 @@ GitHub Actions 工作流：
 2. 使用 `npm run build` 构建 TypeScript 后端。
 3. 打包发布产物并上传到 GitHub Release。
 4. 发布 npm 包（如配置）。
+5. 同一次打标还会 **发布到 GitHub Packages**（使用 `GITHUB_TOKEN`，无需额外 Secret）：包名为 `@<仓库所有者小写>/secbot`（例如 `iammm0/secbot` 对应 `@iammm0/secbot`），与 npmjs 上的 `@opensec/secbot` **名称不同、可并存**。在仓库 **Settings → Packages**（或个人 **Packages**）中查看。
 
 **`NPM_TOKEN` 与 2FA**：若 npm 账号启用了双因素认证，CI 里必须用 **Granular 令牌且允许发布时绕过 2FA**，或 **Classic 的 Automation 令牌**；否则会出现 `403 ... bypass 2fa enabled is required to publish`。
+
+### 从 GitHub Packages 安装（可选）
+
+消费方仓库需在 `.npmrc` 中指向 `https://npm.pkg.github.com`，并使用具有 `read:packages` 权限的 **Classic PAT**（或有权读取该包的工作流 token）。包名示例：`@iammm0/secbot`。详见 [Working with the npm registry](https://docs.github.com/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)。
 
 ## 本地发布任务
 
