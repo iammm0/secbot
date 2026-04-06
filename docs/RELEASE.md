@@ -53,6 +53,8 @@ GitHub Actions 工作流：
 
 **`NPM_TOKEN` 与 2FA**：若 npm 账号启用了双因素认证，CI 里必须用 **Granular 令牌且允许发布时绕过 2FA**，或 **Classic 的 Automation 令牌**；否则会出现 `403 ... bypass 2fa enabled is required to publish`。
 
+**不可覆盖已发布版本**：npm 与 GitHub Packages 均不允许同一版本号二次 `publish`；若 CI 报 `Cannot publish over previously published version`，须将 `package.json` 的 `version` 与标签同步抬升（如 `2.0.0` → `2.0.1`）后再打新标签发布。
+
 ### 从 GitHub Packages 安装（可选）
 
 消费方仓库需在 `.npmrc` 中指向 `https://npm.pkg.github.com`，并使用具有 `read:packages` 权限的 **Classic PAT**（或有权读取该包的工作流 token）。包名示例：`@iammm0/secbot`。详见 [Working with the npm registry](https://docs.github.com/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)。
@@ -88,7 +90,7 @@ node scripts/release-docs.js version-docs --changelog CHANGELOG.md --output-dir 
 ```bash
 node scripts/release-docs.js package-readme \
   --changelog CHANGELOG.md \
-  --version v2.0.0 \
+  --version v2.0.1 \
   --platform windows-amd64 \
   --output dist/README_RELEASE.md
 ```
