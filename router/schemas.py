@@ -78,7 +78,7 @@ class SystemInfoResponse(BaseModel):
 
 
 class SystemConfigResponse(BaseModel):
-    """当前推理/模型配置（供 TUI /model 等使用）"""
+    """当前推理/模型配置（供 /model 等使用）"""
     llm_provider: str = Field(..., description="当前推理后端，如 ollama / deepseek")
     ollama_model: str = Field(..., description="Ollama 默认模型")
     ollama_base_url: str = Field(..., description="Ollama 服务地址")

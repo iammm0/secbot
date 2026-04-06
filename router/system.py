@@ -55,10 +55,10 @@ async def system_info():
 
 @router.get("/config", response_model=SystemConfigResponse, summary="推理/模型配置")
 async def system_config():
-    """返回当前 LLM 后端与模型配置，供 TUI /model 等使用（含 SQLite 持久化后的生效值）。"""
+    """返回当前 LLM 后端与模型配置，供 /model 等使用（含 SQLite 持久化后的生效值）。"""
     try:
         from hackbot_config import settings, get_provider_model, get_provider_base_url
-        # 优先返回 SQLite/环境变量中该厂商的生效值，便于 TUI 展示与编辑后回显
+        # 优先返回 SQLite/环境变量中该厂商的生效值，便于展示与编辑后回显
         ollama_model = get_provider_model("ollama") or settings.ollama_model
         ollama_base_url = (get_provider_base_url("ollama") or settings.ollama_base_url).rstrip("/")
         deepseek_model = get_provider_model("deepseek") or getattr(settings, "deepseek_model", None)
@@ -166,7 +166,7 @@ async def list_ollama_models(base_url: Optional[str] = None):
 
 @router.get("/config/providers", response_model=ProviderListResponse, summary="列出需 API Key 的厂商及配置状态")
 async def list_providers_api_key_status():
-    """供 TUI 弹窗展示：哪些厂商需要 Key、是否已配置。"""
+    """展示哪些厂商需要 Key、是否已配置。"""
     try:
         from utils.model_selector import PROVIDER_REGISTRY, has_provider_api_key
         from hackbot_config import get_provider_base_url

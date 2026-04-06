@@ -5,7 +5,7 @@
 </h1>
 
 <p style="font-size: 1.2em; color: #666; margin-bottom: 20px;">
-  <strong>AI 驱动的自动化安全测试与多前端工作台</strong>
+  <strong>AI 驱动的自动化安全测试 CLI</strong>
 </p>
 
 <p>
@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python">
   </a>
   <a href="pyproject.toml">
-    <img src="https://img.shields.io/badge/version-1.6.0-brightgreen.svg" alt="Version">
+    <img src="https://img.shields.io/badge/version-1.10.0-brightgreen.svg" alt="Version">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-Custom-orange.svg" alt="License">
@@ -39,9 +39,6 @@
   <a href="https://github.com/astral-sh/uv">
     <img src="https://img.shields.io/badge/uv-latest-2E86C1.svg" alt="uv">
   </a>
-  <a href="https://github.com/vadimdemedes/ink">
-    <img src="https://img.shields.io/badge/Ink-4.4%2B-FF69B4.svg" alt="Ink">
-  </a>
 </p>
 
 <p>
@@ -60,42 +57,32 @@
 
 ## 功能概览
 
-- **统一后端**：基于 FastAPI 暴露 REST + SSE 接口，CLI/TUI、移动端、桌面端共用同一套编排与事件流。
+- **CLI 交互**：基于 Typer + Rich 的原生终端交互，直接在进程内调用核心逻辑，无需网络通信。
+- **API 服务**：可选启动 FastAPI 后端，暴露 REST + SSE 接口供第三方集成。
 - **多智能体执行**：支持 `secbot-cli` 自动模式与 `superhackbot` 专家模式，结合规划、执行、总结链路完成安全任务。
 - **安全测试能力**：覆盖内网发现、端口与服务识别、Web 安全、OSINT、系统控制、防御扫描与报告生成。
 - **多推理后端**：内置 Ollama、DeepSeek、OpenAI、Anthropic、Gemini、Groq、OpenRouter 及多家 OpenAI 兼容厂商。
-- **多前端形态**：仓库同时包含 `terminal-ui/`、`app/`（Expo / React Native）与 `desktop/`（Tauri + Vite）工程。
 - **SQLite 持久化**：对话历史、提示词链、用户偏好和 API Key 配置可持久化到 SQLite。
 
 ## 架构概览
 
 ```mermaid
 flowchart LR
-  subgraph Clients["客户端"]
-    tui["terminal-ui (Ink)"]
-    mobile["app (Expo / React Native)"]
-    desktop["desktop (Tauri + React)"]
-  end
-
-  tui --> api["FastAPI /api/*"]
-  mobile --> api
-  desktop --> api
-
-  api --> session["SessionManager"]
+  CLI["Typer CLI"]
+  CLI -->|"进程内调用"| session["SessionManager"]
   session --> planner["Planner / QA / Agent Router"]
   planner --> tools["安全工具与系统控制"]
   tools --> summary["Summary / Reports"]
   summary --> db["SQLite"]
-```
 
-更细的 UI 与事件流说明见 [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md)，API 细节见 [docs/API.md](docs/API.md)。
+  API["FastAPI /api/*（可选）"]
+  API --> session
+```
 
 ## 环境要求
 
 - Python `3.10+`
 - [uv](https://github.com/astral-sh/uv)（推荐，用于同步 Python 依赖）
-- Node.js `18+`
-  说明：从源码运行 `terminal-ui/`、`app/`、`desktop/` 时需要；仅跑后端可不装
 - Ollama（可选，本地模型时需要）
 
 ## 安装与启动
@@ -108,14 +95,9 @@ cd secbot
 
 # Python 依赖
 uv sync
-
-# 终端 TUI 依赖
-cd terminal-ui
-npm install
-cd ..
 ```
 
-创建 `.env`，至少填写一组可用推理后端配置。仓库当前**没有**根目录 `.env.example`，请直接手动新建：
+创建 `.env`，至少填写一组可用推理后端配置：
 
 ```env
 # 云端推理（默认推荐）
@@ -130,47 +112,35 @@ DEEPSEEK_MODEL=deepseek-reasoner
 # OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-启动完整终端体验：
+启动：
 
 ```bash
+# 交互模式
 python main.py
 # 或
 uv run secbot
-```
 
-说明：
+# 单次任务
+uv run secbot "扫描 192.168.1.1 的开放端口"
 
-- `python main.py` / `uv run secbot` 会自动拉起本地后端，并进入全屏 `terminal-ui`
-- 如果只想调试后端，用 `uv run secbot --backend`
-- 如果后端已经在运行，也可以单独启动 `terminal-ui`
+# 问答模式
+uv run secbot --ask "什么是 XSS 攻击？"
 
-```bash
-uv run secbot --backend
+# 专家模式
+uv run secbot --agent superhackbot
 
-# 新开一个终端
-cd terminal-ui
-npm run tui
+# 切换推理后端/模型
+uv run secbot model
+
+# 仅启动 API 服务
+uv run secbot server
 ```
 
 ### 方式二：下载 GitHub Release
 
-从 [Releases](https://github.com/iammm0/secbot/releases) 下载对应平台的 zip 包并解压。当前发布产物仍沿用历史命名，解压后可执行文件通常为：
-
-- Windows：`hackbot.exe`
-- Linux / macOS：`hackbot`
-
-在可执行文件同目录创建 `.env` 后再运行，例如：
-
-```env
-LLM_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-your-api-key
-```
-
-更详细的发布包说明见 [docs/RELEASE.md](docs/RELEASE.md)。
+从 [Releases](https://github.com/iammm0/secbot/releases) 下载对应平台的 zip 包并解压，在可执行文件同目录创建 `.env` 后再运行。
 
 ### 方式三：安装 wheel / 本地包
-
-如果你只需要命令入口和后端，也可以本地安装当前仓库：
 
 ```bash
 uv pip install -e .
@@ -178,44 +148,29 @@ uv pip install -e .
 pip install .
 ```
 
-可用命令包括：
+安装后可使用 `secbot` / `hackbot` / `secbot-cli` 命令。
 
-```bash
-secbot
-secbot --backend
-secbot --tui
-hackbot
-hackbot-server
-secbot-server
-```
+## 常用命令
 
-注意：通过 wheel / pip 安装时，包内**不一定包含** `terminal-ui` 的 Node 前端资源。此时 `secbot` 会优先保证后端可启动，完整 TUI 请使用源码运行或 GitHub Release。
+| 命令 | 说明 |
+|------|------|
+| `secbot` | 进入交互模式 |
+| `secbot "任务描述"` | 执行单次任务 |
+| `secbot --ask "问题"` | 问答模式 |
+| `secbot --agent superhackbot` | 使用专家智能体 |
+| `secbot model` | 切换推理后端与模型 |
+| `secbot server` | 启动 FastAPI 后端服务 |
+| `secbot version` | 显示版本 |
 
-## 快速开始
+### 交互模式内的斜杠命令
 
-### 1. 先跑起来
+| 命令 | 说明 |
+|------|------|
+| `/model` | 选择推理后端、模型、API Key |
+| `/help` | 查看帮助 |
+| `exit` / `quit` | 退出 |
 
-```bash
-python main.py
-```
-
-### 2. 常见开发入口
-
-```bash
-# 仅后端
-uv run secbot --backend
-
-# 仅终端 TUI
-uv run secbot --tui
-
-# 移动端
-cd app && npm install && npm start
-
-# 桌面端
-cd desktop && npm install && npm run tauri dev
-```
-
-### 3. 常用环境变量
+## 常见环境变量
 
 | 变量 | 用途 | 默认值 |
 |------|------|--------|
@@ -228,30 +183,16 @@ cd desktop && npm install && npm run tauri dev
 | `DATABASE_URL` | SQLite 路径 | `sqlite:///./data/secbot.db` |
 | `LOG_LEVEL` | 日志级别 | `INFO` |
 
-### 4. 常见斜杠命令
-
-| 命令 | 说明 |
-|------|------|
-| `/model` | 选择推理后端、模型、API Key、Base URL |
-| `/agent` | 切换 `secbot-cli` / `superhackbot` |
-| `/list-agents` | 查看当前可用智能体 |
-| `/system-info` | 查看系统信息 |
-| `/db-stats` | 查看 SQLite 统计 |
-| `/logs` | 查看运行日志 |
-
 ## 目录结构
 
 ```text
 secbot/
-├── main.py                 # 一键启动入口（后端 + terminal-ui）
-├── secbot_cli/             # 命令行入口与启动编排
-├── router/                 # FastAPI 路由层
+├── main.py                 # 入口（调用 Typer CLI）
+├── secbot_cli/             # CLI 入口与进程内运行器
+├── router/                 # FastAPI 路由层（可选 API 服务）
 ├── core/                   # 智能体、执行器、规划器、记忆等核心逻辑
 ├── tools/                  # 安全工具、Web 研究、协议、报告、云安全等
 ├── database/               # SQLite 模型与数据库管理
-├── terminal-ui/            # Ink 终端前端
-├── app/                    # Expo / React Native 客户端
-├── desktop/                # Tauri 桌面端
 ├── hackbot_config/         # 配置、环境变量与持久化偏好
 ├── scripts/                # 启动与构建脚本
 ├── tests/                  # 测试
@@ -262,17 +203,14 @@ secbot/
 
 | 文档 | 说明 |
 |------|------|
-| [docs/QUICKSTART.md](docs/QUICKSTART.md) | 从源码启动、前后端调试与常见入口 |
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | 从源码启动与常见入口 |
 | [docs/API.md](docs/API.md) | FastAPI REST + SSE 接口说明 |
-| [docs/APP.md](docs/APP.md) | Expo / React Native 移动端说明 |
 | [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md) | 多厂商模型后端与配置方式 |
 | [docs/OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md) | 本地 Ollama 配置与排障 |
-| [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md) | `terminal-ui` 的交互设计与上下文架构 |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | 后端部署与 systemd 示例 |
 | [docs/DOCKER_SETUP.md](docs/DOCKER_SETUP.md) | Docker 当前策略说明 |
 | [docs/RELEASE.md](docs/RELEASE.md) | Release 包使用与源码打包说明 |
 | [docs/DATABASE_GUIDE.md](docs/DATABASE_GUIDE.md) | SQLite 结构与数据库操作 |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 版本变更记录 |
 
 ## 贡献
 

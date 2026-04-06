@@ -1,5 +1,5 @@
 """
-TUI 数据模型：定义贯穿整个 TUI 层和 Agent 层的核心数据结构
+数据模型：定义贯穿 CLI/API 层和 Agent 层的核心数据结构
 """
 
 from dataclasses import dataclass, field
