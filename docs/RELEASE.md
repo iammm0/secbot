@@ -93,7 +93,7 @@ node scripts/release-docs.js version-docs --changelog CHANGELOG.md --output-dir 
 ```bash
 node scripts/release-docs.js package-readme \
   --changelog CHANGELOG.md \
-  --version v2.0.2 \
+  --version v2.0.3 \
   --platform windows-amd64 \
   --output dist/README_RELEASE.md
 ```
