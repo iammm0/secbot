@@ -58,13 +58,19 @@
 
 ![Secbot 主界面](assets/secbot-main.png)
 
+## 分支定位
+
+- 当前分支：`main`
+- 前端形态：仅保留 `terminal-ui/`（TUI）
+- 已移除：`app/`（移动端）与 `desktop/`（桌面端）
+
 ## 功能概览
 
-- **统一后端**：基于 FastAPI 暴露 REST + SSE 接口，CLI/TUI、移动端、桌面端共用同一套编排与事件流。
+- **统一后端**：基于 FastAPI 暴露 REST + SSE 接口，当前分支主要面向 CLI/TUI 工作流。
 - **多智能体执行**：支持 `secbot-cli` 自动模式与 `superhackbot` 专家模式，结合规划、执行、总结链路完成安全任务。
 - **安全测试能力**：覆盖内网发现、端口与服务识别、Web 安全、OSINT、系统控制、防御扫描与报告生成。
 - **多推理后端**：内置 Ollama、DeepSeek、OpenAI、Anthropic、Gemini、Groq、OpenRouter 及多家 OpenAI 兼容厂商。
-- **多前端形态**：仓库同时包含 `terminal-ui/`、`app/`（Expo / React Native）与 `desktop/`（Tauri + Vite）工程。
+- **前端形态**：当前分支仅保留 `terminal-ui/`（Ink）工程。
 - **SQLite 持久化**：对话历史、提示词链、用户偏好和 API Key 配置可持久化到 SQLite。
 
 ## 架构概览
@@ -208,11 +214,7 @@ uv run secbot --backend
 # 仅终端 TUI
 uv run secbot --tui
 
-# 移动端
-cd app && npm install && npm start
-
-# 桌面端
-cd desktop && npm install && npm run tauri dev
+# 说明：`main` 分支不包含移动端与桌面端工程
 ```
 
 ### 3. 常用环境变量
@@ -250,8 +252,6 @@ secbot/
 ├── tools/                  # 安全工具、Web 研究、协议、报告、云安全等
 ├── database/               # SQLite 模型与数据库管理
 ├── terminal-ui/            # Ink 终端前端
-├── app/                    # Expo / React Native 客户端
-├── desktop/                # Tauri 桌面端
 ├── hackbot_config/         # 配置、环境变量与持久化偏好
 ├── scripts/                # 启动与构建脚本
 ├── tests/                  # 测试
