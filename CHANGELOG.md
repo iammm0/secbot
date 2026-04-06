@@ -2,6 +2,12 @@
 
 <!-- version list -->
 
+## v2.0.1 (2026-04-06)
+
+### Chores
+
+- **release**：版本号递增至 `2.0.1`，因 `2.0.0` 已在 npm / GitHub Packages 存在，无法重复发布同版本。
+
 ## v1.10.0 (2026-04-03)
 
 ### Features
