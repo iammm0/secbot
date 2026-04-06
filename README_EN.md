@@ -114,7 +114,7 @@ flowchart LR
 ### Option A: Install from npm
 
 ```bash
-npm install -g secbot
+npm install -g @opensec/secbot
 secbot
 ```
 
