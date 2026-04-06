@@ -35,11 +35,11 @@ def create_app() -> FastAPI:
     )
 
     # ------------------------------------------------------------------
-    # CORS — 允许 React Native (Expo) 开发环境访问
+    # CORS
     # ------------------------------------------------------------------
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # 开发阶段允许全部来源; 生产环境应限制
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -119,35 +119,25 @@ def _purge_pycache(project_root: Path) -> None:
 
 def run_server():
     """
-    脚本入口 — secbot-cli-server 命令
-    可通过 `secbot-cli-server` 或 `python -m router.main` 启动。
+    脚本入口 — 可通过 `secbot server` 或 `python -m router.main` 启动。
 
     环境变量（可选）:
-    - SECBOT_DESKTOP=1: 桌面嵌入模式，默认 host=127.0.0.1、reload=False
     - SECBOT_SERVER_HOST / SECBOT_SERVER_PORT: 覆盖监听地址与端口
-    - SECBOT_SERVER_RELOAD=true|false: 是否启用热重载（未设置则桌面模式关、否则开）
+    - SECBOT_SERVER_RELOAD=true|false: 是否启用热重载（默认关闭）
     """
     import os
     import socket
     import sys
     import uvicorn
 
-    # 启动前强制使用最新源码：忽略 pyc + 清理 __pycache__
     sys.dont_write_bytecode = True
     root = Path(__file__).resolve().parent.parent
     _purge_pycache(root)
 
-    desktop = os.environ.get("SECBOT_DESKTOP", "").lower() in ("1", "true", "yes")
-    default_host = "127.0.0.1" if desktop else "0.0.0.0"
-    host = os.environ.get("SECBOT_SERVER_HOST", default_host)
+    host = os.environ.get("SECBOT_SERVER_HOST", "0.0.0.0")
     port = int(os.environ.get("SECBOT_SERVER_PORT", "8000"))
     reload_raw = os.environ.get("SECBOT_SERVER_RELOAD", "").lower()
-    if reload_raw in ("1", "true", "yes"):
-        reload = True
-    elif reload_raw in ("0", "false", "no"):
-        reload = False
-    else:
-        reload = not desktop
+    reload = reload_raw in ("1", "true", "yes")
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if s.connect_ex(("127.0.0.1", port)) == 0:
