@@ -89,11 +89,8 @@ exploit-tools = [
 
 [project.scripts]
 hackbot = "secbot_cli.cli:app"
-hackbot-server = "router.main:run_server"
 secbot = "secbot_cli.cli:app"
-secbot-server = "router.main:run_server"
 secbot-cli = "secbot_cli.cli:app"
-secbot-cli-server = "router.main:run_server"
 
 # 工具扩展 entry point：第三方包在其 pyproject.toml 中声明即可注册
 # 文档见 tools/registry.py 或 docs/TOOL_EXTENSION.md
