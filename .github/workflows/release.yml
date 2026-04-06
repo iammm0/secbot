@@ -1,4 +1,4 @@
-# 自动发布（以 2.0.0 为例）
+# 自动发布 npm 包 @opensec/secbot（以 2.0.0 / 标签 v2.0.0 为例）
 # 1. 确认根目录 package.json 的 version 与即将打的标签一致（如 2.0.0 对应标签 v2.0.0）。
 # 2. 在仓库 Settings → Secrets and variables → Actions 中配置 NPM_TOKEN（npm 侧「Access Token」，
 #    类型选 Automation，并具备该包的 publish 权限；若包名尚未占用，请先在 npm 网页注册）。
@@ -54,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: secbot-npm-package
-          path: secbot-*.tgz
+          path: '*.tgz'
 
   upload-assets:
     name: GitHub Release assets

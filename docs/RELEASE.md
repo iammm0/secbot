@@ -14,11 +14,11 @@
 
 ```bash
 # 全局安装
-npm install -g secbot
+npm install -g @opensec/secbot
 secbot
 
 # 或通过 npx 直接运行
-npx secbot
+npx @opensec/secbot
 ```
 
 在首次启动前创建 `.env` 文件。最小示例：

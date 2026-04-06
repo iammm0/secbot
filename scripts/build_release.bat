@@ -10,6 +10,6 @@ if errorlevel 1 (
 )
 
 echo Release package created successfully.
-for %%f in (secbot-*.tgz) do echo   %%f
+for %%f in (*.tgz) do echo   %%f
 endlocal
 pause

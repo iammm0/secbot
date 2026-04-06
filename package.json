@@ -1,5 +1,5 @@
 {
-  "name": "secbot",
+  "name": "@opensec/secbot",
   "version": "2.0.0",
   "description": "Secbot pure TypeScript security automation backend and CLI.",
   "type": "commonjs",
@@ -53,6 +53,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/iammm0/secbot.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "license": "MIT",
   "dependencies": {

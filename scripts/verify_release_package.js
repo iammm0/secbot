@@ -13,6 +13,17 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const NPM_EXEC_PATH = process.env.npm_execpath || '';
 const VERIFY_PREFIX = '[release:verify]';
 
+function nodeModulesDirForPackageName(packageName) {
+  if (packageName.startsWith('@')) {
+    const [scope, name] = packageName.split('/');
+    if (!scope || !name) {
+      throw new Error(`Invalid scoped package name: ${packageName}`);
+    }
+    return path.join('node_modules', scope, name);
+  }
+  return path.join('node_modules', packageName);
+}
+
 function log(message) {
   // eslint-disable-next-line no-console
   console.log(`${VERIFY_PREFIX} ${message}`);
@@ -198,7 +209,11 @@ async function main() {
     await runNpm(['init', '-y'], { cwd: tempDir, stdio: 'ignore' });
     await runNpm(['install', tarballPath, '--silent'], { cwd: tempDir });
 
-    const installedPkgPath = path.join(tempDir, 'node_modules', 'secbot', 'package.json');
+    const rootPkg = parseJsonText(
+      await fsp.readFile(path.join(REPO_ROOT, 'package.json'), 'utf8'),
+      'Failed to read root package.json',
+    );
+    const installedPkgPath = path.join(tempDir, nodeModulesDirForPackageName(rootPkg.name), 'package.json');
     if (!fs.existsSync(installedPkgPath)) {
       throw new Error('Installed package.json not found');
     }
