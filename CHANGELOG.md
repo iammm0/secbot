@@ -2,6 +2,13 @@
 
 <!-- version list -->
 
+## v2.0.3 (2026-04-06)
+
+### Fixes
+
+- **api**：实现 `POST/GET /api/system/config/provider*` 与 `provider-settings`，修复 TUI 切换 DeepSeek 等厂商时的 404。
+- **providers**：DeepSeek / 通义千问等使用注册表内公开默认网关时不再强制填写 Base URL（中转仍可单独配置）。
+
 ## v2.0.2 (2026-04-06)
 
 ### Features
