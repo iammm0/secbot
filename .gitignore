@@ -46,3 +46,7 @@ __pycache__/
 *.egg-info/
 .venv/
 node_modules/
+
+# 构建与发布产物
+dist/
+*.tgz
