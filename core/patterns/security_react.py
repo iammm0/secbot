@@ -404,6 +404,7 @@ class SecurityReActAgent(BaseAgent):
         try:
             full_response = ""
             chunk_count = 0
+            emit_buffer = ""
             stream_started = time.perf_counter()
             if hasattr(self.llm, "astream"):
                 try:
@@ -421,15 +422,24 @@ class SecurityReActAgent(BaseAgent):
                         if content_chunk and content_chunk.strip():
                             full_response += content_chunk
                             chunk_count += 1
+                            emit_buffer += content_chunk
+
+                            # 将 token/小块聚合成可读语义段后再发送，避免前端看到碎片化推理文本
+                            min_chars = max(int(getattr(settings, "thought_chunk_min_chars", 80)), 20)
+                            end_punctuations = (".", "!", "?", "。", "！", "？", "\n")
                             should_emit = (
-                                len(content_chunk) >= int(getattr(settings, "thought_chunk_min_chars", 80))
-                                or chunk_count % max(int(getattr(settings, "thought_chunk_log_every_n", 10)), 1) == 0
+                                len(emit_buffer) >= min_chars
+                                and (
+                                    emit_buffer.rstrip().endswith(end_punctuations)
+                                    or len(emit_buffer) >= min_chars * 2
+                                )
                             )
-                            if should_emit:
-                                payload = {"chunk": content_chunk}
+                            if should_emit and emit_buffer.strip():
+                                payload = {"chunk": emit_buffer}
                                 if iteration is not None:
                                     payload["iteration"] = iteration
                                 self._emit_event("thought_chunk", payload, on_event)
+                                emit_buffer = ""
                 except Exception as stream_err:
                     err_str = str(stream_err).lower()
                     if "generation chunks" in err_str or "no generation chunks" in err_str:
@@ -450,6 +460,14 @@ class SecurityReActAgent(BaseAgent):
                         )
                         return full_response
                     raise stream_err
+
+                # 流结束时把尾部缓冲区补发，确保不丢最后一段语义
+                if emit_buffer.strip():
+                    payload = {"chunk": emit_buffer}
+                    if iteration is not None:
+                        payload["iteration"] = iteration
+                    self._emit_event("thought_chunk", payload, on_event)
+                    emit_buffer = ""
 
                 # 流式迭代结束但没有任何 chunk（部分 API 直接返回整段内容而不走 stream）
                 if not full_response.strip():
