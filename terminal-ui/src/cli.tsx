@@ -4,7 +4,10 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import React from 'react';
 import { render } from 'ink';
 import { getBaseUrl, checkBackend } from './config.js';
@@ -61,13 +64,20 @@ function writeLaunchLog(line: string) {
   }
 }
 
-/** On Windows without TTY: respawn in a new console; `npm run tui` builds then runs dist/cli.js */
+/**
+ * On Windows without TTY: open a new console running this CLI from the package root
+ * (supports global install where `npm run tui` is unavailable).
+ */
 function relaunchInNewWindow(): boolean {
   if (process.platform !== 'win32') return false;
   try {
-    const cwd = process.cwd();
-    const safeCwd = cwd.replace(/"/g, '""');
-    const inner = `cd /d "${safeCwd}" && npm run tui`;
+    const pkgRoot = process.env.SECBOT_PACKAGE_ROOT || path.resolve(__dirname, '..', '..');
+    const cliPath = path.join(__dirname, 'cli.js');
+    const apiUrl = process.env.SECBOT_API_URL ?? '';
+    const safeRoot = pkgRoot.replace(/"/g, '""');
+    const safeCli = cliPath.replace(/"/g, '""');
+    const safeApi = apiUrl.replace(/"/g, '""');
+    const inner = `cd /d "${safeRoot}" && set "SECBOT_API_URL=${safeApi}" && set "SECBOT_PACKAGE_ROOT=${safeRoot}" && node "${safeCli}"`;
     const child = spawn('cmd', ['/c', 'start', 'SECBOT TUI', 'cmd', '/k', inner], {
       env: { ...process.env },
       stdio: 'ignore',
@@ -89,8 +99,8 @@ async function main() {
       process.exit(0);
     }
     const msg =
-      'Not a TTY. Ink requires a real terminal. Run: cd terminal-ui && npm run tui ' +
-      '(or from repo root: npm run start:stack / scripts/start-cli.bat)';
+      'Not a TTY. Ink requires a real terminal. From the repo: npm run start:stack. ' +
+      'From npm: run `secbot` (Windows may open a new console).';
     writeErrorLog('NO_TTY', msg);
     console.error(msg);
     console.error('Or from repo root: npm run start:stack (starts backend then TUI).');
