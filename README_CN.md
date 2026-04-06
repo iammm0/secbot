@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**基于 NestJS + TypeScript 的智能化自动渗透测试系统，具备多智能体协作与多前端工作台**
+**基于 NestJS + TypeScript 的智能化自动渗透测试系统，具备多智能体协作**
 
 [English](README_EN.md) | 中文
 
@@ -62,17 +62,11 @@ flowchart LR
   subgraph FrontendClients["前端 / Clients"]
     user[用户]
     tui["terminal-ui (Ink)"]
-    app["Mobile App (Expo)"]
-    desktopApp["Desktop (Tauri)"]
   end
 
   user --> tui
-  user --> app
-  user --> desktopApp
 
   tui -->|HTTP / SSE| api["NestJS /api/chat"]
-  app -->|HTTP / SSE| api
-  desktopApp -->|HTTP / SSE| api
 
   subgraph BackendRouter["后端路由 & 会话编排"]
     api --> chatSvc["ChatService"]
@@ -249,11 +243,6 @@ npm start
 # 终端 TUI
 npm run start:tui
 
-# 移动端
-cd app && npm install && npm start
-
-# 桌面端
-cd desktop && npm install && npm run tauri dev
 ```
 
 ### 常用环境变量
@@ -301,8 +290,6 @@ secbot/
 │           └── health/     # 健康检查
 ├── npm-bin/                # npm CLI 入口
 ├── terminal-ui/            # Ink 终端前端（TypeScript）
-├── app/                    # Expo / React Native 客户端
-├── desktop/                # Tauri + Vite 桌面端
 ├── scripts/                # 启动与构建脚本
 ├── tools/                  # 工具能力说明文档
 ├── skills/                 # Agent 技能定义
@@ -338,7 +325,6 @@ npm run release:pack
 |------|------|
 | [快速开始指南](docs/QUICKSTART.md) | 安装与启动 |
 | [API 文档](docs/API.md) | REST + SSE 接口说明 |
-| [移动应用指南](docs/APP.md) | Expo / React Native |
 | [LLM 厂商配置](docs/LLM_PROVIDERS.md) | 多厂商模型后端与配置 |
 | [Ollama 设置](docs/OLLAMA_SETUP.md) | 本地模型配置 |
 | [UI 设计与交互](docs/UI-DESIGN-AND-INTERACTION.md) | TUI 架构说明 |
@@ -386,7 +372,7 @@ npm run release:pack
 | **运行时与语言** | Node.js、TypeScript |
 | **后端框架** | NestJS、Express |
 | **数据库** | SQLite、better-sqlite3 |
-| **前端** | React、React Native、Expo、Ink、Tauri、Vite |
+| **前端** | React、Ink |
 | **AI / LLM** | DeepSeek、Ollama、OpenAI |
 | **安全工具** | nmap、sqlmap、Nuclei 等外部工具 |
 

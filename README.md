@@ -5,7 +5,7 @@
 </h1>
 
 <p style="font-size: 1.2em; color: #666; margin-bottom: 20px;">
-  <strong>AI 驱动的自动化安全测试与多前端工作台</strong>
+  <strong>AI 驱动的自动化安全测试工作台</strong>
 </p>
 
 <p>
@@ -36,12 +36,6 @@
   <a href="https://github.com/vadimdemedes/ink">
     <img src="https://img.shields.io/badge/Ink-4.4%2B-FF69B4.svg" alt="Ink">
   </a>
-  <a href="https://expo.dev/">
-    <img src="https://img.shields.io/badge/Expo-54-000020.svg" alt="Expo">
-  </a>
-  <a href="https://tauri.app/">
-    <img src="https://img.shields.io/badge/Tauri-2-FFC131.svg" alt="Tauri">
-  </a>
 </p>
 
 <p>
@@ -58,11 +52,11 @@
 
 ## 功能概览
 
-- **统一后端**：基于 NestJS 暴露 REST + SSE 接口，CLI/TUI、移动端、桌面端共用同一套编排与事件流。
+- **统一后端**：基于 NestJS 暴露 REST + SSE 接口，CLI/TUI 共用同一套编排与事件流。
 - **多智能体执行**：支持 `secbot-cli` 自动模式与 `superhackbot` 专家模式，结合规划、执行、总结链路完成安全任务。
 - **安全测试能力**：覆盖内网发现、端口与服务识别、Web 安全、OSINT、系统控制、防御扫描与报告生成，共 54 个工具。
 - **多推理后端**：内置 Ollama、DeepSeek、OpenAI 及多家 OpenAI 兼容厂商支持。
-- **多前端形态**：仓库同时包含 `terminal-ui/`（Ink TUI）、`app/`（Expo / React Native）与 `desktop/`（Tauri + Vite）工程。
+- **终端 TUI**：基于 Ink + React 的全屏终端交互界面。
 - **SQLite 持久化**：对话历史、提示词链、用户偏好和 API Key 配置可持久化到 SQLite。
 - **记忆与知识**：短期/长期/情景记忆子系统，向量存储与语义检索。
 - **漏洞数据库**：统一漏洞 schema，适配 CVE/NVD/Exploit-DB/MITRE ATT&CK。
@@ -71,15 +65,8 @@
 
 ```mermaid
 flowchart LR
-  subgraph Clients["客户端"]
-    tui["terminal-ui (Ink)"]
-    mobile["app (Expo)"]
-    desktop["desktop (Tauri)"]
-  end
-
+  tui["terminal-ui (Ink)"]
   tui --> api["NestJS /api/*"]
-  mobile --> api
-  desktop --> api
 
   api --> chat["ChatModule"]
   chat --> agents["AgentsModule"]
@@ -89,8 +76,6 @@ flowchart LR
   agents --> summary["SummaryAgent"]
   summary --> sse["SSE 事件流"]
   sse --> tui
-  sse --> mobile
-  sse --> desktop
 ```
 
 更细的 UI 与事件流说明见 [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md)，API 细节见 [docs/API.md](docs/API.md)。
@@ -163,12 +148,6 @@ npm start
 
 # 终端 TUI
 npm run start:tui
-
-# 移动端
-cd app && npm install && npm start
-
-# 桌面端
-cd desktop && npm install && npm run tauri dev
 ```
 
 ### 2. 常用环境变量
@@ -218,8 +197,6 @@ secbot/
 │   ├── secbot.js
 │   └── secbot-server.js
 ├── terminal-ui/            # Ink 终端前端
-├── app/                    # Expo / React Native 客户端
-├── desktop/                # Tauri + Vite 桌面端
 ├── scripts/                # 启动与构建脚本
 ├── tools/                  # 工具能力说明文档
 └── docs/                   # 项目文档
@@ -250,7 +227,6 @@ npm run build
 |------|------|
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | 快速启动指南 |
 | [docs/API.md](docs/API.md) | REST + SSE 接口说明 |
-| [docs/APP.md](docs/APP.md) | Expo / React Native 移动端 |
 | [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md) | 多厂商模型后端与配置 |
 | [docs/OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md) | 本地 Ollama 配置 |
 | [docs/UI-DESIGN-AND-INTERACTION.md](docs/UI-DESIGN-AND-INTERACTION.md) | TUI 交互设计 |
