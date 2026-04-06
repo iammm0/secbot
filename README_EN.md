@@ -62,13 +62,9 @@ English | [中文](README.md)
 flowchart LR
   subgraph Clients["Frontend Clients"]
     tui["terminal-ui (Ink)"]
-    mobile["app (Expo)"]
-    desktopApp["desktop (Tauri)"]
   end
 
   tui --> api["NestJS /api/*"]
-  mobile --> api
-  desktopApp --> api
 
   api --> chat["ChatModule"]
   chat --> agents["AgentsModule"]
@@ -78,8 +74,6 @@ flowchart LR
   agents --> summary["SummaryAgent"]
   summary --> sse["SSE Event Stream"]
   sse --> tui
-  sse --> mobile
-  sse --> desktopApp
 ```
 
 ### Backend Modules
@@ -165,12 +159,6 @@ npm run dev           # Backend dev mode
 npm run build         # Production build
 npm start             # Start production server
 npm run start:tui     # Terminal TUI
-
-# Mobile app
-cd app && npm install && npm start
-
-# Desktop app
-cd desktop && npm install && npm run tauri dev
 ```
 
 ### Environment Variables
@@ -220,8 +208,6 @@ secbot/
 │           └── health/     # Health checks
 ├── npm-bin/                # npm CLI entry wrappers
 ├── terminal-ui/            # Ink terminal frontend (TypeScript)
-├── app/                    # Expo / React Native client
-├── desktop/                # Tauri + Vite desktop app
 ├── scripts/                # Launch and build scripts
 ├── tools/                  # Tool capability documentation
 ├── skills/                 # Agent skill definitions
@@ -261,7 +247,6 @@ npm run release:pack
 |----------|-------------|
 | [Quick Start](docs/QUICKSTART.md) | Installation and getting started |
 | [API Reference](docs/API.md) | REST + SSE endpoint documentation |
-| [Mobile App](docs/APP.md) | Expo / React Native guide |
 | [LLM Providers](docs/LLM_PROVIDERS.md) | Multi-vendor model configuration |
 | [Ollama Setup](docs/OLLAMA_SETUP.md) | Local model configuration |
 | [UI Design](docs/UI-DESIGN-AND-INTERACTION.md) | TUI architecture and interaction |
@@ -317,7 +302,7 @@ This project is built upon many excellent open-source projects (in no particular
 | **Runtime & Language** | Node.js, TypeScript |
 | **Backend** | NestJS, Express |
 | **Database** | SQLite, better-sqlite3 |
-| **Frontend** | React, React Native, Expo, Ink, Tauri, Vite |
+| **Frontend** | React, Ink |
 | **AI / LLM** | DeepSeek, Ollama, OpenAI |
 | **Security Tools** | nmap, sqlmap, Nuclei, and other external tools |
 
