@@ -1,6 +1,10 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { SystemService } from './system.service';
-import { SetApiKeyRequestDto } from './dto/system.dto';
+import {
+  ProviderSettingsRequestDto,
+  SetApiKeyRequestDto,
+  SetLlmProviderRequestDto,
+} from './dto/system.dto';
 
 @Controller('api/system')
 export class SystemController {
@@ -20,6 +24,8 @@ export class SystemController {
       ollama_base_url: cfg.ollamaBaseUrl,
       deepseek_model: cfg.deepseekModel,
       deepseek_base_url: cfg.deepseekBaseUrl,
+      current_provider_model: cfg.currentProviderModel ?? null,
+      current_provider_base_url: cfg.currentProviderBaseUrl ?? null,
     };
   }
 
@@ -49,6 +55,21 @@ export class SystemController {
         has_base_url: p.hasBaseUrl,
       })),
     }));
+  }
+
+  @Get('config/provider/:providerId')
+  getProviderConfig(@Param('providerId') providerId: string) {
+    return this.systemService.getProviderDetail(providerId);
+  }
+
+  @Post('config/provider')
+  setLlmProvider(@Body() body: SetLlmProviderRequestDto) {
+    return this.systemService.setLlmProvider(body);
+  }
+
+  @Post('config/provider-settings')
+  setProviderSettings(@Body() body: ProviderSettingsRequestDto) {
+    return this.systemService.setProviderSettings(body);
   }
 
   @Post('config/api-key')

@@ -46,6 +46,16 @@ export class SystemConfigResponseDto {
   @IsOptional()
   @IsString()
   deepseekBaseUrl?: string | null;
+
+  /** 当前 llmProvider 对应的模型（通用键 `{provider}_model`） */
+  @IsOptional()
+  @IsString()
+  currentProviderModel?: string | null;
+
+  /** 当前 llmProvider 解析后的 Base URL（含注册表默认值） */
+  @IsOptional()
+  @IsString()
+  currentProviderBaseUrl?: string | null;
 }
 
 export class OllamaModelItemDto {
@@ -126,6 +136,24 @@ export class SetApiKeyResponseDto {
 
   @IsString()
   message!: string;
+}
+
+export class SetLlmProviderRequestDto {
+  @IsString()
+  llm_provider!: string;
+}
+
+export class ProviderSettingsRequestDto {
+  @IsString()
+  provider!: string;
+
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @IsOptional()
+  @IsString()
+  base_url?: string;
 }
 
 export class CpuInfoDto {

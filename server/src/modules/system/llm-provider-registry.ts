@@ -51,7 +51,8 @@ export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
     id: 'deepseek',
     name: 'DeepSeek',
     needsApiKey: true,
-    needsBaseUrl: true,
+    /** 官方 API 域名为固定公开地址，中转/自建时才需改 Base URL */
+    needsBaseUrl: false,
     apiKeyEnv: 'DEEPSEEK_API_KEY',
     baseUrlEnv: 'DEEPSEEK_BASE_URL',
     defaultOpenAICompatBaseUrl: 'https://api.deepseek.com',
@@ -96,7 +97,7 @@ export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
     id: 'qwen',
     name: '通义千问 (Qwen)',
     needsApiKey: true,
-    needsBaseUrl: true,
+    needsBaseUrl: false,
     apiKeyEnv: 'DASHSCOPE_API_KEY',
     baseUrlEnv: 'DASHSCOPE_BASE_URL',
     defaultOpenAICompatBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode',
@@ -275,6 +276,13 @@ export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
 ];
 
 const REGISTRY_BY_ID = new Map(LLM_PROVIDER_REGISTRY.map((e) => [e.id, e]));
+
+/** 是否在注册表中（含 ollama、custom 等） */
+export function getLlmProviderMeta(
+  id: string,
+): LlmProviderRegistryEntry | undefined {
+  return REGISTRY_BY_ID.get(id.toLowerCase());
+}
 
 /** 供 createLLM 解析 OpenAI 兼容默认网关 */
 export function getDefaultOpenAICompatBaseUrl(providerId: string): string | undefined {
