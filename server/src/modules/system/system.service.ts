@@ -1,16 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   OllamaModelsResponseDto,
   ProviderListResponseDto,
+  ProviderSettingsRequestDto,
   SetApiKeyRequestDto,
   SetApiKeyResponseDto,
+  SetLlmProviderRequestDto,
   SystemConfigResponseDto,
   SystemInfoResponseDto,
   SystemStatusResponseDto,
 } from './dto/system.dto';
 import { DatabaseService } from '../database/database.service';
-import { LLM_PROVIDER_REGISTRY } from './llm-provider-registry';
+import {
+  LLM_PROVIDER_REGISTRY,
+  getDefaultOpenAICompatBaseUrl,
+  getLlmProviderMeta,
+} from './llm-provider-registry';
 
 @Injectable()
 export class SystemService {
@@ -18,6 +24,26 @@ export class SystemService {
     private readonly db: DatabaseService,
     private readonly configService: ConfigService,
   ) {}
+
+  private modelEnvKey(providerId: string): string {
+    return `${providerId.toUpperCase().replace(/-/g, '_')}_MODEL`;
+  }
+
+  private resolveConfigSource(
+    key: string,
+    envKey: string,
+    defaultValue: string | null,
+  ): string | null {
+    const dbItem = this.db.getConfig(key);
+    if (dbItem && dbItem.value.trim() !== '') {
+      return dbItem.value;
+    }
+    const envVal = this.configService.get<string>(envKey) ?? process.env[envKey] ?? '';
+    if (envVal.trim() !== '') {
+      return envVal;
+    }
+    return defaultValue;
+  }
 
   async info(): Promise<SystemInfoResponseDto> {
     // 占位：简单依赖 Node.js/os 信息，领域迁移时再增强
@@ -38,28 +64,42 @@ export class SystemService {
   }
 
   async config(): Promise<SystemConfigResponseDto> {
-    const getConfigValue = (
-      key: string,
-      envKey: string,
-      defaultValue: string | null,
-    ): string | null => {
-      const dbItem = this.db.getConfig(key);
-      if (dbItem && dbItem.value.trim() !== '') {
-        return dbItem.value;
-      }
-      const envVal = this.configService.get<string>(envKey) ?? process.env[envKey] ?? '';
-      if (envVal.trim() !== '') {
-        return envVal;
-      }
-      return defaultValue;
-    };
-
-    const llmProvider = getConfigValue('llm_provider', 'LLM_PROVIDER', null) ?? 'ollama';
-    const ollamaModel = getConfigValue('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2';
+    const llmProvider =
+      this.resolveConfigSource('llm_provider', 'LLM_PROVIDER', null) ?? 'ollama';
+    const ollamaModel =
+      this.resolveConfigSource('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2';
     const ollamaBaseUrl =
-      getConfigValue('ollama_base_url', 'OLLAMA_BASE_URL', null) ?? 'http://localhost:11434';
-    const deepseekModel = getConfigValue('deepseek_model', 'DEEPSEEK_MODEL', null);
-    const deepseekBaseUrl = getConfigValue('deepseek_base_url', 'DEEPSEEK_BASE_URL', null);
+      this.resolveConfigSource('ollama_base_url', 'OLLAMA_BASE_URL', null) ??
+      'http://localhost:11434';
+    const deepseekModel = this.resolveConfigSource('deepseek_model', 'DEEPSEEK_MODEL', null);
+    const deepseekBaseUrl = this.resolveConfigSource(
+      'deepseek_base_url',
+      'DEEPSEEK_BASE_URL',
+      null,
+    );
+
+    const meta = getLlmProviderMeta(llmProvider);
+    let currentProviderModel: string | null = null;
+    let currentProviderBaseUrl: string | null = null;
+
+    if (llmProvider === 'ollama') {
+      currentProviderModel = ollamaModel;
+      currentProviderBaseUrl = ollamaBaseUrl;
+    } else if (meta) {
+      const mk = `${llmProvider}_model`;
+      const defaultModel =
+        llmProvider === 'deepseek'
+          ? 'deepseek-chat'
+          : (process.env.LLM_MODEL ?? '').trim() || null;
+      currentProviderModel = this.resolveConfigSource(
+        mk,
+        this.modelEnvKey(llmProvider),
+        defaultModel,
+      );
+      const bk = `${llmProvider}_base_url`;
+      const defBase = getDefaultOpenAICompatBaseUrl(llmProvider) ?? null;
+      currentProviderBaseUrl = this.resolveConfigSource(bk, meta.baseUrlEnv, defBase);
+    }
 
     return {
       llmProvider,
@@ -67,6 +107,8 @@ export class SystemService {
       ollamaBaseUrl,
       deepseekModel,
       deepseekBaseUrl,
+      currentProviderModel,
+      currentProviderBaseUrl,
     };
   }
 
@@ -95,7 +137,15 @@ export class SystemService {
       const configured = meta.needsApiKey
         ? hasDbKey(meta.id) || !!(meta.apiKeyEnv && hasEnvKey(meta.apiKeyEnv))
         : true;
-      const hasBaseUrl = hasDbBaseUrl(meta.id) || hasEnvBase(meta.baseUrlEnv);
+      const dbOrEnvBase =
+        hasDbBaseUrl(meta.id) ||
+        (meta.baseUrlEnv ? hasEnvBase(meta.baseUrlEnv) : false);
+      const hasDefaultGateway = !!meta.defaultOpenAICompatBaseUrl;
+      const hasBaseUrl =
+        meta.id === 'ollama' ||
+        dbOrEnvBase ||
+        hasDefaultGateway ||
+        !meta.needsBaseUrl;
       return {
         id: meta.id,
         name: meta.name,
@@ -147,6 +197,79 @@ export class SystemService {
       success: true,
       message: msg,
     };
+  }
+
+  async getProviderDetail(providerId: string): Promise<{
+    provider: string;
+    model: string | null;
+    base_url: string | null;
+  }> {
+    const id = providerId.trim().toLowerCase();
+    const meta = getLlmProviderMeta(id);
+    if (!meta) {
+      throw new NotFoundException(`Unknown provider: ${providerId}`);
+    }
+
+    if (id === 'ollama') {
+      return {
+        provider: id,
+        model:
+          this.resolveConfigSource('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2',
+        base_url:
+          this.resolveConfigSource('ollama_base_url', 'OLLAMA_BASE_URL', null) ??
+          'http://localhost:11434',
+      };
+    }
+
+    const mk = `${id}_model`;
+    const bk = `${id}_base_url`;
+    const defaultModel = id === 'deepseek' ? 'deepseek-chat' : null;
+    const model = this.resolveConfigSource(mk, this.modelEnvKey(id), defaultModel);
+    const defBase = getDefaultOpenAICompatBaseUrl(id) ?? null;
+    const base_url = this.resolveConfigSource(bk, meta.baseUrlEnv, defBase);
+
+    return { provider: id, model, base_url };
+  }
+
+  async setLlmProvider(body: SetLlmProviderRequestDto): Promise<SetApiKeyResponseDto> {
+    const id = body.llm_provider.trim().toLowerCase();
+    if (!getLlmProviderMeta(id)) {
+      return { success: false, message: `未知的推理后端: ${body.llm_provider}` };
+    }
+    this.db.saveConfig('llm_provider', id, 'llm', '当前推理后端');
+    return { success: true, message: `已切换为 ${id}` };
+  }
+
+  async setProviderSettings(body: ProviderSettingsRequestDto): Promise<SetApiKeyResponseDto> {
+    const id = body.provider.trim().toLowerCase();
+    if (!getLlmProviderMeta(id)) {
+      return { success: false, message: `未知的推理后端: ${body.provider}` };
+    }
+    if (body.model === undefined && body.base_url === undefined) {
+      return { success: false, message: '请提供 model 或 base_url' };
+    }
+
+    if (body.model !== undefined) {
+      const v = body.model.trim();
+      const key = `${id}_model`;
+      if (v) {
+        this.db.saveConfig(key, v, 'llm', `${id} 默认模型`);
+      } else {
+        this.db.deleteConfig(key);
+      }
+    }
+
+    if (body.base_url !== undefined) {
+      const v = body.base_url.trim();
+      const key = `${id}_base_url`;
+      if (v) {
+        this.db.saveConfig(key, v, 'llm', `${id} API 地址`);
+      } else {
+        this.db.deleteConfig(key);
+      }
+    }
+
+    return { success: true, message: '已保存设置' };
   }
 
   async status(): Promise<SystemStatusResponseDto> {
