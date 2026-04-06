@@ -174,7 +174,7 @@ class SecurityReActAgent(BaseAgent):
         self.audit = audit_trail
         self.confirmation = UserConfirmation() if not auto_execute else None
 
-        # EventBus（可选，用于 TUI 组件集成）
+        # EventBus（可选，用于 UI 集成）
         self.event_bus = event_bus
 
         # LLM
@@ -254,7 +254,7 @@ class SecurityReActAgent(BaseAgent):
             except Exception as e:
                 logger.error(f"事件回调错误: {e}")
 
-        # EventBus 方式（新 TUI 组件集成）
+        # EventBus 方式（UI 集成）
         if self.event_bus:
             try:
                 from utils.event_bus import EventType as ET, Event

@@ -66,7 +66,7 @@ class SessionManager:
         self.sessions: Dict[str, Session] = {}
         self.current_session: Optional[Session] = None
 
-        # TUI 设置
+        # 显示设置
         self.show_thinking: bool = True
         self.show_details: bool = True
 
@@ -190,7 +190,7 @@ class SessionManager:
                     "  * 回答编程、系统使用、架构设计等通用问题。\n"
                     "  * 帮你规划任务步骤、解释扫描结果、生成安全巡检报告。\n\n"
                     "【内部架构（高层次理解）】\n"
-                    "- 前端 / TUI / App → 调用后端 FastAPI `/api/chat` 接口。\n"
+                    "- CLI 直接在进程内调用 SessionManager，或通过 FastAPI `/api/chat` 接口。\n"
                     "- 后端由 `SessionManager` 负责会话编排，决定是走 QA 简答、还是走 Planner + 核心 Agent 的技术链路。\n"
                     "- 核心 Agent（secbot-cli / superhackbot）基于 ReAct 模式调用安全工具，并通过 EventBus 把思考过程/工具调用结果推送给前端。\n"
                     "- 最后由 SummaryAgent 汇总为一份可读的任务总结/安全报告。\n\n"
@@ -256,7 +256,7 @@ class SessionManager:
         if plan_override is not None:
             plan_result = plan_override
             self.planner._current_plan = plan_result  # 便于执行时更新 todo 状态
-            # 仍需要发射 PLAN_START 以便 TUI 展示
+            # 仍需要发射 PLAN_START 以便 UI 展示
             if plan_result.todos:
                 tr = getattr(plan_result, "tools_required", None) or []
                 if not tr:

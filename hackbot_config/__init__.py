@@ -169,7 +169,7 @@ def get_llm_provider() -> str:
 
 
 def save_llm_provider(provider: str) -> bool:
-    """将当前推理后端持久化到 SQLite，CLI /model 或 TUI 切换后生效"""
+    """将当前推理后端持久化到 SQLite，CLI /model 切换后生效"""
     if not provider or not provider.strip():
         return False
     return save_config_to_sqlite(
@@ -192,7 +192,7 @@ def get_log_level() -> str:
 
 
 def save_log_level(level: str) -> bool:
-    """持久化日志级别到 SQLite（供 TUI 切换后重启生效）"""
+    """持久化日志级别到 SQLite（切换后重启生效）"""
     normalized = (level or "").strip().upper()
     if normalized not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
         return False
@@ -200,7 +200,7 @@ def save_log_level(level: str) -> bool:
         "log_level",
         normalized,
         category="user_preference",
-        description="日志级别（TUI 日志设置）",
+        description="日志级别",
     )
     if ok:
         os.environ["LOG_LEVEL"] = normalized

@@ -89,7 +89,7 @@ class TaskExecutor:
                     )
             else:
                 # 并行层：并发执行，每个任务独立采集事件，完成后按 plan 顺序回放
-                # 这样既保留并行执行效率，又保证 TUI 从上到下线性渲染每一步完整链路。
+                # 这样既保留并行执行效率，又保证从上到下线性渲染每一步完整链路。
                 tasks = []
                 event_buffers: Dict[str, List[tuple[str, dict]]] = {}
                 for i, todo in enumerate(todos_in_layer):
