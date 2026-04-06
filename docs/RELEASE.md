@@ -50,6 +50,8 @@ GitHub Actions 工作流：
 3. 打包发布产物并上传到 GitHub Release。
 4. 发布 npm 包（如配置）。
 
+**`NPM_TOKEN` 与 2FA**：若 npm 账号启用了双因素认证，CI 里必须用 **Granular 令牌且允许发布时绕过 2FA**，或 **Classic 的 Automation 令牌**；否则会出现 `403 ... bypass 2fa enabled is required to publish`。
+
 ## 本地发布任务
 
 安装依赖：
