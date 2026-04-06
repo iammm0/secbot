@@ -1,6 +1,6 @@
 {
   "name": "@opensec/secbot",
-  "version": "2.0.1",
+  "version": "2.0.0",
   "description": "Secbot pure TypeScript security automation backend and CLI.",
   "type": "commonjs",
   "private": false,
