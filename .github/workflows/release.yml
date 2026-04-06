@@ -1,9 +1,10 @@
 # 自动发布 npm 包 @opensec/secbot（以 2.0.0 / 标签 v2.0.0 为例）
 # 1. 确认根目录 package.json 的 version 与即将打的标签一致（如 2.0.0 对应标签 v2.0.0）。
-# 2. 在仓库 Settings → Secrets and variables → Actions 中配置 NPM_TOKEN：
-#    推荐使用 Granular Access Token（Packages: Read and write，权限范围含 @opensec），
-#    或 Classic 的「Automation」令牌（需启用 2FA 时仍可不交互发布）。
-#    账号 iammm0 须在 npm 组织 opensec 中有权发布 @opensec/*（403 多为令牌无权或缺 --access public）。
+# 2. NPM_TOKEN（npm 账号若开启 2FA，必须二选一，否则会报 403：需 bypass 2FA 才能 publish）：
+#    · Granular Access Token：Packages 选 Read and write；创建时勾选「允许发布时绕过双因素认证」
+#      （英文界面类似 "Bypass two-factor authentication (2FA) for writes"，以 npm 网站为准）。
+#    · 或 Classic Token：类型必须选 Automation（勿用需 OTP 的 Publish 类令牌）。
+#    权限须覆盖 @opensec；GitHub Secret 名仍为 NPM_TOKEN。
 # 3. git tag v2.0.0 && git push origin v2.0.0
 #    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm publish。
 
