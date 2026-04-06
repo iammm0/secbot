@@ -1,6 +1,6 @@
 {
   "name": "@opensec/secbot",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Secbot pure TypeScript security automation backend and CLI.",
   "type": "commonjs",
   "private": false,
@@ -11,6 +11,9 @@
   },
   "files": [
     "server/dist",
+    "terminal-ui/dist",
+    "terminal-ui/package.json",
+    "scripts/run-product.js",
     "README.md",
     "README_CN.md",
     "README_EN.md",
@@ -34,7 +37,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepack": "npm run build",
+    "prepack": "npm run build && npm run build:terminal-ui",
+    "build:terminal-ui": "tsc -p terminal-ui/tsconfig.json",
     "pack:npm": "npm pack",
     "release:build": "npm run clean && npm run build",
     "release:pack": "npm run release:build && npm pack",
@@ -67,7 +71,13 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "figlet": "^1.10.0",
+    "fuzzysort": "^3.0.0",
+    "ink": "^4.4.1",
+    "ink-markdown": "^1.0.4",
+    "ink-text-input": "^5.0.1",
+    "react": "^18.2.0"
   },
   "devDependencies": {
     "@emnapi/core": "1.9.2",
@@ -76,6 +86,7 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/express": "^5.0.3",
     "@types/node": "^22.10.0",
+    "@types/react": "^18.2.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
     "eslint": "^10.2.0",

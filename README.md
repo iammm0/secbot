@@ -16,7 +16,7 @@
     <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6.svg" alt="TypeScript">
   </a>
   <a href="package.json">
-    <img src="https://img.shields.io/badge/version-2.0.1-brightgreen.svg" alt="Version">
+    <img src="https://img.shields.io/badge/version-2.0.2-brightgreen.svg" alt="Version">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-Custom-orange.svg" alt="License">

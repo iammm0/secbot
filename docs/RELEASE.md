@@ -13,11 +13,14 @@
 当前发布包命名为 `secbot-<platform>.zip`，也可通过 npm 安装：
 
 ```bash
-# 全局安装
+# 全局安装：`secbot` 会启动后端 + 终端 TUI（一节真实 TTY 中运行；IDE 集成终端在 Windows 上可能自动新开窗口）
 npm install -g @opensec/secbot
 secbot
 
-# 或通过 npx 直接运行
+# 仅启动 HTTP API（自动化 / 自建前端）
+secbot-server
+
+# 或通过 npx 直接运行完整产品
 npx @opensec/secbot
 ```
 
@@ -90,7 +93,7 @@ node scripts/release-docs.js version-docs --changelog CHANGELOG.md --output-dir 
 ```bash
 node scripts/release-docs.js package-readme \
   --changelog CHANGELOG.md \
-  --version v2.0.1 \
+  --version v2.0.2 \
   --platform windows-amd64 \
   --output dist/README_RELEASE.md
 ```

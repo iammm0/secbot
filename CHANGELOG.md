@@ -2,6 +2,12 @@
 
 <!-- version list -->
 
+## v2.0.2 (2026-04-06)
+
+### Features
+
+- **cli**：`secbot` 一单命令同时启动 Nest 后端与 Ink TUI（全局安装与 `npm pack` 均包含 `terminal-ui/dist`）；`secbot-server` 仍仅启动后端 API。
+
 ## v2.0.1 (2026-04-06)
 
 ### Chores
