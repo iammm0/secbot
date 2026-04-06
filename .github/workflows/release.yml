@@ -1,7 +1,9 @@
 # 自动发布 npm 包 @opensec/secbot（以 2.0.0 / 标签 v2.0.0 为例）
 # 1. 确认根目录 package.json 的 version 与即将打的标签一致（如 2.0.0 对应标签 v2.0.0）。
-# 2. 在仓库 Settings → Secrets and variables → Actions 中配置 NPM_TOKEN（npm 侧「Access Token」，
-#    类型选 Automation，并具备该包的 publish 权限；若包名尚未占用，请先在 npm 网页注册）。
+# 2. 在仓库 Settings → Secrets and variables → Actions 中配置 NPM_TOKEN：
+#    推荐使用 Granular Access Token（Packages: Read and write，权限范围含 @opensec），
+#    或 Classic 的「Automation」令牌（需启用 2FA 时仍可不交互发布）。
+#    账号 iammm0 须在 npm 组织 opensec 中有权发布 @opensec/*（403 多为令牌无权或缺 --access public）。
 # 3. git tag v2.0.0 && git push origin v2.0.0
 #    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm publish。
 
@@ -26,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -87,14 +89,19 @@ jobs:
       - name: Set up Node.js for npm
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify npm registry authentication
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish to npm
-        run: npm publish
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
