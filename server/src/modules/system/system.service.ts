@@ -64,8 +64,7 @@ export class SystemService {
   }
 
   async config(): Promise<SystemConfigResponseDto> {
-    const llmProvider =
-      this.resolveConfigSource('llm_provider', 'LLM_PROVIDER', null) ?? 'ollama';
+    const llmProvider = this.resolveConfigSource('llm_provider', 'LLM_PROVIDER', null) ?? 'ollama';
     const ollamaModel =
       this.resolveConfigSource('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2';
     const ollamaBaseUrl =
@@ -88,9 +87,7 @@ export class SystemService {
     } else if (meta) {
       const mk = `${llmProvider}_model`;
       const defaultModel =
-        llmProvider === 'deepseek'
-          ? 'deepseek-chat'
-          : (process.env.LLM_MODEL ?? '').trim() || null;
+        llmProvider === 'deepseek' ? 'deepseek-chat' : (process.env.LLM_MODEL ?? '').trim() || null;
       currentProviderModel = this.resolveConfigSource(
         mk,
         this.modelEnvKey(llmProvider),
@@ -138,14 +135,10 @@ export class SystemService {
         ? hasDbKey(meta.id) || !!(meta.apiKeyEnv && hasEnvKey(meta.apiKeyEnv))
         : true;
       const dbOrEnvBase =
-        hasDbBaseUrl(meta.id) ||
-        (meta.baseUrlEnv ? hasEnvBase(meta.baseUrlEnv) : false);
+        hasDbBaseUrl(meta.id) || (meta.baseUrlEnv ? hasEnvBase(meta.baseUrlEnv) : false);
       const hasDefaultGateway = !!meta.defaultOpenAICompatBaseUrl;
       const hasBaseUrl =
-        meta.id === 'ollama' ||
-        dbOrEnvBase ||
-        hasDefaultGateway ||
-        !meta.needsBaseUrl;
+        meta.id === 'ollama' || dbOrEnvBase || hasDefaultGateway || !meta.needsBaseUrl;
       return {
         id: meta.id,
         name: meta.name,
@@ -213,8 +206,7 @@ export class SystemService {
     if (id === 'ollama') {
       return {
         provider: id,
-        model:
-          this.resolveConfigSource('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2',
+        model: this.resolveConfigSource('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2',
         base_url:
           this.resolveConfigSource('ollama_base_url', 'OLLAMA_BASE_URL', null) ??
           'http://localhost:11434',

@@ -278,9 +278,7 @@ export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
 const REGISTRY_BY_ID = new Map(LLM_PROVIDER_REGISTRY.map((e) => [e.id, e]));
 
 /** 是否在注册表中（含 ollama、custom 等） */
-export function getLlmProviderMeta(
-  id: string,
-): LlmProviderRegistryEntry | undefined {
+export function getLlmProviderMeta(id: string): LlmProviderRegistryEntry | undefined {
   return REGISTRY_BY_ID.get(id.toLowerCase());
 }
 
