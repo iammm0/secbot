@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"secbot/config"
 	"secbot/internal/cli"
@@ -25,6 +29,7 @@ import (
 )
 
 const version = "2.0.0"
+const skillsFilePath = "data/skills.json"
 
 const banner = `
  ____            ____        _
@@ -44,6 +49,7 @@ var (
 		"/help",
 		"/h",
 		"/tools",
+		"/skill",
 		"/doctor",
 		"/env",
 		"/model",
@@ -183,6 +189,12 @@ func runMain(cmd *cobra.Command, args []string) {
 }
 
 func runOnce(ctx context.Context, sess *session.Session, message, mode string) {
+	if skills, err := loadSkills(); err == nil && len(skills) > 0 {
+		message = enrichInputWithSkills(message, skills)
+	} else if err != nil {
+		color.Yellow("读取 skills 失败，已跳过 skills 注入: %v", err)
+	}
+
 	opts := &models.ProcessOptions{
 		ForceQA:        mode == "ask",
 		ForceAgentFlow: mode == "agent",
@@ -210,11 +222,19 @@ type processResultMsg struct {
 	err      error
 }
 
+type skillEntry struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	CreatedAt   string `json:"created_at"`
+}
+
 type tuiModel struct {
 	ctx context.Context
 
 	sess *session.Session
 	mode string
+
+	skills []skillEntry
 
 	input       textinput.Model
 	history     []string
@@ -236,10 +256,17 @@ func newTUIModel(ctx context.Context, sess *session.Session, mode string) tuiMod
 	input.TextStyle = inputTextStyle
 	input.PlaceholderStyle = placeholderStyle
 
+	skills, err := loadSkills()
+	initialHistory := []string{}
+	if err != nil {
+		initialHistory = append(initialHistory, fmt.Sprintf("读取 skills 失败: %v", err))
+	}
+
 	m := tuiModel{
 		ctx:      ctx,
 		sess:     sess,
 		mode:     mode,
+		skills:   skills,
 		input:    input,
 		history:  nil,
 		width:    0,
@@ -247,6 +274,12 @@ func newTUIModel(ctx context.Context, sess *session.Session, mode string) tuiMod
 		quitting: false,
 	}
 	m.history = m.initialHistory()
+	if len(initialHistory) > 0 {
+		m.appendLines(initialHistory...)
+	}
+	if len(m.skills) > 0 {
+		m.appendLines(fmt.Sprintf("已加载 %d 个 skills，输入 /skill list 查看。", len(m.skills)), "")
+	}
 	m.refreshSlashSuggestions()
 	return m
 }
@@ -313,7 +346,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			m.processing = true
-			return m, processInputCmd(m.ctx, m.sess, m.mode, input)
+			requestInput := enrichInputWithSkills(input, m.skills)
+			return m, processInputCmd(m.ctx, m.sess, m.mode, requestInput)
 		}
 	}
 
@@ -346,6 +380,7 @@ func (m tuiModel) View() string {
 		strings.Join([]string{
 			brandStyle.Render("SECBOT") + " " + accentStyle.Render("绿色全屏终端"),
 			hintStyle.Render(fmt.Sprintf("模型: %s", m.sess.ModelInfo())),
+			hintStyle.Render(fmt.Sprintf("skills: %d  (使用 /skill 管理)", len(m.skills))),
 		}, "\n"),
 	)
 
@@ -390,6 +425,7 @@ func (m tuiModel) initialHistory() []string {
 	return []string{
 		"SecBot - AI 安全测试机器人 (Go)",
 		"输入你的问题或任务，输入 / 查看命令，输入 /exit 退出。",
+		"输入 /skill add <名称> <描述> 可新增 skills。",
 		"",
 	}
 }
@@ -409,6 +445,8 @@ func (m *tuiModel) handleSlashCommand(input string) ([]string, bool, bool) {
 		}
 		lines = append(lines, "")
 		return lines, true, false
+	case input == "/skill" || strings.HasPrefix(input, "/skill "):
+		return m.handleSkillCommand(input), true, false
 	case input == "/doctor" || input == "/env":
 		return buildDoctorLines(m.sess), true, false
 	case input == "/clear":
@@ -488,6 +526,7 @@ func buildHelpLines() []string {
 		"命令:",
 		"  /help, /h     显示此帮助",
 		"  /tools        列出可用安全工具",
+		"  /skill        新增/查看自定义技能（/skill help）",
 		"  /doctor, /env 检查当前环境变量与模型配置",
 		"  /model        切换推理后端/模型",
 		"  /clear        清空会话输出",
@@ -507,6 +546,167 @@ func buildHelpLines() []string {
 	}
 	lines = append(lines, "")
 	return lines
+}
+
+func (m *tuiModel) handleSkillCommand(input string) []string {
+	trimmed := strings.TrimSpace(input)
+
+	if trimmed == "/skill" || trimmed == "/skill help" {
+		return buildSkillHelpLines()
+	}
+
+	if trimmed == "/skill list" {
+		return buildSkillListLines(m.skills)
+	}
+
+	if strings.HasPrefix(trimmed, "/skill add ") {
+		name, description, err := parseSkillAddCommand(trimmed)
+		if err != nil {
+			return []string{fmt.Sprintf("新增 skill 失败: %v", err), "输入 /skill help 查看用法", ""}
+		}
+		for _, skill := range m.skills {
+			if strings.EqualFold(skill.Name, name) {
+				return []string{
+					fmt.Sprintf("新增 skill 失败: 名称 %q 已存在", name),
+					"可改用其他名称，或先编辑 data/skills.json。",
+					"",
+				}
+			}
+		}
+
+		m.skills = append(m.skills, skillEntry{
+			Name:        name,
+			Description: description,
+			CreatedAt:   time.Now().Format(time.RFC3339),
+		})
+		sort.Slice(m.skills, func(i, j int) bool {
+			return strings.ToLower(m.skills[i].Name) < strings.ToLower(m.skills[j].Name)
+		})
+		if err := saveSkills(m.skills); err != nil {
+			return []string{
+				fmt.Sprintf("新增 skill 失败: %v", err),
+				"skill 已添加到当前会话，但写入文件失败。",
+				"",
+			}
+		}
+		return []string{
+			fmt.Sprintf("已新增 skill: %s", name),
+			fmt.Sprintf("描述: %s", description),
+			"该 skill 已持久化并会自动注入后续请求上下文。",
+			"",
+		}
+	}
+
+	return []string{
+		fmt.Sprintf("不支持的命令: %s", trimmed),
+		"输入 /skill help 查看用法。",
+		"",
+	}
+}
+
+func buildSkillHelpLines() []string {
+	return []string{
+		"Skill 命令帮助",
+		"=============",
+		"  /skill help",
+		"    显示此帮助",
+		"  /skill list",
+		"    查看当前已配置 skills",
+		"  /skill add <名称> <描述>",
+		"    新增一个 skill，写入 data/skills.json",
+		"",
+		"示例:",
+		"  /skill add web-check 优先检查 HTTP 安全头并给出修复建议",
+		"",
+	}
+}
+
+func buildSkillListLines(skills []skillEntry) []string {
+	lines := []string{"当前 skills:"}
+	if len(skills) == 0 {
+		lines = append(lines, "  - 暂无技能，使用 /skill add <名称> <描述> 新增。", "")
+		return lines
+	}
+
+	for _, skill := range skills {
+		lines = append(lines, fmt.Sprintf("  - %s: %s", skill.Name, skill.Description))
+	}
+	lines = append(lines, "")
+	return lines
+}
+
+func parseSkillAddCommand(input string) (string, string, error) {
+	const prefix = "/skill add "
+	if !strings.HasPrefix(input, prefix) {
+		return "", "", fmt.Errorf("命令格式应为 /skill add <名称> <描述>")
+	}
+	body := strings.TrimSpace(strings.TrimPrefix(input, prefix))
+	if body == "" {
+		return "", "", fmt.Errorf("请提供 skill 名称和描述")
+	}
+
+	parts := strings.Fields(body)
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("描述不能为空，例如 /skill add web-check 检查 HTTP 安全头")
+	}
+
+	name := strings.TrimSpace(parts[0])
+	if name == "" {
+		return "", "", fmt.Errorf("skill 名称不能为空")
+	}
+
+	namePos := strings.Index(body, name)
+	description := strings.TrimSpace(body[namePos+len(name):])
+	if description == "" {
+		return "", "", fmt.Errorf("skill 描述不能为空")
+	}
+
+	return name, description, nil
+}
+
+func loadSkills() ([]skillEntry, error) {
+	data, err := os.ReadFile(skillsFilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []skillEntry{}, nil
+		}
+		return nil, err
+	}
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return []skillEntry{}, nil
+	}
+
+	var skills []skillEntry
+	if err := json.Unmarshal(data, &skills); err != nil {
+		return nil, err
+	}
+	return skills, nil
+}
+
+func saveSkills(skills []skillEntry) error {
+	if err := os.MkdirAll(filepath.Dir(skillsFilePath), 0o755); err != nil {
+		return err
+	}
+	content, err := json.MarshalIndent(skills, "", "  ")
+	if err != nil {
+		return err
+	}
+	content = append(content, '\n')
+	return os.WriteFile(skillsFilePath, content, 0o644)
+}
+
+func enrichInputWithSkills(input string, skills []skillEntry) string {
+	if len(skills) == 0 {
+		return input
+	}
+
+	lines := make([]string, 0, len(skills)+6)
+	lines = append(lines, "【自定义技能上下文】")
+	for _, skill := range skills {
+		lines = append(lines, fmt.Sprintf("- %s: %s", skill.Name, skill.Description))
+	}
+	lines = append(lines, "", "【用户请求】", input)
+	return strings.Join(lines, "\n")
 }
 
 func buildDoctorLines(sess *session.Session) []string {
