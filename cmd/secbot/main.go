@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -16,6 +16,9 @@ import (
 	"secbot/internal/tools"
 	"secbot/pkg/logger"
 
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -36,6 +39,64 @@ SecBot - AI 安全测试机器人 (Go)
 var (
 	agentFlag string
 	askFlag   bool
+
+	slashCommands = []string{
+		"/help",
+		"/h",
+		"/tools",
+		"/doctor",
+		"/env",
+		"/model",
+		"/clear",
+		"/version",
+		"/exit",
+		"/quit",
+	}
+
+	pageStyle = lipgloss.NewStyle().Padding(0, 1)
+
+	headerBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("40")).
+			Padding(0, 1)
+	historyBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("34")).
+			Padding(0, 1)
+	suggestionBoxStyle = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(lipgloss.Color("28")).
+				Padding(0, 1)
+	inputBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("34")).
+			Padding(0, 1)
+
+	brandStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("46")).
+			Bold(true)
+	accentStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("84")).
+			Bold(true)
+	promptStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("46")).
+			Bold(true)
+	inputTextStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("230"))
+	placeholderStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("71"))
+	suggestionTitleStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("118")).
+				Bold(true)
+	suggestionStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("120"))
+	hintStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("72"))
+	statusBusyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("82")).
+			Bold(true)
+	statusReadyStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("70"))
 )
 
 func main() {
@@ -72,9 +133,15 @@ func runMain(cmd *cobra.Command, args []string) {
 
 	cfg := config.Load()
 	if err := cfg.Validate(); err != nil {
-		color.Red("配置错误: %v", err)
-		color.Red("请检查 .env 文件或设置环境变量")
-		os.Exit(1)
+		color.Yellow("配置提示: %v", err)
+		color.Yellow("未检测到可用 API Key，已自动切换到 ollama 本地模式。")
+		color.Yellow("你仍可先进入程序，之后再补充环境变量。")
+		cfg.LLMProvider = "ollama"
+		if cfg.ModelName == "" || strings.Contains(strings.ToLower(cfg.ModelName), "deepseek") {
+			cfg.ModelName = "qwen2.5:7b"
+		}
+		cfg.APIKey = ""
+		cfg.BaseURL = ""
 	}
 
 	if err := logger.Init(cfg.LogLevel, cfg.LogFile); err != nil {
@@ -131,105 +198,407 @@ func runOnce(ctx context.Context, sess *session.Session, message, mode string) {
 }
 
 func runInteractive(ctx context.Context, sess *session.Session, mode string) {
-	fmt.Print(banner)
-	color.Cyan("模型: %s (%s)", sess.ModelInfo())
-	fmt.Println("输入你的问题或任务，输入 exit/quit 退出，输入 /help 查看帮助。")
-	fmt.Println()
+	program := tea.NewProgram(newTUIModel(ctx, sess, mode), tea.WithAltScreen())
+	if _, err := program.Run(); err != nil {
+		color.Red("终端界面启动失败: %v", err)
+		os.Exit(1)
+	}
+}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+type processResultMsg struct {
+	response string
+	err      error
+}
 
-	for {
-		color.New(color.FgGreen, color.Bold).Print(">>> ")
-		if !scanner.Scan() {
-			break
+type tuiModel struct {
+	ctx context.Context
+
+	sess *session.Session
+	mode string
+
+	input       textinput.Model
+	history     []string
+	suggestions []string
+	processing  bool
+	quitting    bool
+
+	width  int
+	height int
+}
+
+func newTUIModel(ctx context.Context, sess *session.Session, mode string) tuiModel {
+	input := textinput.New()
+	input.Focus()
+	input.Prompt = ">>> "
+	input.Placeholder = "输入任务，按 Enter 发送；输入 / 查看命令"
+	input.CharLimit = 4096
+	input.PromptStyle = promptStyle
+	input.TextStyle = inputTextStyle
+	input.PlaceholderStyle = placeholderStyle
+
+	m := tuiModel{
+		ctx:      ctx,
+		sess:     sess,
+		mode:     mode,
+		input:    input,
+		history:  nil,
+		width:    0,
+		height:   0,
+		quitting: false,
+	}
+	m.history = m.initialHistory()
+	m.refreshSlashSuggestions()
+	return m
+}
+
+func (m tuiModel) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.resizeInput()
+		return m, nil
+	case processResultMsg:
+		m.processing = false
+		if msg.err != nil {
+			m.appendLines(fmt.Sprintf("处理出错: %v", msg.err), "")
+			return m, nil
 		}
 
-		input := strings.TrimSpace(scanner.Text())
-		if input == "" {
-			continue
+		response := strings.TrimSpace(msg.response)
+		if response == "" {
+			m.appendLines("(无输出)", "")
+			return m, nil
 		}
+		m.appendLines(strings.Split(response, "\n")...)
+		m.appendLines("")
+		return m, nil
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c":
+			m.quitting = true
+			m.appendLines("再见！")
+			return m, tea.Quit
+		case "enter":
+			if m.processing {
+				return m, nil
+			}
 
-		if input == "exit" || input == "quit" || input == "/exit" || input == "/quit" {
-			fmt.Println("再见！")
-			break
+			input := strings.TrimSpace(m.input.Value())
+			if input == "" {
+				return m, nil
+			}
+
+			m.appendLines(fmt.Sprintf(">>> %s", input))
+			m.input.SetValue("")
+			m.refreshSlashSuggestions()
+
+			if input == "exit" || input == "quit" || input == "/exit" || input == "/quit" {
+				m.appendLines("再见！")
+				m.quitting = true
+				return m, tea.Quit
+			}
+
+			if lines, handled, clear := m.handleSlashCommand(input); handled {
+				if clear {
+					m.history = m.initialHistory()
+				} else {
+					m.appendLines(lines...)
+				}
+				return m, nil
+			}
+
+			m.processing = true
+			return m, processInputCmd(m.ctx, m.sess, m.mode, input)
 		}
+	}
 
-		if handleSlashCommand(input, sess) {
-			continue
+	if !m.processing {
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		m.refreshSlashSuggestions()
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m tuiModel) View() string {
+	if m.quitting {
+		return ""
+	}
+
+	width := m.width
+	if width <= 0 {
+		width = 100
+	}
+	height := m.height
+	if height <= 0 {
+		height = 30
+	}
+
+	containerWidth := max(width-2, 30)
+
+	header := headerBoxStyle.Width(containerWidth).Render(
+		strings.Join([]string{
+			brandStyle.Render("SECBOT") + " " + accentStyle.Render("绿色全屏终端"),
+			hintStyle.Render(fmt.Sprintf("模型: %s", m.sess.ModelInfo())),
+		}, "\n"),
+	)
+
+	suggestionBlock := m.renderSuggestions(containerWidth)
+	statusLine := m.renderStatus()
+	inputBlock := inputBoxStyle.Width(containerWidth).Render(m.input.View())
+
+	usedHeight := lipgloss.Height(header) + lipgloss.Height(suggestionBlock) + lipgloss.Height(statusLine) + lipgloss.Height(inputBlock) + 4
+	historyHeight := height - usedHeight
+	if historyHeight < 8 {
+		historyHeight = 8
+	}
+
+	historyLines := lastLines(m.history, historyHeight-2)
+	historyBlock := historyBoxStyle.Width(containerWidth).Height(historyHeight).Render(strings.Join(historyLines, "\n"))
+
+	return pageStyle.Width(width).Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			header,
+			historyBlock,
+			suggestionBlock,
+			statusLine,
+			inputBlock,
+		),
+	)
+}
+
+func (m *tuiModel) appendLines(lines ...string) {
+	m.history = append(m.history, lines...)
+}
+
+func (m *tuiModel) resizeInput() {
+	inputWidth := m.width - 12
+	if inputWidth < 24 {
+		inputWidth = 24
+	}
+	m.input.Width = inputWidth
+}
+
+func (m tuiModel) initialHistory() []string {
+	return []string{
+		"SecBot - AI 安全测试机器人 (Go)",
+		"输入你的问题或任务，输入 / 查看命令，输入 /exit 退出。",
+		"",
+	}
+}
+
+func (m *tuiModel) handleSlashCommand(input string) ([]string, bool, bool) {
+	switch {
+	case input == "/":
+		return buildSlashSuggestionLines(""), true, false
+	case input == "/help" || input == "/h":
+		return buildHelpLines(), true, false
+	case input == "/tools":
+		names := append([]string(nil), m.sess.ToolNames()...)
+		sort.Strings(names)
+		lines := []string{"可用工具:"}
+		for _, name := range names {
+			lines = append(lines, "  - "+name)
 		}
+		lines = append(lines, "")
+		return lines, true, false
+	case input == "/doctor" || input == "/env":
+		return buildDoctorLines(m.sess), true, false
+	case input == "/clear":
+		return nil, true, true
+	case input == "/model" || input == "model":
+		return []string{"模型切换功能即将实现", ""}, true, false
+	case input == "/version":
+		return []string{fmt.Sprintf("SecBot v%s (Go)", version), ""}, true, false
+	case strings.HasPrefix(input, "/"):
+		return buildSlashSuggestionLines(input), true, false
+	default:
+		return nil, false, false
+	}
+}
 
+func (m *tuiModel) refreshSlashSuggestions() {
+	input := strings.TrimSpace(m.input.Value())
+	if !strings.HasPrefix(input, "/") {
+		m.suggestions = nil
+		return
+	}
+	m.suggestions = matchSlashCommands(input)
+}
+
+func (m tuiModel) renderSuggestions(containerWidth int) string {
+	input := strings.TrimSpace(m.input.Value())
+	if !strings.HasPrefix(input, "/") {
+		return suggestionBoxStyle.Width(containerWidth).Render(hintStyle.Render("提示: 输入 / 可查看命令候选"))
+	}
+
+	lines := []string{suggestionTitleStyle.Render("命令候选:")}
+	if len(m.suggestions) == 0 {
+		lines = append(lines, hintStyle.Render("  未匹配命令，按 Enter 可查看建议"))
+	} else {
+		limit := len(m.suggestions)
+		if limit > 8 {
+			limit = 8
+		}
+		for _, cmd := range m.suggestions[:limit] {
+			lines = append(lines, suggestionStyle.Render("  "+cmd))
+		}
+		if len(m.suggestions) > limit {
+			lines = append(lines, hintStyle.Render(fmt.Sprintf("  ... 还有 %d 个命令", len(m.suggestions)-limit)))
+		}
+	}
+	return suggestionBoxStyle.Width(containerWidth).Render(strings.Join(lines, "\n"))
+}
+
+func (m tuiModel) renderStatus() string {
+	if m.processing {
+		return statusBusyStyle.Render("正在处理请求，请稍候...")
+	}
+	return statusReadyStyle.Render("Enter 发送  |  Ctrl+C 退出")
+}
+
+func processInputCmd(ctx context.Context, sess *session.Session, mode, input string) tea.Cmd {
+	return func() tea.Msg {
 		opts := &models.ProcessOptions{
 			ForceQA:        mode == "ask",
 			ForceAgentFlow: mode == "agent",
 			AgentType:      agentFlag,
 		}
-
 		resp, err := sess.HandleWithOptions(ctx, input, opts)
-		if err != nil {
-			color.Red("处理出错: %v", err)
-			continue
-		}
-
-		fmt.Println()
-		fmt.Println(resp)
-		fmt.Println()
+		return processResultMsg{response: resp, err: err}
 	}
 }
 
-func handleSlashCommand(input string, sess *session.Session) bool {
-	switch {
-	case input == "/help" || input == "/h":
-		printHelp()
-		return true
-	case input == "/tools":
-		names := sess.ToolNames()
-		fmt.Println("\n可用工具:")
-		for _, name := range names {
-			fmt.Printf("  - %s\n", name)
-		}
-		fmt.Println()
-		return true
-	case input == "/clear":
-		fmt.Print("\033[2J\033[H")
-		fmt.Print(banner)
-		return true
-	case input == "/model" || input == "model":
-		color.Yellow("模型切换功能即将实现")
-		return true
-	case input == "/version":
-		fmt.Printf("SecBot v%s (Go)\n", version)
-		return true
-	}
-	return false
-}
-
-func printHelp() {
+func buildHelpLines() []string {
 	registry := tools.SecurityRegistry()
-	fmt.Printf(`
-SecBot 帮助
-===========
+	names := append([]string(nil), registry.Names()...)
+	sort.Strings(names)
 
-命令:
-  /help, /h     显示此帮助
-  /tools        列出可用安全工具
-  /model        切换推理后端/模型
-  /clear        清屏
-  /version      版本信息
-  exit, quit    退出
-
-使用示例:
-  扫描 example.com 的开放端口
-  检查 example.com 的 SSL 证书
-  分析 example.com 的 HTTP 安全头
-  查询 8.8.8.8 的地理位置
-
-可用工具 (%d):
-`, len(registry.Names()))
-	for _, name := range registry.Names() {
-		fmt.Printf("  - %s\n", name)
+	lines := []string{
+		"SecBot 帮助",
+		"===========",
+		"",
+		"命令:",
+		"  /help, /h     显示此帮助",
+		"  /tools        列出可用安全工具",
+		"  /doctor, /env 检查当前环境变量与模型配置",
+		"  /model        切换推理后端/模型",
+		"  /clear        清空会话输出",
+		"  /version      版本信息",
+		"  exit, quit    退出",
+		"",
+		"使用示例:",
+		"  扫描 example.com 的开放端口",
+		"  检查 example.com 的 SSL 证书",
+		"  分析 example.com 的 HTTP 安全头",
+		"  查询 8.8.8.8 的地理位置",
+		"",
+		fmt.Sprintf("可用工具 (%d):", len(names)),
 	}
-	fmt.Println()
+	for _, name := range names {
+		lines = append(lines, "  - "+name)
+	}
+	lines = append(lines, "")
+	return lines
+}
+
+func buildDoctorLines(sess *session.Session) []string {
+	cfg := config.Load()
+	provider := strings.ToLower(cfg.LLMProvider)
+	requiredKey := strings.ToUpper(provider) + "_API_KEY"
+
+	lines := []string{
+		"环境诊断:",
+		fmt.Sprintf("  - 当前 Provider: %s", cfg.LLMProvider),
+		fmt.Sprintf("  - 当前模型: %s", cfg.ModelName),
+		fmt.Sprintf("  - 会话模型: %s", sess.ModelInfo()),
+	}
+
+	if provider == "ollama" {
+		lines = append(lines,
+			fmt.Sprintf("  - OLLAMA_URL: %s", cfg.OllamaURL),
+			"  - 结论: 本地模式无需 API Key，可直接使用。",
+			"",
+		)
+		return lines
+	}
+
+	apiKey := cfg.APIKey
+	if apiKey == "" {
+		apiKey = os.Getenv(requiredKey)
+	}
+	if apiKey == "" {
+		lines = append(lines,
+			fmt.Sprintf("  - %s: 未设置", requiredKey),
+			fmt.Sprintf("  - 建议: 在 .env 中添加 %s=你的密钥", requiredKey),
+			"  - 提示: 配置后重启 secbot 生效。",
+			"",
+		)
+		return lines
+	}
+
+	masked := "***"
+	if len(apiKey) > 8 {
+		masked = apiKey[:4] + "..." + apiKey[len(apiKey)-4:]
+	}
+	lines = append(lines,
+		fmt.Sprintf("  - %s: 已设置 (%s)", requiredKey, masked),
+		"  - 结论: 环境变量看起来正常。",
+		"",
+	)
+	return lines
+}
+
+func buildSlashSuggestionLines(input string) []string {
+	lines := []string{"可用斜杠命令:"}
+	matches := matchSlashCommands(input)
+
+	hasMatch := false
+	for _, cmd := range matches {
+		lines = append(lines, "  - "+cmd)
+		hasMatch = true
+	}
+
+	if input != "" && input != "/" && !hasMatch {
+		lines = append(lines,
+			fmt.Sprintf("  - 未找到与 %q 匹配的命令", input),
+			"  - 输入 / 查看全部命令，或输入 /help 查看说明",
+		)
+	}
+	lines = append(lines, "")
+	return lines
+}
+
+func matchSlashCommands(input string) []string {
+	prefix := strings.TrimSpace(input)
+	matches := make([]string, 0, len(slashCommands))
+	for _, cmd := range slashCommands {
+		if prefix == "" || prefix == "/" || strings.HasPrefix(cmd, prefix) {
+			matches = append(matches, cmd)
+		}
+	}
+	return matches
+}
+
+func lastLines(lines []string, limit int) []string {
+	if limit <= 0 || len(lines) <= limit {
+		return lines
+	}
+	return lines[len(lines)-limit:]
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func modelCmd() *cobra.Command {
