@@ -210,7 +210,7 @@ func runOnce(ctx context.Context, sess *session.Session, message, mode string) {
 }
 
 func runInteractive(ctx context.Context, sess *session.Session, mode string) {
-	program := tea.NewProgram(newTUIModel(ctx, sess, mode), tea.WithAltScreen())
+	program := tea.NewProgram(newTUIModel(ctx, sess, mode))
 	if _, err := program.Run(); err != nil {
 		color.Red("终端界面启动失败: %v", err)
 		os.Exit(1)
@@ -369,16 +369,11 @@ func (m tuiModel) View() string {
 	if width <= 0 {
 		width = 100
 	}
-	height := m.height
-	if height <= 0 {
-		height = 30
-	}
-
 	containerWidth := max(width-2, 30)
 
 	header := headerBoxStyle.Width(containerWidth).Render(
 		strings.Join([]string{
-			brandStyle.Render("SECBOT") + " " + accentStyle.Render("绿色全屏终端"),
+			brandStyle.Render("SECBOT") + " " + accentStyle.Render("绿色终端模式"),
 			hintStyle.Render(fmt.Sprintf("模型: %s", m.sess.ModelInfo())),
 			hintStyle.Render(fmt.Sprintf("skills: %d  (使用 /skill 管理)", len(m.skills))),
 		}, "\n"),
@@ -388,14 +383,9 @@ func (m tuiModel) View() string {
 	statusLine := m.renderStatus()
 	inputBlock := inputBoxStyle.Width(containerWidth).Render(m.input.View())
 
-	usedHeight := lipgloss.Height(header) + lipgloss.Height(suggestionBlock) + lipgloss.Height(statusLine) + lipgloss.Height(inputBlock) + 4
-	historyHeight := height - usedHeight
-	if historyHeight < 8 {
-		historyHeight = 8
-	}
-
-	historyLines := lastLines(m.history, historyHeight-2)
-	historyBlock := historyBoxStyle.Width(containerWidth).Height(historyHeight).Render(strings.Join(historyLines, "\n"))
+	// 普通终端模式下保持紧凑，不占满整屏。
+	historyLines := lastLines(m.history, 14)
+	historyBlock := historyBoxStyle.Width(containerWidth).Render(strings.Join(historyLines, "\n"))
 
 	return pageStyle.Width(width).Render(
 		lipgloss.JoinVertical(
@@ -499,7 +489,7 @@ func (m tuiModel) renderStatus() string {
 	if m.processing {
 		return statusBusyStyle.Render("正在处理请求，请稍候...")
 	}
-	return statusReadyStyle.Render("Enter 发送  |  Ctrl+C 退出")
+	return statusReadyStyle.Render("普通终端模式 | Enter 发送  |  Ctrl+C 退出")
 }
 
 func processInputCmd(ctx context.Context, sess *session.Session, mode, input string) tea.Cmd {
