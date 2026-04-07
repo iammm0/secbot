@@ -77,9 +77,9 @@ uv run secbot --backend
 python -m router.main
 ```
 
-## 六、在 UI 中检查 Ollama
+## 六、在客户端中检查 Ollama
 
-当前项目的多个前端都会调用：
+当前 CLI 与外部客户端都会调用：
 
 ```text
 GET /api/system/ollama-models
@@ -91,7 +91,7 @@ GET /api/system/ollama-models
 - 返回本地可用模型列表
 - 若默认模型缺失，尝试后台拉取并返回 `pulling_model`
 
-因此当你在 `/model`、移动端或桌面端看到 Ollama 模型列表时，数据来源就是这里。
+因此当你在 `/model` 或自定义客户端中看到 Ollama 模型列表时，数据来源就是这里。
 
 ## 七、常见问题
 
@@ -120,7 +120,7 @@ ollama pull gemma3:1b
 - 降低上下文大小
 - 使用有 GPU 支持的环境
 
-### 4. 前端里看不到模型列表
+### 4. 客户端里看不到模型列表
 
 先直接访问：
 
@@ -128,4 +128,4 @@ ollama pull gemma3:1b
 curl http://127.0.0.1:8000/api/system/ollama-models
 ```
 
-如果接口返回了 `error` 字段，说明是 Ollama 服务或地址问题，而不是前端渲染问题。
+如果接口返回了 `error` 字段，说明是 Ollama 服务或地址问题，而不是客户端渲染问题。

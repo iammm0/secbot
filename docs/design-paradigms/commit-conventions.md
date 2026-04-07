@@ -37,7 +37,7 @@
 
 按**代码/功能边界**划分，与目录或包名对应，便于从 commit 快速定位改动范围。本项目常见 scope 示例：
 
-- `core`、`agents`、`utils`、`tools`、`tui`/`terminal-ui`（TypeScript 终端 UI）、`router`、`defense`、`controller`、`database`、`prompts`
+- `core`、`agents`、`utils`、`tools`、`router`、`defense`、`controller`、`database`、`prompts`
 - `hackbot`（CLI 入口与交互）
 - `config`、`deps`、`deploy`、`ci`
 

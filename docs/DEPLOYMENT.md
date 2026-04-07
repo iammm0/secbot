@@ -1,11 +1,11 @@
 # Secbot 部署指南
 
-本文档聚焦当前仓库已存在且可维护的部署方式：**Python 后端服务**。`terminal-ui` 适合本地交互使用，移动端和桌面端可独立连接这个后端。
+本文档聚焦当前仓库已存在且可维护的部署方式：**Python 后端服务**。
 
 ## 当前部署建议
 
 - **本地交互**：使用 `python main.py` 或 `uv run secbot`
-- **长期运行后端**：使用 `uv run secbot --backend`、`python -m router.main`，再由移动端、桌面端或自定义客户端调用 API
+- **长期运行后端**：使用 `uv run secbot --backend`、`python -m router.main`，再由自定义客户端调用 API
 - **二进制分发**：优先使用 GitHub Release 中的现成 zip 包
 
 当前仓库**没有维护中的 Dockerfile / docker-compose 产物**。如果你需要容器化部署，请先阅读 [DOCKER_SETUP.md](DOCKER_SETUP.md)。
@@ -58,10 +58,7 @@ uv run secbot --backend
 python -m router.main
 ```
 
-默认情况下：
-
-- 普通模式监听 `0.0.0.0:8000`
-- 桌面嵌入模式可通过 `SECBOT_DESKTOP=1` 切换到 `127.0.0.1:8000`
+默认监听 `0.0.0.0:8000`。
 
 ## 二、环境变量说明
 
@@ -184,13 +181,13 @@ sudo systemctl restart secbot
 
 `router.main` 启动前会主动检查端口占用。若报错，请先结束占用进程，再重启服务。
 
-### 2. 前端能打开但接口失败
+### 2. 客户端能连接但接口失败
 
 优先检查：
 
-- 后端是否真的监听在前端使用的地址与端口
+- 后端是否真的监听在客户端使用的地址与端口
 - CORS 是否为默认配置
-- 桌面端是否误用了 `SECBOT_DESKTOP=1` 之外的 host
+- 客户端是否误连到了错误的 host/port
 
 ### 3. Ollama 无法列出模型
 
