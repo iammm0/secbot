@@ -1,17 +1,17 @@
 # 推理后端与 API 兼容说明
 
-Secbot 当前通过 `utils/model_selector.py` 维护多厂商推理后端注册表，并支持在 CLI、TUI、移动端、桌面端共用同一套配置接口。
+Secbot 当前通过 `utils/model_selector.py` 维护多厂商推理后端注册表，并支持在 CLI 与 API 共用同一套配置接口。
 
 ## 切换方式
 
 - **CLI**：运行 `secbot model`、`secbot-cli model` 或 `uv run secbot model`
-- **TUI**：输入 `/model`
+- **CLI 交互模式**：输入 `/model`
 - **API**：调用 `/api/system/config/*`
 - **环境变量**：设置 `LLM_PROVIDER` 与对应厂商变量
 
 说明：
 
-- 若你已经通过 CLI / TUI 把配置持久化到 SQLite，则 SQLite 中的值会优先于环境变量
+- 若你已经通过 CLI 把配置持久化到 SQLite，则 SQLite 中的值会优先于环境变量
 - 某些厂商既需要 API Key，也需要自定义 Base URL
 
 ## 已支持的厂商
@@ -70,7 +70,7 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
 ### `/model`
 
-终端 UI 中输入 `/model` 后，可以：
+CLI 交互模式中输入 `/model` 后，可以：
 
 - 查看当前后端
 - 切换厂商

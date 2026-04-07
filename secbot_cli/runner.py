@@ -5,7 +5,9 @@
 
 import asyncio
 import json
+import re
 import sys
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from rich.console import Console
@@ -27,6 +29,155 @@ from utils.event_bus import EventBus, EventType, Event
 from utils.logger import logger
 
 
+@dataclass
+class RenderBlock:
+    """终端渲染块：统一交给父渲染器处理 Markdown，再由子类做二次渲染。"""
+
+    kind: str
+    body: Any
+    title: str = ""
+    meta: dict[str, Any] = field(default_factory=dict)
+
+
+class BaseMarkdownBlockRenderer:
+    """父渲染器：统一做 Markdown 基础渲染。"""
+
+    default_title = "内容"
+    title_style = "bold white"
+    border_style = "white"
+
+    def __init__(self, console: Console):
+        self.console = console
+
+    def render(self, block: RenderBlock) -> None:
+        title = self._build_title(block)
+        markdown_text = self._build_markdown(block)
+        renderable = self._to_renderable(markdown_text)
+        self.console.print(
+            Panel(
+                renderable,
+                title=Text(title, style=self.title_style),
+                border_style=self.border_style,
+            )
+        )
+
+    def _build_title(self, block: RenderBlock) -> str:
+        return (block.title or self.default_title).strip() or self.default_title
+
+    def _build_markdown(self, block: RenderBlock) -> str:
+        value = block.body
+        if isinstance(value, (dict, list)):
+            body = json.dumps(value, ensure_ascii=False, indent=2)
+            return f"```json\n{body}\n```"
+        body = str(value or "").strip()
+        return body or " "
+
+    @staticmethod
+    def _to_renderable(markdown_text: str):
+        try:
+            return Markdown(markdown_text)
+        except Exception:
+            return Text(markdown_text)
+
+
+class PlanningBlockRenderer(BaseMarkdownBlockRenderer):
+    default_title = "规划"
+    title_style = "bold magenta"
+    border_style = "magenta"
+
+
+class ThoughtBlockRenderer(BaseMarkdownBlockRenderer):
+    default_title = "推理"
+    title_style = "bold yellow"
+    border_style = "yellow"
+
+
+class ActionBlockRenderer(BaseMarkdownBlockRenderer):
+    default_title = "执行"
+    title_style = "bold cyan"
+    border_style = "cyan"
+    _MAX_RESULT_CHARS = 2000
+
+    def _build_markdown(self, block: RenderBlock) -> str:
+        meta = block.meta or {}
+        lines: list[str] = []
+        tool = meta.get("tool", "")
+        status = meta.get("status", "")
+        script = meta.get("script", "")
+        params = meta.get("params", {})
+        error = meta.get("error")
+        result = meta.get("result")
+
+        if tool:
+            lines.append(f"**工具**: `{tool}`")
+        if status:
+            lines.append(f"**状态**: {status}")
+
+        if script:
+            lines.append("**命令**:")
+            lines.append(f"```bash\n{script}\n```")
+        elif params:
+            try:
+                params_text = json.dumps(params, ensure_ascii=False, indent=2)
+            except (TypeError, ValueError):
+                params_text = str(params)
+            lines.append("**参数**:")
+            lines.append(f"```json\n{params_text}\n```")
+
+        if error:
+            lines.append(f"**错误**: {error}")
+
+        if result not in (None, ""):
+            result_text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, indent=2)
+            if len(result_text) > self._MAX_RESULT_CHARS:
+                result_text = result_text[: self._MAX_RESULT_CHARS] + "\n... (已截断)"
+            lines.append("**输出**:")
+            lines.append(f"```text\n{result_text}\n```")
+
+        if not lines:
+            return super()._build_markdown(block)
+        return "\n\n".join(lines)
+
+
+class ObservationBlockRenderer(BaseMarkdownBlockRenderer):
+    default_title = "观察"
+    title_style = "bold blue"
+    border_style = "blue"
+
+
+class SummaryBlockRenderer(BaseMarkdownBlockRenderer):
+    default_title = "总结"
+    title_style = "bold green"
+    border_style = "green"
+
+
+class ErrorBlockRenderer(BaseMarkdownBlockRenderer):
+    default_title = "错误"
+    title_style = "bold red"
+    border_style = "red"
+
+
+class CliRenderRegistry:
+    """渲染注册表：按块类型分发到子渲染器。"""
+
+    def __init__(self, console: Console):
+        base = BaseMarkdownBlockRenderer(console)
+        self._renderers = {
+            "default": base,
+            "planning": PlanningBlockRenderer(console),
+            "thought": ThoughtBlockRenderer(console),
+            "action": ActionBlockRenderer(console),
+            "observation": ObservationBlockRenderer(console),
+            "summary": SummaryBlockRenderer(console),
+            "report": SummaryBlockRenderer(console),
+            "error": ErrorBlockRenderer(console),
+        }
+
+    def render(self, block: RenderBlock) -> None:
+        renderer = self._renderers.get(block.kind, self._renderers["default"])
+        renderer.render(block)
+
+
 class CliEventPrinter:
     """订阅 EventBus 事件，用 Rich 在终端打印各阶段信息。"""
 
@@ -34,6 +185,12 @@ class CliEventPrinter:
         self.console = console
         self._current_thought: list[str] = []
         self._current_phase: str = ""
+        self._registry = CliRenderRegistry(console)
+
+    @staticmethod
+    def _strip_rich_markup(text: str) -> str:
+        """去掉 rich markup，避免标题里出现 [bold ...] 语法。"""
+        return re.sub(r"\[[^\]]+\]", "", text or "").strip()
 
     def handle(self, event: Event) -> None:
         t = event.type
@@ -54,93 +211,89 @@ class CliEventPrinter:
                         status, "○"
                     )
                     lines.append(f"  {mark} {content}")
-            text = "\n".join(lines) if lines else "规划中..."
-            self.console.print(
-                Panel(text, title="[bold magenta]规划[/bold magenta]", border_style="magenta")
+            self._registry.render(
+                RenderBlock(
+                    kind="planning",
+                    title="规划",
+                    body="\n".join(lines) if lines else "规划中...",
+                )
             )
 
         elif t == EventType.THINK_START:
             self._current_thought = []
-            iteration = d.get("iteration", 1)
-            self.console.print(
-                f"\n[dim]── 推理 (迭代 {iteration}) ──[/dim]"
-            )
 
         elif t == EventType.THINK_CHUNK:
             chunk = d.get("chunk", "")
             if chunk:
                 self._current_thought.append(chunk)
-                self.console.print(chunk, end="", highlight=False)
 
         elif t == EventType.THINK_END:
-            thought = d.get("thought", "")
-            if thought and not self._current_thought:
-                self.console.print(f"[dim]{thought}[/dim]")
-            elif self._current_thought:
-                self.console.print()
+            thought = d.get("thought", "") or "".join(self._current_thought)
+            if thought:
+                self._registry.render(
+                    RenderBlock(kind="thought", title="推理", body=thought)
+                )
             self._current_thought = []
 
         elif t == EventType.EXEC_START:
             tool = d.get("tool", "")
             params = d.get("params", {})
             script = d.get("script", "")
-            display = f"[bold cyan]{tool}[/bold cyan]"
-            if script:
-                display += f"\n[dim]{script}[/dim]"
-            elif params:
-                try:
-                    display += f"\n[dim]{json.dumps(params, ensure_ascii=False, indent=2)}[/dim]"
-                except (TypeError, ValueError):
-                    display += f"\n[dim]{params}[/dim]"
-            self.console.print(
-                Panel(display, title="[bold cyan]执行[/bold cyan]", border_style="cyan")
+            self._registry.render(
+                RenderBlock(
+                    kind="action",
+                    title="工具执行",
+                    body="",
+                    meta={
+                        "tool": tool,
+                        "status": "执行中",
+                        "params": params,
+                        "script": script,
+                    },
+                )
             )
 
         elif t == EventType.EXEC_RESULT:
             tool = d.get("tool", "")
             success = d.get("success", True)
-            if success:
-                result = d.get("result", "")
-                if result:
-                    result_str = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, indent=2)
-                    if len(result_str) > 2000:
-                        result_str = result_str[:2000] + "\n... (已截断)"
-                    self.console.print(
-                        Panel(
-                            result_str,
-                            title=f"[bold green]✓ {tool}[/bold green]",
-                            border_style="green",
-                        )
-                    )
-                else:
-                    self.console.print(f"[green]✓ {tool} 完成[/green]")
-            else:
-                error = d.get("error", "未知错误")
-                self.console.print(
-                    Panel(
-                        str(error),
-                        title=f"[bold red]✗ {tool}[/bold red]",
-                        border_style="red",
-                    )
+            self._registry.render(
+                RenderBlock(
+                    kind="action",
+                    title="工具执行结果",
+                    body="",
+                    meta={
+                        "tool": tool,
+                        "status": "完成" if success else "失败",
+                        "result": d.get("result", "") if success else None,
+                        "error": d.get("error", "未知错误") if not success else None,
+                    },
                 )
+            )
 
         elif t == EventType.CONTENT:
             content = d.get("content", "")
             if content:
-                try:
-                    self.console.print(Markdown(content))
-                except Exception:
-                    self.console.print(content)
+                view_type = d.get("view_type", "summary")
+                tool = d.get("tool", "")
+                raw_title = self._strip_rich_markup(str(d.get("title", "")))
+                if tool or "观察" in raw_title:
+                    title = f"观察 · {tool}" if tool else (raw_title or "观察")
+                    kind = "observation"
+                elif view_type == "summary":
+                    title = raw_title or "总结"
+                    kind = "summary"
+                else:
+                    title = raw_title or "内容"
+                    kind = "default"
+                self._registry.render(
+                    RenderBlock(kind=kind, title=title, body=content)
+                )
 
         elif t == EventType.REPORT_END:
             report = d.get("report", "")
             if report:
-                self.console.print(
-                    Panel(
-                        Markdown(report),
-                        title="[bold green]报告[/bold green]",
-                        border_style="green",
-                    )
+                self._registry.render(
+                    RenderBlock(kind="report", title="报告", body=report)
                 )
 
         elif t == EventType.TASK_PHASE:
@@ -174,7 +327,9 @@ class CliEventPrinter:
 
         elif t == EventType.ERROR:
             error = d.get("error", "")
-            self.console.print(f"[bold red]错误: {error}[/bold red]")
+            self._registry.render(
+                RenderBlock(kind="error", title="错误", body=str(error))
+            )
 
 
 async def _get_root_password_interactive(
