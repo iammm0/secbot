@@ -34,106 +34,34 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-  build:
+  publish-npm:
     needs: release
-    if: (github.event_name == 'push' && needs.release.outputs.released == 'true') || github.event_name == 'workflow_dispatch'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-22.04
-            name: linux-amd64
-          - runner: windows-latest
-            name: windows-amd64
-          - runner: macos-14
-            name: darwin-arm64
-          - runner: macos-15-intel
-            name: darwin-amd64
-
-    runs-on: ${{ matrix.runner }}
-
+    runs-on: ubuntu-latest
+    if: ((github.event_name == 'push' && needs.release.outputs.released == 'true') || github.event_name == 'workflow_dispatch') && hashFiles('package.json') != ''
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || needs.release.outputs.tag || github.sha }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Install dependencies (uv)
-        shell: bash
-        run: |
-          uv sync --no-install-project
-          uv pip install pyinstaller
-
-      - name: Build executable (PyInstaller onedir)
-        shell: bash
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            .venv/Scripts/python.exe -m PyInstaller hackbot.spec
-          else
-            .venv/bin/python -m PyInstaller hackbot.spec
-          fi
-
-      - name: Create release README (in package)
-        shell: bash
+      - name: Publish to npm
         env:
-          RELEASE_VERSION: ${{ needs.release.outputs.version || needs.release.outputs.tag || github.ref_name }}
-          PLATFORM_NAME: ${{ matrix.name }}
-        run: |
-          python -m utils.release_docs package-readme \
-            --changelog CHANGELOG.md \
-            --version "${RELEASE_VERSION}" \
-            --platform "${PLATFORM_NAME}" \
-            --output dist/hackbot/README_RELEASE.md \
-            --project-name "Secbot"
-          cp README.md dist/hackbot/README.md
-
-      - name: Package artifact (zip)
-        shell: bash
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            python -c "import shutil,os; os.chdir('dist'); shutil.make_archive('secbot-${{ matrix.name }}', 'zip', '.', 'hackbot')"
-          else
-            .venv/bin/python -c "import shutil,os; os.chdir('dist'); shutil.make_archive('secbot-${{ matrix.name }}', 'zip', '.', 'hackbot')"
-          fi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: secbot-${{ matrix.name }}
-          path: dist/secbot-${{ matrix.name }}.zip
-
-  upload-assets:
-    needs: [release, build]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && needs.release.outputs.released == 'true'
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.release.outputs.tag }}
-          files: artifacts/**/*.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
 
   publish-pypi:
+    needs: release
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && needs.release.outputs.released == 'true') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ inputs.ref || needs.release.outputs.tag || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
