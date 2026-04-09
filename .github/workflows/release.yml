@@ -80,6 +80,7 @@ jobs:
           python -m build
           python -m twine check dist/*
 
+      # 仓库 Settings → Secrets：PYPI_PASSWORD = PyPI 上创建的 API token 字符串（勿用 .pypirc）
       - name: Upload to PyPI
         env:
           TWINE_USERNAME: __token__
