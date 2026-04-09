@@ -105,7 +105,7 @@ DEEPSEEK_API_KEY=sk-your-api-key
 
 ```bash
 # 交互模式
-python main.py
+python scripts/main.py
 # 或
 uv run secbot
 

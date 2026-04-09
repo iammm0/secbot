@@ -1,10 +1,12 @@
 #!/bin/bash
 # Secbot 构建脚本（源码分发包 sdist/wheel）
+# 在仓库根目录执行: bash scripts/build.sh
 # 推荐使用: uv run python -m build
 
 set -e
-
-echo "🚀 开始构建 Secbot..."
+cd "$(dirname "$0")/.."
+ROOT="$PWD"
+echo "🚀 开始构建 Secbot... (根目录: $ROOT)"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

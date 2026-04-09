@@ -4,9 +4,12 @@
 # 使用 onedir 模式避免单文件体积超过 4GB 导致 Linux CI 报 struct.error
 # Linux 下启用 noarchive 避免 PYZ 过大导致 CArchiveWriter struct.error
 
+import os
 import sys
 
 IS_LINUX = sys.platform == 'linux'
+# 保证从 scripts/main.py 启动时仍能解析仓库根目录下的包（secbot_agent、router 等）
+_REPO_ROOT = os.path.dirname(os.path.abspath(SPEC))
 
 # 顶层包与模块（与 pyproject.toml [tool.setuptools] packages 对齐）
 TOP_LEVEL = [
@@ -63,8 +66,8 @@ DATAS = [
 ]
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ['scripts/main.py'],
+    pathex=[_REPO_ROOT],
     binaries=[],
     datas=DATAS,
     hiddenimports=HIDDEN_IMPORTS,

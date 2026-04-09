@@ -1,8 +1,11 @@
 @echo off
 REM Secbot 构建脚本（源码分发包 sdist/wheel）（Windows）
+REM 在仓库根目录执行: scripts\build.bat
 REM 推荐使用: uv run python -m build
 
+cd /d "%~dp0\.."
 echo 🚀 开始构建 Secbot...
+echo 工作目录: %CD%
 
 REM 检查 Python
 python --version >nul 2>&1

@@ -49,7 +49,7 @@ ping -c 2 192.168.56.10
 # 在项目根目录下
 uv run secbot
 # 或
-python main.py
+python scripts/main.py
 ```
 
 启动后进入交互式界面，底部有输入框。

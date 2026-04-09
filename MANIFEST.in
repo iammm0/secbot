@@ -1,5 +1,5 @@
-# 包含 main.py 文件
-include main.py
+# 包含入口脚本（与 PyInstaller / 源码分发一致）
+include scripts/main.py
 include config.py
 include env.example
 include README.md
