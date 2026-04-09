@@ -23,6 +23,9 @@ desktop/dist/
 .env
 .env.local
 
+# npm 本地登录（含 //registry.../:_authToken）；勿入库。CI 使用 secrets.NPM_TOKEN，见 release 工作流
+.npmrc
+
 # 日志
 logs/
 *.log
