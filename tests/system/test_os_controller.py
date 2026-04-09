@@ -1,12 +1,12 @@
 
 import unittest
 from unittest.mock import MagicMock, patch
-from system.controller import OSController
-from system.detector import SystemInfo
+from secbot_agent.system.controller import OSController
+from secbot_agent.system.detector import SystemInfo
 
 class TestOSController(unittest.TestCase):
-    @patch("system.controller.OSDetector")
-    @patch("system.controller.SystemCommands")
+    @patch("secbot_agent.system.controller.OSDetector")
+    @patch("secbot_agent.system.controller.SystemCommands")
     def setUp(self, mock_commands_cls, mock_detector_cls):
         # Mock OSDetector
         self.mock_detector = mock_detector_cls.return_value

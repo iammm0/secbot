@@ -16,8 +16,8 @@ from secbot_agent.database.manager import DatabaseManager
 from secbot_agent.core.memory.database_memory import DatabaseMemory
 from secbot_agent.defense.defense_manager import DefenseManager
 from secbot_agent.controller.controller import MainController
-from system.controller import OSController
-from system.detector import OSDetector
+from secbot_agent.system.controller import OSController
+from secbot_agent.system.detector import OSDetector
 from secbot_agent.prompts.manager import PromptManager
 from utils.audit import AuditTrail
 

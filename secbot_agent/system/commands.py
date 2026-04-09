@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 import json
 from utils.logger import logger
-from system.detector import OSDetector
+from .detector import OSDetector
 
 
 class SystemCommands:

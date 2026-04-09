@@ -2,8 +2,8 @@
 操作系统控制器：统一接口
 """
 from typing import Dict, List, Optional, Any
-from system.detector import OSDetector, SystemInfo
-from system.commands import SystemCommands
+from .detector import OSDetector, SystemInfo
+from .commands import SystemCommands
 from utils.logger import logger
 
 
