@@ -58,9 +58,11 @@ uv pip install -e .
 
 ## Quick Start
 
-### 1. Configure environment variables
+### 1. Configure model backend (persistent)
 
-Create a `.env` file in your working directory:
+You can start with **no** `.env`: run `secbot` and use `/model` (interactive) or `secbot model` to set provider, API keys, and defaults—these are **saved to SQLite** and used on next launch. Use a `.env` file only for CI, containers, or non-interactive defaults.
+
+Optional `.env` example:
 
 ```env
 # Cloud model backend (recommended)

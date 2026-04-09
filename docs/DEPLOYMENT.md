@@ -26,9 +26,9 @@ uv sync
 uv pip install -e .
 ```
 
-### 2. 配置 `.env`
+### 2. 配置模型与密钥（推荐在程序内持久化）
 
-开发模板：复制根目录 `.env.backup` 为 `.env`（`env.example` 中有简短说明）。最小示例：
+默认不必先建 `.env`：启动后通过 `/model` 或 `secbot model` 写入 SQLite，作为后续真源。仅在 CI、容器或需环境注入时，再参考根目录 `.env.backup` / `env.example` 使用 `.env`。最小示例：
 
 ```env
 LLM_PROVIDER=deepseek
