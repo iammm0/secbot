@@ -5,6 +5,8 @@
 [![PyPI downloads](https://img.shields.io/pypi/dm/secbot.svg)](https://pypi.org/project/secbot/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+Languages: [中文](README_CN.md) · [English](README_EN.md)
+
 Secbot is an AI-powered security automation CLI for authorized security testing, research, and education.
 
 > Security notice: use this tool only in environments where you have explicit authorization. Unauthorized scanning, exploitation, and control actions may violate laws or regulations.
