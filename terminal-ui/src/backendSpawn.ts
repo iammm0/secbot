@@ -2,6 +2,7 @@
  * 在 TUI 进程内启动本地 Nest 后端子进程，并等待 /api/system/info 可用。
  */
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +19,62 @@ export function getBackendMainPath(): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parsePort(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 65535) {
+    throw new Error(`无效端口: ${raw}`);
+  }
+  return n;
+}
+
+function canBindPort(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.unref();
+    server.once('error', () => resolve(false));
+    server.listen(port, '127.0.0.1', () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
+function allocateEphemeralPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address();
+      if (!addr || typeof addr !== 'object') {
+        server.close(() => reject(new Error('无法分配可用端口')));
+        return;
+      }
+      const { port } = addr;
+      server.close((err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
+
+async function resolveSpawnPort(): Promise<string> {
+  const explicitPort = process.env.PORT?.trim();
+  if (explicitPort) {
+    return String(parsePort(explicitPort));
+  }
+
+  const preferredPort = 8000;
+  if (await canBindPort(preferredPort)) {
+    return String(preferredPort);
+  }
+
+  return String(await allocateEphemeralPort());
 }
 
 async function probeSystemInfo(
@@ -87,7 +144,7 @@ export async function spawnBackendChild(): Promise<SpawnedBackend> {
     );
   }
 
-  const port = String(process.env.PORT ?? '8000');
+  const port = await resolveSpawnPort();
   const baseUrl = `http://127.0.0.1:${port}`;
 
   const child = spawn(process.execPath, [entry], {

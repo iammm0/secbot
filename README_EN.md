@@ -144,12 +144,18 @@ Download the npm package (`.tgz`) from [Releases](https://github.com/iammm0/secb
 ### Launch
 
 ```bash
-# One-click: backend + TUI
+# One-click: start TUI (default: spawn local backend child process)
 npm run start:stack
 
 # Or step by step
 npm run dev           # Start backend (dev mode with hot-reload)
-npm run start:tui     # Start TUI in another terminal
+npm run start:tui     # Start TUI in another terminal (default: spawn local backend)
+
+# Optional service mode: connect existing backend only
+SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
+
+# Backward-compatible alias (same as service)
+SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
 ### Common Development Commands
@@ -158,7 +164,7 @@ npm run start:tui     # Start TUI in another terminal
 npm run dev           # Backend dev mode
 npm run build         # Production build
 npm start             # Start production server
-npm run start:tui     # Terminal TUI
+npm run start:tui     # Terminal TUI (default: spawn local backend)
 ```
 
 ### Environment Variables
@@ -171,6 +177,7 @@ npm run start:tui     # Terminal TUI
 | `OLLAMA_BASE_URL` | Ollama service URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama model | `gemma3:1b` |
 | `PORT` | Backend listen port | `8000` |
+| `SECBOT_TUI_BACKEND` | TUI backend mode: `spawn` / `service` / `remote` / `auto` | auto-resolve (defaults to `spawn`) |
 
 ### Slash Commands (inside TUI)
 
