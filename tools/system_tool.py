@@ -2,7 +2,7 @@
 系统操作工具：供智能体使用
 """
 from tools.base import BaseTool, ToolResult
-from system.controller import OSController
+from secbot_agent.system.controller import OSController
 from utils.logger import logger
 
 
