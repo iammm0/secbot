@@ -3,6 +3,14 @@
 
 支持多厂商 LLM 后端：Ollama、DeepSeek、OpenAI、Anthropic、Google、
 智谱、通义千问、月之暗面、百川、零一万物，以及任意 OpenAI API 兼容中转服务。
+
+持久化策略（发布后用户侧推荐）
+------------------------------
+多数「运行时常量」（当前推理厂商、API Key、默认模型、Base URL、日志级别等）应在用户
+进入程序后通过 CLI（如 ``/model``、``secbot model``）写入 SQLite，并作为后续启动的
+优先来源。环境变量与 ``.env`` 为可选：用于无界面环境、CI、容器默认值，或在未写入
+SQLite 前作为兜底；具体优先级以各 ``get_*`` / ``Settings`` 字段实现为准（常见为
+SQLite > 环境变量 > 内置默认）。
 """
 
 import os

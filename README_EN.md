@@ -60,9 +60,11 @@ After install, the console command is **`secbot`** (a `hackbot` alias may also b
 
 ## Quick Start
 
-### 1. Configure environment variables
+### 1. Configure model backend (persistent)
 
-Create a `.env` file in your working directory:
+You can start **without** a `.env`: run `secbot`, then use `/model` in interactive mode or `secbot model` to set provider, API keys, and defaults—they are **stored in SQLite** and picked up on the next launch. Use `.env` only for CI, containers, or unattended defaults.
+
+Optional `.env` example:
 
 ```env
 # Cloud backend (example: DeepSeek)
