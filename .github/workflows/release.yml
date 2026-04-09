@@ -68,6 +68,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      # 按 CHANGELOG 刷新 docs/releases/ 下的版本说明（与仓库 scripts/、secbot_agent/ 结构无关，在仓库根目录执行即可）
+      - name: Refresh versioned release docs
+        run: |
+          python -m utils.release_docs version-docs --changelog CHANGELOG.md --output-dir docs/releases
+
       - name: Build package
         run: |
           python -m pip install --upgrade pip

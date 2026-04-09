@@ -28,7 +28,7 @@ uv pip install -e .
 
 ### 2. 配置 `.env`
 
-仓库根目录没有 `.env.example`，请手动创建 `.env`。最小示例：
+开发模板：复制根目录 `.env.backup` 为 `.env`（`env.example` 中有简短说明）。最小示例：
 
 ```env
 LLM_PROVIDER=deepseek

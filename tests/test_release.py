@@ -7,18 +7,20 @@ def test_semantic_release_uses_root_changelog():
     assert 'changelog_file = "CHANGELOG.md"' in pyproject
 
 
-def test_release_workflow_uses_release_docs_helper():
+def test_release_workflow_refreshes_version_docs():
     workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
 
-    assert "python -m utils.release_docs package-readme" in workflow
+    assert "python -m utils.release_docs version-docs" in workflow
     assert "--changelog CHANGELOG.md" in workflow
+    assert "--output-dir docs/releases" in workflow
 
 
-def test_release_workflow_uploads_secbot_archives():
+def test_release_workflow_builds_and_uploads_wheel():
     workflow = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
 
-    assert "secbot-${{ matrix.name }}" in workflow
-    assert "dist/secbot-${{ matrix.name }}.zip" in workflow
+    assert "publish-pypi" in workflow
+    assert "python -m build" in workflow
+    assert "twine upload" in workflow or "twine check" in workflow
 
 
 def test_docs_changelog_redirects_to_root_and_version_docs():
