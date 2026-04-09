@@ -20,7 +20,7 @@ class IntrusionDetectTool(BaseTool):
         hours = int(kwargs.get("hours", 24))
 
         try:
-            from defense.intrusion_detector import IntrusionDetector
+            from secbot_agent.defense.intrusion_detector import IntrusionDetector
 
             detector = IntrusionDetector()
 

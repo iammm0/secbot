@@ -17,7 +17,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
 
-from core.session import SessionManager
+from secbot_agent.core.session import SessionManager
 from router.dependencies import (
     get_agents,
     get_planner_agent,

@@ -80,7 +80,7 @@ class WebResearchTool(BaseTool):
 
     async def _auto_research(self, query: str) -> ToolResult:
         """创建 WebResearchAgent 子 Agent 执行自主研究"""
-        from core.agents.web_research_agent import WebResearchAgent
+        from secbot_agent.core.agents.web_research_agent import WebResearchAgent
 
         agent = WebResearchAgent(max_iterations=8)
         logger.info(f"[WebResearch] 创建子 Agent，研究主题: {query}")

@@ -18,7 +18,7 @@ class SelfVulnScanTool(BaseTool):
         scan_type = kwargs.get("scan_type", "all").lower()
 
         try:
-            from defense.vulnerability_scanner import SelfVulnerabilityScanner
+            from secbot_agent.defense.vulnerability_scanner import SelfVulnerabilityScanner
 
             scanner = SelfVulnerabilityScanner()
             vulnerabilities = []

@@ -6,7 +6,7 @@ include README.md
 include requirements.txt
 
 # 包含提示词模板
-recursive-include prompts/templates *.yaml *.yml
+recursive-include secbot_agent/prompts/templates *.yaml *.yml
 
 # 包含文档
 recursive-include docs *.md

@@ -2,8 +2,8 @@
 import unittest
 import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
-from core.agents.planner_agent import PlannerAgent
-from core.models import PlanResult, RequestType, TodoItem
+from secbot_agent.core.agents.planner_agent import PlannerAgent
+from secbot_agent.core.models import PlanResult, RequestType, TodoItem
 
 class TestPlannerAgent(unittest.TestCase):
     def setUp(self):
@@ -14,7 +14,7 @@ class TestPlannerAgent(unittest.TestCase):
         self.assertEqual(self.agent._quick_classify("who are you"), "simple")
         self.assertEqual(self.agent._quick_classify("scan localhost"), "technical")
 
-    @patch("core.agents.planner_agent.PlannerAgent._reply_via_llm")
+    @patch("secbot_agent.core.agents.planner_agent.PlannerAgent._reply_via_llm")
     def test_plan_greeting(self, mock_reply):
         async def run_test():
             mock_reply.return_value = "Hello there!"
@@ -23,7 +23,7 @@ class TestPlannerAgent(unittest.TestCase):
             self.assertEqual(result.direct_response, "Hello there!")
         asyncio.run(run_test())
 
-    @patch("core.agents.planner_agent.PlannerAgent._reply_via_llm")
+    @patch("secbot_agent.core.agents.planner_agent.PlannerAgent._reply_via_llm")
     def test_plan_simple(self, mock_reply):
         async def run_test():
             mock_reply.return_value = "I can help you."
@@ -32,7 +32,7 @@ class TestPlannerAgent(unittest.TestCase):
             self.assertEqual(result.direct_response, "I can help you.")
         asyncio.run(run_test())
 
-    @patch("core.agents.planner_agent.PlannerAgent._plan_technical_task_v2")
+    @patch("secbot_agent.core.agents.planner_agent.PlannerAgent._plan_technical_task_v2")
     def test_plan_technical(self, mock_plan_tech):
         async def run_test():
             expected_result = PlanResult(

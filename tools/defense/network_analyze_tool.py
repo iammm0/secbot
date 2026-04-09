@@ -18,7 +18,7 @@ class NetworkAnalyzeTool(BaseTool):
         include_traffic = kwargs.get("include_traffic", True)
 
         try:
-            from defense.network_analyzer import NetworkAnalyzer
+            from secbot_agent.defense.network_analyzer import NetworkAnalyzer
 
             analyzer = NetworkAnalyzer()
             try:

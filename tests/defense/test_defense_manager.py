@@ -2,15 +2,15 @@
 import unittest
 import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
-from defense.defense_manager import DefenseManager
+from secbot_agent.defense.defense_manager import DefenseManager
 
 class TestDefenseManager(unittest.TestCase):
-    @patch("defense.defense_manager.InfoCollector")
-    @patch("defense.defense_manager.SelfVulnerabilityScanner")
-    @patch("defense.defense_manager.NetworkAnalyzer")
-    @patch("defense.defense_manager.IntrusionDetector")
-    @patch("defense.defense_manager.ReportGenerator")
-    @patch("defense.defense_manager.Countermeasure")
+    @patch("secbot_agent.defense.defense_manager.InfoCollector")
+    @patch("secbot_agent.defense.defense_manager.SelfVulnerabilityScanner")
+    @patch("secbot_agent.defense.defense_manager.NetworkAnalyzer")
+    @patch("secbot_agent.defense.defense_manager.IntrusionDetector")
+    @patch("secbot_agent.defense.defense_manager.ReportGenerator")
+    @patch("secbot_agent.defense.defense_manager.Countermeasure")
     def setUp(self, mock_countermeasure, mock_report_gen, mock_ids, mock_net, mock_vuln, mock_info):
         self.manager = DefenseManager()
         self.mock_components = {

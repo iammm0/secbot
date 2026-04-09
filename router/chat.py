@@ -20,7 +20,7 @@ from router.dependencies import (
     get_summary_agent,
 )
 from router.schemas import ChatRequest, ChatResponse, RootResponseRequest
-from core.session import SessionManager
+from secbot_agent.core.session import SessionManager
 from utils.event_bus import EventBus, EventType, Event
 from utils.logger import logger
 from utils.log_context import log_context

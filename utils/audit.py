@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from database.models import AuditRecord
+from secbot_agent.database.models import AuditRecord
 from utils.logger import logger
 
 

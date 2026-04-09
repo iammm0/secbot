@@ -6,19 +6,19 @@
 import uuid
 from functools import lru_cache
 
-from core.agents.hackbot_agent import HackbotAgent
-from core.agents.coordinator_agent import CoordinatorAgent
-from core.agents.superhackbot_agent import SuperHackbotAgent
-from core.agents.qa_agent import QAAgent
-from core.agents.planner_agent import PlannerAgent
-from core.agents.summary_agent import SummaryAgent
-from database.manager import DatabaseManager
-from core.memory.database_memory import DatabaseMemory
-from defense.defense_manager import DefenseManager
-from controller.controller import MainController
+from secbot_agent.core.agents.hackbot_agent import HackbotAgent
+from secbot_agent.core.agents.coordinator_agent import CoordinatorAgent
+from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
+from secbot_agent.core.agents.qa_agent import QAAgent
+from secbot_agent.core.agents.planner_agent import PlannerAgent
+from secbot_agent.core.agents.summary_agent import SummaryAgent
+from secbot_agent.database.manager import DatabaseManager
+from secbot_agent.core.memory.database_memory import DatabaseMemory
+from secbot_agent.defense.defense_manager import DefenseManager
+from secbot_agent.controller.controller import MainController
 from system.controller import OSController
 from system.detector import OSDetector
-from prompts.manager import PromptManager
+from secbot_agent.prompts.manager import PromptManager
 from utils.audit import AuditTrail
 
 

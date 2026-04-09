@@ -3,7 +3,7 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from scanner.port_scanner import PortScanner
+from secbot_agent.scanner.port_scanner import PortScanner
 
 
 class TestPortScanner(unittest.TestCase):

@@ -11,19 +11,23 @@ IS_LINUX = sys.platform == 'linux'
 # 顶层包与模块（与 pyproject.toml [tool.setuptools] packages 对齐）
 TOP_LEVEL = [
     'hackbot',
-    'core',
-    'core.agents',
-    'core.patterns',
-    'core.attack_chain',
-    'core.memory',
-    'skills',
+    'secbot_agent',
+    'secbot_agent.core',
+    'secbot_agent.core.agents',
+    'secbot_agent.core.patterns',
+    'secbot_agent.core.attack_chain',
+    'secbot_agent.core.memory',
+    'secbot_agent.core.vuln_db',
+    'secbot_agent.core.vuln_db.adapters',
+    'secbot_agent.skills',
+    'secbot_agent.database',
+    'secbot_agent.prompts',
+    'secbot_agent.controller',
+    'secbot_agent.crawler',
+    'secbot_agent.defense',
+    'secbot_agent.payloads',
+    'secbot_agent.scanner',
     'hackbot_config',
-    'controller',
-    'crawler',
-    'database',
-    'defense',
-    'payloads',
-    'prompts',
     'system',
     'tools',
     'tui',
@@ -55,7 +59,7 @@ HIDDEN_IMPORTS = [
 
 # 数据文件：提示词模板等
 DATAS = [
-    ('prompts/templates', 'prompts/templates'),
+    ('secbot_agent/prompts/templates', 'secbot_agent/prompts/templates'),
 ]
 
 a = Analysis(

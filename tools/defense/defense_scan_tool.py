@@ -16,7 +16,7 @@ class DefenseScanTool(BaseTool):
 
     async def execute(self, **kwargs) -> ToolResult:
         try:
-            from defense.defense_manager import DefenseManager
+            from secbot_agent.defense.defense_manager import DefenseManager
 
             manager = DefenseManager(auto_response=False)
             report = await manager.full_scan()

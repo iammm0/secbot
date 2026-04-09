@@ -1,6 +1,6 @@
 
 import unittest
-from controller.session_manager import SessionManager
+from secbot_agent.controller.session_manager import SessionManager
 from datetime import datetime
 
 class TestSessionManager(unittest.TestCase):

@@ -1,6 +1,6 @@
 
 import unittest
-from core.agents.hackbot_agent import HackbotAgent, HACKBOT_SYSTEM_PROMPT
+from secbot_agent.core.agents.hackbot_agent import HackbotAgent, HACKBOT_SYSTEM_PROMPT
 
 class TestHackbotAgent(unittest.TestCase):
     def test_initialization(self):

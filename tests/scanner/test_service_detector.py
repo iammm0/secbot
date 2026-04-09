@@ -2,7 +2,7 @@
 import unittest
 import asyncio
 from unittest.mock import AsyncMock, patch
-from scanner.service_detector import ServiceDetector
+from secbot_agent.scanner.service_detector import ServiceDetector
 
 class TestServiceDetector(unittest.TestCase):
     def setUp(self):
@@ -21,7 +21,7 @@ class TestServiceDetector(unittest.TestCase):
             self.assertEqual(result["service"], "unknown")
         asyncio.run(run_test())
 
-    @patch("scanner.port_scanner.PortScanner")
+    @patch("secbot_agent.scanner.port_scanner.PortScanner")
     def test_detect_all_services(self, mock_scanner_cls):
         async def run_test():
             # Mock PortScanner instance

@@ -18,7 +18,7 @@ class SystemInfoTool(BaseTool):
         category = kwargs.get("category", "all").lower()
 
         try:
-            from defense.info_collector import InfoCollector
+            from secbot_agent.defense.info_collector import InfoCollector
 
             collector = InfoCollector()
             result = {}

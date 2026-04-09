@@ -447,7 +447,7 @@ class TerminalSessionTool(BaseTool):
             return ""
         try:
             from langchain_core.messages import SystemMessage, HumanMessage
-            from core.patterns.security_react import _create_llm
+            from secbot_agent.core.patterns.security_react import _create_llm
             llm = _create_llm()
             prompt = (
                 "你是一个终端命令生成器。根据用户的自然语言意图，输出一条且仅一条可在终端执行的命令。"
