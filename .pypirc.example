@@ -1,0 +1,12 @@
+# 复制为 ~/.pypirc 或本目录 .pypirc（已在 .gitignore，不会提交）
+# 切勿将含真实 password 的文件推送到 Git；CI 请用 Secrets + TWINE_PASSWORD
+#
+# https://pypi.org/help/#apitoken — 用户名固定为 __token__
+
+[distutils]
+index-servers =
+    pypi
+
+[pypi]
+username = __token__
+password = <pypi-API-token>

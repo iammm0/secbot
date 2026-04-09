@@ -2,6 +2,7 @@
 include scripts/main.py
 include config.py
 include env.example
+include .pypirc.example
 include README.md
 include requirements.txt
 

@@ -39,6 +39,9 @@ ENV/
 .env
 .env.local
 
+# PyPI 发布凭据（勿入库；见 .pypirc.example；本机可放在 ~/.pypirc 或使用 TWINE_* 环境变量）
+.pypirc
+
 # 日志
 logs/
 *.log
