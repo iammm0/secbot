@@ -5,6 +5,7 @@
 #      （英文界面类似 "Bypass two-factor authentication (2FA) for writes"，以 npm 网站为准）。
 #    · 或 Classic Token：类型必须选 Automation（勿用需 OTP 的 Publish 类令牌）。
 #    权限须覆盖 @opensec；GitHub Secret 名仍为 NPM_TOKEN。
+#    勿在仓库根目录提交含 //registry.../:_authToken 的 .npmrc（已 .gitignore）；与 PyPI 勿提交 .pypirc 同理。
 # 3. git tag v2.0.3 && git push origin v2.0.3
 #    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm publish（npmjs）+
 #    GitHub Packages（仓库 Settings → Packages 可见；包名为 @<仓库所有者>/secbot，与 @opensec/secbot 并存）。
