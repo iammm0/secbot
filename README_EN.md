@@ -1,217 +1,152 @@
-<div align="center">
+# Secbot (Python CLI)
 
-# Secbot
+[![PyPI version](https://img.shields.io/pypi/v/secbot.svg)](https://pypi.org/project/secbot/)
+[![Python versions](https://img.shields.io/pypi/pyversions/secbot.svg)](https://pypi.org/project/secbot/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/secbot.svg)](https://pypi.org/project/secbot/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**AI-Powered Automated Penetration Testing CLI**
+Secbot is an **AI-powered security automation CLI** (Typer + Rich) for **authorized** security testing, research, and education.
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.10.0-brightgreen.svg)](pyproject.toml)
-[![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/iammm0/secbot/releases)
-[![LangChain](https://img.shields.io/badge/LangChain-0.1%2B-blueviolet.svg)](https://github.com/langchain-ai/langchain)
+> **Security notice**: use this tool only where you have explicit authorization. Unauthorized scanning, exploitation, or control actions may violate laws or regulations.
 
-English | [中文](README.md)
+English | [中文](README_CN.md)
 
-</div>
+![Secbot main UI](https://raw.githubusercontent.com/iammm0/secbot/main-py-version/assets/secbot-main.png)
 
----
+## Why This Package
 
-> **Security Warning**: This tool is **for authorized security testing only**. Unauthorized use for network attacks is illegal. See [Security Warning](docs/SECURITY_WARNING.md).
-
----
-
-## Features
-
-### Core Capabilities
-
-- **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent, Tool-Using, Memory-Augmented
-- **AI Web Research Agent**: Independent `WebResearchAgent` with ReAct loop for smart search, page extraction, multi-page crawling, and API interaction
-- **Native CLI**: Typer + Rich terminal interface, directly invoking core logic in-process
-- **Optional API Server**: FastAPI backend with REST + SSE for third-party integration
-- **Persistent Terminal Session**: Agent-controlled dedicated shell for multi-step command execution
-- **AI Web Crawler**: Real-time web information capture and monitoring
-- **OS Control**: File operations, process management, system information
-
-### Penetration Testing
-
-- **Reconnaissance**: Automated information gathering (hostname, IP, ports, service fingerprinting)
-- **Vulnerability Scanning**: Port scanning, service detection, vulnerability identification
-- **Exploit Engine**: Automated exploitation of SQL injection, XSS, command injection, file upload, path traversal, SSRF
-- **Automated Attack Chain**: Full pentest workflow — Recon, Scan, Exploit, Post-Exploitation
-- **Payload Generator**: On-demand generation of various attack payloads
-- **Post-Exploitation**: Privilege escalation, persistence, lateral movement, data exfiltration
-
-### Security & Defense
-
-- **Active Defense**: Vulnerability scanning, network analysis, intrusion detection
-- **Security Reports**: Automated structured security analysis reports
-- **Network Discovery**: Automatic host discovery across the network
-
-### Web Research
-
-- **Smart Search**: DuckDuckGo search + LLM summarization
-- **Page Extract**: Plain text, structured, or custom AI Schema extraction
-- **Deep Crawl**: BFS multi-page crawl with depth/URL filtering
-- **API Client**: Generic REST client with presets for weather, IP info, GitHub, etc.
-
----
-
-## Architecture
-
-```mermaid
-flowchart LR
-  CLI["Typer CLI"]
-  CLI -->|"in-process call"| session["SessionManager"]
-  session --> planner["Planner / QA / Agent Router"]
-  planner --> tools["Security Tools"]
-  tools --> summary["Summary / Reports"]
-  summary --> db["SQLite"]
-
-  API["FastAPI /api/* (optional)"]
-  API --> session
-```
-
----
+- **CLI-first** interactive and one-shot workflows in the terminal.
+- **Optional API**: `secbot server` runs FastAPI (REST / SSE) for automation pipelines.
+- **Multi-agent** modes such as `secbot-cli` and `superhackbot` for plan, execute, and summarize loops.
+- **Security toolchain** across network, web, OSINT, defense checks, reporting, and system utilities.
+- **Multiple LLM backends**: Ollama, DeepSeek, OpenAI-compatible APIs, and more.
 
 ## Requirements
 
-- **Python** 3.10+
-- **[uv](https://github.com/astral-sh/uv)** — Fast Python package manager (recommended)
-- **Ollama** — Local LLM inference (optional; defaults to DeepSeek cloud API)
+- Python `>= 3.10`
+- `pip` or `uv`
+- Optional: Ollama for local models
 
----
+## Install
 
-## Installation
+### From PyPI (recommended)
 
-### Option A: Download Pre-built Binary
+```bash
+pip install secbot
+```
 
-Download from [Releases](https://github.com/iammm0/secbot/releases), extract, set up `.env`, and run.
+Beta / pre-releases:
 
-### Option B: Build from Source
+```bash
+pip install --pre secbot
+```
+
+### With uv
+
+```bash
+uv pip install secbot
+```
+
+### From source (development)
 
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
 uv sync
+uv pip install -e .
 ```
 
-Configure `.env`:
-
-```env
-LLM_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-your-api-key
-```
-
----
+After install, the console command is **`secbot`** (a `hackbot` alias may also be registered depending on how you install).
 
 ## Quick Start
 
+### 1. Configure environment variables
+
+Create a `.env` file in your working directory:
+
+```env
+# Cloud backend (example: DeepSeek)
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-your-api-key
+DEEPSEEK_MODEL=deepseek-reasoner
+
+# Optional local backend (Ollama)
+# LLM_PROVIDER=ollama
+# OLLAMA_BASE_URL=http://localhost:11434
+# OLLAMA_MODEL=gemma3:1b
+# OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+```
+
+### 2. Run the CLI
+
 ```bash
 # Interactive mode
-python scripts/main.py
-uv run secbot
+secbot
 
-# Single task
-uv run secbot "Scan open ports on 192.168.1.1"
+# One-shot task
+secbot "Scan open ports on 192.168.1.1"
 
-# Ask mode (Q&A only, no tool execution)
-uv run secbot --ask "What is XSS?"
+# Q&A only (no tools)
+secbot --ask "What is XSS?"
 
-# Switch LLM provider/model
-uv run secbot model
+# Expert agent
+secbot --agent superhackbot
 
-# Start API server only
-uv run secbot server
-
-# Show version
-uv run secbot version
+# Switch backend / model
+secbot model
 ```
 
-### CLI Commands
+When working from a git checkout, you can also run `python scripts/main.py` from the repository root.
+
+### 3. Start API server (optional)
+
+```bash
+secbot server
+```
+
+## CLI Commands
 
 | Command | Description |
-|---------|-------------|
-| `secbot` | Enter interactive mode |
-| `secbot "task"` | Execute a single task |
-| `secbot --ask "question"` | Ask mode (Q&A) |
-| `secbot --agent superhackbot` | Use expert agent |
-| `secbot model` | Switch LLM provider/model |
-| `secbot server` | Start FastAPI backend |
-| `secbot version` | Show version |
+| --- | --- |
+| `secbot` | Start interactive mode |
+| `secbot "<task>"` | Run a single task |
+| `secbot --ask "<question>"` | Ask security questions |
+| `secbot --agent superhackbot` | Use expert agent mode |
+| `secbot model` | Configure provider / model / API keys |
+| `secbot server` | Run FastAPI backend |
+| `secbot version` | Show installed version |
 
-### In-session Slash Commands
+## Common Environment Variables
 
-| Command | Description |
-|---------|-------------|
-| `/model` | Switch LLM provider and model |
-| `/help` | Show help |
-| `exit` / `quit` | Exit |
-
----
-
-## Project Structure
-
-```
-secbot/
-├── scripts/main.py         # Entry point (Typer CLI)
-├── secbot_cli/             # CLI entry and in-process runner
-├── router/                 # FastAPI routing layer (optional API)
-├── core/                   # Agent framework, executor, planner, memory
-├── tools/                  # Security tools, web research, protocols
-├── database/               # SQLite models and management
-├── hackbot_config/         # Configuration and persistence
-├── scripts/                # Launch and build scripts
-├── tests/                  # Test suite
-└── docs/                   # Documentation
-```
-
----
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `LLM_PROVIDER` | Active model provider | `deepseek` |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | None |
+| `DEEPSEEK_MODEL` | DeepSeek model | `deepseek-reasoner` |
+| `OLLAMA_BASE_URL` | Ollama endpoint | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Ollama generation model | `gemma3:1b` |
+| `OLLAMA_EMBEDDING_MODEL` | Ollama embedding model | `nomic-embed-text` |
+| `DATABASE_URL` | SQLite database URL | `sqlite:///./data/secbot.db` |
+| `LOG_LEVEL` | Log level | `INFO` |
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Quick Start](docs/QUICKSTART.md) | Installation and getting started |
-| [API Reference](docs/API.md) | REST API endpoint documentation |
-| [Database Guide](docs/DATABASE_GUIDE.md) | SQLite structure and operations |
-| [Deployment Guide](docs/DEPLOYMENT.md) | Production deployment |
-| [Ollama Setup](docs/OLLAMA_SETUP.md) | Local model configuration |
-| [Release Guide](docs/RELEASE.md) | Pre-built binary usage |
-| [Security Warning](docs/SECURITY_WARNING.md) | Legal use declaration |
+- [Quickstart](https://github.com/iammm0/secbot/blob/main-py-version/docs/QUICKSTART.md)
+- [API Reference](https://github.com/iammm0/secbot/blob/main-py-version/docs/API.md)
+- [LLM Providers](https://github.com/iammm0/secbot/blob/main-py-version/docs/LLM_PROVIDERS.md)
+- [Ollama Setup](https://github.com/iammm0/secbot/blob/main-py-version/docs/OLLAMA_SETUP.md)
+- [Deployment](https://github.com/iammm0/secbot/blob/main-py-version/docs/DEPLOYMENT.md)
+- [Release Guide](https://github.com/iammm0/secbot/blob/main-py-version/docs/RELEASE.md)
+- [Database Guide](https://github.com/iammm0/secbot/blob/main-py-version/docs/DATABASE_GUIDE.md)
+- [Security Warning](https://github.com/iammm0/secbot/blob/main-py-version/docs/SECURITY_WARNING.md)
 
----
+## Project Links
 
-## Contributing
-
-Contributions are welcome! Please follow [Conventional Commits](https://www.conventionalcommits.org/).
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m 'feat: add amazing feature'`
-4. Push and open a Pull Request
-
----
+- Homepage: [https://github.com/iammm0/secbot](https://github.com/iammm0/secbot)
+- Issue Tracker: [https://github.com/iammm0/secbot/issues](https://github.com/iammm0/secbot/issues)
+- Releases: [https://github.com/iammm0/secbot/releases](https://github.com/iammm0/secbot/releases)
+- PyPI: [https://pypi.org/project/secbot/](https://pypi.org/project/secbot/)
 
 ## License
 
-Custom open-source license. See [LICENSE](LICENSE).
-
-- **Permitted**: Personal learning, academic research, non-commercial sharing
-- **Commercial use**: Requires prior written authorization
-
-Commercial licensing: [wisewater5419@gmail.com](mailto:wisewater5419@gmail.com)
-
----
-
-## Author
-
-**Zhao Mingjun**
-
-- GitHub: [@iammm0](https://github.com/iammm0)
-- Email: [wisewater5419@gmail.com](mailto:wisewater5419@gmail.com)
-
----
-
-## Disclaimer
-
-This tool is for educational and authorized security testing only. The authors are not responsible for any misuse or damage.
+This project is licensed under **MIT**. See [LICENSE](LICENSE) for details.

@@ -1,151 +1,152 @@
-# Secbot: 自动化安全测试 CLI
+# Secbot（Python CLI）
 
-<div align="center">
+[![PyPI version](https://img.shields.io/pypi/v/secbot.svg)](https://pypi.org/project/secbot/)
+[![Python versions](https://img.shields.io/pypi/pyversions/secbot.svg)](https://pypi.org/project/secbot/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/secbot.svg)](https://pypi.org/project/secbot/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**AI 驱动的自动化渗透测试助手**
+面向**已授权**的安全测试、研究与教学的 AI 安全自动化 **命令行工具**（Typer + Rich）。
 
-[English](README_EN.md) | [中文](#secbot-自动化安全测试-cli)
+> **安全提示**：仅在您拥有或已获明确书面授权的环境中使用。未授权的扫描、利用与控制行为可能触犯法律或监管规定。
 
-</div>
+[English](README_EN.md) | 中文（本文）
 
----
+![Secbot 主界面](https://raw.githubusercontent.com/iammm0/secbot/main-py-version/assets/secbot-main.png)
 
-## 安全警告
+## 为何选择本包
 
-**本工具仅用于授权的安全测试。未经授权使用本工具进行网络攻击是违法的。**
+- **CLI 优先**：交互式与一次性任务均在终端内完成。
+- **可选 API**：`secbot server` 提供 FastAPI（REST / SSE），便于接入自动化流水线。
+- **多智能体**：`secbot-cli` 与 `superhackbot` 等模式，覆盖规划、执行与总结闭环。
+- **安全工具链**：网络、Web、OSINT、防御巡检、报告与系统类工具集成。
+- **多模型后端**：Ollama、DeepSeek、OpenAI 兼容接口等。
 
-- 仅对您拥有或已获得明确书面授权的系统使用
-- 确保遵守所有适用的法律法规
-- 负责任和道德地使用
+## 环境要求
 
-## 功能特性
-
-### 核心能力
-
-- **多种智能体模式**: ReAct、Plan-Execute、多智能体、工具使用、记忆增强
-- **AI Web 研究子智能体**: 独立的 WebResearchAgent，基于 ReAct 自动完成联网搜索、网页提取、多页爬取和 API 调用
-- **原生 CLI 交互**: 基于 Typer + Rich 的终端交互，直接在进程内调用核心逻辑
-- **可选 API 服务**: FastAPI 后端提供 REST + SSE 接口，支持第三方集成
-- **持久化终端会话**: 为智能体提供专用终端，会话内多步命令执行与系统信息收集
-- **AI 网络爬虫**: 实时网络信息捕获和监控
-- **操作系统控制**: 文件操作、进程管理、系统信息
-
-### 渗透测试
-
-- **信息收集**: 自动化信息收集（主机名、IP、端口、服务）
-- **漏洞扫描**: 端口扫描、服务检测、漏洞识别
-- **漏洞利用引擎**: 自动化执行 SQL 注入、XSS、命令注入、文件上传、路径遍历、SSRF 等漏洞利用
-- **自动化攻击链**: 完整的渗透测试工作流自动化
-- **Payload 生成器**: 自动生成各种攻击 payload
-- **后渗透利用**: 权限提升、持久化、横向移动、数据 exfiltration
-
-### 安全与防御
-
-- **主动防御**: 信息收集、漏洞扫描、网络分析、入侵检测
-- **安全报告**: 自动化详细安全分析报告
-- **网络发现**: 自动发现网络中的所有主机
-
-### Web 研究能力
-
-- **智能搜索**: 基于 DuckDuckGo 的智能搜索 + LLM 综合总结
-- **网页提取**: 纯文本、结构化或自定义 AI schema 提取
-- **深度爬取**: BFS 多页爬取，支持深度/URL 过滤
-- **API 客户端**: 通用 REST API 客户端，内置常用模板
-
-## 架构概览
-
-```mermaid
-flowchart LR
-  CLI["Typer CLI"]
-  CLI -->|"进程内调用"| sessionMgr["SessionManager"]
-
-  subgraph PlanningExecution["规划与执行"]
-    sessionMgr --> planner["PlannerAgent"]
-    planner --> executor["TaskExecutor"]
-  end
-
-  subgraph AgentOrchestration["多智能体协调"]
-    executor --> coord["CoordinatorAgent"]
-    coord --> net[NetworkReconAgent]
-    coord --> web_agent[WebPentestAgent]
-    coord --> osint[OSINTAgent]
-    coord --> term[TerminalOpsAgent]
-    coord --> defend[DefenseMonitorAgent]
-  end
-
-  coord --> summary[SummaryAgent]
-  summary --> db[(SQLite)]
-
-  API["FastAPI（可选）"]
-  API --> sessionMgr
-```
-
-## 系统要求
-
-- Python 3.10+
-- [uv](https://github.com/astral-sh/uv) — 快速 Python 包管理器
-- Ollama（可选，本地模型时需要）
+- Python `>= 3.10`
+- `pip` 或 `uv`
+- 可选：本地模型时使用 Ollama
 
 ## 安装
+
+### 从 PyPI 安装（推荐）
+
+```bash
+pip install secbot
+```
+
+预发布 / 测试版本：
+
+```bash
+pip install --pre secbot
+```
+
+### 使用 uv
+
+```bash
+uv pip install secbot
+```
+
+### 从源码安装（开发）
 
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
 uv sync
+uv pip install -e .
 ```
 
-配置 `.env`：
-
-```env
-LLM_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-your-api-key
-```
+安装后控制台命令为 **`secbot`**（亦可能注册为 `hackbot`，取决于安装方式）。
 
 ## 快速开始
 
+### 1. 配置环境变量
+
+在工作目录创建 `.env`：
+
+```env
+# 云端模型（示例：DeepSeek）
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-your-api-key
+DEEPSEEK_MODEL=deepseek-reasoner
+
+# 可选：本地 Ollama
+# LLM_PROVIDER=ollama
+# OLLAMA_BASE_URL=http://localhost:11434
+# OLLAMA_MODEL=gemma3:1b
+# OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+```
+
+### 2. 运行 CLI
+
 ```bash
 # 交互模式
-python scripts/main.py
-# 或
-uv run secbot
+secbot
 
 # 单次任务
-uv run secbot "扫描 192.168.1.1 的端口"
+secbot "扫描 192.168.1.1 的开放端口"
 
-# 问答模式
-uv run secbot --ask "什么是 SQL 注入？"
+# 问答模式（不执行工具）
+secbot --ask "什么是 XSS？"
 
-# 切换模型
-uv run secbot model
+# 专家智能体
+secbot --agent superhackbot
 
-# 启动 API 服务
-uv run secbot server
+# 切换后端 / 模型
+secbot model
 ```
+
+从源码仓运行时，也可使用：`python scripts/main.py`（需在仓库根目录）。
+
+### 3. 启动 API（可选）
+
+```bash
+secbot server
+```
+
+## 常用子命令
+
+| 命令 | 说明 |
+| --- | --- |
+| `secbot` | 进入交互模式 |
+| `secbot "<任务>"` | 执行单次任务 |
+| `secbot --ask "<问题>"` | 安全问答 |
+| `secbot --agent superhackbot` | 使用专家模式 |
+| `secbot model` | 配置提供商 / 模型 / 密钥 |
+| `secbot server` | 启动 FastAPI 后端 |
+| `secbot version` | 显示已安装版本 |
+
+## 常见环境变量
+
+| 变量 | 作用 | 默认 |
+| --- | --- | --- |
+| `LLM_PROVIDER` | 当前模型提供商 | `deepseek` |
+| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | 无 |
+| `DEEPSEEK_MODEL` | DeepSeek 模型名 | `deepseek-reasoner` |
+| `OLLAMA_BASE_URL` | Ollama 地址 | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Ollama 生成模型 | `gemma3:1b` |
+| `OLLAMA_EMBEDDING_MODEL` | Ollama 嵌入模型 | `nomic-embed-text` |
+| `DATABASE_URL` | SQLite 连接串 | `sqlite:///./data/secbot.db` |
+| `LOG_LEVEL` | 日志级别 | `INFO` |
 
 ## 文档
 
-- [快速开始指南](docs/QUICKSTART.md)
-- [API 文档](docs/API.md)
-- [数据库指南](docs/DATABASE_GUIDE.md)
-- [Ollama 设置](docs/OLLAMA_SETUP.md)
-- [安全警告](docs/SECURITY_WARNING.md)
-- [部署指南](docs/DEPLOYMENT.md)
+- [快速开始](https://github.com/iammm0/secbot/blob/main-py-version/docs/QUICKSTART.md)
+- [API 说明](https://github.com/iammm0/secbot/blob/main-py-version/docs/API.md)
+- [LLM 提供商](https://github.com/iammm0/secbot/blob/main-py-version/docs/LLM_PROVIDERS.md)
+- [Ollama 配置](https://github.com/iammm0/secbot/blob/main-py-version/docs/OLLAMA_SETUP.md)
+- [部署](https://github.com/iammm0/secbot/blob/main-py-version/docs/DEPLOYMENT.md)
+- [发布说明](https://github.com/iammm0/secbot/blob/main-py-version/docs/RELEASE.md)
+- [数据库](https://github.com/iammm0/secbot/blob/main-py-version/docs/DATABASE_GUIDE.md)
+- [安全与合规提示](https://github.com/iammm0/secbot/blob/main-py-version/docs/SECURITY_WARNING.md)
 
-## 贡献
+## 项目链接
 
-欢迎提交 Issue 和 Pull Request。
+- 主页：[https://github.com/iammm0/secbot](https://github.com/iammm0/secbot)
+- Issues：[https://github.com/iammm0/secbot/issues](https://github.com/iammm0/secbot/issues)
+- Releases：[https://github.com/iammm0/secbot/releases](https://github.com/iammm0/secbot/releases)
+- PyPI：[https://pypi.org/project/secbot/](https://pypi.org/project/secbot/)
 
 ## 许可证
 
-本项目采用自定义开源协议，详见 [LICENSE](LICENSE) 文件。
-
-## 作者
-
-**赵明俊 (Zhao Mingjun)**
-
-- GitHub: [@iammm0](https://github.com/iammm0)
-- Email: wisewater5419@gmail.com
-
-## 免责声明
-
-本工具仅用于教育和授权的安全测试目的。作者和贡献者不对因使用本工具造成的任何误用或损害负责。
+本项目以 **MIT** 许可证发布，详见 [LICENSE](LICENSE)。

@@ -1,6 +1,6 @@
-
 import re
 from datetime import datetime
+from pathlib import Path
 
 def generate_report(test_results_file, report_file):
     with open(test_results_file, 'r', encoding='utf-16') as f:
@@ -50,8 +50,11 @@ def generate_report(test_results_file, report_file):
 ```
 """
 
-    with open(report_file, 'w', encoding='utf-8') as f:
+    out = Path(report_file)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, 'w', encoding='utf-8') as f:
         f.write(report)
 
 if __name__ == "__main__":
-    generate_report("test_results.txt", "../TEST_REPORT.md")
+    root = Path(__file__).resolve().parent.parent
+    generate_report(str(root / "test_results.txt"), str(root / "reports" / "test_report.md"))
