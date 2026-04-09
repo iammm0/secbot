@@ -14,7 +14,7 @@ Secbot is an AI-powered TypeScript security automation workspace with a NestJS b
 ## Why This Package
 
 - End-to-end TypeScript architecture (`NestJS + Ink + SQLite`).
-- `secbot` binary that starts backend + terminal UI as one product workflow.
+- `secbot` binary that starts terminal UI with local spawned backend by default.
 - `secbot-server` binary for backend-only API scenarios.
 - Multi-agent orchestration with planning, tool execution, and summarization.
 - Built-in security tool modules for web, network, OSINT, defense, and reporting workflows.
@@ -72,6 +72,13 @@ secbot-server
 ### 4. Attach to an existing backend (optional)
 
 ```bash
+# Recommended explicit service mode
+SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 secbot
+
+# Backward-compatible alias
+SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 secbot
+
+# Backward-compatible auto behavior (SECBOT_API_URL only => service mode)
 SECBOT_API_URL=http://127.0.0.1:8000 secbot
 ```
 
@@ -79,7 +86,7 @@ SECBOT_API_URL=http://127.0.0.1:8000 secbot
 
 | Binary | Description |
 | --- | --- |
-| `secbot` | Start backend and open terminal UI |
+| `secbot` | Start terminal UI (default: spawn local backend; optional service mode) |
 | `secbot-server` | Start NestJS backend only |
 
 ## Source Development
@@ -92,8 +99,11 @@ npm ci
 # Backend dev (watch mode)
 npm run dev
 
-# TUI (in another terminal)
+# TUI (in another terminal, default: spawn local backend)
 npm run start:tui
+
+# TUI service mode (connect existing backend only)
+SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
 ### Common npm scripts

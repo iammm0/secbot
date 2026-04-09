@@ -9,7 +9,6 @@ const { spawn } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const TUI_DIR = path.join(ROOT, 'terminal-ui');
-const BACKEND_ENTRY = path.join(ROOT, 'server', 'dist', 'main.js');
 const NPM_EXEC_PATH = process.env.npm_execpath || '';
 
 function log(message) {
@@ -87,65 +86,32 @@ async function ensureTuiDeps() {
   await runNpm(['install'], { cwd: TUI_DIR });
 }
 
-async function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function checkBackend(baseUrl, timeoutMs = 1500) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${baseUrl}/health`, {
-      method: 'GET',
-      signal: controller.signal,
-    });
-    if (!res.ok) return false;
-    return true;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
+/**
+ * Windows cmd.exe 参数转义。
+ */
+function quoteCmdArg(arg) {
+  if (/[ \t"]/.test(arg)) {
+    return `"${arg.replace(/"/g, '""')}"`;
   }
-}
-
-async function waitBackendReady(baseUrl, totalMs = 25000) {
-  const started = Date.now();
-  while (Date.now() - started < totalMs) {
-    if (await checkBackend(baseUrl, 1200)) return true;
-    await sleep(500);
-  }
-  return false;
-}
-
-async function stopProcess(proc) {
-  if (!proc || proc.exitCode !== null) return;
-
-  proc.kill('SIGTERM');
-  const exited = await Promise.race([
-    new Promise((resolve) => proc.once('exit', () => resolve(true))),
-    sleep(3500).then(() => false),
-  ]);
-  if (!exited && proc.exitCode === null) {
-    proc.kill('SIGKILL');
-    await Promise.race([
-      new Promise((resolve) => proc.once('exit', () => resolve(true))),
-      sleep(2000).then(() => false),
-    ]);
-  }
+  return arg;
 }
 
 /**
- * IDE 集成终端通常无真实 TTY，Ink 无法在同一进程内运行。在 Windows 上通过「新控制台窗口」启动 TUI。
+ * IDE 集成终端通常无真实 TTY，Ink 无法在同一进程内运行。
+ * 在 Windows 上通过「新控制台窗口」启动 TUI。
  */
-function launchTuiInNewWindowsConsole(baseUrl) {
+function launchTuiInNewWindowsConsole(cliArgs) {
   const batPath = path.join(os.tmpdir(), `secbot-tui-${process.pid}-${Date.now()}.bat`);
-  const safeUrl = baseUrl.replace(/"/g, '').replace(/\r?\n/g, '');
+  const safeUrl = (process.env.SECBOT_API_URL || '').replace(/"/g, '').replace(/\r?\n/g, '');
+  const safeRootEnv = ROOT.replace(/"/g, '').replace(/\r?\n/g, '');
   const safeDir = TUI_DIR.replace(/"/g, '""');
+  const argsText = cliArgs.map(quoteCmdArg).join(' ');
   const body = [
     '@echo off',
-    `set "SECBOT_API_URL=${safeUrl}"`,
+    `set "SECBOT_PACKAGE_ROOT=${safeRootEnv}"`,
+    ...(safeUrl ? [`set "SECBOT_API_URL=${safeUrl}"`] : []),
     `cd /d "${safeDir}"`,
-    'call npm.cmd run tui',
+    `call npm.cmd run tui${argsText ? ` -- ${argsText}` : ''}`,
   ].join('\r\n');
   fs.writeFileSync(batPath, `${body}\r\n`, 'utf8');
 
@@ -160,66 +126,34 @@ function launchTuiInNewWindowsConsole(baseUrl) {
 
 async function main() {
   const hasTTY = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  const cliArgs = process.argv.slice(2);
 
   await buildBackendLatest();
   await ensureTuiDeps();
 
-  const port = String(process.env.PORT || 8000);
-  const baseUrl = process.env.SECBOT_API_URL || `http://127.0.0.1:${port}`;
   const tuiEnv = {
     ...process.env,
-    SECBOT_API_URL: baseUrl,
-  };
-
-  let backendProc = null;
-  let startedBackend = false;
-
-  if (!(await checkBackend(baseUrl, 1200))) {
-    log(`Starting TS backend on ${baseUrl} ...`);
-    backendProc = spawn(process.execPath, [BACKEND_ENTRY], {
-      cwd: ROOT,
-      env: {
-        ...process.env,
-        PORT: port,
-      },
-      stdio: 'inherit',
-      shell: false,
-      windowsHide: true,
-    });
-    startedBackend = true;
-
-    const ready = await waitBackendReady(baseUrl, 25000);
-    if (!ready) {
-      await stopProcess(backendProc);
-      throw new Error(`Backend did not become ready at ${baseUrl}`);
-    }
-  } else {
-    log(`Using existing backend at ${baseUrl}`);
-  }
-
-  const shutdown = async () => {
-    if (startedBackend) {
-      await stopProcess(backendProc);
-    }
+    SECBOT_PACKAGE_ROOT: ROOT,
   };
 
   let tuiProc = null;
-  let tuiInSameTerminal = true;
 
   if (!hasTTY && process.platform === 'win32') {
     log('当前无真实 TTY（常见于 Cursor/VS Code 集成终端），将在新控制台窗口中启动 TUI。');
     log('Starting terminal TUI in a new window...');
-    launchTuiInNewWindowsConsole(baseUrl);
-    log('TUI 已在新窗口启动；本终端将保持后端运行，按 Ctrl+C 可停止后端。');
-    tuiInSameTerminal = false;
+    launchTuiInNewWindowsConsole(cliArgs);
+    log('TUI 已在新窗口启动。');
+    process.exit(0);
   } else if (!hasTTY) {
     log('当前终端无真实 TTY，无法在此进程内启动 Ink TUI。');
     log('请在系统终端中执行：npm run start:stack，或 Windows 下双击 scripts\\start-cli.bat');
-    await shutdown();
     process.exit(1);
   } else {
-    log('Starting terminal TUI...');
-    const tuiNpm = npmInvocation(['run', 'tui']);
+    log('Starting terminal TUI (default: local spawned backend)...');
+    const tuiCommand = cliArgs.length > 0
+      ? ['run', 'tui', '--', ...cliArgs]
+      : ['run', 'tui'];
+    const tuiNpm = npmInvocation(tuiCommand);
     tuiProc = spawn(tuiNpm.cmd, tuiNpm.argv, {
       cwd: TUI_DIR,
       env: tuiEnv,
@@ -231,10 +165,9 @@ async function main() {
 
   process.on('SIGINT', async () => {
     try {
-      if (tuiInSameTerminal && tuiProc && tuiProc.exitCode === null) {
+      if (tuiProc && tuiProc.exitCode === null) {
         tuiProc.kill('SIGINT');
       }
-      await shutdown();
     } finally {
       process.exit(130);
     }
@@ -242,27 +175,19 @@ async function main() {
 
   process.on('SIGTERM', async () => {
     try {
-      if (tuiInSameTerminal && tuiProc && tuiProc.exitCode === null) {
+      if (tuiProc && tuiProc.exitCode === null) {
         tuiProc.kill('SIGTERM');
       }
-      await shutdown();
     } finally {
       process.exit(143);
     }
   });
-
-  if (!tuiInSameTerminal) {
-    // 后端子进程已启动时，本进程需保持运行直至用户 Ctrl+C（见 SIGINT）；否则仅新开 TUI 窗口时也可仅靠子进程存活
-    await new Promise(() => {});
-    return;
-  }
 
   const tuiCode = await new Promise((resolve, reject) => {
     tuiProc.once('error', reject);
     tuiProc.once('close', (code) => resolve(code ?? 0));
   });
 
-  await shutdown();
   process.exit(tuiCode);
 }
 

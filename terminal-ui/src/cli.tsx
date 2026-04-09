@@ -7,86 +7,75 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline/promises';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import React from 'react';
 import { render } from 'ink';
 import { getBaseUrl, checkBackend } from './config.js';
-import { getBackendMainPath, spawnBackendChild } from './backendSpawn.js';
+import { spawnBackendChild } from './backendSpawn.js';
 import { AllProviders } from './contexts/index.js';
 import { App } from './App.js';
 
-type BackendConnectionMode = 'auto' | 'remote' | 'spawn';
+type BackendConnectionMode = 'auto' | 'service' | 'spawn';
+type EffectiveBackendMode = 'service' | 'spawn';
 
 /** 由 resolveBackendConnection 填充；异常退出时用于停止子进程后端 */
 let stopSpawnedBackend: (() => Promise<void>) | null = null;
 
 function parseBackendCli(): {
-  mode: BackendConnectionMode;
+  mode: EffectiveBackendMode;
   apiUrl?: string;
 } {
   const argv = process.argv.slice(2);
-  let mode: BackendConnectionMode = 'auto';
+  let modeFromCli: EffectiveBackendMode | null = null;
+  let modeFromEnv: BackendConnectionMode = 'auto';
   let apiUrl: string | undefined;
 
-  const env = process.env.SECBOT_TUI_BACKEND?.toLowerCase();
-  if (env === 'remote' || env === 'spawn') {
-    mode = env;
+  const env = process.env.SECBOT_TUI_BACKEND?.trim().toLowerCase();
+  if (env === 'spawn') {
+    modeFromEnv = 'spawn';
+  } else if (env === 'service' || env === 'remote') {
+    modeFromEnv = 'service';
+  } else if (env === 'auto') {
+    modeFromEnv = 'auto';
   }
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--remote' || a === '-r') mode = 'remote';
+    if (a === '--service' || a === '--remote' || a === '-r') {
+      modeFromCli = 'service';
+    }
     else if (a === '--spawn-backend' || a === '--spawn' || a === '-s')
-      mode = 'spawn';
+      modeFromCli = 'spawn';
     else if (a.startsWith('--backend-url='))
       apiUrl = a.slice('--backend-url='.length);
     else if (a === '--backend-url' && argv[i + 1]) apiUrl = argv[++i];
   }
 
-  return { mode, apiUrl };
+  if (modeFromCli) {
+    return { mode: modeFromCli, apiUrl };
+  }
+
+  if (modeFromEnv === 'spawn' || modeFromEnv === 'service') {
+    return { mode: modeFromEnv, apiUrl };
+  }
+
+  // 兼容历史用法：仅设置 SECBOT_API_URL 时自动进入 service 模式。
+  const effectiveUrl = (apiUrl ?? process.env.SECBOT_API_URL ?? '').trim();
+  return { mode: effectiveUrl ? 'service' : 'spawn', apiUrl };
 }
 
 /**
  * 返回需在退出时调用的 stop（若启动了子进程后端），否则 null。
  */
 async function resolveBackendConnection(
-  mode: BackendConnectionMode,
+  mode: EffectiveBackendMode,
 ): Promise<(() => Promise<void>) | null> {
-  let reachable = (await checkBackend()).ok;
-  let effectiveMode = mode;
-
-  if (mode === 'auto') {
+  if (mode === 'service') {
+    const reachable = (await checkBackend()).ok;
     if (reachable) return null;
-    if (process.stdin.isTTY && process.stdout.isTTY) {
-      const rl = createInterface({
-        input: process.stdin,
-        output: process.stdout,
-      });
-      try {
-        const base = getBaseUrl();
-        const ans = await rl.question(
-          `Secbot TUI — 未检测到后端（${base}）\n` +
-            `[1] 远程连接已有后端（HTTP API / SSE），使用 SECBOT_API_URL 或 --backend-url\n` +
-            `[2] 在本机启动后端子进程（需已在仓库根目录执行 npm run build）\n` +
-            `请选择 [1/2]（默认 2）: `,
-        );
-        effectiveMode = ans.trim() === '1' ? 'remote' : 'spawn';
-      } finally {
-        rl.close();
-      }
-    } else {
-      effectiveMode = fs.existsSync(getBackendMainPath()) ? 'spawn' : 'remote';
-    }
-  }
-
-  reachable = (await checkBackend()).ok;
-  if (reachable) return null;
-
-  if (effectiveMode === 'remote') {
     throw new Error(
-      `无法连接后端 ${getBaseUrl()}。请先启动后端、检查地址，或使用 --spawn-backend / SECBOT_TUI_BACKEND=spawn`,
+      `无法连接服务模式后端 ${getBaseUrl()}。请先启动后端并检查地址，或改用子进程模式（--spawn / SECBOT_TUI_BACKEND=spawn）`,
     );
   }
 
@@ -155,6 +144,13 @@ function writeLaunchLog(line: string) {
   }
 }
 
+function quoteCmdArg(arg: string): string {
+  if (/[ \t"]/u.test(arg)) {
+    return `"${arg.replace(/"/g, '""')}"`;
+  }
+  return arg;
+}
+
 /**
  * On Windows without TTY: open a new console running this CLI from the package root
  * (supports global install where `npm run tui` is unavailable).
@@ -162,13 +158,15 @@ function writeLaunchLog(line: string) {
 function relaunchInNewWindow(): boolean {
   if (process.platform !== 'win32') return false;
   try {
+    const cliArgs = process.argv.slice(2);
     const pkgRoot = process.env.SECBOT_PACKAGE_ROOT || path.resolve(__dirname, '..', '..');
     const cliPath = path.join(__dirname, 'cli.js');
     const apiUrl = process.env.SECBOT_API_URL ?? '';
+    const cliArgsText = cliArgs.map(quoteCmdArg).join(' ');
     const safeRoot = pkgRoot.replace(/"/g, '""');
     const safeCli = cliPath.replace(/"/g, '""');
     const safeApi = apiUrl.replace(/"/g, '""');
-    const inner = `cd /d "${safeRoot}" && set "SECBOT_API_URL=${safeApi}" && set "SECBOT_PACKAGE_ROOT=${safeRoot}" && node "${safeCli}"`;
+    const inner = `cd /d "${safeRoot}" && set "SECBOT_API_URL=${safeApi}" && set "SECBOT_PACKAGE_ROOT=${safeRoot}" && node "${safeCli}"${cliArgsText ? ` ${cliArgsText}` : ''}`;
     const child = spawn('cmd', ['/c', 'start', 'SECBOT TUI', 'cmd', '/k', inner], {
       env: { ...process.env },
       stdio: 'ignore',
@@ -189,6 +187,7 @@ async function main() {
 
   const isTTY = !!process.stdin.isTTY;
   writeLaunchLog(`stdin.isTTY=${process.stdin.isTTY} stdout.isTTY=${process.stdout.isTTY} cwd=${process.cwd()}`);
+  writeLaunchLog(`backendMode=${backendMode} backendUrl=${getBaseUrl()}`);
 
   if (!isTTY) {
     if (relaunchInNewWindow()) {
@@ -218,7 +217,7 @@ async function main() {
     const err = backend.error ?? 'unknown';
     writeErrorLog('BACKEND_UNREACHABLE', `${getBaseUrl()} ${err}`);
     await cleanupSpawnedBackend();
-    console.error('Cannot reach backend. Start it first: npm run start');
+    console.error('Cannot reach backend.');
     console.error('URL: ' + getBaseUrl());
     console.error('Error: ' + err);
     process.exit(1);

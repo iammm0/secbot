@@ -213,12 +213,18 @@ DEEPSEEK_MODEL=deepseek-reasoner
 ### 4. 启动
 
 ```bash
-# 一键启动后端 + TUI
+# 一键启动 TUI（默认自动拉起本地后端子进程）
 npm run start:stack
 
 # 或分步启动
 npm run dev           # 后端开发模式（热重载）
-npm run start:tui     # 另一终端启动 TUI
+npm run start:tui     # 另一终端启动 TUI（默认自动拉起本地后端子进程）
+
+# 仅连接已有后端（服务模式，可选）
+SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
+
+# 兼容别名（remote 等同于 service）
+SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
 ### 5.（可选）安装 Ollama 本地模型
@@ -240,7 +246,7 @@ npm run dev
 npm run build
 npm start
 
-# 终端 TUI
+# 终端 TUI（默认子进程模式）
 npm run start:tui
 
 ```
@@ -255,6 +261,7 @@ npm run start:tui
 | `OLLAMA_BASE_URL` | Ollama 服务地址 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama 默认模型 | `gemma3:1b` |
 | `PORT` | 后端监听端口 | `8000` |
+| `SECBOT_TUI_BACKEND` | TUI 后端模式：`spawn`/`service`/`remote`/`auto` | 自动推断（默认 `spawn`） |
 
 ### 常见斜杠命令（TUI 内使用）
 

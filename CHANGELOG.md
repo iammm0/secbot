@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v2.0.4 (2026-04-09)
+
+### Features
+
+- **cli**：统一启动策略为「默认本地子进程后端」，`secbot` / `start:stack` / `start:tui` 均由 TUI 主导后端连接模式。
+- **tui**：新增 `--service` 服务模式参数（保留 `--remote` 兼容别名）；`SECBOT_TUI_BACKEND` 统一支持 `spawn|service|remote|auto`。
+- **tui**：子进程模式未显式设置 `PORT` 时，自动选择空闲端口（优先 `8000`）并回写 `SECBOT_API_URL`，避免端口冲突。
+
+### Documentation
+
+- 同步更新 `README.md`、`README_CN.md`、`README_EN.md` 与 `terminal-ui/README.md`，明确默认子进程与可选服务模式的启动方式。
+
 ## v2.0.3 (2026-04-06)
 
 ### Fixes
