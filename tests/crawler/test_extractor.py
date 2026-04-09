@@ -3,13 +3,13 @@ import unittest
 import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
-from crawler.extractor import AIExtractor
+from secbot_agent.crawler.extractor import AIExtractor
 
 class TestAIExtractor(unittest.TestCase):
     def setUp(self):
         self.extractor = AIExtractor()
 
-    @patch("crawler.extractor.httpx.AsyncClient")
+    @patch("secbot_agent.crawler.extractor.httpx.AsyncClient")
     def test_extract_success(self, mock_client_cls):
         async def run_test():
             # Setup mock
@@ -36,7 +36,7 @@ class TestAIExtractor(unittest.TestCase):
         
         asyncio.run(run_test())
 
-    @patch("crawler.extractor.httpx.AsyncClient")
+    @patch("secbot_agent.crawler.extractor.httpx.AsyncClient")
     def test_extract_summary(self, mock_client_cls):
         async def run_test():
             # Setup mock
@@ -60,7 +60,7 @@ class TestAIExtractor(unittest.TestCase):
         
         asyncio.run(run_test())
 
-    @patch("crawler.extractor.httpx.AsyncClient")
+    @patch("secbot_agent.crawler.extractor.httpx.AsyncClient")
     def test_extract_keywords(self, mock_client_cls):
         async def run_test():
             # Setup mock

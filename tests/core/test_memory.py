@@ -2,7 +2,7 @@
 import unittest
 import asyncio
 from unittest.mock import MagicMock, patch, mock_open
-from core.memory.manager import MemoryManager, ShortTermMemory, EpisodicMemory, LongTermMemory, MemoryItem
+from secbot_agent.core.memory.manager import MemoryManager, ShortTermMemory, EpisodicMemory, LongTermMemory, MemoryItem
 
 class TestMemoryManager(unittest.TestCase):
     def setUp(self):

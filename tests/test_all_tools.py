@@ -245,9 +245,9 @@ async def test_intrusion_detect():
 
 def test_agents_have_tools():
     print("\n=== 4. Agent 工具数量 ===")
-    from core.agents.hackbot_agent import HackbotAgent
-    from core.agents.superhackbot_agent import SuperHackbotAgent
-    from database.manager import DatabaseManager
+    from secbot_agent.core.agents.hackbot_agent import HackbotAgent
+    from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
+    from secbot_agent.database.manager import DatabaseManager
     from utils.audit import AuditTrail
 
     db = DatabaseManager()

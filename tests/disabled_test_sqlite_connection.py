@@ -17,8 +17,8 @@ if sys.platform == 'win32':
     except:
         pass
 
-from database.manager import DatabaseManager
-from database.models import Conversation, PromptChainModel, UserConfig
+from secbot_agent.database.manager import DatabaseManager
+from secbot_agent.database.models import Conversation, PromptChainModel, UserConfig
 from datetime import datetime
 
 def test_database():

@@ -4,8 +4,8 @@ import tempfile
 import os
 import json
 from datetime import datetime
-from database.manager import DatabaseManager
-from database.models import Conversation, UserConfig, CrawlerTask
+from secbot_agent.database.manager import DatabaseManager
+from secbot_agent.database.models import Conversation, UserConfig, CrawlerTask
 
 class TestDatabaseManager(unittest.TestCase):
     def setUp(self):

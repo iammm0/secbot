@@ -18,7 +18,7 @@ from tools.protocol import PROTOCOL_TOOLS
 from tools.reporting import REPORTING_TOOLS
 from tools.cloud import CLOUD_TOOLS
 from tools.offense.control import TerminalSessionTool
-from crawler import CrawlerTool
+from secbot_agent.crawler import CrawlerTool
 from tools.web_research import WEB_RESEARCH_TOOLS
 
 router = APIRouter(prefix="/api/tools", tags=["Tools"])

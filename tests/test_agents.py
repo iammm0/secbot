@@ -3,8 +3,8 @@
 """
 
 import pytest
-from core.agents.tool_calling_agent import ToolCallingAgent
-from core.patterns.react import ReActAgent
+from secbot_agent.core.agents.tool_calling_agent import ToolCallingAgent
+from secbot_agent.core.patterns.react import ReActAgent
 
 
 @pytest.mark.asyncio

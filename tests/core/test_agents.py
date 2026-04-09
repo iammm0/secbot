@@ -2,7 +2,7 @@
 import unittest
 import asyncio
 from typing import Dict
-from core.agents.base import BaseAgent, AgentMessage
+from secbot_agent.core.agents.base import BaseAgent, AgentMessage
 
 class ConcreteAgent(BaseAgent):
     """用于测试的具体 Agent 实现"""

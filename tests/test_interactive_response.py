@@ -15,13 +15,13 @@ def test_imports():
     """确保关键模块可导入"""
     from rich.console import Console
     from utils.event_bus import EventBus, EventType, Event
-    from core.models import RequestType, PlanResult, TodoItem, TodoStatus
-    from core.agents.planner_agent import PlannerAgent
-    from core.session import SessionManager
-    from core.agents.hackbot_agent import HackbotAgent
-    from core.agents.superhackbot_agent import SuperHackbotAgent
+    from secbot_agent.core.models import RequestType, PlanResult, TodoItem, TodoStatus
+    from secbot_agent.core.agents.planner_agent import PlannerAgent
+    from secbot_agent.core.session import SessionManager
+    from secbot_agent.core.agents.hackbot_agent import HackbotAgent
+    from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
     from utils.audit import AuditTrail
-    from database.manager import DatabaseManager
+    from secbot_agent.database.manager import DatabaseManager
     console = Console(width=80)
     assert console is not None
     bus = EventBus()
@@ -33,12 +33,12 @@ async def test_simple_reply():
     """简单请求（如「你好」）应直接得到回复，不经过 agent 执行"""
     from rich.console import Console
     from utils.event_bus import EventBus
-    from core.session import SessionManager
-    from core.agents.planner_agent import PlannerAgent
-    from database.manager import DatabaseManager
+    from secbot_agent.core.session import SessionManager
+    from secbot_agent.core.agents.planner_agent import PlannerAgent
+    from secbot_agent.database.manager import DatabaseManager
     from utils.audit import AuditTrail
-    from core.agents.hackbot_agent import HackbotAgent
-    from core.agents.superhackbot_agent import SuperHackbotAgent
+    from secbot_agent.core.agents.hackbot_agent import HackbotAgent
+    from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
 
     console = Console(width=80)
     event_bus = EventBus()
@@ -68,13 +68,13 @@ async def test_technical_flow_no_llm():
     """技术请求：仅跑规划 + 一次 process（不依赖 LLM 可用时再测）"""
     from rich.console import Console
     from utils.event_bus import EventBus, EventType
-    from core.session import SessionManager
-    from core.agents.planner_agent import PlannerAgent
-    from database.manager import DatabaseManager
+    from secbot_agent.core.session import SessionManager
+    from secbot_agent.core.agents.planner_agent import PlannerAgent
+    from secbot_agent.database.manager import DatabaseManager
     from utils.audit import AuditTrail
-    from core.agents.hackbot_agent import HackbotAgent
-    from core.agents.superhackbot_agent import SuperHackbotAgent
-    from core.models import PlanResult, RequestType
+    from secbot_agent.core.agents.hackbot_agent import HackbotAgent
+    from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
+    from secbot_agent.core.models import PlanResult, RequestType
 
     console = Console(width=80)
     event_bus = EventBus()
@@ -116,9 +116,9 @@ def test_agent_process_skip_flags():
     """process(skip_planning=True, skip_report=True) 不报错且不产生 planning/report 事件。"""
     from rich.console import Console
     from utils.event_bus import EventBus, EventType
-    from database.manager import DatabaseManager
+    from secbot_agent.database.manager import DatabaseManager
     from utils.audit import AuditTrail
-    from core.agents.hackbot_agent import HackbotAgent
+    from secbot_agent.core.agents.hackbot_agent import HackbotAgent
 
     console = Console(width=80)
     db = DatabaseManager()
@@ -163,9 +163,9 @@ def test_run_summary_returns_report():
     """SessionManager._run_summary 返回 InteractionSummary，含 raw_report"""
     from rich.console import Console
     from utils.event_bus import EventBus
-    from core.session import SessionManager
-    from core.agents.planner_agent import PlannerAgent
-    from core.models import (
+    from secbot_agent.core.session import SessionManager
+    from secbot_agent.core.agents.planner_agent import PlannerAgent
+    from secbot_agent.core.models import (
         PlanResult,
         RequestType,
         TodoItem,
