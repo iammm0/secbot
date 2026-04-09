@@ -70,7 +70,7 @@ M-Bot 使用 SQLite 作为轻量级数据库，用于持久化存储以下信息
 ### 查看数据库统计
 
 ```bash
-python main.py db-stats
+python scripts/main.py db-stats
 ```
 
 显示：
@@ -84,29 +84,29 @@ python main.py db-stats
 
 ```bash
 # 查看最近的10条对话
-python main.py db-history
+python scripts/main.py db-history
 
 # 查看指定数量的对话
-python main.py db-history --limit 20
+python scripts/main.py db-history --limit 20
 
 # 查看特定智能体的对话
-python main.py db-history --agent simple
+python scripts/main.py db-history --agent simple
 
 # 查看特定会话的对话
-python main.py db-history --session <session_id>
+python scripts/main.py db-history --session <session_id>
 ```
 
 ### 清空对话历史
 
 ```bash
 # 清空所有对话（需要确认）
-python main.py db-clear --yes
+python scripts/main.py db-clear --yes
 
 # 清空特定智能体的对话
-python main.py db-clear --agent simple --yes
+python scripts/main.py db-clear --agent simple --yes
 
 # 清空特定会话的对话
-python main.py db-clear --session <session_id> --yes
+python scripts/main.py db-clear --session <session_id> --yes
 ```
 
 ## 自动保存

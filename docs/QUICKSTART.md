@@ -36,7 +36,7 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ### 1.3 启动
 
 ```bash
-python main.py
+python scripts/main.py
 # 或
 uv run secbot
 ```

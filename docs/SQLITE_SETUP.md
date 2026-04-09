@@ -103,13 +103,13 @@ print(f"对话记录数: {stats['conversations']}")
 
 ```bash
 # 查看数据库统计
-python main.py db-stats
+python scripts/main.py db-stats
 
 # 查看对话历史
-python main.py db-history --limit 10
+python scripts/main.py db-history --limit 10
 
 # 清空对话历史
-python main.py db-clear --yes
+python scripts/main.py db-clear --yes
 ```
 
 ## 数据库文件位置

@@ -64,7 +64,7 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ### 完整终端模式
 
 ```bash
-python main.py
+python scripts/main.py
 # 或
 uv run secbot
 ```

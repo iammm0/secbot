@@ -4,7 +4,7 @@
 
 ## 当前部署建议
 
-- **本地交互**：使用 `python main.py` 或 `uv run secbot`
+- **本地交互**：使用 `python scripts/main.py` 或 `uv run secbot`
 - **长期运行后端**：使用 `uv run secbot --backend`、`python -m router.main`，再由自定义客户端调用 API
 - **二进制分发**：优先使用 GitHub Release 中的现成 zip 包
 

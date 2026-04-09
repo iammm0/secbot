@@ -108,7 +108,7 @@ DEEPSEEK_API_KEY=sk-your-api-key
 
 ```bash
 # Interactive mode
-python main.py
+python scripts/main.py
 uv run secbot
 
 # Single task
@@ -153,7 +153,7 @@ uv run secbot version
 
 ```
 secbot/
-├── main.py                 # Entry point (Typer CLI)
+├── scripts/main.py         # Entry point (Typer CLI)
 ├── secbot_cli/             # CLI entry and in-process runner
 ├── router/                 # FastAPI routing layer (optional API)
 ├── core/                   # Agent framework, executor, planner, memory
