@@ -18,6 +18,7 @@ import { SecurityReActAgent } from '../agents/core/security-react-agent';
 import { TaskExecutor } from '../agents/core/task-executor';
 import { ChatRequestDto, ChatResponseDto } from './dto/chat.dto';
 import { ToolsService } from '../tools/tools.service';
+import { DatabaseService } from '../database/database.service';
 
 /** 与 SecurityReActAgent 中 THINK/EXEC 事件的 step 关联键一致，避免并行子任务共用 iteration 导致前端时间线串台 */
 function sseStepKey(data: Record<string, unknown>, iteration: number): string {
@@ -95,6 +96,7 @@ export class ChatService {
   constructor(
     private readonly config: ConfigService,
     private readonly toolsService: ToolsService,
+    private readonly databaseService: DatabaseService,
   ) {
     this.qaAgent = new QAAgent();
     this.plannerAgent = new PlannerAgent();
@@ -134,6 +136,8 @@ export class ChatService {
       emit('content', { content: answer });
       emit('response', { content: answer, agent: 'qa' });
       emit('done', {});
+      // 保存对话到数据库
+      this.saveConversation(message, answer, agentType || 'qa');
       return answer;
     }
 
@@ -143,6 +147,8 @@ export class ChatService {
       emit('content', { content: answer });
       emit('response', { content: answer, agent: 'qa' });
       emit('done', {});
+      // 保存对话到数据库
+      this.saveConversation(message, answer, 'qa');
       return answer;
     }
 
@@ -158,6 +164,8 @@ export class ChatService {
       emit('content', { content: planResult.directResponse });
       emit('response', { content: planResult.directResponse, agent: agentType });
       emit('done', {});
+      // 保存对话到数据库
+      this.saveConversation(message, planResult.directResponse, agentType || 'hackbot');
       return planResult.directResponse;
     }
 
@@ -244,6 +252,9 @@ export class ChatService {
 
     emit('response', { content: streamPayload.response, agent: agentType });
     emit('done', {});
+    // 保存对话到数据库（包含完整报告）
+    const fullResponse = `${streamPayload.response}\n\n--- 详细报告 ---\n${streamPayload.report}`;
+    this.saveConversation(message, fullResponse, agentType || 'hackbot');
     return streamPayload.response;
   }
 
@@ -276,5 +287,21 @@ export class ChatService {
       this.sessions.set(this.currentSessionId, session);
     }
     return session;
+  }
+
+  private saveConversation(userMessage: string, assistantMessage: string, agentType: string): void {
+    try {
+      this.databaseService.saveConversation({
+        agentType,
+        userMessage,
+        assistantMessage,
+        sessionId: this.currentSessionId,
+        timestamp: new Date().toISOString(),
+        metadata: '{}',
+      });
+    } catch (error) {
+      // 保存失败不阻塞主流程，仅记录
+      console.error('Failed to save conversation:', error);
+    }
   }
 }

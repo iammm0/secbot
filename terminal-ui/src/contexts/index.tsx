@@ -46,7 +46,7 @@ export function AllProviders({
   );
 }
 
-export { useExit } from './ExitContext.js';
+export { useExit, useIsExiting } from './ExitContext.js';
 export { useToast } from './ToastContext.js';
 export { useRoute } from './RouteContext.js';
 export { useSDK } from './SDKContext.js';

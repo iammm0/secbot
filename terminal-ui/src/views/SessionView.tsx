@@ -32,6 +32,7 @@ import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
 import { SessionSelectDialog } from "../components/SessionSelectDialog.js";
+import { useRoute } from "../contexts/RouteContext.js";
 
 /** 底部状态栏：SECBOT 固定绿色，无定时器，避免全屏下周期性重绘底部区域 */
 function SessionStatusBar({
@@ -83,12 +84,13 @@ export function SessionView({
   const [scrollOffset, setScrollOffset] = useState(0);
   const [totalLines, setTotalLines] = useState(0);
   const [inputValue, setInputValue] = useState("");
-  const [hasAppliedInitialPrompt, setHasAppliedInitialPrompt] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showScrollbar, setShowScrollbar] = useState(true);
   const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
   const scrollableHeightRef = useRef(1);
+  // 使用 ref 确保初始 prompt 只处理一次，避免重复发送
+  const hasAppliedInitialPromptRef = useRef(false);
 
   const theme = useTheme();
   const sync = useSync();
@@ -97,6 +99,7 @@ export function SessionView({
   const dialog = useDialog();
   const toast = useToast();
   const exit = useExit();
+  const { navigate } = useRoute();
   const {
     streaming,
     streamState,
@@ -536,11 +539,13 @@ export function SessionView({
 
   // 进入会话时若有初始消息，立即发送，无需用户再回车
   useEffect(() => {
-    if (initialPrompt?.trim() && !hasAppliedInitialPrompt) {
-      setHasAppliedInitialPrompt(true);
+    if (initialPrompt?.trim() && !hasAppliedInitialPromptRef.current) {
+      hasAppliedInitialPromptRef.current = true;
+      // 清除路由中的 initialPrompt，防止返回首页再进入时会话时重复触发
+      navigate({ type: 'session' });
       handleSubmit(initialPrompt.trim());
     }
-  }, [initialPrompt, hasAppliedInitialPrompt, handleSubmit]);
+  }, [initialPrompt, handleSubmit, navigate]);
 
   return (
     <Box flexDirection="column" flexGrow={1} minHeight={0}>
