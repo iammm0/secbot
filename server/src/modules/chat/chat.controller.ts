@@ -1,10 +1,13 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Body, Controller, HttpException, Logger, Post, Res } from '@nestjs/common';
 import { Response } from 'express';
+import { mapExceptionToClientBody } from '../../common/errors/map-exception-to-client';
 import { ChatService } from './chat.service';
 import { ChatRequestDto, RootResponseRequestDto } from './dto/chat.dto';
 
 @Controller('api/chat')
 export class ChatController {
+  private readonly logger = new Logger(ChatController.name);
+
   constructor(private readonly chatService: ChatService) {}
 
   @Post()
@@ -21,8 +24,15 @@ export class ChatController {
     try {
       await this.chatService.handleMessage(body, send);
     } catch (err) {
+      const mapped = mapExceptionToClientBody(err);
+      if (!(err instanceof HttpException)) {
+        const logText = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err);
+        this.logger.error(`SSE chat failed: ${logText}`);
+      }
       send('error', {
-        error: err instanceof Error ? err.message : String(err),
+        error: mapped.message,
+        code: mapped.code,
+        statusCode: mapped.statusCode,
       });
       send('done', {});
     }
