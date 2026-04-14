@@ -10,6 +10,7 @@ import { tuiEvents } from './events.js';
 import { Toast } from './components/Toast.js';
 import { Dialog } from './components/Dialog.js';
 import { CommandPanel } from './components/CommandPanel.js';
+import { StartupAnimation } from './components/StartupAnimation.js';
 import { ModelConfigDialog } from './components/ModelConfigDialog.js';
 import { LogLevelDialog } from './components/LogLevelDialog.js';
 import { RestResultDialog } from './components/RestResultDialog.js';
@@ -28,6 +29,7 @@ interface AppProps {
 const DEFAULT_COLUMNS = 100;
 const DEFAULT_ROWS = 32;
 const LOG_TAIL_LINES = 120;
+const STARTUP_ANIMATION_DURATION = 1200;
 
 async function readRecentRuntimeLogs(): Promise<string> {
   const cwd = process.cwd();
@@ -51,6 +53,7 @@ async function readRecentRuntimeLogs(): Promise<string> {
 
 export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   const stdout = typeof process !== 'undefined' && process.stdout;
+  const [showStartupAnimation, setShowStartupAnimation] = useState(true);
   const [dimensions, setDimensions] = useState(() => {
     const s = stdout as NodeJS.WriteStream & { columns?: number; rows?: number };
     return {
@@ -242,6 +245,17 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   });
 
   const hasDialog = dialog.stack.length > 0;
+
+  if (showStartupAnimation) {
+    return (
+      <Box flexDirection="column" width={columns} height={rows} padding={1}>
+        <StartupAnimation
+          duration={STARTUP_ANIMATION_DURATION}
+          onComplete={() => setShowStartupAnimation(false)}
+        />
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" width={columns} height={rows} padding={1}>
