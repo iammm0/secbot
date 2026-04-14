@@ -797,7 +797,7 @@ export function useChat() {
                 let message = base;
                 if (code === "LLM_AUTH_FAILED") {
                   message = `${base}\n\n可输入 /model 打开模型配置向导，检查 API Key 与厂商地址。`;
-                } else if (code === "LLM_NETWORK" || code === "LLM_UNAVAILABLE") {
+                } else                 if (code === "LLM_NETWORK" || code === "LLM_UNAVAILABLE") {
                   message = `${base}\n\n请确认后端已启动且本机网络正常。`;
                 }
                 setStreamState((s) => ({
