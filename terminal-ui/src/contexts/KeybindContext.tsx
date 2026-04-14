@@ -74,9 +74,13 @@ export interface InkKey {
   end?: boolean;
 }
 
+export function isInkEscape(input: string, key: InkKey): boolean {
+  return key.escape === true || input === '\u001b' || input === '\x1b';
+}
+
 /** 将 Ink (input, key) 转为 ParsedKey，供 match 使用 */
 export function inkKeyToParsedKey(input: string, key: InkKey): ParsedKey {
-  if (key.escape) return { name: 'escape' };
+  if (isInkEscape(input, key)) return { name: 'escape' };
   if (key.tab || input === '\t') return { name: 'tab' };
   if (key.home) return { name: 'home' };
   if (key.end) return { name: 'end' };

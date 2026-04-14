@@ -3,6 +3,7 @@ import { Box, Text, useInput } from 'ink';
 import { api } from '../api.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useDialog } from '../contexts/DialogContext.js';
+import { isInkEscape } from '../contexts/KeybindContext.js';
 
 type LogLevel = 'DEBUG' | 'INFO';
 
@@ -25,7 +26,7 @@ export function LogLevelDialog() {
   }, []);
 
   useInput((input, key) => {
-    if (key.escape) {
+    if (isInkEscape(input, key)) {
       pop();
       return;
     }

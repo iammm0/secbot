@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Database from 'better-sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
+import { loadYamlConfig } from '../../config/yaml-config-loader.js';
 import type {
   Conversation,
   PromptChain,
@@ -16,7 +17,7 @@ import type {
 export class DatabaseService implements OnModuleInit {
   private db!: Database.Database;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) { }
 
   onModuleInit() {
     const dbPath = this.config.get<string>('app.databasePath', 'data/opencomsagent.db');
@@ -25,6 +26,40 @@ export class DatabaseService implements OnModuleInit {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.initDatabase();
+    this.syncYamlToSqlite();
+  }
+
+  /**
+   * 启动时将 config.yaml 中的值同步到 SQLite（仅当 SQLite 中不存在时写入）。
+   * 这样 SQLite 始终是“运行中状态”，YAML 是“默认值模板”。
+   */
+  private syncYamlToSqlite() {
+    const rootDir = process.cwd();
+    const { flat } = loadYamlConfig(rootDir);
+
+    // YAML dot-notation key 转 SQLite key（小写 + 下划线）
+    const toSqliteKey = (dotKey: string) => dotKey.toLowerCase().replace(/\./g, '_');
+
+    const insertStmt = this.db.prepare(`
+      INSERT OR IGNORE INTO user_configs (key, value, category, description, updated_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+    `);
+
+    // 只同步 LLM 和基础设施相关配置
+    const syncPrefixes = ['llm.', 'database.', 'log.', 'server.'];
+
+    for (const [dotKey, value] of Object.entries(flat)) {
+      if (!syncPrefixes.some(p => dotKey.startsWith(p))) continue;
+      if (value === '' || value === undefined) continue;
+
+      const sqliteKey = toSqliteKey(dotKey);
+      // 只有 SQLite 中不存在时才写入
+      const existing = this.db.prepare('SELECT id FROM user_configs WHERE key = ?').get(sqliteKey);
+      if (!existing) {
+        const category = dotKey.split('.')[0];
+        insertStmt.run(sqliteKey, value, category, `YAML default: ${dotKey}`);
+      }
+    }
   }
 
   private initDatabase() {

@@ -10,13 +10,13 @@ Secbot 仓库里有三个需要 Node.js 的前端工程：
 
 ## 推荐版本
 
-- **最低要求**：Node.js `18+`
-- **推荐**：Node.js `20` 或 `22` LTS
+- **最低要求**：Node.js `24+`
+- **推荐**：Node.js `24`
 
 原因：
 
-- `terminal-ui/package.json` 明确要求 `node >= 18`
-- Expo、Vite、Tauri 在 `20/22 LTS` 上通常更稳定
+- 根包与 `terminal-ui/package.json` 已统一要求 `node >= 24`
+- 当前发布分支统一以 Node.js `24` 作为最低配置
 
 ## 安装依赖
 
@@ -68,7 +68,7 @@ npm run tauri dev
 
 无论你使用 PyCharm、VS Code 还是其它 IDE，建议做法都是：
 
-1. 选择一个全局可用的 Node `20/22 LTS`
+1. 选择一个全局可用的 Node `24`
 2. 让三个前端工程都复用这个解释器
 3. 各目录分别执行 `npm install`
 

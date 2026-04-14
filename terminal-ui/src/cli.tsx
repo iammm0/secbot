@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * CLI entry: requires a real TTY; uses alternate screen when supported.
- * 启动方式：远程 API/SSE（已有后端）或在本机 spawn 后端子进程。
+ * 启动方式：默认优先在本机 spawn 后端子进程；仅在显式 service/remote 模式下连接已有后端。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -60,9 +60,8 @@ function parseBackendCli(): {
     return { mode: modeFromEnv, apiUrl };
   }
 
-  // 兼容历史用法：仅设置 SECBOT_API_URL 时自动进入 service 模式。
-  const effectiveUrl = (apiUrl ?? process.env.SECBOT_API_URL ?? '').trim();
-  return { mode: effectiveUrl ? 'service' : 'spawn', apiUrl };
+  // 默认与 auto 均优先使用本地子进程；仅显式 service/remote 才连接已有后端。
+  return { mode: 'spawn', apiUrl };
 }
 
 /**
@@ -181,7 +180,7 @@ function relaunchInNewWindow(): boolean {
 
 async function main() {
   const { mode: backendMode, apiUrl } = parseBackendCli();
-  if (apiUrl) {
+  if (backendMode === 'service' && apiUrl) {
     process.env.SECBOT_API_URL = apiUrl;
   }
 

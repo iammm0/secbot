@@ -57,7 +57,7 @@ npm start
 npm run start:stack
 ```
 
-> 要求 Node.js 18+ 和 npm。
+> 要求 Node.js 24+ 和 npm。
 
 启动后进入交互式界面，底部有输入框。
 

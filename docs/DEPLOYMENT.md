@@ -20,7 +20,7 @@ cd secbot
 npm install
 ```
 
-> 要求 Node.js 18+ 和 npm。
+> 要求 Node.js 24+ 和 npm。
 
 ### 2. 构建
 

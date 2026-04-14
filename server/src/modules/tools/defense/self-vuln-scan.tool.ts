@@ -75,14 +75,14 @@ export class SelfVulnScanTool extends BaseTool {
   private scanSystemVulnerabilities(): Vulnerability[] {
     const findings: Vulnerability[] = [];
     const nodeMajor = Number(process.versions.node.split('.')[0] ?? '0');
-    if (Number.isFinite(nodeMajor) && nodeMajor > 0 && nodeMajor < 18) {
+    if (Number.isFinite(nodeMajor) && nodeMajor > 0 && nodeMajor < 24) {
       findings.push({
         id: 'SYS-OLD-NODE',
         title: 'Outdated Node.js runtime',
         severity: 'high',
         category: 'system',
         description: `Current Node.js version is ${process.versions.node}, below supported baseline.`,
-        recommendation: 'Upgrade runtime to Node.js 18+ and apply latest security patches.',
+        recommendation: 'Upgrade runtime to Node.js 24+ and apply latest security patches.',
       });
     }
 

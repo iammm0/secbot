@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useDialog } from '../contexts/DialogContext.js';
+import { isInkEscape } from '../contexts/KeybindContext.js';
 
 const MAX_VISIBLE_LINES = 28;
 
@@ -33,8 +34,8 @@ export function RestResultDialog({ title, fetchContent }: RestResultDialogProps)
   const totalLines = lines.length;
   const maxScroll = Math.max(0, totalLines - MAX_VISIBLE_LINES);
 
-  useInput((_input, key) => {
-    if (key.escape) {
+  useInput((input, key) => {
+    if (isInkEscape(input, key)) {
       pop();
       return;
     }

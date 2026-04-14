@@ -175,7 +175,7 @@ flowchart LR
 
 ## 系统要求
 
-- **Node.js** 18+
+- **Node.js** 24+
 - **npm**（随 Node.js 附带）
 - **Ollama**（可选，本地推理时需要）
 
@@ -261,7 +261,7 @@ npm run start:tui
 | `OLLAMA_BASE_URL` | Ollama 服务地址 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama 默认模型 | `gemma3:1b` |
 | `PORT` | 后端监听端口 | `8000` |
-| `SECBOT_TUI_BACKEND` | TUI 后端模式：`spawn`/`service`/`remote`/`auto` | 自动推断（默认 `spawn`） |
+| `SECBOT_TUI_BACKEND` | TUI 后端模式：`spawn`/`service`/`remote`/`auto` | 默认优先 `spawn`，连接已有后端时请显式使用 `service`/`remote` |
 
 ### 常见斜杠命令（TUI 内使用）
 

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as path from 'path';
 import {
   OllamaModelsResponseDto,
   ProviderListResponseDto,
@@ -17,13 +18,16 @@ import {
   getDefaultOpenAICompatBaseUrl,
   getLlmProviderMeta,
 } from './llm-provider-registry';
+import { loadYamlConfig, saveYamlConfig } from '../../config/yaml-config-loader.js';
+
+const ROOT_DIR = process.cwd();
 
 @Injectable()
 export class SystemService {
   constructor(
     private readonly db: DatabaseService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   private modelEnvKey(providerId: string): string {
     return `${providerId.toUpperCase().replace(/-/g, '_')}_MODEL`;
@@ -34,15 +38,65 @@ export class SystemService {
     envKey: string,
     defaultValue: string | null,
   ): string | null {
+    // 优先级 1: SQLite（运行中修改）
     const dbItem = this.db.getConfig(key);
     if (dbItem && dbItem.value.trim() !== '') {
       return dbItem.value;
     }
+    // 优先级 2: config.yaml（用户默认值模板）
+    const yamlVal = this.getYamlValue(key);
+    if (yamlVal && yamlVal.trim() !== '') {
+      return yamlVal;
+    }
+    // 优先级 3: .env（兼容回退）
     const envVal = this.configService.get<string>(envKey) ?? process.env[envKey] ?? '';
     if (envVal.trim() !== '') {
       return envVal;
     }
     return defaultValue;
+  }
+
+  /** 从 config.yaml 读取值（dot-notation key） */
+  private getYamlValue(sqliteKey: string): string | null {
+    try {
+      const { flat } = loadYamlConfig(ROOT_DIR);
+      // SQLite key 转 YAML dot-notation: llm_provider -> llm.provider
+      const dotKey = sqliteKey.replace(/_/g, '.');
+      return flat[dotKey] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** 将 SQLite 中的值同步写回 config.yaml */
+  private syncSqliteToYaml(sqliteKey: string, value: string): void {
+    try {
+      // SQLite key 转 YAML dot-notation
+      const parts = sqliteKey.split('_');
+      const dotKey = parts.join('.');
+
+      // 读取当前 YAML
+      const { flat } = loadYamlConfig(ROOT_DIR);
+      flat[dotKey] = value;
+
+      // 重建嵌套对象
+      const nested: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(flat)) {
+        const keys = key.split('.');
+        let current = nested;
+        for (let i = 0; i < keys.length - 1; i++) {
+          if (!current[keys[i]] || typeof current[keys[i]] !== 'object') {
+            current[keys[i]] = {};
+          }
+          current = current[keys[i]] as Record<string, unknown>;
+        }
+        current[keys[keys.length - 1]] = val;
+      }
+
+      saveYamlConfig(ROOT_DIR, nested);
+    } catch {
+      // YAML 写入失败不阻断主流程
+    }
   }
 
   async info(): Promise<SystemInfoResponseDto> {
@@ -146,6 +200,8 @@ export class SystemService {
         configured,
         needsBaseUrl: meta.needsBaseUrl,
         hasBaseUrl,
+        group: meta.group,
+        compatHint: meta.compatHint,
       };
     });
 
@@ -173,12 +229,14 @@ export class SystemService {
         msg = deleted ? `已删除 ${provider} 的 API Key` : `${provider} 的 API Key 已为空`;
       } else {
         this.db.saveConfig(keyName, key, 'api_keys', `${provider} API Key`);
+        this.syncSqliteToYaml(keyName, key);
         msg = `已保存 ${provider} API Key`;
       }
     } else {
       const base = (body.baseUrl ?? '').trim();
       if (base) {
         this.db.saveConfig(baseName, base, 'api_keys', `${provider} Base URL`);
+        this.syncSqliteToYaml(baseName, base);
         msg = `已更新 ${provider} Base URL`;
       } else {
         this.db.deleteConfig(baseName);
@@ -229,6 +287,7 @@ export class SystemService {
       return { success: false, message: `未知的推理后端: ${body.llm_provider}` };
     }
     this.db.saveConfig('llm_provider', id, 'llm', '当前推理后端');
+    this.syncSqliteToYaml('llm_provider', id);
     return { success: true, message: `已切换为 ${id}` };
   }
 
@@ -246,6 +305,7 @@ export class SystemService {
       const key = `${id}_model`;
       if (v) {
         this.db.saveConfig(key, v, 'llm', `${id} 默认模型`);
+        this.syncSqliteToYaml(key, v);
       } else {
         this.db.deleteConfig(key);
       }
@@ -256,6 +316,7 @@ export class SystemService {
       const key = `${id}_base_url`;
       if (v) {
         this.db.saveConfig(key, v, 'llm', `${id} API 地址`);
+        this.syncSqliteToYaml(key, v);
       } else {
         this.db.deleteConfig(key);
       }

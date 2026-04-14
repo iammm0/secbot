@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@opensec/secbot.svg)](https://www.npmjs.com/package/@opensec/secbot)
 [![npm downloads](https://img.shields.io/npm/dm/@opensec/secbot.svg)](https://www.npmjs.com/package/@opensec/secbot)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D24-339933.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Secbot is an AI-powered TypeScript security automation workspace with a NestJS backend and an Ink-based terminal UI.
@@ -21,7 +21,7 @@ Secbot is an AI-powered TypeScript security automation workspace with a NestJS b
 
 ## Requirements
 
-- Node.js `>= 20`
+- Node.js `>= 24`
 - npm `>= 10` (recommended)
 - Optional: Ollama for local model serving
 
@@ -77,9 +77,6 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 secbot
 
 # Backward-compatible alias
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 secbot
-
-# Backward-compatible auto behavior (SECBOT_API_URL only => service mode)
-SECBOT_API_URL=http://127.0.0.1:8000 secbot
 ```
 
 ## Package Binaries

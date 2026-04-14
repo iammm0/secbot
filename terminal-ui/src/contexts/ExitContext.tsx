@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useCallback, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useState } from 'react';
+import { Box } from 'ink';
 import { ExitAnimation } from '../components/ExitAnimation.js';
 
 type ExitFn = (code?: number) => void;
@@ -29,6 +30,34 @@ export function ExitProvider({
 }: ExitProviderProps) {
   const [isExiting, setIsExiting] = useState(false);
   const [exitCode, setExitCode] = useState<number>(0);
+  const stdout = typeof process !== 'undefined' ? process.stdout : undefined;
+  const [size, setSize] = useState(() => {
+    const stream = stdout as NodeJS.WriteStream & { columns?: number; rows?: number };
+    return {
+      columns: stream?.columns ?? 100,
+      rows: stream?.rows ?? 32,
+    };
+  });
+
+  useEffect(() => {
+    const stream = stdout as NodeJS.WriteStream & {
+      on?(event: 'resize', listener: () => void): void;
+      off?(event: 'resize', listener: () => void): void;
+      columns?: number;
+      rows?: number;
+    };
+    if (!stream?.on) return;
+    const onResize = () => {
+      setSize({
+        columns: stream.columns ?? 100,
+        rows: stream.rows ?? 32,
+      });
+    };
+    stream.on('resize', onResize);
+    return () => {
+      stream.off?.('resize', onResize);
+    };
+  }, [stdout]);
 
   const exit = useCallback((code?: number) => {
     if (enableAnimation) {
@@ -46,10 +75,12 @@ export function ExitProvider({
   return (
     <ExitContext.Provider value={{ exit, isExiting }}>
       {isExiting ? (
-        <ExitAnimation
-          onComplete={handleAnimationComplete}
-          duration={animationDuration}
-        />
+        <Box width={size.columns} height={size.rows}>
+          <ExitAnimation
+            onComplete={handleAnimationComplete}
+            duration={animationDuration}
+          />
+        </Box>
       ) : (
         children
       )}

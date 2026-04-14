@@ -6,12 +6,11 @@ import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import figlet from 'figlet';
 import { useTheme } from '../contexts/ThemeContext.js';
-import { useKeybind, inkKeyToParsedKey } from '../contexts/KeybindContext.js';
+import { useKeybind, inkKeyToParsedKey, isInkEscape } from '../contexts/KeybindContext.js';
 import { useRoute } from '../contexts/RouteContext.js';
 import { useCommand, useExit } from '../contexts/index.js';
 import { SlashSuggestions } from '../components/SlashSuggestions.js';
-
-const VERSION = '1.0.0';
+import { APP_VERSION } from '../version.js';
 
 /** 标题式 ASCII 艺术字 — 纯绿色粗体 Logo */
 const TITLE_ASCII = (() => {
@@ -67,7 +66,7 @@ export function HomeView() {
       if (slashSuggestions.length > 0) return;
       return;
     }
-    if (key.escape) {
+    if (isInkEscape(input, key)) {
       setInputValue('');
       return;
     }
@@ -192,7 +191,7 @@ export function HomeView() {
         paddingBottom={1}
       >
         <Text color={theme.textMuted}>~: HEAD</Text>
-        <Text color={theme.textMuted}>{VERSION}</Text>
+        <Text color={theme.textMuted}>{APP_VERSION}</Text>
       </Box>
     </Box>
   );
