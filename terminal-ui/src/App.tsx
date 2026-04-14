@@ -3,7 +3,7 @@ import { Box, useInput } from 'ink';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { useCommand, useToast, useRoute, useSync, useLocal, useKeybind } from './contexts/index.js';
-import { inkKeyToParsedKey, isInkEscape } from './contexts/KeybindContext.js';
+import { inkKeyToParsedKey } from './contexts/KeybindContext.js';
 import { useDialog } from './contexts/DialogContext.js';
 import { api } from './api.js';
 import { tuiEvents } from './events.js';
@@ -223,11 +223,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
     const hasOpenDialog = dialog.stack.length > 0;
-    // 有弹窗时在本层统一关顶层（避免子组件 useInput 在部分终端/重渲染下未收到 Esc）
-    if (hasOpenDialog && isInkEscape(input, key)) {
-      dialog.pop();
-      return;
-    }
+    // Esc 交给弹窗内 useInput（多步向导需返回上一级）；勿在此处 pop，否则会跳过子组件逻辑直接关窗
     if (keybind.match('exit', evt)) {
       if (hasOpenDialog) {
         dialog.clear();
