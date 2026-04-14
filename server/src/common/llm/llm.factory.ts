@@ -36,7 +36,9 @@ function getSqliteConfig(key: string): string | null {
     if (!fs.existsSync(dbPath)) return null;
 
     const db = new Database(dbPath, { readonly: true });
-    const row = db.prepare('SELECT value FROM user_configs WHERE key = ?').get(key) as { value: string } | undefined;
+    const row = db.prepare('SELECT value FROM user_configs WHERE key = ?').get(key) as
+      | { value: string }
+      | undefined;
     db.close();
 
     return row?.value ?? null;
@@ -57,7 +59,7 @@ function resolveOpenAICompatApiKey(provider: string, explicit?: string): string 
   const candidates = [
     normalizeBearerApiKey(explicit ?? ''),
     normalizeBearerApiKey(process.env.LLM_API_KEY ?? ''),
-    normalizeBearerApiKey(getSqliteConfig(sqliteKey) ?? ''),  // SQLite 运行中配置
+    normalizeBearerApiKey(getSqliteConfig(sqliteKey) ?? ''), // SQLite 运行中配置
     normalizeBearerApiKey(getEnvBackedApiKey(provider)),
   ];
   return candidates.find((k) => k.length > 0) ?? '';
@@ -68,7 +70,7 @@ function resolveOpenAICompatBaseUrl(provider: string, explicit?: string): string
   const candidates = [
     (explicit ?? '').trim(),
     (process.env.LLM_BASE_URL ?? '').trim(),
-    (getSqliteConfig(sqliteKey) ?? '').trim(),  // SQLite 运行中配置
+    (getSqliteConfig(sqliteKey) ?? '').trim(), // SQLite 运行中配置
     getEnvBackedBaseUrl(provider),
   ];
   const first = candidates.find((u) => u.length > 0);

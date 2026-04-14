@@ -94,12 +94,11 @@ export class ContextAssemblerService {
     try {
       await this.memoryService.remember(merged, 'short_term', 0.6, { sessionId, agentType });
       await this.memoryService.remember(merged, 'episodic', 0.75, { sessionId, agentType });
-      await this.memoryService.add_vector_memory(
-        merged,
-        this.textToVector(merged),
-        'episodic',
-        { sessionId, agentType, createdAt: new Date().toISOString() },
-      );
+      await this.memoryService.add_vector_memory(merged, this.textToVector(merged), 'episodic', {
+        sessionId,
+        agentType,
+        createdAt: new Date().toISOString(),
+      });
     } catch (error) {
       this.logger.warn(`rememberTurn failed: ${(error as Error).message}`);
     }
