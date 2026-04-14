@@ -6,9 +6,10 @@ import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useDialog } from '../contexts/DialogContext.js';
+import { isInkEscape } from '../contexts/KeybindContext.js';
 import { api } from '../api.js';
 import type { ProviderApiKeyStatus } from '../model-config-types.js';
-import { mergeProviderListFromApi } from '../llm-provider-ui-fallback.js';
+import { mergeProviderListFromApi, buildGroupedRows } from '../llm-provider-ui-fallback.js';
 
 interface Config {
   llm_provider: string;
@@ -22,11 +23,12 @@ interface Config {
 
 type ProviderId = 'current' | 'ollama' | 'deepseek' | 'switch_provider' | 'configured_list' | 'api_key';
 
-const PROVIDERS: { id: ProviderId; label: string }[] = [
-  { id: 'current', label: '当前推理后端' },
-  { id: 'configured_list', label: '已配置的推理后端' },
-  { id: 'switch_provider', label: '切换推理后端' },
-  { id: 'api_key', label: '配置 API Key' },
+/** 首屏菜单顺序：先选后端 → 配 Key → 看当前 → 管理多后端（对齐常见 CLI 模型向导） */
+const PROVIDERS: { id: ProviderId; label: string; hint: string }[] = [
+  { id: 'switch_provider', label: '切换推理后端', hint: 'Ollama 或云端厂商' },
+  { id: 'api_key', label: '配置 API Key', hint: '云端必填；部分需 Base URL' },
+  { id: 'current', label: '当前推理后端', hint: '摘要与编辑（M 模型 / B 地址）' },
+  { id: 'configured_list', label: '已配置的推理后端', hint: '已保存 Key 的厂商列表' },
 ];
 
 /** API JSON 在极端情况下可能为非字符串；Ink <Text> 子节点若为对象会触发 componentDidCatch → exit(1) */
@@ -174,7 +176,7 @@ export function ModelConfigDialog() {
   }, [view, detailProvider, config?.llm_provider]);
 
   useInput((input, key) => {
-    if (key.escape) {
+    if (isInkEscape(input, key)) {
       if (view === 'api_key_input') {
         setView('api_key_list');
         setApiKeyEditingProvider(null);
@@ -215,7 +217,7 @@ export function ModelConfigDialog() {
               setSwitchSuccessMessage(r.success ? r.message : r.message);
               setConfirmSwitchProvider(null);
               setView('provider_switch_list');
-              if (r.success) api.get<Config>('/api/system/config').then(setConfig).catch(() => {});
+              if (r.success) api.get<Config>('/api/system/config').then(setConfig).catch(() => { });
             })
             .catch((e) => {
               setSwitchSuccessMessage(String((e as Error).message));
@@ -271,6 +273,11 @@ export function ModelConfigDialog() {
       return;
     }
     if (view === 'list') {
+      if (/^[1-4]$/.test(input) && !key.ctrl && !key.meta) {
+        const n = Number(input) - 1;
+        if (n >= 0 && n < PROVIDERS.length) setSelectedIndex(n);
+        return;
+      }
       if (key.upArrow) setSelectedIndex((i) => Math.max(0, i - 1));
       else if (key.downArrow) setSelectedIndex((i) => Math.min(PROVIDERS.length - 1, i + 1));
       else if (key.return) {
@@ -339,17 +346,20 @@ export function ModelConfigDialog() {
   if (loading) {
     return (
       <Box flexDirection="column" paddingX={1} paddingY={0}>
-        <Text color={theme.primary}>模型配置</Text>
-        <Text color={theme.textMuted}>加载中…</Text>
+        <Text bold color={theme.primary}>模型配置向导</Text>
+        <Text color={theme.textMuted}>加载配置中…</Text>
+        <Box marginTop={1} flexDirection="column">
+          <Text color={theme.textMuted}>进入后流程：① 切换后端② 配 API Key ③ 当前页按 M/B 编辑</Text>
+        </Box>
       </Box>
     );
   }
   if (error) {
     return (
       <Box flexDirection="column" paddingX={1} paddingY={0}>
-        <Text color={theme.primary}>模型配置</Text>
+        <Text bold color={theme.primary}>模型配置向导</Text>
         <Text color={theme.error}>{error}</Text>
-        <Text color={theme.textMuted}>Esc 关闭</Text>
+        <Text color={theme.textMuted}>请确认后端已启动且可访问 /api/system/config · Esc 关闭</Text>
       </Box>
     );
   }
@@ -445,6 +455,7 @@ export function ModelConfigDialog() {
   if (view === 'api_key_list') {
     const list = apiKeyProviders;
     const safeIdx = Math.min(apiKeyListIndex, Math.max(0, list.length - 1));
+    const grouped = buildGroupedRows(list);
     return (
       <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>配置 API Key — 选择厂商</Text>
@@ -458,14 +469,26 @@ export function ModelConfigDialog() {
           {list.length === 0 ? (
             <Text color={theme.textMuted}>加载中…</Text>
           ) : (
-            list.map((p, i) => (
-              <Box key={p.id}>
-                <Text color={i === safeIdx ? theme.primary : theme.text}>
-                  {i === safeIdx ? '> ' : '  '}
-                  {p.name} {p.configured ? '已配置' : '未配置'}
-                </Text>
-              </Box>
-            ))
+            grouped.map((row, ri) => {
+              if (row.type === 'header') {
+                return (
+                  <Box key={`h-${ri}`} marginTop={ri > 0 ? 1 : 0}>
+                    <Text bold color={theme.primary}>── {row.label} ──</Text>
+                  </Box>
+                );
+              }
+              const p = row.provider;
+              const idx = row.flatIndex;
+              const hint = p.compat_hint ? ` [${p.compat_hint}]` : '';
+              return (
+                <Box key={p.id}>
+                  <Text color={idx === safeIdx ? theme.primary : theme.text}>
+                    {idx === safeIdx ? '> ' : '  '}
+                    {p.name}{hint} {p.configured ? '已配置' : '未配置'}
+                  </Text>
+                </Box>
+              );
+            })
           )}
         </Box>
       </Box>
@@ -483,6 +506,7 @@ export function ModelConfigDialog() {
   if (view === 'configured_list') {
     const list = configuredProviders;
     const safeIdx = Math.min(configuredListIndex, Math.max(0, list.length - 1));
+    const grouped = buildGroupedRows(list);
     return (
       <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>
@@ -493,13 +517,23 @@ export function ModelConfigDialog() {
           {list.length === 0 ? (
             <Text color={theme.textMuted}>加载中…或暂无已配置的后端</Text>
           ) : (
-            list.map((p, i) => {
+            grouped.map((row, ri) => {
+              if (row.type === 'header') {
+                return (
+                  <Box key={`h-${ri}`} marginTop={ri > 0 ? 1 : 0}>
+                    <Text bold color={theme.primary}>── {row.label} ──</Text>
+                  </Box>
+                );
+              }
+              const p = row.provider;
+              const idx = row.flatIndex;
               const modelLabel = getProviderModelLabel(p.id);
+              const hint = p.compat_hint ? ` [${p.compat_hint}]` : '';
               return (
                 <Box key={p.id}>
-                  <Text color={i === safeIdx ? theme.primary : theme.text}>
-                    {i === safeIdx ? '> ' : '  '}
-                    {p.name}
+                  <Text color={idx === safeIdx ? theme.primary : theme.text}>
+                    {idx === safeIdx ? '> ' : '  '}
+                    {p.name}{hint}
                     {modelLabel ? `: ${modelLabel}` : ''}
                     {p.id === config?.llm_provider ? '  ✓ 当前' : ''}
                   </Text>
@@ -529,6 +563,7 @@ export function ModelConfigDialog() {
     const list = allProvidersForSwitch;
     const safeIdx = Math.min(providerSwitchListIndex, Math.max(0, list.length - 1));
     const currentId = config?.llm_provider ?? '';
+    const grouped = buildGroupedRows(list);
     return (
       <Box flexDirection="column" paddingX={1} paddingY={0}>
         <Text bold color={theme.primary}>切换推理后端</Text>
@@ -542,15 +577,27 @@ export function ModelConfigDialog() {
           {list.length === 0 ? (
             <Text color={theme.textMuted}>加载中…</Text>
           ) : (
-            list.map((p, i) => (
-              <Box key={p.id}>
-                <Text color={i === safeIdx ? theme.primary : theme.text}>
-                  {i === safeIdx ? '> ' : '  '}
-                  {p.name}
-                  {p.id === currentId ? '  ✓ 当前' : ''}
-                </Text>
-              </Box>
-            ))
+            grouped.map((row, ri) => {
+              if (row.type === 'header') {
+                return (
+                  <Box key={`h-${ri}`} marginTop={ri > 0 ? 1 : 0}>
+                    <Text bold color={theme.primary}>── {row.label} ──</Text>
+                  </Box>
+                );
+              }
+              const p = row.provider;
+              const idx = row.flatIndex;
+              const hint = p.compat_hint ? ` [${p.compat_hint}]` : '';
+              return (
+                <Box key={p.id}>
+                  <Text color={idx === safeIdx ? theme.primary : theme.text}>
+                    {idx === safeIdx ? '> ' : '  '}
+                    {p.name}{hint}
+                    {p.id === currentId ? '  ✓ 当前' : ''}
+                  </Text>
+                </Box>
+              );
+            })
           )}
         </Box>
       </Box>
@@ -598,11 +645,11 @@ export function ModelConfigDialog() {
             if (r.success) {
               setDetailEditMode(null);
               setDetailEditValue('');
-              api.get<Config>('/api/system/config').then(setConfig).catch(() => {});
+              api.get<Config>('/api/system/config').then(setConfig).catch(() => { });
               api
                 .get<{ model?: string | null; base_url?: string | null }>(`/api/system/config/provider/${pid}`)
                 .then((res) => setDetailProviderConfig({ model: res.model ?? null, base_url: res.base_url ?? null }))
-                .catch(() => {});
+                .catch(() => { });
             }
           })
           .catch((e) => setDetailEditMessage(String((e as Error).message)));
@@ -738,37 +785,65 @@ export function ModelConfigDialog() {
 
   const currentLabel = String(
     config.llm_provider === 'ollama'
-      ? `Ollama (${config.ollama_model})`
+      ? `Ollama · ${config.ollama_model || '（未设模型名）'}`
       : config.llm_provider === 'deepseek'
-        ? `DeepSeek (${config.deepseek_model ?? '-'})`
-        : config.llm_provider
+        ? `DeepSeek · ${config.deepseek_model ?? '-'}`
+        : `${config.llm_provider} · ${config.current_provider_model ?? '-'}`
   );
   const configuredCount = allProvidersForList.filter((p) => p.configured).length;
 
   return (
     <Box flexDirection="column" paddingX={1} paddingY={0}>
       <Text bold color={theme.primary}>
-        模型 / 推理配置 — 选择提供商查看或配置
+        模型配置向导
       </Text>
-      <Text color={theme.textMuted}>↑↓ 选择 · Enter 进入 · Esc 关闭</Text>
+      <Text color={theme.textMuted}>↑↓或 1–4 选中 · Enter 进入 · Esc 关闭</Text>
+
       <Box flexDirection="column" marginTop={1}>
+        <Text bold color={theme.text}>当前状态</Text>
+               <Text color={theme.text}> {currentLabel}</Text>
+        {config.llm_provider === 'ollama' && (
+          <Text color={theme.textMuted}>  服务: {config.ollama_base_url || '（默认本机）'}</Text>
+        )}
+        {config.llm_provider === 'deepseek' && (
+          <Text color={theme.textMuted}>  地址: {config.deepseek_base_url || '（未设置）'}</Text>
+        )}
+        {config.llm_provider !== 'ollama' && config.llm_provider !== 'deepseek' && (
+          <Text color={theme.textMuted}>  地址: {config.current_provider_base_url || '（未设置）'}</Text>
+        )}
+      </Box>
+
+      <Box flexDirection="column" marginTop={1}>
+        <Text bold color={theme.text}>上手 3 步</Text>
+        <Text color={theme.textMuted}>  ① 用「切换推理后端」选定 Ollama 或云端厂商</Text>
+        <Text color={theme.textMuted}>  ② 云端厂商到「配置 API Key」（部分会在 Key 后再要 Base URL）</Text>
+        <Text color={theme.textMuted}>  ③ 在「当前推理后端」里查看；详情页按 M 改模型、B 改 API 地址</Text>
+      </Box>
+
+      <Box flexDirection="column" marginTop={1}>
+        <Text bold color={theme.text}>操作</Text>
         {PROVIDERS.map((p, i) => {
           const isSelected = i === selectedIndex;
           const value =
             p.id === 'api_key' || p.id === 'switch_provider'
               ? null
               : p.id === 'current'
-                ? currentLabel
+                ? null
                 : p.id === 'configured_list'
-                  ? (configuredCount > 0 ? `${configuredCount} 个` : null)
+                  ? (configuredCount > 0 ? `${configuredCount} 个已保存` : '暂无')
                   : null;
+          const num = i + 1;
           return (
-            <Box key={p.id}>
-              <Text color={isSelected ? theme.primary : theme.text}>
-                {isSelected ? '> ' : '  '}
-                {p.label}
-                {value != null ? (p.id === 'current' ? ` (${value})` : ` (${value})`) : ''}
-              </Text>
+            <Box key={p.id} flexDirection="column">
+              <Box flexDirection="row">
+                <Text color={isSelected ? theme.primary : theme.text}>
+                  {isSelected ? '> ' : '  '}[{num}] {p.label}
+                  {value != null ? ` · ${value}` : ''}
+                </Text>
+              </Box>
+              <Box marginLeft={4}>
+                <Text color={theme.textMuted}>{p.hint}</Text>
+              </Box>
             </Box>
           );
         })}

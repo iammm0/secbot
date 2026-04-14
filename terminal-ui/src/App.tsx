@@ -3,7 +3,7 @@ import { Box, useInput } from 'ink';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { useCommand, useToast, useRoute, useSync, useLocal, useKeybind } from './contexts/index.js';
-import { inkKeyToParsedKey } from './contexts/KeybindContext.js';
+import { inkKeyToParsedKey, isInkEscape } from './contexts/KeybindContext.js';
 import { useDialog } from './contexts/DialogContext.js';
 import { api } from './api.js';
 import { tuiEvents } from './events.js';
@@ -172,7 +172,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         },
       }),
       register({
-        title: '当前模型/配置',
+        title: '模型配置向导（/model）',
         value: '/model',
         category: 'REST',
         slash: '/model',
@@ -224,7 +224,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
     const evt = inkKeyToParsedKey(input, key);
     const hasOpenDialog = dialog.stack.length > 0;
     // 有弹窗时在本层统一关顶层（避免子组件 useInput 在部分终端/重渲染下未收到 Esc）
-    if (hasOpenDialog && key.escape) {
+    if (hasOpenDialog && isInkEscape(input, key)) {
       dialog.pop();
       return;
     }
