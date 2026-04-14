@@ -3,12 +3,16 @@
  * 推理与执行链路：API → phase → error → 规划 → 推理 → 执行 → 内容 → 报告
  *
  * 更新说明：
- *  - streamStateToBlocks 支持 sentAt / completedAt 参数
+ *  - streamStateToBlocks 支持 sentAt / completedAt / chatMode 参数
+ *  - ask 模式：无工具名的「总结观察」与「最终总结」正文相同时只渲染最终总结
  *  - 当前策略不再渲染独立 response 块，输出展示截止到“总结”阶段
  */
-import type { StreamState } from "./types.js";
-import type { ContentBlock } from "./types.js";
-import type { BlockRenderType } from "./types.js";
+import type {
+  StreamState,
+  ContentBlock,
+  BlockRenderType,
+  ChatMode,
+} from "./types.js";
 import {
   INTER_BLOCK_GAP_LINES,
   TRANSIENT_TOOLS,
@@ -105,6 +109,14 @@ function observationResolvedType(tool?: string): BlockRenderType | undefined {
   return undefined;
 }
 
+/** ask 模式下与「最终总结」去重：忽略空白差异 */
+function normalizeAskDedupeText(text: string): string {
+  return (text || "")
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 function observationTitle(
   tool?: string,
   iteration?: number,
@@ -129,6 +141,7 @@ function observationTitle(
  * @param dismissedTransientTools 已"消失"的瞬时工具，不再展示
  * @param sentAt                 本轮用户消息的发送时刻（Date.now()），0 或未传则不注入
  * @param completedAt            本轮 Secbot 响应的完成时刻（Date.now()），0 或未传表示尚未完成
+ * @param chatMode               会话模式；ask 下若「总结观察」与「最终总结」正文相同则只保留最终总结
  */
 export function streamStateToBlocks(
   streamState: StreamState,
@@ -137,6 +150,7 @@ export function streamStateToBlocks(
   dismissedTransientTools?: Set<string>,
   sentAt?: number,
   completedAt?: number,
+  chatMode: ChatMode = "agent",
 ): ContentBlock[] {
   const blocks: ContentBlock[] = [];
   let lineStart = 0;
@@ -267,6 +281,15 @@ export function streamStateToBlocks(
     const nonFinal = timeline.filter((x) => x.type !== "final");
     const finals = timeline.filter((x) => x.type === "final");
 
+    const askFinalDedupeBodies =
+      chatMode === "ask"
+        ? new Set(
+            finals
+              .map((f) => normalizeAskDedupeText(f.body || ""))
+              .filter((s) => s.length > 0 && s !== "…"),
+          )
+        : new Set<string>();
+
     if (nonFinal.length > 0 && blocks.length > 0) {
       addVisualGap();
     }
@@ -342,6 +365,13 @@ export function streamStateToBlocks(
       }
 
       if (item.type === "observation") {
+        if (
+          chatMode === "ask" &&
+          !item.tool &&
+          askFinalDedupeBodies.has(normalizeAskDedupeText(item.body || ""))
+        ) {
+          continue;
+        }
         if (timelineEmitted++ > 0) addVisualGap();
         const baseTitle = item.title
           || (item.tool ? `观察 · ${item.tool}` : "总结观察");

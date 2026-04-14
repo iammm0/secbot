@@ -25,7 +25,7 @@ import {
   useExit,
 } from "../contexts/index.js";
 import type { ThemeColors } from "../contexts/index.js";
-import { inkKeyToParsedKey } from "../contexts/KeybindContext.js";
+import { inkKeyToParsedKey, isInkEscape } from "../contexts/KeybindContext.js";
 import { streamStateToBlocks } from "../contentBlocks.js";
 import { ModelConfigDialog } from "../components/ModelConfigDialog.js";
 import { RestResultDialog } from "../components/RestResultDialog.js";
@@ -115,6 +115,7 @@ export function SessionView({
     sessionList,
     switchSession,
     newSession,
+    currentRoundChatMode,
   } = sync;
   const { mode, agent, setMode, setAgent } = local;
 
@@ -132,6 +133,7 @@ export function SessionView({
         undefined,
         currentSentAt > 0 ? currentSentAt : undefined,
         currentCompletedAt > 0 ? currentCompletedAt : undefined,
+        currentRoundChatMode,
       ),
     [
       streamState,
@@ -139,6 +141,7 @@ export function SessionView({
       apiOutput,
       currentSentAt,
       currentCompletedAt,
+      currentRoundChatMode,
     ],
   );
 
@@ -406,7 +409,7 @@ export function SessionView({
         return;
       }
       if (key.return && slashSuggestions.length > 0) return;
-      if (key.escape) {
+      if (isInkEscape(input, key)) {
         setInputValue("");
         return;
       }
@@ -570,6 +573,7 @@ export function SessionView({
           currentUserMessage={currentUserMessage}
           currentSentAt={currentSentAt}
           currentCompletedAt={currentCompletedAt}
+          currentRoundChatMode={currentRoundChatMode}
         />
       </Box>
 

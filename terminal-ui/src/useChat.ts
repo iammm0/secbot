@@ -58,6 +58,8 @@ interface ChatSessionSnapshot {
   currentSentAt: number;
   currentCompletedAt: number;
   apiOutput: string | null;
+  /** 当前轮请求使用的模式（用于 ask 下去重等） */
+  currentRoundChatMode: ChatMode;
 }
 
 function cloneStreamState(s: StreamState): StreamState {
@@ -94,6 +96,7 @@ function takeSnapshot(
   currentSentAt: number,
   currentCompletedAt: number,
   apiOutput: string | null,
+  currentRoundChatMode: ChatMode,
 ): ChatSessionSnapshot {
   return {
     history: cloneHistory(history),
@@ -102,6 +105,7 @@ function takeSnapshot(
     currentSentAt,
     currentCompletedAt,
     apiOutput,
+    currentRoundChatMode,
   };
 }
 
@@ -128,6 +132,8 @@ export interface HistoryItem {
   streamState: StreamState;
   /** 流式响应完成时刻（Date.now()），0 表示异常中断 */
   completedAt: number;
+  /** 该轮请求使用的模式（旧历史缺省按 agent） */
+  chatMode?: ChatMode;
 }
 
 // ─── Typewriter 配置 ───────────────────────────────────────────────────────────
@@ -151,6 +157,9 @@ export function useChat() {
   const [currentSentAt, setCurrentSentAt] = useState<number>(0);
   // 当前轮次完成时刻（streaming 结束后更新）
   const [currentCompletedAt, setCurrentCompletedAt] = useState<number>(0);
+  /** 当前轮次 sendMessage 使用的模式（渲染 ask 去重等） */
+  const [currentRoundChatMode, setCurrentRoundChatMode] =
+    useState<ChatMode>("agent");
 
   // 用于在异步回调中访问最新状态的 Ref
   const abortRef = useRef<AbortController | null>(null);
@@ -178,6 +187,9 @@ export function useChat() {
   const currentUserSnapRef = useRef<string>("");
   const currentCompletedAtSnapRef = useRef<number>(0);
   const apiOutputSnapRef = useRef<string | null>(null);
+  /** 归档上一轮历史时写入的 chatMode（与当前 streamState 对应） */
+  const requestModeRef = useRef<ChatMode>("agent");
+  const currentRoundChatModeRef = useRef<ChatMode>("agent");
 
   const [activeSessionId, setActiveSessionId] = useState("default");
   const [sessionListVersion, setSessionListVersion] = useState(0);
@@ -201,6 +213,10 @@ export function useChat() {
   useEffect(() => {
     apiOutputSnapRef.current = apiOutput;
   }, [apiOutput]);
+
+  useEffect(() => {
+    currentRoundChatModeRef.current = currentRoundChatMode;
+  }, [currentRoundChatMode]);
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -302,6 +318,7 @@ export function useChat() {
           currentSentAtRef.current,
           currentCompletedAtSnapRef.current,
           apiOutputSnapRef.current,
+          currentRoundChatModeRef.current,
         ),
       );
 
@@ -316,6 +333,7 @@ export function useChat() {
         setCurrentSentAt(next.currentSentAt);
         setCurrentCompletedAt(next.currentCompletedAt);
         setApiOutput(next.apiOutput);
+        setCurrentRoundChatMode(next.currentRoundChatMode ?? "agent");
       } else {
         setHistory([]);
         setStreamState(resetStreamState());
@@ -323,6 +341,7 @@ export function useChat() {
         setCurrentSentAt(0);
         setCurrentCompletedAt(0);
         setApiOutput(null);
+        setCurrentRoundChatMode("agent");
       }
       thoughtSeqRef.current = 0;
       activeThoughtIdByStepRef.current = new Map();
@@ -347,6 +366,7 @@ export function useChat() {
         currentSentAtRef.current,
         currentCompletedAtSnapRef.current,
         apiOutputSnapRef.current,
+        currentRoundChatModeRef.current,
       ),
     );
 
@@ -362,6 +382,7 @@ export function useChat() {
     setCurrentSentAt(0);
     setCurrentCompletedAt(0);
     setApiOutput(null);
+    setCurrentRoundChatMode("agent");
     thoughtSeqRef.current = 0;
     activeThoughtIdByStepRef.current = new Map();
     currentUserMessageRef.current = "";
@@ -406,9 +427,13 @@ export function useChat() {
           sentAt: currentSentAtRef.current,
           streamState: prev,
           completedAt: completedAtRef.current,
+          chatMode: requestModeRef.current,
         };
         setHistory((h) => [...h, historyItem]);
       }
+
+      requestModeRef.current = mode;
+      setCurrentRoundChatMode(mode);
 
       // ── 初始化当前轮次 ─────────────────────────────────────────────────────────
       const now = Date.now();
@@ -865,5 +890,6 @@ export function useChat() {
     sessionList,
     switchSession,
     newSession,
+    currentRoundChatMode,
   };
 }

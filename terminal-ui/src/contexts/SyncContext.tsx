@@ -10,7 +10,7 @@
 import React from "react";
 import { createSimpleContext } from "./helper.js";
 import { useChat } from "../useChat.js";
-import type { StreamState } from "../types.js";
+import type { StreamState, ChatMode } from "../types.js";
 import type {
   PendingRootRequest,
   HistoryItem,
@@ -27,6 +27,8 @@ export interface SyncContextValue {
   currentSentAt: number;
   /** 当前轮次 Secbot 响应的完成时刻（Date.now()），0 表示尚未完成 */
   currentCompletedAt: number;
+  /** 当前轮次请求使用的模式（ask 下去重展示等） */
+  currentRoundChatMode: ChatMode;
   apiOutput: string | null;
   pendingRootRequest: PendingRootRequest | null;
   setPendingRootRequest: React.Dispatch<
@@ -53,6 +55,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         currentUserMessage: value.currentUserMessage,
         currentSentAt: value.currentSentAt,
         currentCompletedAt: value.currentCompletedAt,
+        currentRoundChatMode: value.currentRoundChatMode,
         apiOutput: value.apiOutput,
         pendingRootRequest: value.pendingRootRequest,
         setPendingRootRequest: value.setPendingRootRequest,
