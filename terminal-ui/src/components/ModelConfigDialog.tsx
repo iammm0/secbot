@@ -553,7 +553,7 @@ export function ModelConfigDialog() {
           是否将默认推理后端切换为「{confirmSwitchProvider.name}」？
         </Text>
         <Box marginTop={1}>
-          <Text color={theme.textMuted}>Enter / Y 确认 · N / Esc 取消</Text>
+          <Text color={theme.textMuted}>Enter / Y 确认 · N / Esc 返回（放弃本次切换）</Text>
         </Box>
       </Box>
     );
