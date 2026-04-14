@@ -21,6 +21,14 @@ interface ParsedAction {
 
 type OnEventCallback = (event: BusEvent) => void;
 
+const REACT_OPERATING_POLICY =
+  '【工作模式】执行优先：在具备授权前提下优先给出可落地步骤、命令和工具调用；' +
+  '若缺关键参数，先提出最少澄清问题再继续。\n' +
+  '【上下文约束】必须优先使用已提供的 RecentSession / SQLiteHistory / VectorMemory；' +
+  '不得忽略上下文重复询问已知信息。\n' +
+  '【安全边界】禁止无授权的破坏性/越权攻击；涉及高风险命令时先说明影响并给出确认建议。\n' +
+  '【输出要求】每轮给出：当前结论、依据证据、下一步动作。';
+
 export class SecurityReActAgent extends BaseAgent {
   private readonly toolsDict: Map<string, BaseTool>;
   private readonly tools: BaseTool[];
@@ -65,8 +73,9 @@ export class SecurityReActAgent extends BaseAgent {
     this.addMessage('user', userInput);
 
     const clientShell = options?.client_shell as ClientShellPayload | undefined;
+    const contextBlock = options?.contextBlock as string | undefined;
     const messages: ChatMessage[] = [
-      { role: 'system', content: this.buildSystemMessage(clientShell) },
+      { role: 'system', content: this.buildSystemMessage(clientShell, contextBlock) },
       ...this.getConversationHistory().map(
         (m: AgentMessage): ChatMessage => ({
           role: m.role as ChatMessage['role'],
@@ -303,8 +312,9 @@ export class SecurityReActAgent extends BaseAgent {
       `execute_command 必须提供 command。）`;
 
     const clientShell = options?.client_shell as ClientShellPayload | undefined;
+    const contextBlock = options?.contextBlock as string | undefined;
     const messages: ChatMessage[] = [
-      { role: 'system', content: this.buildSystemMessage(clientShell) },
+      { role: 'system', content: this.buildSystemMessage(clientShell, contextBlock) },
       { role: 'user', content: prompt },
     ];
 
@@ -389,10 +399,12 @@ export class SecurityReActAgent extends BaseAgent {
     return match ? match[1].trim() : null;
   }
 
-  private buildSystemMessage(clientShell?: ClientShellPayload): string {
+  private buildSystemMessage(clientShell?: ClientShellPayload, contextBlock?: string): string {
     const shellBlock = formatClientShellContextBlock(clientShell);
     return (
       `${this.systemPrompt}\n\n` +
+      `${REACT_OPERATING_POLICY}\n\n` +
+      (contextBlock ? `【已注入上下文】\n${contextBlock}\n\n` : '') +
       (shellBlock ? `${shellBlock}\n\n` : '') +
       `你是一个ReAct (Reasoning + Acting) 安全测试代理。` +
       `请使用 Think -> Action -> Observation 循环来完成任务。\n\n` +

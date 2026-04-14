@@ -7,6 +7,8 @@ import {
   createSession,
   TodoItem,
   InteractionSummary,
+  MessageRole,
+  addSessionMessage,
 } from '../../common/types';
 import { route, routeWithLLM } from '../agents/core/agent-router';
 import { QAAgent } from '../agents/core/qa-agent';
@@ -19,6 +21,7 @@ import { TaskExecutor } from '../agents/core/task-executor';
 import { ChatRequestDto, ChatResponseDto } from './dto/chat.dto';
 import { ToolsService } from '../tools/tools.service';
 import { DatabaseService } from '../database/database.service';
+import { ContextAssemblerService } from './context-assembler.service';
 
 /** 与 SecurityReActAgent 中 THINK/EXEC 事件的 step 关联键一致，避免并行子任务共用 iteration 导致前端时间线串台 */
 function sseStepKey(data: Record<string, unknown>, iteration: number): string {
@@ -91,12 +94,13 @@ export class ChatService {
   private summaryAgent: SummaryAgent;
   private agents: Record<string, SecurityReActAgent>;
   private sessions = new Map<string, Session>();
-  private currentSessionId = 'default';
+  private readonly defaultSessionId = 'default';
 
   constructor(
     private readonly config: ConfigService,
     private readonly toolsService: ToolsService,
     private readonly databaseService: DatabaseService,
+    private readonly contextAssembler: ContextAssemblerService,
   ) {
     this.qaAgent = new QAAgent();
     this.plannerAgent = new PlannerAgent();
@@ -107,8 +111,8 @@ export class ChatService {
     this.agents = { hackbot, superhackbot };
 
     this.sessions.set(
-      this.currentSessionId,
-      createSession({ id: this.currentSessionId, agentType: 'hackbot' }),
+      this.defaultSessionId,
+      createSession({ id: this.defaultSessionId, agentType: 'hackbot' }),
     );
   }
 
@@ -117,38 +121,61 @@ export class ChatService {
     onSSEEvent?: (eventName: string, data: Record<string, unknown>) => void,
   ): Promise<string> {
     const { message, mode, agent: agentType, client_shell: clientShell } = body;
+    const sessionId = (body.session_id ?? '').trim() || this.defaultSessionId;
     const forceQA = mode === 'ask';
     const forceAgent = mode === 'agent';
+    this.getOrCreateSession(sessionId, agentType);
+    this.appendSessionMessage(sessionId, MessageRole.USER, message);
+    const session = this.getOrCreateSession(sessionId, agentType);
 
     const emit = (name: string, data: Record<string, unknown>) => {
       onSSEEvent?.(name, data);
     };
 
     emit('connected', { message: 'stream started' });
+    const context = await this.contextAssembler.build({
+      query: message,
+      session,
+      sessionId,
+      agentType: agentType || 'hackbot',
+    });
+    if (process.env.SECBOT_CONTEXT_DEBUG === '1' || process.env.SECBOT_CONTEXT_DEBUG === 'true') {
+      emit('context_debug', {
+        session_id: sessionId,
+        ...context.debug,
+      });
+    }
 
     if (forceQA) {
-      const session = this.getOrCreateSession();
       const history = session.messages.map((m) => ({
-        role: m.role,
+        role: m.role as 'system' | 'user' | 'assistant',
         content: m.content,
       }));
-      const answer = await this.qaAgent.answerWithContext(message, history);
+      const answer = await this.qaAgent.answerWithContext(message, history, context.contextBlock);
       emit('content', { content: answer });
       emit('response', { content: answer, agent: 'qa' });
       emit('done', {});
-      // 保存对话到数据库
-      this.saveConversation(message, answer, agentType || 'qa');
+      this.persistTurn({
+        sessionId,
+        userMessage: message,
+        assistantMessage: answer,
+        agentType: agentType || 'qa',
+      });
       return answer;
     }
 
     const [routeResult] = await this.routeMessage(message);
     if (routeResult === 'qa' && !forceAgent) {
-      const answer = await this.qaAgent.answer(message);
+      const answer = await this.qaAgent.answer(message, context.contextBlock);
       emit('content', { content: answer });
       emit('response', { content: answer, agent: 'qa' });
       emit('done', {});
-      // 保存对话到数据库
-      this.saveConversation(message, answer, 'qa');
+      this.persistTurn({
+        sessionId,
+        userMessage: message,
+        assistantMessage: answer,
+        agentType: 'qa',
+      });
       return answer;
     }
 
@@ -164,8 +191,12 @@ export class ChatService {
       emit('content', { content: planResult.directResponse });
       emit('response', { content: planResult.directResponse, agent: agentType });
       emit('done', {});
-      // 保存对话到数据库
-      this.saveConversation(message, planResult.directResponse, agentType || 'hackbot');
+      this.persistTurn({
+        sessionId,
+        userMessage: message,
+        assistantMessage: planResult.directResponse,
+        agentType: agentType || 'hackbot',
+      });
       return planResult.directResponse;
     }
 
@@ -212,7 +243,7 @@ export class ChatService {
 
     if (planResult.todos.length > 1) {
       const executor = new TaskExecutor(planResult, selectedAgent, this.eventBus);
-      const firstRun = await executor.run(message, onAgentEvent, clientShell);
+      const firstRun = await executor.run(message, onAgentEvent, clientShell, context.contextBlock);
 
       /** 默认开启穿插规划；设置 SECBOT_ADAPTIVE_REPLAN=0 或 false 可关闭 */
       const adaptiveOff =
@@ -228,11 +259,15 @@ export class ChatService {
           todosForSummary = [...todosForSummary, ...subPlan.todos];
           emit('phase', { phase: 'executing', detail: '执行穿插任务…' });
           const followUpExecutor = new TaskExecutor(subPlan, selectedAgent, this.eventBus);
-          await followUpExecutor.run(message, onAgentEvent, clientShell);
+          await followUpExecutor.run(message, onAgentEvent, clientShell, context.contextBlock);
         }
       }
     } else {
-      await selectedAgent.process(message, { onEvent: onAgentEvent, client_shell: clientShell });
+      await selectedAgent.process(message, {
+        onEvent: onAgentEvent,
+        client_shell: clientShell,
+        contextBlock: context.contextBlock,
+      });
     }
 
     emit('phase', { phase: 'summarizing', detail: '正在生成报告...' });
@@ -252,9 +287,13 @@ export class ChatService {
 
     emit('response', { content: streamPayload.response, agent: agentType });
     emit('done', {});
-    // 保存对话到数据库（包含完整报告）
     const fullResponse = `${streamPayload.response}\n\n--- 详细报告 ---\n${streamPayload.report}`;
-    this.saveConversation(message, fullResponse, agentType || 'hackbot');
+    this.persistTurn({
+      sessionId,
+      userMessage: message,
+      assistantMessage: fullResponse,
+      agentType: agentType || 'hackbot',
+    });
     return streamPayload.response;
   }
 
@@ -280,27 +319,44 @@ export class ChatService {
     }
   }
 
-  private getOrCreateSession(): Session {
-    let session = this.sessions.get(this.currentSessionId);
+  private getOrCreateSession(sessionId: string, agentType?: string): Session {
+    let session = this.sessions.get(sessionId);
     if (!session) {
-      session = createSession({ id: this.currentSessionId });
-      this.sessions.set(this.currentSessionId, session);
+      session = createSession({ id: sessionId, agentType: agentType || 'hackbot' });
+      this.sessions.set(sessionId, session);
     }
     return session;
   }
 
-  private saveConversation(userMessage: string, assistantMessage: string, agentType: string): void {
+  private appendSessionMessage(sessionId: string, role: MessageRole, content: string): void {
+    const current = this.getOrCreateSession(sessionId);
+    this.sessions.set(sessionId, addSessionMessage(current, role, content));
+  }
+
+  private persistTurn(params: {
+    sessionId: string;
+    userMessage: string;
+    assistantMessage: string;
+    agentType: string;
+  }): void {
+    const { sessionId, userMessage, assistantMessage, agentType } = params;
+    this.appendSessionMessage(sessionId, MessageRole.ASSISTANT, assistantMessage);
     try {
       this.databaseService.saveConversation({
         agentType,
         userMessage,
         assistantMessage,
-        sessionId: this.currentSessionId,
+        sessionId,
         timestamp: new Date().toISOString(),
         metadata: '{}',
       });
+      void this.contextAssembler.rememberTurn({
+        sessionId,
+        agentType,
+        userMessage,
+        assistantMessage,
+      });
     } catch (error) {
-      // 保存失败不阻塞主流程，仅记录
       console.error('Failed to save conversation:', error);
     }
   }

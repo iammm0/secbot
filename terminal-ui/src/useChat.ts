@@ -455,6 +455,7 @@ export function useChat() {
         "/api/chat",
         {
           message,
+          session_id: sid,
           mode,
           agent,
           client_shell: buildClientShellPayload(),

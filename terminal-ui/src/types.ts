@@ -10,6 +10,7 @@ export type ChatMode = "ask" | "agent";
 
 export interface ChatRequest {
   message: string;
+  session_id?: string;
   mode?: ChatMode;
   agent?: string;
   prompt?: string | null;
