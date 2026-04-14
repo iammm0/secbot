@@ -74,6 +74,16 @@ function normalizeErrorMessage(error: string): string {
 }
 
 /**
+ * ErrorBlock 已单独渲染错误标题行，正文为纯文本；去掉旧的 **错误** Markdown 前缀，避免终端里出现残缺星号。
+ */
+function stripDuplicateErrorHeadingForBlock(error: string): string {
+  return error
+    .replace(/^\s*\*{1,2}\s*错误\s*\*{1,2}\s*[:：]?\s*(\n\s*)+/i, "")
+    .replace(/^\s*错误\s*[:：]\s*(\n\s*)+/i, "")
+    .trim();
+}
+
+/**
  * 从混合文本中提取纯 Thought 内容，避免 Action/Observation/Final Answer 挤入推理块。
  */
 function extractThoughtOnly(raw: string): string {
@@ -238,7 +248,8 @@ export function streamStateToBlocks(
 
   if (error) {
     const normalized = normalizeErrorMessage(error);
-    const body = `**错误**\n\n${normalized}`;
+    const body =
+      stripDuplicateErrorHeadingForBlock(normalized) || "发生错误";
     const lineEnd = lineStart + blockLines(undefined, body);
     blocks.push({ id: "error", type: "error", body, lineStart, lineEnd });
     lineStart = lineEnd;
