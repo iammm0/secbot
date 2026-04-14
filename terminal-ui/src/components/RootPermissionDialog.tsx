@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
+import { isInkEscape } from '../contexts/KeybindContext.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { api } from '../api.js';
 
@@ -41,7 +42,7 @@ export function RootPermissionDialog({ requestId, command, onResolve }: RootPerm
   };
 
   useInput((input, key) => {
-    if (key.escape) {
+    if (isInkEscape(input, key)) {
       if (step === 'password') {
         setStep('choose');
         setAction(null);

@@ -1,6 +1,6 @@
 {
   "name": "@opensec/secbot",
-  "version": "2.0.3",
+  "version": "2.0.4-b1",
   "description": "Secbot pure TypeScript security automation backend and CLI.",
   "type": "commonjs",
   "private": false,
@@ -45,7 +45,7 @@
     "release:verify": "node scripts/verify_release_package.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "keywords": [
     "security",

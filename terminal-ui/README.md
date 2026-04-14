@@ -4,7 +4,7 @@
 
 ## 要求
 
-- Node.js 18+
+- Node.js 24+
 - 真实终端 TTY（否则 Ink 会报 raw mode 错误）
 - 若使用默认子进程模式：本地可用的 `server/dist/main.js`（在仓库根执行 `npm run build` 可生成）
 - 若使用服务模式：可访问的 Secbot 后端地址
@@ -15,8 +15,8 @@
   - `spawn`：本地拉起后端子进程
   - `service`：仅连接已有后端
   - `remote`：`service` 的兼容别名
-  - `auto`：兼容模式（存在 `SECBOT_API_URL` 时走 `service`，否则走 `spawn`）
-- **SECBOT_API_URL** 或 **BASE_URL**：后端 API 根地址（`service`/`auto` 常用）
+  - `auto`：兼容模式，默认仍优先 `spawn`
+- **SECBOT_API_URL** 或 **BASE_URL**：后端 API 根地址（主要用于 `service`/`remote`）
 - CLI 参数：
   - `--spawn` / `--spawn-backend` / `-s`
   - `--service` / `--remote` / `-r`

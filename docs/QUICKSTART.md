@@ -12,7 +12,7 @@ cd secbot
 npm install
 ```
 
-> 要求 Node.js 18+ 和 npm。
+> 要求 Node.js 24+ 和 npm。
 
 ### 1.2 新建 `.env`
 
@@ -157,7 +157,7 @@ npx secbot
 优先检查：
 
 - `terminal-ui/node_modules` 是否已生成
-- `node -v` 是否满足 `18+`
+- `node -v` 是否满足 `24+`
 - 后端是否已在 `8000` 端口启动
 
 ### 6.3 Ollama 连接失败

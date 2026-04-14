@@ -39,7 +39,7 @@
 
 建议把容器化范围限制在**后端 API**，并显式配置：
 
-- Node.js 18+ 运行时（推荐使用 `node:18-alpine` 基础镜像）
+- Node.js 24+ 运行时（推荐使用 `node:24-alpine` 基础镜像）
 - `npm install` 安装依赖
 - `npm run build` 构建 TypeScript
 - `.env` 注入
@@ -49,7 +49,7 @@
 参考 Dockerfile 示例：
 
 ```dockerfile
-FROM node:18-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 

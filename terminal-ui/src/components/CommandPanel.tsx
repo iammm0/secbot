@@ -4,7 +4,7 @@ import { Box, Text, useInput } from 'ink';
 import { useCommand } from '../contexts/CommandContext.js';
 import { useDialog } from '../contexts/DialogContext.js';
 import { useTheme } from '../contexts/ThemeContext.js';
-import { useKeybind } from '../contexts/KeybindContext.js';
+import { isInkEscape, useKeybind } from '../contexts/KeybindContext.js';
 import type { KeybindId } from '../contexts/KeybindContext.js';
 import type { CommandOption } from '../contexts/CommandContext.js';
 
@@ -30,7 +30,7 @@ export function CommandPanel() {
   const safeIndex = Math.min(selectedIndex, Math.max(0, filtered.length - 1));
 
   useInput((input, key) => {
-    if (key.escape) {
+    if (isInkEscape(input, key)) {
       close();
       return;
     }

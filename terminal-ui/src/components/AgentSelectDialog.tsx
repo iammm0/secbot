@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useDialog } from '../contexts/DialogContext.js';
+import { isInkEscape } from '../contexts/KeybindContext.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useLocal } from '../contexts/LocalContext.js';
 import { useToast } from '../contexts/ToastContext.js';
@@ -23,8 +24,8 @@ export function AgentSelectDialog() {
     return idx >= 0 ? idx : 0;
   });
 
-  useInput((_input, key) => {
-    if (key.escape) {
+  useInput((input, key) => {
+    if (isInkEscape(input, key)) {
       pop();
       return;
     }

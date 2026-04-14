@@ -4,7 +4,7 @@
 
 **AI-Powered Automated Security Testing Platform**
 
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24%2B-339933.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
 [![Version](https://img.shields.io/badge/version-2.0.3-brightgreen.svg)](package.json)
 [![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
@@ -97,7 +97,7 @@ flowchart LR
 
 ## Requirements
 
-- **Node.js** 18+
+- **Node.js** 24+
 - **npm** (bundled with Node.js)
 - **Ollama** (optional, for local model inference)
 
@@ -177,7 +177,7 @@ npm run start:tui     # Terminal TUI (default: spawn local backend)
 | `OLLAMA_BASE_URL` | Ollama service URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama model | `gemma3:1b` |
 | `PORT` | Backend listen port | `8000` |
-| `SECBOT_TUI_BACKEND` | TUI backend mode: `spawn` / `service` / `remote` / `auto` | auto-resolve (defaults to `spawn`) |
+| `SECBOT_TUI_BACKEND` | TUI backend mode: `spawn` / `service` / `remote` / `auto` | prefer `spawn`; use `service`/`remote` explicitly for existing backends |
 
 ### Slash Commands (inside TUI)
 

@@ -4,6 +4,7 @@
 import React, { useCallback, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { useDialog } from "../contexts/DialogContext.js";
+import { isInkEscape } from "../contexts/KeybindContext.js";
 import { useTheme } from "../contexts/ThemeContext.js";
 import { useToast } from "../contexts/ToastContext.js";
 import type { SessionListEntry } from "../useChat.js";
@@ -26,8 +27,8 @@ export function SessionSelectDialog({
   });
 
   const handleInput = useCallback(
-    (_input: string, key: { escape?: boolean; upArrow?: boolean; downArrow?: boolean; return?: boolean }) => {
-      if (key.escape) {
+    (input: string, key: { escape?: boolean; upArrow?: boolean; downArrow?: boolean; return?: boolean }) => {
+      if (isInkEscape(input, key)) {
         pop();
         return;
       }
