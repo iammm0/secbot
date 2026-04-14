@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as path from 'path';
 import {
   OllamaModelsResponseDto,
   ProviderListResponseDto,
@@ -27,7 +26,7 @@ export class SystemService {
   constructor(
     private readonly db: DatabaseService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   private modelEnvKey(providerId: string): string {
     return `${providerId.toUpperCase().replace(/-/g, '_')}_MODEL`;

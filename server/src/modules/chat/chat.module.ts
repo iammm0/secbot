@@ -12,4 +12,4 @@ import { ContextAssemblerService } from './context-assembler.service';
   providers: [ChatService, ContextAssemblerService],
   exports: [ChatService],
 })
-export class ChatModule { }
+export class ChatModule {}

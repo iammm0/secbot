@@ -36,7 +36,11 @@ export function redactSensitiveText(input: string): string {
 function classifyUpstreamLlmError(raw: string): ClientErrorBody | null {
   const lower = raw.toLowerCase();
 
-  if (/\bhttp\s*401\b/.test(raw) || /\b401\b.*unauth/i.test(raw) || lower.includes('authentication fails')) {
+  if (
+    /\bhttp\s*401\b/.test(raw) ||
+    /\b401\b.*unauth/i.test(raw) ||
+    lower.includes('authentication fails')
+  ) {
     return {
       statusCode: HttpStatus.BAD_GATEWAY,
       code: 'LLM_AUTH_FAILED',
@@ -44,14 +48,22 @@ function classifyUpstreamLlmError(raw: string): ClientErrorBody | null {
         '模型服务认证失败。请在「模型配置」中检查 API Key 是否与当前厂商及 API 地址一致，或确认密钥未过期。',
     };
   }
-  if (/\bhttp\s*403\b/.test(raw) || lower.includes('permission denied') || lower.includes('forbidden')) {
+  if (
+    /\bhttp\s*403\b/.test(raw) ||
+    lower.includes('permission denied') ||
+    lower.includes('forbidden')
+  ) {
     return {
       statusCode: HttpStatus.BAD_GATEWAY,
       code: 'LLM_FORBIDDEN',
       message: '模型服务拒绝访问。请确认账号权限或所请求的资源是否可用。',
     };
   }
-  if (/\bhttp\s*429\b/.test(raw) || lower.includes('rate limit') || lower.includes('too many requests')) {
+  if (
+    /\bhttp\s*429\b/.test(raw) ||
+    lower.includes('rate limit') ||
+    lower.includes('too many requests')
+  ) {
     return {
       statusCode: HttpStatus.BAD_GATEWAY,
       code: 'LLM_RATE_LIMIT',
@@ -71,7 +83,9 @@ function classifyUpstreamLlmError(raw: string): ClientErrorBody | null {
   }
   if (
     /\bhttp\s*404\b/.test(raw) &&
-    (lower.includes('openai-compat') || lower.includes('chat/completions') || lower.includes('/v1/'))
+    (lower.includes('openai-compat') ||
+      lower.includes('chat/completions') ||
+      lower.includes('/v1/'))
   ) {
     return {
       statusCode: HttpStatus.BAD_GATEWAY,
@@ -124,7 +138,9 @@ export function mapExceptionToClientBody(exception: unknown): ClientErrorBody {
       const m = o['message'];
       if (Array.isArray(m)) {
         message = m
-          .map((x) => (typeof x === 'string' ? redactSensitiveText(x) : redactSensitiveText(String(x))))
+          .map((x) =>
+            typeof x === 'string' ? redactSensitiveText(x) : redactSensitiveText(String(x)),
+          )
           .join('; ');
       } else if (typeof m === 'string') {
         message = redactSensitiveText(m);

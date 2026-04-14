@@ -17,7 +17,7 @@ import type {
 export class DatabaseService implements OnModuleInit {
   private db!: Database.Database;
 
-  constructor(private readonly config: ConfigService) { }
+  constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
     const dbPath = this.config.get<string>('app.databasePath', 'data/opencomsagent.db');
@@ -49,7 +49,7 @@ export class DatabaseService implements OnModuleInit {
     const syncPrefixes = ['llm.', 'database.', 'log.', 'server.'];
 
     for (const [dotKey, value] of Object.entries(flat)) {
-      if (!syncPrefixes.some(p => dotKey.startsWith(p))) continue;
+      if (!syncPrefixes.some((p) => dotKey.startsWith(p))) continue;
       if (value === '' || value === undefined) continue;
 
       const sqliteKey = toSqliteKey(dotKey);
