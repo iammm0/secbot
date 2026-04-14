@@ -12,7 +12,7 @@
  */
 import React, { useEffect, useRef, useMemo, useState } from "react";
 import { Box, Text } from "ink";
-import type { StreamState } from "./types.js";
+import type { StreamState, ChatMode } from "./types.js";
 import type { ContentBlock as ContentBlockType } from "./types.js";
 import type { HistoryItem } from "./useChat.js";
 import { streamStateToBlocks } from "./contentBlocks.js";
@@ -86,6 +86,8 @@ interface MainContentProps {
   currentSentAt?: number;
   /** 当前轮次 Secbot 响应的完成时刻（Date.now()），0 表示尚未完成 */
   currentCompletedAt?: number;
+  /** 当前轮次请求模式（ask 下与历史项各自 chatMode 一起参与去重渲染） */
+  currentRoundChatMode?: ChatMode;
 }
 
 // ─── 组件 ──────────────────────────────────────────────────────────────────────
@@ -103,6 +105,7 @@ export function MainContent({
   currentUserMessage = "",
   currentSentAt = 0,
   currentCompletedAt = 0,
+  currentRoundChatMode = "agent",
 }: MainContentProps) {
   const [dismissedTransientTools, setDismissedTransientTools] = useState<
     Set<string>
@@ -159,6 +162,7 @@ export function MainContent({
         dismissedTransientTools,
         item.sentAt > 0 ? item.sentAt : undefined,
         item.completedAt > 0 ? item.completedAt : undefined,
+        item.chatMode ?? "agent",
       ).map((b) => ({
         ...b,
         id: `h${idx}-${b.id}`,
@@ -197,6 +201,7 @@ export function MainContent({
       dismissedTransientTools,
       currentSentAt > 0 ? currentSentAt : undefined,
       currentCompletedAt > 0 ? currentCompletedAt : undefined,
+      currentRoundChatMode,
     ).map((b) => ({
       ...b,
       id: `c-${b.id}`,
@@ -215,6 +220,7 @@ export function MainContent({
     currentUserMessage,
     currentSentAt,
     currentCompletedAt,
+    currentRoundChatMode,
   ]);
 
   // ── 滚动计算 ──────────────────────────────────────────────────────────────────
