@@ -15,6 +15,7 @@ import { LogLevelDialog } from './components/LogLevelDialog.js';
 import { RestResultDialog } from './components/RestResultDialog.js';
 import { AgentSelectDialog } from './components/AgentSelectDialog.js';
 import { SessionSelectDialog } from './components/SessionSelectDialog.js';
+import { ToolsDialog } from './components/ToolsDialog.js';
 import { HELP_TOOLS_TEXT } from './slash.js';
 import { HomeView } from './views/HomeView.js';
 import { SessionView } from './views/SessionView.js';
@@ -206,38 +207,13 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         },
       }),
       register({
-        title: '内置工具（数量与种类）',
+        title: '内置工具（分类浏览）',
         value: '/tools',
         category: 'REST',
         slash: '/tools',
         onSelect: ({ close }) => {
           close();
-          dialog.replace(
-            <RestResultDialog
-              title="SECBOT 内置工具"
-              fetchContent={() =>
-                api.get<{
-                  total: number;
-                  basic_count: number;
-                  advanced_count: number;
-                  categories: Array<{ name: string; count: number; tools: Array<{ name: string; description: string }> }>;
-                }>('/api/tools').then((r) => {
-                  const lines: string[] = [
-                    `总计: ${r.total} 个（基础 ${r.basic_count}，高级 ${r.advanced_count}）`,
-                    '',
-                  ];
-                  for (const cat of r.categories ?? []) {
-                    lines.push(`【${cat.name}】${cat.count} 个`);
-                    for (const t of cat.tools ?? []) {
-                      lines.push(`  ${t.name.padEnd(22)} — ${t.description}`);
-                    }
-                    lines.push('');
-                  }
-                  return lines.join('\n');
-                })
-              }
-            />
-          );
+          dialog.replace(<ToolsDialog />);
         },
       }),
     ];

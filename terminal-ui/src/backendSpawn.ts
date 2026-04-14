@@ -147,16 +147,28 @@ export async function spawnBackendChild(): Promise<SpawnedBackend> {
   const port = await resolveSpawnPort();
   const baseUrl = `http://127.0.0.1:${port}`;
 
+  // 将后端日志写入文件，避免干扰 TUI 显示
+  const logDir = path.join(pkgRoot, 'logs');
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+  const logFile = path.join(logDir, 'backend-runtime.log');
+  const out = fs.openSync(logFile, 'a');
+  const err = fs.openSync(logFile, 'a');
+
   const child = spawn(process.execPath, [entry], {
     cwd: pkgRoot,
     env: {
       ...process.env,
       PORT: port,
     },
-    stdio: 'inherit',
+    stdio: ['ignore', out, err],
     shell: false,
     windowsHide: true,
   });
+
+  // 记录启动时间
+  fs.writeSync(out, `\n[${new Date().toISOString()}] Backend starting on port ${port}\n`);
 
   const ready = await waitForBackendReady(baseUrl, 25000);
   if (!ready) {
