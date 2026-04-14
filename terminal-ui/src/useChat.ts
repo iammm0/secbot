@@ -790,12 +790,22 @@ export function useChat() {
                 });
                 break;
 
-              case "error":
+              case "error": {
+                const base =
+                  (data.error as string)?.trim() || "发生未知错误";
+                const code = String((data as { code?: string }).code ?? "");
+                let message = base;
+                if (code === "LLM_AUTH_FAILED") {
+                  message = `${base}\n\n可输入 /model 打开模型配置向导，检查 API Key 与厂商地址。`;
+                } else if (code === "LLM_NETWORK" || code === "LLM_UNAVAILABLE") {
+                  message = `${base}\n\n请确认后端已启动且本机网络正常。`;
+                }
                 setStreamState((s) => ({
                   ...s,
-                  error: (data.error as string) ?? "Unknown error",
+                  error: message,
                 }));
                 break;
+              }
 
               case "response": {
                 // Typewriter 效果：即使 API 一次性返回全文，也逐步揭示
@@ -837,7 +847,17 @@ export function useChat() {
 
           onError: (err) => {
             clearTypewriter();
-            setStreamState((s) => ({ ...s, error: err.message }));
+            const raw = err.message || String(err);
+            const lower = raw.toLowerCase();
+            const friendly =
+              lower.includes("aborted") || lower.includes("abort")
+                ? "请求已取消。"
+                : lower.includes("failed to fetch") ||
+                    lower.includes("networkerror") ||
+                    lower.includes("econnrefused")
+                  ? "无法连接服务端，请确认后端已启动且 SECBOT_API_URL 正确。"
+                  : raw;
+            setStreamState((s) => ({ ...s, error: friendly }));
             completedAtRef.current = Date.now();
             setCurrentCompletedAt(Date.now());
             setStreaming(false);
