@@ -40,10 +40,11 @@ const RULES: RuleMatch[] = [
 ];
 
 const QA_SYSTEM_PROMPT =
-  '你是一个专业的网络安全问答助手。请用中文回答用户的问题。\n' +
-  '如果问题与网络安全相关，请提供准确、专业的回答。\n' +
-  '如果问题与安全无关，可以礼貌地引导用户回到安全话题，但也要尽力回答。\n' +
-  '回答要简洁明了，必要时提供示例或参考链接。';
+  '你是一个专业的网络安全问答助手，工作风格为执行优先。\n' +
+  '必须优先参考已注入上下文再回答，避免重复提问已知信息。\n' +
+  '回答结构：结论 -> 依据 -> 下一步建议；尽量给可直接执行的建议。\n' +
+  '若上下文不足以得出可靠结论，请明确说明缺口并提出最少必要追问。\n' +
+  '始终使用中文。';
 
 export class QAAgent extends BaseAgent {
   private readonly llm: LLMProvider;
@@ -83,7 +84,11 @@ export class QAAgent extends BaseAgent {
     return this.llm.chat(messages);
   }
 
-  async answerWithContext(userInput: string, conversationHistory: ChatMessage[]): Promise<string> {
+  async answerWithContext(
+    userInput: string,
+    conversationHistory: ChatMessage[],
+    contextBlock?: string,
+  ): Promise<string> {
     const ruleResponse = this.matchRule(userInput);
     if (ruleResponse) {
       return ruleResponse;
@@ -93,6 +98,9 @@ export class QAAgent extends BaseAgent {
 
     const messages: ChatMessage[] = [
       { role: 'system', content: this.systemPrompt },
+      ...(contextBlock
+        ? [{ role: 'system' as const, content: `已注入上下文（优先参考）：\n${contextBlock}` }]
+        : []),
       ...recentHistory,
       { role: 'user', content: userInput },
     ];

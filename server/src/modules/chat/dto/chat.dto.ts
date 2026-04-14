@@ -27,6 +27,10 @@ export class ChatRequestDto {
   @IsString()
   message!: string;
 
+  @IsOptional()
+  @IsString()
+  session_id?: string;
+
   @IsIn(['ask', 'agent'])
   mode: ChatMode = 'agent';
 

@@ -29,6 +29,7 @@ export class TaskExecutor {
     userInput: string,
     onEvent?: OnEventCallback,
     clientShell?: ClientShellPayload,
+    contextBlock?: string,
   ): Promise<{ summary: string; cancelledCount: number }> {
     const layers = this.planner.getExecutionOrder(this.plan.todos);
     const results: string[] = [];
@@ -77,6 +78,7 @@ export class TaskExecutor {
           const result = (await this.agent.executeTodo(todo, userInput, {
             onEvent,
             client_shell: clientShell,
+            contextBlock,
           })) as {
             success?: boolean;
             error?: string;
