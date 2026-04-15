@@ -1,4 +1,4 @@
-# @opensec/secbot (TypeScript)
+# @opensec/secbot (TypeScript) - v2.0.0-b1
 
 [![npm version](https://img.shields.io/npm/v/@opensec/secbot.svg)](https://www.npmjs.com/package/@opensec/secbot)
 [![npm downloads](https://img.shields.io/npm/dm/@opensec/secbot.svg)](https://www.npmjs.com/package/@opensec/secbot)
