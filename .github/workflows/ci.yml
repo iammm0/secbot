@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, main-ts-version]
+    branches: [main, main-ts-version, npm-release]
   pull_request:
-    branches: [main, main-ts-version]
+    branches: [main, main-ts-version, npm-release]
 
 permissions:
   contents: read
