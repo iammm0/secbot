@@ -200,14 +200,19 @@ async function main() {
 
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'secbot-release-verify-'));
   log(`Using temp directory: ${tempDir}`);
+  const npmCacheDir = path.join(tempDir, '.npm-cache');
+  const npmEnv = {
+    ...process.env,
+    npm_config_cache: npmCacheDir,
+  };
 
   let serverProc = null;
   let serverStdout = '';
   let serverStderr = '';
 
   try {
-    await runNpm(['init', '-y'], { cwd: tempDir, stdio: 'ignore' });
-    await runNpm(['install', tarballPath, '--silent'], { cwd: tempDir });
+    await runNpm(['init', '-y'], { cwd: tempDir, stdio: 'ignore', env: npmEnv });
+    await runNpm(['install', tarballPath, '--silent'], { cwd: tempDir, env: npmEnv });
 
     const rootPkg = parseJsonText(
       await fsp.readFile(path.join(REPO_ROOT, 'package.json'), 'utf8'),
