@@ -51,12 +51,7 @@ export class QAAgent extends BaseAgent {
 
   constructor() {
     super('QA', QA_SYSTEM_PROMPT);
-    this.llm = createLLM({
-      provider: process.env.LLM_PROVIDER ?? 'ollama',
-      model: process.env.LLM_MODEL,
-      baseUrl: process.env.LLM_BASE_URL,
-      apiKey: process.env.LLM_API_KEY,
-    });
+    this.llm = createLLM();
   }
 
   async process(userInput: string, options?: Record<string, unknown>): Promise<string> {

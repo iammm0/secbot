@@ -206,12 +206,7 @@ export class DeepCrawlTool extends BaseTool {
       `简要摘要:`;
 
     try {
-      const llm = createLLM({
-        provider: process.env.LLM_PROVIDER ?? 'ollama',
-        model: process.env.LLM_MODEL,
-        baseUrl: process.env.LLM_BASE_URL,
-        apiKey: process.env.LLM_API_KEY,
-      });
+      const llm = createLLM();
       const result = await llm.chat([{ role: 'user', content: prompt }]);
       return result.trim();
     } catch {

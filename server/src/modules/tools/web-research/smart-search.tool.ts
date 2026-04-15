@@ -163,12 +163,7 @@ export class SmartSearchTool extends BaseTool {
       `4) Answer in Chinese.\n`;
 
     try {
-      const llm = createLLM({
-        provider: process.env.LLM_PROVIDER ?? 'ollama',
-        model: process.env.LLM_MODEL,
-        baseUrl: process.env.LLM_BASE_URL,
-        apiKey: process.env.LLM_API_KEY,
-      });
+      const llm = createLLM();
       const summary = await llm.chat([
         { role: 'system', content: '你是专业信息研究助手，擅长综合多源信息并输出简洁结论。' },
         { role: 'user', content: prompt },
