@@ -56,7 +56,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/iammm0/secbot.git"
+    "url": "https://github.com/iammm0/secbot.git"
   },
   "publishConfig": {
     "access": "public"

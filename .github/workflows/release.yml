@@ -1,15 +1,14 @@
 # 自动发布 npm 包 @opensec/secbot（以 2.0.3 / 标签 v2.0.3 为例）
 # 1. 确认根目录 package.json 的 version 与即将打的标签一致（如 2.0.3 对应标签 v2.0.3）。
-# 2. NPM_TOKEN（npm 账号若开启 2FA，必须二选一，否则会报 403：需 bypass 2FA 才能 publish）：
-#    · Granular Access Token：Packages 选 Read and write；创建时勾选「允许发布时绕过双因素认证」
-#      （英文界面类似 "Bypass two-factor authentication (2FA) for writes"，以 npm 网站为准）。
-#    · 或 Classic Token：类型必须选 Automation（勿用需 OTP 的 Publish 类令牌）。
-#    权限须覆盖 @opensec；GitHub Secret 名仍为 NPM_TOKEN。
-#    勿在仓库根目录提交含 //registry.../:_authToken 的 .npmrc（已 .gitignore）；与 PyPI 勿提交 .pypirc 同理。
+# 2. npmjs 发布采用 Trusted Publishing（GitHub Actions OIDC），无需 NPM_TOKEN：
+#    · 需在 npm 包页面 Settings -> Publishing access / Trusted publishers 中绑定 GitHub 仓库 iammm0/secbot。
+#    · workflow 文件名需与本文件一致（release.yml）。
+#    · package.json 的 repository.url 需与 GitHub 仓库匹配。
+#    · workflow permissions 需包含 id-token: write。
 # 3. git tag v2.0.3 && git push origin v2.0.3
-#    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm publish（npmjs）+
-#    GitHub Packages（仓库 Settings → Packages 可见；包名为 @<仓库所有者>/secbot，与 @opensec/secbot 并存）。
-#    工作流 permissions 需含 packages: write（已配置）；使用 GITHUB_TOKEN 认证 npm.pkg.github.com。
+#    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm trusted publish（npmjs）+
+#    GitHub Packages（仓库 Settings -> Packages 可见；包名为 @<仓库所有者>/secbot，与 @opensec/secbot 并存）。
+#    GitHub Packages 继续使用 GITHUB_TOKEN 认证 npm.pkg.github.com。
 
 name: Release
 
@@ -22,6 +21,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 jobs:
   build:
@@ -102,11 +102,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify npm registry authentication
-        run: npm whoami
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Publish to npm
         run: |
           PKG_VER="$(node -p "require('./package.json').version")"
@@ -115,8 +110,6 @@ jobs:
           else
             npm publish --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-github-packages:
     name: Publish to GitHub Packages
