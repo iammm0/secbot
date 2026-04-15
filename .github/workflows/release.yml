@@ -80,6 +80,7 @@ jobs:
         with:
           files: artifacts/*.tgz
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -107,7 +108,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          PKG_VER="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VER" == *-* ]]; then
+            npm publish --access public --tag next
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -140,6 +147,12 @@ jobs:
           GITHUB_REPOSITORY_OWNER: ${{ env.NPM_SCOPE_OWNER }}
 
       - name: Publish to GitHub Packages
-        run: npm publish
+        run: |
+          PKG_VER="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VER" == *-* ]]; then
+            npm publish --tag next
+          else
+            npm publish
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
