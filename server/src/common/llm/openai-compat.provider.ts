@@ -6,12 +6,53 @@ interface OpenAIChoice {
   delta?: { content?: string };
 }
 
+interface OpenAICompatProviderOptions {
+  onInvalidPersistedApiKey?: () => void;
+}
+
+function looksLikeInvalidApiKeyResponse(status: number, text: string): boolean {
+  const lower = text.toLowerCase();
+  if (status === 401) return true;
+  if (status === 403) {
+    return (
+      lower.includes('invalid api key') ||
+      lower.includes('invalid_api_key') ||
+      lower.includes('incorrect api key') ||
+      lower.includes('authentication') ||
+      lower.includes('unauthorized')
+    );
+  }
+  if (status === 400 || status === 422) {
+    return (
+      (lower.includes('api key') || lower.includes('token') || lower.includes('credential')) &&
+      (lower.includes('invalid') || lower.includes('incorrect') || lower.includes('missing'))
+    );
+  }
+  return false;
+}
+
 export class OpenAICompatProvider implements LLMProvider {
   constructor(
     private readonly baseUrl: string,
     private readonly apiKey: string,
     private readonly model: string,
+    private readonly options: OpenAICompatProviderOptions = {},
   ) {}
+
+  private clearInvalidPersistedApiKey(status: number, text: string): void {
+    if (!looksLikeInvalidApiKeyResponse(status, text)) return;
+    try {
+      this.options.onInvalidPersistedApiKey?.();
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
+
+  private async throwForFailedResponse(res: Response, mode: 'chat' | 'stream'): Promise<never> {
+    const text = await res.text();
+    this.clearInvalidPersistedApiKey(res.status, text);
+    throw new Error(`OpenAI-compat ${mode} failed: HTTP ${res.status} ${text.slice(0, 200)}`);
+  }
 
   async chat(messages: ChatMessage[]): Promise<string> {
     const res = await fetch(`${this.baseUrl}/v1/chat/completions`, {
@@ -23,8 +64,7 @@ export class OpenAICompatProvider implements LLMProvider {
       body: JSON.stringify({ model: this.model, messages, stream: false }),
     });
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`OpenAI-compat chat failed: HTTP ${res.status} ${text.slice(0, 200)}`);
+      await this.throwForFailedResponse(res, 'chat');
     }
     const json = (await res.json()) as { choices?: OpenAIChoice[] };
     return json.choices?.[0]?.message?.content ?? '';
@@ -40,8 +80,7 @@ export class OpenAICompatProvider implements LLMProvider {
       body: JSON.stringify({ model: this.model, messages, stream: true }),
     });
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`OpenAI-compat stream failed: HTTP ${res.status} ${text.slice(0, 200)}`);
+      await this.throwForFailedResponse(res, 'stream');
     }
     const reader = res.body?.getReader();
     if (!reader) throw new Error('No response body');

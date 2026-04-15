@@ -132,12 +132,7 @@ export class PageExtractTool extends BaseTool {
 
     let extractedRaw = '';
     try {
-      const llm = createLLM({
-        provider: process.env.LLM_PROVIDER ?? 'ollama',
-        model: process.env.LLM_MODEL,
-        baseUrl: process.env.LLM_BASE_URL,
-        apiKey: process.env.LLM_API_KEY,
-      });
+      const llm = createLLM();
       extractedRaw = await llm.chat([
         { role: 'system', content: '你是信息提取助手，只返回 JSON，不要解释。' },
         { role: 'user', content: prompt },

@@ -163,12 +163,7 @@ export class WebCrawlerTool extends BaseTool {
   }
 
   private createLlmClient() {
-    return createLLM({
-      provider: process.env.LLM_PROVIDER ?? 'ollama',
-      model: process.env.LLM_MODEL,
-      baseUrl: process.env.LLM_BASE_URL,
-      apiKey: process.env.LLM_API_KEY,
-    });
+    return createLLM();
   }
 
   private extractJsonBlock(text: string): string {

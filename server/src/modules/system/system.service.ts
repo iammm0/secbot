@@ -18,6 +18,7 @@ import {
   getLlmProviderMeta,
 } from './llm-provider-registry';
 import { loadYamlConfig, saveYamlConfig } from '../../config/yaml-config-loader.js';
+import { deleteYamlConfigKey } from '../../common/config/persisted-config';
 
 const ROOT_DIR = process.cwd();
 
@@ -96,6 +97,11 @@ export class SystemService {
     } catch {
       // YAML 写入失败不阻断主流程
     }
+  }
+
+  /** 将 SQLite 键对应的 YAML 影子值一并删除，避免重启后旧配置复活 */
+  private deleteSqliteFromYaml(sqliteKey: string): boolean {
+    return deleteYamlConfigKey(sqliteKey, ROOT_DIR);
   }
 
   async info(): Promise<SystemInfoResponseDto> {
@@ -225,6 +231,7 @@ export class SystemService {
       const key = body.apiKey.trim();
       if (!key) {
         const deleted = this.db.deleteConfig(keyName);
+        this.deleteSqliteFromYaml(keyName);
         msg = deleted ? `已删除 ${provider} 的 API Key` : `${provider} 的 API Key 已为空`;
       } else {
         this.db.saveConfig(keyName, key, 'api_keys', `${provider} API Key`);
@@ -239,6 +246,7 @@ export class SystemService {
         msg = `已更新 ${provider} Base URL`;
       } else {
         this.db.deleteConfig(baseName);
+        this.deleteSqliteFromYaml(baseName);
         msg = `已清除 ${provider} Base URL`;
       }
     }
@@ -307,6 +315,7 @@ export class SystemService {
         this.syncSqliteToYaml(key, v);
       } else {
         this.db.deleteConfig(key);
+        this.deleteSqliteFromYaml(key);
       }
     }
 
@@ -318,6 +327,7 @@ export class SystemService {
         this.syncSqliteToYaml(key, v);
       } else {
         this.db.deleteConfig(key);
+        this.deleteSqliteFromYaml(key);
       }
     }
 

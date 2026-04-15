@@ -54,12 +54,7 @@ export class SecurityReActAgent extends BaseAgent {
       this.toolsDict.set(tool.name, tool);
     }
 
-    this.llm = createLLM({
-      provider: process.env.LLM_PROVIDER ?? 'ollama',
-      model: process.env.LLM_MODEL,
-      baseUrl: process.env.LLM_BASE_URL,
-      apiKey: process.env.LLM_API_KEY,
-    });
+    this.llm = createLLM();
   }
 
   get reactHistory(): ReadonlyArray<ReActStep> {

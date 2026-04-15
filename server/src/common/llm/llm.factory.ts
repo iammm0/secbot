@@ -6,45 +6,20 @@ import {
   getEnvBackedApiKey,
   getEnvBackedBaseUrl,
 } from '../../modules/system/llm-provider-registry';
-import Database from 'better-sqlite3';
-import * as path from 'path';
-import * as fs from 'fs';
+import { deletePersistedConfig, getPersistedConfig } from '../config/persisted-config';
 
-/**
- * 从 SQLite 读取配置（每次实时查询，不缓存）
- * 避免用户在 TUI 修改配置后需要重启服务的问题
- */
-function getSqliteConfig(key: string): string | null {
-  try {
-    // 获取数据库路径
-    let dbPath: string;
-    const yamlPath = path.join(process.cwd(), 'data', 'config.yaml');
-    if (fs.existsSync(yamlPath)) {
-      const content = fs.readFileSync(yamlPath, 'utf-8');
-      const match = content.match(/database:\s*\n\s*path:\s*["']?([^"'\n]+)["']?/);
-      if (match) {
-        const yamlDbPath = match[1].trim();
-        dbPath = path.isAbsolute(yamlDbPath) ? yamlDbPath : path.join(process.cwd(), yamlDbPath);
-      } else {
-        dbPath = path.join(process.cwd(), process.env.DATABASE_PATH || 'data/secbot.db');
-      }
-    } else {
-      const envDbPath = process.env.DATABASE_PATH || 'data/secbot.db';
-      dbPath = path.isAbsolute(envDbPath) ? envDbPath : path.join(process.cwd(), envDbPath);
-    }
+type ConfigSource = 'sqlite' | 'explicit' | 'generic_env' | 'provider_env' | 'default' | 'none';
 
-    if (!fs.existsSync(dbPath)) return null;
+interface ResolvedConfigValue {
+  value: string;
+  source: ConfigSource;
+  sqliteKey?: string;
+}
 
-    const db = new Database(dbPath, { readonly: true });
-    const row = db.prepare('SELECT value FROM user_configs WHERE key = ?').get(key) as
-      | { value: string }
-      | undefined;
-    db.close();
-
-    return row?.value ?? null;
-  } catch {
-    return null;
-  }
+interface CandidateConfigValue {
+  value?: string | null;
+  source: ConfigSource;
+  sqliteKey?: string;
 }
 
 /** 去掉用户误填的「Bearer 」前缀，避免 Authorization 变成 Bearer Bearer … */
@@ -54,43 +29,99 @@ function normalizeBearerApiKey(raw: string): string {
   return t.replace(/^Bearer\s+/i, '').trim();
 }
 
-function resolveOpenAICompatApiKey(provider: string, explicit?: string): string {
+function resolveFirstConfigValue(candidates: CandidateConfigValue[]): ResolvedConfigValue {
+  for (const candidate of candidates) {
+    const value = (candidate.value ?? '').trim();
+    if (value.length > 0) {
+      return {
+        value,
+        source: candidate.source,
+        sqliteKey: candidate.sqliteKey,
+      };
+    }
+  }
+  return { value: '', source: 'none' };
+}
+
+function providerModelEnvKey(provider: string): string {
+  return `${provider.toUpperCase().replace(/-/g, '_')}_MODEL`;
+}
+
+function resolveProvider(explicit?: string): string {
+  return resolveFirstConfigValue([
+    { value: getPersistedConfig('llm_provider'), source: 'sqlite', sqliteKey: 'llm_provider' },
+    { value: explicit, source: 'explicit' },
+    { value: process.env.LLM_PROVIDER, source: 'generic_env' },
+    { value: 'ollama', source: 'default' },
+  ]).value.toLowerCase();
+}
+
+function resolveModel(provider: string, explicit?: string): string {
+  const sqliteKey = `${provider}_model`;
+  const defaultModel =
+    provider === 'ollama' ? 'llama3.2' : provider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini';
+  return resolveFirstConfigValue([
+    { value: getPersistedConfig(sqliteKey), source: 'sqlite', sqliteKey },
+    { value: explicit, source: 'explicit' },
+    { value: process.env.LLM_MODEL, source: 'generic_env' },
+    { value: process.env[providerModelEnvKey(provider)], source: 'provider_env' },
+    { value: defaultModel, source: 'default' },
+  ]).value;
+}
+
+function resolveOllamaBaseUrl(explicit?: string): string {
+  return resolveFirstConfigValue([
+    {
+      value: getPersistedConfig('ollama_base_url'),
+      source: 'sqlite',
+      sqliteKey: 'ollama_base_url',
+    },
+    { value: explicit, source: 'explicit' },
+    { value: process.env.LLM_BASE_URL, source: 'generic_env' },
+    { value: process.env.OLLAMA_BASE_URL, source: 'provider_env' },
+    { value: 'http://localhost:11434', source: 'default' },
+  ]).value;
+}
+
+function resolveOpenAICompatApiKey(provider: string, explicit?: string): ResolvedConfigValue {
   const sqliteKey = `${provider}_api_key`;
-  const candidates = [
-    normalizeBearerApiKey(explicit ?? ''),
-    normalizeBearerApiKey(process.env.LLM_API_KEY ?? ''),
-    normalizeBearerApiKey(getSqliteConfig(sqliteKey) ?? ''), // SQLite 运行中配置
-    normalizeBearerApiKey(getEnvBackedApiKey(provider)),
-  ];
-  return candidates.find((k) => k.length > 0) ?? '';
+  return resolveFirstConfigValue([
+    {
+      value: normalizeBearerApiKey(getPersistedConfig(sqliteKey) ?? ''),
+      source: 'sqlite',
+      sqliteKey,
+    },
+    { value: normalizeBearerApiKey(explicit ?? ''), source: 'explicit' },
+    { value: normalizeBearerApiKey(process.env.LLM_API_KEY ?? ''), source: 'generic_env' },
+    { value: normalizeBearerApiKey(getEnvBackedApiKey(provider)), source: 'provider_env' },
+  ]);
 }
 
 function resolveOpenAICompatBaseUrl(provider: string, explicit?: string): string | undefined {
   const sqliteKey = `${provider}_base_url`;
-  const candidates = [
-    (explicit ?? '').trim(),
-    (process.env.LLM_BASE_URL ?? '').trim(),
-    (getSqliteConfig(sqliteKey) ?? '').trim(), // SQLite 运行中配置
-    getEnvBackedBaseUrl(provider),
-  ];
-  const first = candidates.find((u) => u.length > 0);
-  return first;
+  const resolved = resolveFirstConfigValue([
+    { value: getPersistedConfig(sqliteKey), source: 'sqlite', sqliteKey },
+    { value: explicit, source: 'explicit' },
+    { value: process.env.LLM_BASE_URL, source: 'generic_env' },
+    { value: getEnvBackedBaseUrl(provider), source: 'provider_env' },
+  ]);
+  return resolved.value || undefined;
 }
 
 export interface LLMConfig {
-  provider: string;
+  provider?: string;
   model?: string;
   baseUrl?: string;
   apiKey?: string;
 }
 
-export function createLLM(config: LLMConfig): LLMProvider {
-  const provider = (config.provider ?? 'ollama').toLowerCase();
+export function createLLM(config: LLMConfig = {}): LLMProvider {
+  const provider = resolveProvider(config.provider);
 
   if (provider === 'ollama') {
     return new OllamaProvider(
-      config.baseUrl ?? 'http://localhost:11434',
-      config.model ?? 'llama3.2',
+      resolveOllamaBaseUrl(config.baseUrl),
+      resolveModel(provider, config.model),
     );
   }
 
@@ -98,14 +129,15 @@ export function createLLM(config: LLMConfig): LLMProvider {
     resolveOpenAICompatBaseUrl(provider, config.baseUrl) ??
     getDefaultOpenAICompatBaseUrl(provider) ??
     (provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.openai.com');
-  const modelFromEnv =
-    (process.env.LLM_MODEL ?? '').trim() ||
-    (provider === 'deepseek' ? (process.env.DEEPSEEK_MODEL ?? '').trim() : '');
-  const model =
-    (config.model ?? '').trim() ||
-    modelFromEnv ||
-    (provider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini');
+  const model = resolveModel(provider, config.model);
   const apiKey = resolveOpenAICompatApiKey(provider, config.apiKey);
 
-  return new OpenAICompatProvider(baseUrl, apiKey, model);
+  return new OpenAICompatProvider(baseUrl, apiKey.value, model, {
+    onInvalidPersistedApiKey:
+      apiKey.source === 'sqlite' && apiKey.sqliteKey
+        ? () => {
+            deletePersistedConfig(apiKey.sqliteKey!);
+          }
+        : undefined,
+  });
 }

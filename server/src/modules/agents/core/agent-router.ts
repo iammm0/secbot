@@ -60,12 +60,7 @@ export function route(userInput: string): RouteType {
 }
 
 export async function routeWithLLM(userInput: string): Promise<[RouteType, string | null]> {
-  const llm: LLMProvider = createLLM({
-    provider: process.env.LLM_PROVIDER ?? 'ollama',
-    model: process.env.LLM_MODEL,
-    baseUrl: process.env.LLM_BASE_URL,
-    apiKey: process.env.LLM_API_KEY,
-  });
+  const llm: LLMProvider = createLLM();
 
   const systemPrompt =
     '你是一个意图分类器。根据用户输入判断其意图类别，并严格按照以下 JSON 格式回复（不要包含其他内容）：\n\n' +
