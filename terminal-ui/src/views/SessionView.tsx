@@ -12,6 +12,8 @@ import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { MainContent } from "../MainContent.js";
 import { SlashSuggestions } from "../components/SlashSuggestions.js";
+import { useMouseScroll } from "../hooks/useMouseScroll.js";
+import { getMouseEmitter } from "../hooks/mouseFilter.js";
 import { parseSlash, getAgentFromState } from "../slash.js";
 import { isSimpleGreetingOrNonTask } from "../intent.js";
 import {
@@ -177,6 +179,27 @@ export function SessionView({
 
   const scrollableHeight = Math.max(1, contentHeight);
   const maxScroll = Math.max(0, totalLines - scrollableHeight);
+
+  // ── 鼠标滚轮滚动对话记录 ──────────────────────────────────────────────
+  const mouseEmitter = useMemo(() => getMouseEmitter(), []);
+  const handleScrollUp = useCallback(
+    (lines: number) => setScrollOffset((s) => Math.max(0, s - lines)),
+    [],
+  );
+  const handleScrollDown = useCallback(
+    (lines: number) =>
+      setScrollOffset((s) =>
+        Math.min(Math.max(0, totalLinesRef.current - scrollableHeightRef.current), s + lines),
+      ),
+    [],
+  );
+  useMouseScroll({
+    emitter: mouseEmitter,
+    enabled: dialog.stack.length === 0,
+    scrollStep: 3,
+    onScrollUp: handleScrollUp,
+    onScrollDown: handleScrollDown,
+  });
 
   useEffect(() => {
     totalLinesRef.current = totalLines;
@@ -681,7 +704,7 @@ export function SessionView({
           {totalLines > 0
             ? ` ${Math.min(scrollOffset + 1, totalLines)}-${Math.min(scrollOffset + scrollableHeight, totalLines)}/${totalLines} 行 `
             : " "}
-          {" \u2191/\u2193\u5386\u53f2 "}{keybind.print("page_up")}/{keybind.print("page_down")}{"\u7ffb\u9875 Home/End"}
+          {" \u2191/\u2193\u5386\u53f2 \u6eda\u8f6e\u6eda\u52a8 "}{keybind.print("page_up")}/{keybind.print("page_down")}{"\u7ffb\u9875"}
           {scrollOffset <= 0 ? "" : " ↑"}
           {totalLines <= scrollableHeight ||
           scrollOffset >= totalLines - scrollableHeight
