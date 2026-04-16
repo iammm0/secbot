@@ -241,12 +241,12 @@ async function main() {
 
   try {
     // 初始化鼠标滚轮过滤：拦截鼠标转义序列，只将干净的键盘输入传给 Ink
-    const filteredStdin = initMouseFilter();
+    initMouseFilter();
     const instance = render(
       <AllProviders onExit={handleExit}>
         <App columns={columns} rows={rows} />
       </AllProviders>,
-      { exitOnCtrlC: false, stdin: filteredStdin as NodeJS.ReadStream }
+      { exitOnCtrlC: false }
     );
     instance.waitUntilExit().then((code) => {
       handleExit(code ?? 0);
