@@ -4,13 +4,14 @@
  * 重构说明（Layer 2 - 推理）：
  *  - 标题行：`◇ 推理 #N`（accent/magenta，dimColor，bold）
  *  - 正文：每行前缀 `┊ `，整体 dimColor gray
- *  - 去掉 renderMarkdown，直接显示纯文本（推理链通常是简单文本）
+ *  - 使用 renderMarkdown 渲染正文，保留 **加粗**、`代码` 等 Markdown 格式
  *  - 表达"内部思考，次要信息"的视觉感
  *  - marginBottom 统一改为 1
  */
 import React from "react";
 import { Box, Text } from "ink";
 import { useTheme } from "../../contexts/ThemeContext.js";
+import { renderMarkdown } from "../../renderMarkdown.js";
 
 interface ThoughtBlockProps {
   title?: string;
@@ -20,8 +21,9 @@ interface ThoughtBlockProps {
 
 export function ThoughtBlock({ title, body, noMargin }: ThoughtBlockProps) {
   const theme = useTheme();
-  // 按行拆分，每行前缀 ┊，表达次要信息感
-  const lines = (body || " ").split("\n");
+  // renderMarkdown 渲染后按行拆分，每行前缀 ┊，表达次要信息感
+  const rendered = renderMarkdown(body || " ");
+  const lines = rendered.split("\n");
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
@@ -39,7 +41,7 @@ export function ThoughtBlock({ title, body, noMargin }: ThoughtBlockProps) {
           <Text dimColor color={theme.textMuted}>
             {"┊ "}
           </Text>
-          <Text color={theme.text}>{line || " "}</Text>
+          <Text>{line || " "}</Text>
         </Box>
       ))}
     </Box>

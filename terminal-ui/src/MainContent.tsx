@@ -264,6 +264,9 @@ export function MainContent({
       DiscriminatorPool.create(),
     );
     return visibleBlocks.map((block, i) => {
+      // 已由 contentBlocks 设定的 resolvedType（如 "terminal"、"exploring"）优先使用，
+      // 只对未设定的块运行判别器链
+      if (block.resolvedType) return block;
       const pool = pools[i % POOL_SIZE];
       const resolvedType = pool.discriminate(block);
       return { ...block, resolvedType };
