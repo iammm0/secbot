@@ -236,12 +236,16 @@ export function MainContent({
     onLinesChange(totalLines);
   }, [totalLines, onLinesChange]);
 
-  // 新内容到达时，若视口在底部附近则自动跟随
+  // 新内容到达时，若视口在底部附近（距底 <=5 行）则自动跟随最新内容
   useEffect(() => {
     const prev = prevTotalRef.current;
     prevTotalRef.current = totalLines;
     if (prev === 0) return;
-    if (totalLines > prev && scrollOffset + scrollableHeight >= prev) {
+    const bottomGap = 5; // 容差行数，稍微向上滚也不丢失跟随
+    if (
+      totalLines > prev &&
+      scrollOffset + scrollableHeight >= prev - bottomGap
+    ) {
       setScrollOffset(() => Math.max(0, totalLines - scrollableHeight));
     }
   }, [totalLines, scrollableHeight, scrollOffset, setScrollOffset]);

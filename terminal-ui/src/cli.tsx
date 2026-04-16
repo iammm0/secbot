@@ -15,6 +15,7 @@ import { getBaseUrl, checkBackend } from './config.js';
 import { spawnBackendChild } from './backendSpawn.js';
 import { AllProviders } from './contexts/index.js';
 import { App } from './App.js';
+import { initMouseFilter, cleanupMouseFilter } from './hooks/mouseFilter.js';
 
 type BackendConnectionMode = 'auto' | 'service' | 'spawn';
 type EffectiveBackendMode = 'service' | 'spawn';
@@ -229,6 +230,7 @@ async function main() {
   const columns = (process.stdout as NodeJS.WriteStream & { columns?: number }).columns ?? 100;
   const rows = (process.stdout as NodeJS.WriteStream & { rows?: number }).rows ?? 32;
   const handleExit = (code?: number) => {
+    cleanupMouseFilter();
     void cleanupSpawnedBackend()
       .catch(() => {})
       .finally(() => {
@@ -238,11 +240,13 @@ async function main() {
   };
 
   try {
+    // 初始化鼠标滚轮过滤：拦截鼠标转义序列，只将干净的键盘输入传给 Ink
+    const filteredStdin = initMouseFilter();
     const instance = render(
       <AllProviders onExit={handleExit}>
         <App columns={columns} rows={rows} />
       </AllProviders>,
-      { exitOnCtrlC: false }
+      { exitOnCtrlC: false, stdin: filteredStdin as NodeJS.ReadStream }
     );
     instance.waitUntilExit().then((code) => {
       handleExit(code ?? 0);
