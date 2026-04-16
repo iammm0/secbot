@@ -92,6 +92,13 @@ export function SessionView({
   // 使用 ref 确保初始 prompt 只处理一次，避免重复发送
   const hasAppliedInitialPromptRef = useRef(false);
 
+  // ── 输入历史管理（类似终端命令历史） ────────────────────────────────────────
+  const [inputHistory, setInputHistory] = useState<string[]>([]);
+  // -1 表示当前新输入，0..n 表示从最新到最旧的历史
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  // 暂存用户正在编辑但尚未提交的输入，以便从历史导航返回时恢复
+  const draftInputRef = useRef("");
+
   const theme = useTheme();
   const sync = useSync();
   const local = useLocal();
@@ -414,12 +421,29 @@ export function SessionView({
         return;
       }
     } else {
+      // 上下箭头用于切换输入历史（类似终端命令历史）
       if (key.upArrow) {
-        setScrollOffset((s) => Math.max(0, s - 1));
+        if (inputHistory.length > 0) {
+          if (historyIndex === -1) {
+            // 首次按上箭头，暂存当前输入
+            draftInputRef.current = inputValue;
+          }
+          const nextIdx = Math.min(historyIndex + 1, inputHistory.length - 1);
+          setHistoryIndex(nextIdx);
+          setInputValue(inputHistory[inputHistory.length - 1 - nextIdx]);
+        }
         return;
       }
       if (key.downArrow) {
-        setScrollOffset((s) => Math.min(maxScroll, s + 1));
+        if (historyIndex > 0) {
+          const nextIdx = historyIndex - 1;
+          setHistoryIndex(nextIdx);
+          setInputValue(inputHistory[inputHistory.length - 1 - nextIdx]);
+        } else if (historyIndex === 0) {
+          // 回到最新，恢复用户之前正在编辑的内容
+          setHistoryIndex(-1);
+          setInputValue(draftInputRef.current);
+        }
         return;
       }
     }
@@ -429,6 +453,11 @@ export function SessionView({
     (valueOr?: string) => {
       const trimmed = (valueOr ?? inputValue).trim();
       if (!trimmed) return;
+
+      // 记录输入历史（类似终端命令历史，所有提交均记录）
+      setInputHistory((prev) => [...prev, trimmed]);
+      setHistoryIndex(-1);
+      draftInputRef.current = "";
 
       if (
         trimmed.toLowerCase() === "exit" ||
@@ -652,7 +681,7 @@ export function SessionView({
           {totalLines > 0
             ? ` ${Math.min(scrollOffset + 1, totalLines)}-${Math.min(scrollOffset + scrollableHeight, totalLines)}/${totalLines} 行 `
             : " "}
-          ↑/↓ {keybind.print("page_up")}/{keybind.print("page_down")} Home/End
+          {" \u2191/\u2193\u5386\u53f2 "}{keybind.print("page_up")}/{keybind.print("page_down")}{"\u7ffb\u9875 Home/End"}
           {scrollOffset <= 0 ? "" : " ↑"}
           {totalLines <= scrollableHeight ||
           scrollOffset >= totalLines - scrollableHeight
