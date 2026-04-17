@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v2.0.0-b1 (2026-04-17)
+
+### Features
+
+- **server**：统一 LLM 配置解析并增强失效密钥自清理。
+- **server**：统一客户端错误映射与脱敏（HTTP + SSE 聊天）。
+- **context**：补全 ask/agent 上下文链路并重构提示词。
+- **tui**：增加启动过渡动画。
+- **tui**：ask 模式下去重「总结观察」与「最终总结」同文展示。
+- **tui**：优化 `/model` 配置向导首屏与操作流。
+- **tui**：TUI 体验优化与对话持久化。
+
+### Fixes
+
+- **tui**：保留已解析块类型并恢复 Thought Markdown 渲染。
+- **tui**：修复鼠标转义序列泄漏乱码，改用 stdin emit patch 拦截并支持残缺序列匹配。
+- **tui**：用 stdin Transform 流过滤鼠标转义序列，修复滚轮乱码并优化内容自动跟随。
+- **tui**：上下箭头键改为切换输入历史，类似终端命令历史交互。
+- **tui**：ErrorBlock 单 Text 排版避免行首汉字被裁切。
+- **tui**：修复错误块重复 Markdown 标题与 SSE 错误提示。
+- **tui**：弹窗内 Esc 返回上一级而非直接关闭。
+
+### Chores
+
+- **release**：切换 npm Trusted Publishing，兼容预发布版本的发布流程。
+- **ci**：让 npm-release 分支也执行检查；修复 lint 与格式检查失败。
+
+### Documentation
+
+- 更新主文档标题版本为 v2.0.0-b1。
+
 ## v2.0.4 (2026-04-09)
 
 ### Features
