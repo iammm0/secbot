@@ -119,8 +119,6 @@ flowchart LR
 
   chatSvc -->|SSE 事件流| sse[SSE Stream]
   sse --> tui
-  sse --> app
-  sse --> desktopApp
 ```
 
 ### 后端模块一览
@@ -202,12 +200,12 @@ npm install
 # 云端推理（默认推荐）
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-your-api-key
-DEEPSEEK_MODEL=deepseek-reasoner
+DEEPSEEK_MODEL=deepseek-chat
 
 # 或改用本地 Ollama
 # LLM_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://localhost:11434
-# OLLAMA_MODEL=gemma3:1b
+# OLLAMA_MODEL=llama3.2
 ```
 
 ### 4. 启动
@@ -230,7 +228,7 @@ SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ### 5.（可选）安装 Ollama 本地模型
 
 ```bash
-ollama pull gemma3:3b
+ollama pull llama3.2
 ollama pull nomic-embed-text
 ```
 
@@ -255,11 +253,11 @@ npm run start:tui
 
 | 变量 | 用途 | 默认值 |
 |------|------|--------|
-| `LLM_PROVIDER` | 当前推理后端 | `deepseek` |
+| `LLM_PROVIDER` | 当前推理后端 | `ollama` |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | 无 |
-| `DEEPSEEK_MODEL` | DeepSeek 默认模型 | `deepseek-reasoner` |
+| `DEEPSEEK_MODEL` | DeepSeek 默认模型 | `deepseek-chat` |
 | `OLLAMA_BASE_URL` | Ollama 服务地址 | `http://localhost:11434` |
-| `OLLAMA_MODEL` | Ollama 默认模型 | `gemma3:1b` |
+| `OLLAMA_MODEL` | Ollama 默认模型 | `llama3.2` |
 | `PORT` | 后端监听端口 | `8000` |
 | `SECBOT_TUI_BACKEND` | TUI 后端模式：`spawn`/`service`/`remote`/`auto` | 默认优先 `spawn`，连接已有后端时请显式使用 `service`/`remote` |
 

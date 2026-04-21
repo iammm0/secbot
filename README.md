@@ -49,12 +49,12 @@ Create a `.env` file in your working directory:
 # Cloud model backend (recommended)
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-your-api-key
-DEEPSEEK_MODEL=deepseek-reasoner
+DEEPSEEK_MODEL=deepseek-chat
 
 # Optional local backend (Ollama)
 # LLM_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://localhost:11434
-# OLLAMA_MODEL=gemma3:1b
+# OLLAMA_MODEL=llama3.2
 ```
 
 ### 2. Start full product mode (backend + TUI)
@@ -107,7 +107,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 
 | Script | Description |
 | --- | --- |
-| `npm run build` | Build backend and package artifacts |
+| `npm run build` | Build the NestJS backend |
 | `npm run typecheck` | Type-check server code |
 | `npm run lint` | Run ESLint |
 | `npm run format:check` | Check Prettier formatting |

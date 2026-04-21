@@ -1,104 +1,149 @@
 # 发布指南
 
-本仓库使用以下发布资源：
+本仓库当前发布的是 npm 包 `@opensec/secbot`。包内包含：
 
-- 根目录变更日志：[../CHANGELOG.md](../CHANGELOG.md)
-- 版本文档：[releases/README.md](releases/README.md)
-- 工作流：[../.github/workflows/release.yml](../.github/workflows/release.yml)
+- `server/dist`
+- `terminal-ui/dist`
+- `terminal-ui/package.json`
+- `scripts/run-product.js`
+- 根 README 与许可证
+- `docs/SECURITY_WARNING.md`
 
-## 用户下载
+发布配置以 `package.json`、`.github/workflows/release.yml` 和 `scripts/verify_release_package.js` 为准。
 
-从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载打包产物。
-
-当前发布包命名为 `secbot-<platform>.zip`，也可通过 npm 安装：
+## 用户安装
 
 ```bash
-# 全局安装：`secbot` 会启动后端 + 终端 TUI（一节真实 TTY 中运行；IDE 集成终端在 Windows 上可能自动新开窗口）
 npm install -g @opensec/secbot
 secbot
+```
 
-# 仅启动 HTTP API（自动化 / 自建前端）
+仅启动后端：
+
+```bash
 secbot-server
+```
 
-# 或通过 npx 直接运行完整产品
+一次性运行：
+
+```bash
 npx @opensec/secbot
 ```
 
-在首次启动前创建 `.env` 文件。最小示例：
+也可以从 GitHub Releases 下载 `.tgz` 包。
 
-```env
-LLM_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-your-api-key
-DEEPSEEK_MODEL=deepseek-reasoner
-```
-
-```env
-LLM_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=gemma3:1b
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text
-```
-
-## 维护者流程
-
-发布元数据来源：
-
-- `package.json` 中的 `version` 字段
-- `CHANGELOG.md` 中的可读发布说明
-
-GitHub Actions 工作流：
-
-1. 判断是否需要创建发布。
-2. 使用 `npm run build` 构建 TypeScript 后端。
-3. 打包发布产物并上传到 GitHub Release。
-4. 发布 npm 包（如配置）。
-5. 同一次打标还会 **发布到 GitHub Packages**（使用 `GITHUB_TOKEN`，无需额外 Secret）：包名为 `@<仓库所有者小写>/secbot`（例如 `iammm0/secbot` 对应 `@iammm0/secbot`），与 npmjs 上的 `@opensec/secbot` **名称不同、可并存**。在仓库 **Settings → Packages**（或个人 **Packages**）中查看。
-
-**`NPM_TOKEN` 与 2FA**：若 npm 账号启用了双因素认证，CI 里必须用 **Granular 令牌且允许发布时绕过 2FA**，或 **Classic 的 Automation 令牌**；否则会出现 `403 ... bypass 2fa enabled is required to publish`。
-
-**不可覆盖已发布版本**：npm 与 GitHub Packages 均不允许同一版本号二次 `publish`；若 CI 报 `Cannot publish over previously published version`，须将 `package.json` 的 `version` 与标签同步抬升（如 `2.0.0` → `2.0.1`）后再打新标签发布。
-
-### 从 GitHub Packages 安装（可选）
-
-消费方仓库需在 `.npmrc` 中指向 `https://npm.pkg.github.com`，并使用具有 `read:packages` 权限的 **Classic PAT**（或有权读取该包的工作流 token）。包名示例：`@iammm0/secbot`。详见 [Working with the npm registry](https://docs.github.com/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)。
-
-## 本地发布任务
-
-安装依赖：
+## 本地发布前检查
 
 ```bash
-npm install
-```
-
-构建应用：
-
-```bash
+npm ci
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
 npm run build
+npm run build:terminal-ui
 ```
 
-打包发布产物：
+验证发布包：
+
+```bash
+npm run release:verify
+```
+
+打包：
+
+```bash
+npm run release:pack
+```
+
+或直接：
 
 ```bash
 npm pack
 ```
 
-生成版本文档：
+## package scripts
 
-```bash
-node scripts/release-docs.js version-docs --changelog CHANGELOG.md --output-dir docs/releases
+| 脚本 | 说明 |
+|------|------|
+| `npm run build` | 构建 NestJS 后端 |
+| `npm run build:terminal-ui` | 构建 Ink TUI |
+| `npm run release:build` | 清理并构建后端 |
+| `npm run release:pack` | 构建后端并执行 `npm pack` |
+| `npm run release:verify` | 在临时目录安装 tarball 并验证二进制入口 |
+
+注意：根包的 `prepack` 会执行 `npm run build && npm run build:terminal-ui`，因此直接 `npm pack` 也会构建两个产物。
+
+## GitHub Actions 发布
+
+工作流：
+
+```text
+.github/workflows/release.yml
 ```
 
-生成打包产物的发布说明：
+触发方式：
+
+- 推送 `v*.*.*` 标签。
+- 手动 `workflow_dispatch`。
+
+标签版本必须与 `package.json` 中的 `version` 完全一致。例如：
 
 ```bash
-node scripts/release-docs.js package-readme \
-  --changelog CHANGELOG.md \
-  --version v2.0.3 \
-  --platform windows-amd64 \
-  --output dist/README_RELEASE.md
+npm version 2.0.1 --no-git-tag-version
+git add package.json package-lock.json CHANGELOG.md
+git commit -m "chore(release): 2.0.1"
+git tag v2.0.1
+git push origin main-ts-version --tags
 ```
 
-## 说明
+CI 会执行：
 
-- 仓库根目录没有 `.env.example`，因此发布文档中会嵌入可复制的 `.env` 片段。
-- `npm install -g secbot` 与 GitHub Release 打包产物提供的运行时表面可能存在差异。打包发布产物仍然是开箱即用终端体验的最佳途径。
+1. `npm ci`
+2. `npm run typecheck`
+3. `npm run lint`
+4. `npm run format:check`
+5. `npm test`
+6. `npm run release:pack`
+7. 上传 `.tgz` 到 GitHub Release
+8. 发布到 npm registry
+9. 发布到 GitHub Packages
+
+预发布版本（版本号包含 `-`）会发布到 npm 的 `next` tag。
+
+## npm Trusted Publishing
+
+`release.yml` 使用 npm Trusted Publishing，也就是 GitHub Actions OIDC，不需要 `NPM_TOKEN`。需要在 npm 包页面配置 trusted publisher：
+
+- 仓库：`iammm0/secbot`
+- Workflow 文件：`release.yml`
+- Package：`@opensec/secbot`
+
+如果 trusted publisher 未配置，npm 发布步骤会失败。
+
+## GitHub Packages
+
+GitHub Packages 发布前会运行：
+
+```bash
+node scripts/apply-github-packages-name.js
+```
+
+它会把包名改为仓库所有者 scope 下的包，例如：
+
+```text
+@iammm0/secbot
+```
+
+这与 npmjs 上的 `@opensec/secbot` 并存。
+
+## 不可覆盖已发布版本
+
+npm 与 GitHub Packages 都不允许覆盖同一版本。若 CI 报类似 `Cannot publish over previously published version`，需要提升 `package.json` 版本并重新打标签。
+
+## 版本文档
+
+- 根目录变更日志：[../CHANGELOG.md](../CHANGELOG.md)
+- 历史 release notes：[releases/README.md](releases/README.md)
+
+当前仓库没有 `scripts/release-docs.js`，不要再使用旧文档中的 release-docs 命令。

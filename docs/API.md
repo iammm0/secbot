@@ -1,242 +1,150 @@
 # Secbot API 接口文档
 
-本文档对齐当前 `server/src/modules/` 里的 NestJS 路由实现，覆盖 REST 与 SSE 两类接口。
+本文档对齐当前 `server/src/modules/` 中实际注册的 NestJS 路由。所有接口默认挂在本地后端：
 
-## 快速调试
-
-### 启动后端
-
-```bash
-npm run dev
-# 或
-npm run build && node server/dist/main.js
+```text
+http://127.0.0.1:8000
 ```
 
-默认地址：
-
-- Base URL：`http://127.0.0.1:8000`
-- Swagger UI：`http://127.0.0.1:8000/docs`
-- 健康检查：`GET /health`
-
-### 最小联调命令
+健康检查：
 
 ```bash
 curl http://127.0.0.1:8000/health
-
-curl -N -X POST http://127.0.0.1:8000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message":"你好","mode":"agent","agent":"secbot-cli"}'
 ```
 
-## 认证与 CORS
+当前后端没有启用 Swagger UI，也没有显式启用 CORS。生产或浏览器前端场景请在反向代理或应用层补充认证、访问控制与 CORS 策略。
 
-当前实现默认：
+## 1. 聊天
 
-- **未启用鉴权**
-- **CORS 允许全部来源**（开发友好配置）
+### `POST /api/chat`
 
-生产环境建议自行在反向代理或应用层补充认证、来源限制与访问控制。
+SSE 流式聊天接口。
 
-## 一、聊天接口
-
-### 1. `POST /api/chat`
-
-SSE 流式聊天接口，走 `SessionManager` 编排流程。
+```bash
+curl -N -X POST http://127.0.0.1:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"扫描本机系统信息","mode":"agent","agent":"hackbot"}'
+```
 
 请求体：
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `message` | string | 是 | 用户输入 |
-| `mode` | `ask` \| `agent` | 否 | `ask` 为问答模式，`agent` 为智能体执行模式，默认 `agent` |
-| `agent` | string | 否 | 智能体类型，默认 `secbot-cli` |
-| `prompt` | string | 否 | 自定义系统提示词 |
-| `model` | string | 否 | 模型偏好，后端可选使用 |
+| `session_id` | string | 否 | 会话 ID，不传则使用 `default` |
+| `mode` | `ask` / `agent` | 否 | `ask` 为问答模式，`agent` 为执行模式，默认 `agent` |
+| `agent` | string | 否 | 推荐 `hackbot` 或 `superhackbot`，默认 `hackbot` |
+| `prompt` | string | 否 | 自定义提示词，当前后端保留字段 |
+| `model` | string | 否 | 模型偏好，当前后端保留字段 |
+| `client_shell` | object | 否 | 客户端终端环境信息 |
 
-当前默认智能体：
+TUI 中的 `secbot-cli` 是历史兼容别名；后端实际执行会落到 `hackbot`。
 
-- `secbot-cli`
-- `superhackbot`
+常见 SSE 事件：
 
-SSE 事件：
-
-| 事件名 | 说明 |
-|--------|------|
-| `connected` | 连接建立 |
-| `planning` | 规划开始 |
+| 事件 | 说明 |
+|------|------|
+| `connected` | 流已建立 |
+| `context_debug` | 上下文调试信息，仅 `SECBOT_CONTEXT_DEBUG=1` 时发送 |
+| `phase` | 阶段变化 |
+| `planning` | 规划与 Todo |
 | `thought_start` | 推理轮次开始 |
-| `thought_chunk` | 推理流式片段 |
-| `thought` | 本轮推理完成 |
+| `thought` | 推理轮次完成 |
 | `action_start` | 工具执行开始 |
 | `action_result` | 工具执行结果 |
-| `content` | 结构化内容输出 |
-| `report` | 报告输出 |
-| `phase` | 任务阶段变化 |
-| `root_required` | 需要用户确认 root 权限 |
+| `content` | 文本或结构化内容 |
+| `report` | 安全报告 |
+| `response` | 最终回复 |
 | `error` | 错误 |
-| `response` | 最终完整响应 |
 | `done` | 流结束 |
 
-最小请求示例：
-
-```bash
-curl -N -X POST http://127.0.0.1:8000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "扫描本机系统信息",
-    "mode": "agent",
-    "agent": "secbot-cli"
-  }'
-```
-
-### 2. `POST /api/chat/root-response`
-
-当前端收到 `root_required` 事件后，用此接口回传用户选择。
-
-请求体：
-
-```json
-{
-  "request_id": "uuid-from-sse",
-  "action": "run_once",
-  "password": "optional-password"
-}
-```
-
-`action` 可选值：
-
-- `run_once`
-- `always_allow`
-- `deny`
-
-### 3. `POST /api/chat/sync`
+### `POST /api/chat/sync`
 
 同步聊天接口，不返回中间 SSE 过程。
-
-示例：
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/chat/sync \
   -H "Content-Type: application/json" \
-  -d '{"message":"你好","mode":"ask"}'
+  -d '{"message":"你好","mode":"ask","agent":"hackbot"}'
 ```
-
-响应：
-
-```json
-{
-  "response": "你好，请问需要我做什么？",
-  "agent": "qa"
-}
-```
-
-## 二、智能体与会话接口
-
-### 1. `GET /api/agents`
-
-列出可用智能体。
 
 响应示例：
 
 ```json
 {
-  "agents": [
-    {
-      "type": "secbot-cli",
-      "name": "Hackbot",
-      "description": "自动模式（ReAct，基础扫描，全自动）"
-    },
-    {
-      "type": "superhackbot",
-      "name": "SuperHackbot",
-      "description": "专家模式（ReAct，全工具，敏感操作需确认）"
-    }
-  ]
+  "response": "你好，请问需要我做什么？",
+  "agent": "hackbot"
 }
 ```
 
-### 2. `POST /api/agents/clear`
+### `POST /api/chat/root-response`
 
-清空指定智能体的对话记忆；不传 `agent` 时清空全部。
-
-请求体：
+敏感操作确认回调。字段名使用 camelCase。
 
 ```json
 {
-  "agent": "secbot-cli"
+  "requestId": "request-id-from-sse",
+  "action": "run_once",
+  "password": "optional-password"
 }
 ```
 
-### 3. `GET /api/sessions`
+`action` 可选：
 
-返回会话列表。当前后端为**无状态实现**，该接口会返回空数组与说明，供 TUI 的 `/sessions` 之类命令避免 404。
+- `run_once`
+- `always_allow`
+- `deny`
 
-## 三、系统与模型配置接口
+## 2. 智能体
 
-### 1. `GET /api/system/info`
+### `GET /api/agents`
 
-返回系统信息：
+列出当前后端注册的智能体。
 
-- 操作系统
-- 架构
-- Node.js 版本
-- 主机名
-- 用户名
+```bash
+curl http://127.0.0.1:8000/api/agents
+```
 
-### 2. `GET /api/system/status`
+当前返回的核心类型：
 
-返回 CPU、内存、磁盘实时状态。
+- `hackbot`
+- `superhackbot`
 
-### 3. `GET /api/system/config`
+### `POST /api/agents/clear`
 
-返回当前推理后端及模型配置，例如：
+清空智能体内存；不传 `agent` 时清空全部。
 
 ```json
 {
-  "llm_provider": "deepseek",
-  "ollama_model": "gemma3:1b",
-  "ollama_base_url": "http://localhost:11434",
-  "deepseek_model": "deepseek-reasoner",
-  "deepseek_base_url": "https://api.deepseek.com",
-  "current_provider_model": "deepseek-reasoner",
-  "current_provider_base_url": null
+  "agent": "hackbot"
 }
 ```
 
-### 4. `GET /api/system/config/provider/{provider_id}`
+## 3. 系统与模型配置
 
-获取某个厂商当前保存的 `model` / `base_url`。
+### `GET /api/system/info`
 
-### 5. `GET /api/system/config/providers`
+返回操作系统、架构、Node.js 版本、主机名与用户名。
 
-列出所有厂商的 API Key 配置状态。
+### `GET /api/system/status`
 
-### 6. `POST /api/system/config/api-key`
+返回 CPU、内存与磁盘状态。当前磁盘列表为占位空数组。
 
-设置或删除某厂商 API Key，也可同时设置 Base URL。
+### `GET /api/system/config`
 
-请求体示例：
+返回当前 LLM 配置。
 
-```json
-{
-  "provider": "deepseek",
-  "api_key": "sk-xxx"
-}
-```
+### `GET /api/system/config/providers`
 
-设置带 Base URL 的厂商：
+返回 provider 注册表及 API Key / Base URL 配置状态。
 
-```json
-{
-  "provider": "custom",
-  "api_key": "sk-xxx",
-  "base_url": "https://example.com/v1"
-}
-```
+### `GET /api/system/config/provider/:providerId`
 
-### 7. `POST /api/system/config/provider`
+返回指定 provider 的模型与 Base URL。
 
-切换当前默认推理后端。
+### `POST /api/system/config/provider`
+
+切换默认推理后端。
 
 ```json
 {
@@ -244,171 +152,212 @@ curl -X POST http://127.0.0.1:8000/api/chat/sync \
 }
 ```
 
-### 8. `POST /api/system/config/provider-settings`
+### `POST /api/system/config/provider-settings`
 
-更新某厂商的默认模型或 Base URL。
+更新某个 provider 的默认模型或 Base URL。
 
 ```json
 {
   "provider": "ollama",
-  "model": "gemma3:3b"
+  "model": "llama3.2"
 }
 ```
-
-### 9. `GET /api/system/ollama-models`
-
-列出当前 Ollama 节点的模型列表。可选 query 参数：
-
-- `base_url`
-
-接口会在模型缺失时返回 `pulling_model`，用于前端展示后台拉取状态。
-
-### 10. `GET /api/system/log-level`
-
-获取当前日志级别。
-
-### 11. `POST /api/system/log-level`
-
-设置日志级别，当前仅支持：
-
-- `DEBUG`
-- `INFO`
-
-请求体：
 
 ```json
 {
-  "level": "DEBUG"
+  "provider": "custom",
+  "base_url": "https://example.com"
 }
 ```
 
-## 四、防御接口
+### `POST /api/system/config/api-key`
 
-### 1. `POST /api/defense/scan`
-
-执行完整安全扫描并返回报告。
-
-### 2. `GET /api/defense/status`
-
-查看防御模块状态。
-
-### 3. `GET /api/defense/blocked`
-
-查看被封禁 IP 列表。
-
-### 4. `POST /api/defense/unblock`
-
-解封指定 IP。
+设置或删除 API Key，也可单独更新 Base URL。
 
 ```json
 {
-  "ip": "192.168.1.10"
+  "provider": "deepseek",
+  "apiKey": "sk-xxx"
 }
 ```
 
-### 5. `GET /api/defense/report`
-
-生成防御报告。支持 query 参数：
-
-- `type=full`
-- `type=vulnerability`
-- `type=attack`
-
-## 五、网络接口
-
-### 1. `POST /api/network/discover`
-
-扫描网络段，若不传 `network` 则自动探测。
+如果请求体带 `baseUrl` 字段，则当前实现只处理 Base URL：
 
 ```json
 {
-  "network": "192.168.1.0/24"
+  "provider": "custom",
+  "apiKey": "",
+  "baseUrl": "https://example.com"
 }
 ```
 
-### 2. `GET /api/network/targets`
+### `GET /api/system/ollama-models`
 
-列出已发现主机。
+保留兼容接口。当前实现不实际访问 Ollama，会返回空模型列表和说明文本；真实模型调用由 `OllamaProvider` 通过 Ollama `/api/chat` 执行。
 
-可选 query 参数：
-
-- `authorized_only=true|false`
-
-### 3. `GET /api/network/authorizations`
-
-列出当前授权记录。
-
-### 4. `POST /api/network/authorize`
-
-授权目标主机。
-
-```json
-{
-  "target_ip": "192.168.1.10",
-  "username": "root",
-  "password": "secret",
-  "auth_type": "full",
-  "description": "测试环境授权"
-}
-```
-
-### 5. `DELETE /api/network/authorize/{target_ip}`
-
-撤销指定 IP 的授权。
-
-## 六、数据库接口
-
-### 1. `GET /api/db/stats`
-
-返回数据库表统计：
-
-- `conversations`
-- `prompt_chains`
-- `user_configs`
-- `crawler_tasks`
-- `crawler_tasks_by_status`
-
-### 2. `GET /api/db/history`
-
-查看对话历史。
-
-支持 query 参数：
-
-- `agent`
-- `limit`
-- `session_id`
-
-### 3. `DELETE /api/db/history`
-
-按筛选条件删除对话历史。
-
-支持 query 参数：
-
-- `agent`
-- `session_id`
-
-## 七、工具接口
+## 4. 工具
 
 ### `GET /api/tools`
 
-列出当前集成的安全工具分类、总数、基础工具与高级工具统计。
+列出当前注册的工具分类与总数。
 
-返回中包含：
+### `POST /api/tools/execute`
 
-- `total`
-- `basic_count`
-- `advanced_count`
-- `categories`
-- `tools`
+直接执行指定工具。
 
-## 八、错误格式
-
-大多数接口错误时返回：
-
-```json
-{
-  "detail": "错误说明"
-}
+```bash
+curl -X POST http://127.0.0.1:8000/api/tools/execute \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"system_info","params":{}}'
 ```
 
-如果是 SSE 流式接口，则错误会作为 `error` 事件发送。
+请求体：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `tool` | string | 是 | 工具名 |
+| `params` | object | 否 | 工具参数 |
+
+## 5. 数据库
+
+### `GET /api/db/stats`
+
+返回：
+
+- `conversations`
+- `promptChains`
+- `userConfigs`
+- `crawlerTasks`
+- `crawlerTasksByStatus`
+
+### `GET /api/db/history`
+
+查询对话历史。
+
+Query 参数：
+
+| 参数 | 说明 |
+|------|------|
+| `agent` | 按智能体类型过滤 |
+| `sessionId` | 按会话 ID 过滤 |
+| `limit` | 1 到 100，默认 10 |
+
+### `DELETE /api/db/history`
+
+按筛选条件删除对话历史。支持 `agent` 和 `sessionId`。
+
+## 6. 记忆
+
+### `POST /api/memory/remember`
+
+写入记忆。
+
+### `GET /api/memory/recall`
+
+按 query 和 type 回忆记忆。
+
+### `GET /api/memory/context`
+
+获取智能体上下文文本。
+
+### `GET /api/memory/list`
+
+列出记忆。
+
+### `POST /api/memory/distill`
+
+从对话摘要提炼情景记忆。
+
+### `POST /api/memory/episode`
+
+写入情景记忆。
+
+### `POST /api/memory/knowledge`
+
+写入长期知识。
+
+### `POST /api/memory/clear`
+
+清理记忆。
+
+### `GET /api/memory/stats`
+
+返回短期、情景、长期记忆数量。
+
+### `POST /api/memory/vector/add`
+
+写入向量记忆。
+
+### `POST /api/memory/vector/search`
+
+向量检索。
+
+### `GET /api/memory/vector/stats`
+
+向量存储统计。
+
+## 7. 网络与会话
+
+### 网络接口
+
+- `POST /api/network/discover`
+- `GET /api/network/targets`
+- `POST /api/network/authorize`
+- `GET /api/network/authorizations`
+- `GET /api/network/authorized-targets`
+- `DELETE /api/network/authorize/:targetIp`
+- `POST /api/network/connect`
+- `POST /api/network/execute`
+- `POST /api/network/upload`
+- `POST /api/network/download`
+- `POST /api/network/disconnect`
+- `GET /api/network/control/sessions`
+
+### 会话接口
+
+- `GET /api/sessions`
+- `GET /api/sessions/target/:targetIp`
+- `GET /api/sessions/:sessionId`
+- `POST /api/sessions`
+- `POST /api/sessions/:sessionId/commands`
+- `POST /api/sessions/:sessionId/files`
+- `POST /api/sessions/:sessionId/close`
+
+## 8. 防御
+
+- `POST /api/defense/scan`
+- `GET /api/defense/status`
+- `GET /api/defense/blocked`
+- `POST /api/defense/unblock`
+- `GET /api/defense/report`
+
+## 9. 爬虫
+
+- `POST /api/crawler/tasks`
+- `GET /api/crawler/tasks`
+- `GET /api/crawler/tasks/:taskId`
+- `GET /api/crawler/tasks/:taskId/status`
+- `POST /api/crawler/tasks/:taskId/execute`
+- `POST /api/crawler/tasks/:taskId/execute-async`
+- `POST /api/crawler/tasks/:taskId/cancel`
+- `POST /api/crawler/batch`
+- `POST /api/crawler/monitors`
+- `GET /api/crawler/monitors`
+- `POST /api/crawler/monitors/:monitorId/check`
+- `POST /api/crawler/monitors/check-all`
+- `POST /api/crawler/monitors/start`
+- `POST /api/crawler/monitors/stop`
+- `POST /api/crawler/monitors/:monitorId/remove`
+
+## 10. 漏洞数据库
+
+- `GET /api/vuln-db/cve/:cveId`
+- `POST /api/vuln-db/search`
+- `POST /api/vuln-db/scan-match`
+- `POST /api/vuln-db/sync`
+- `POST /api/vuln-db/clear`
+- `GET /api/vuln-db/stats`
+
+## 11. 错误格式
+
+普通 REST 错误会经过 `HttpExceptionFilter` 归一化。SSE 流中的错误会以 `error` 事件发送，并随后发送 `done`。

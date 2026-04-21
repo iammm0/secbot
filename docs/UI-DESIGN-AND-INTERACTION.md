@@ -1,249 +1,164 @@
-# Secbot UI 设计与交互总结
+# Secbot UI 设计与交互
 
-本文档总结当前仓库的 UI 架构、交互模式与设计决策。仓库现在同时包含：
+当前仓库只保留一个前端实现：[terminal-ui](../terminal-ui/)。
 
-- [terminal-ui](../terminal-ui/)：Ink + React 终端前端
-- [app](../app/)：Expo / React Native 移动端
-- [desktop](../desktop/)：Tauri + React 桌面端
+`terminal-ui` 是基于 Ink + React 的终端 TUI，通过 HTTP 和 SSE 连接 NestJS 后端。仓库当前没有 `app/` 移动端或 `desktop/` 桌面端目录，因此本文档不再描述 Expo、React Native、Tauri 或浏览器 UI。
 
-其中本文的主体仍以 **`terminal-ui` 的交互与上下文架构** 为主，因为它是当前最完整、最成熟的实时流式前端；移动端与桌面端主要复用同一套 HTTP / SSE 后端接口与事件语义。
+## 1. 技术栈
 
----
-
-## 一、技术栈概览
-
-| 层级 | 技术 | 用途 |
+| 层级 | 技术 | 位置 |
 |------|------|------|
-| **TUI（终端 UI）** | TypeScript：Ink + React（`terminal-ui/`） | 全屏终端交互、键盘优先操作、SSE 流式渲染 |
-| **移动端** | Expo + React Native（`app/`） | iOS / Android / Web 调试端，共用后端 API |
-| **桌面端** | Tauri + Vite + React（`desktop/`） | 本地桌面工作台，与本机 NestJS 后端协同 |
-| **后端** | NestJS 11（TypeScript）（`server/`） | REST API + SSE 推送，入口 `server/src/main.ts` |
-| **状态** | React state / context | 响应式状态与依赖追踪 |
-| **事件** | 应用内事件 + 服务端 SSE | 命令、Toast、路由与实时推送 |
+| 终端 UI | Ink 4 + React 18 + TypeScript | `terminal-ui/src/` |
+| 后端 API | NestJS 11 + Express | `server/src/` |
+| 实时通信 | SSE (`POST /api/chat`) | `terminal-ui/src/sse.ts` |
+| REST 调用 | `fetch` 封装 | `terminal-ui/src/api.ts` |
+| 入口 | Node CLI | `terminal-ui/src/cli.tsx` |
 
----
+## 2. 启动模式
 
-## 二、TUI 渲染与布局
+TUI 支持两类后端连接模式：
 
-本仓库终端 UI 使用 **Ink**（React）渲染，见 `terminal-ui/`。以下 2.1–2.5 为通用或其它技术栈的参考；其中 2.3（区域内滚动 + 可见滚动条）、2.4（终端 resize 自适应）在 `terminal-ui` 中实现。
+| 模式 | 行为 | 使用场景 |
+|------|------|----------|
+| `spawn` | TUI 自动启动本地 `server/dist/main.js` 子进程 | 本地完整产品体验，默认 |
+| `service` / `remote` | TUI 只连接已有后端 | 后端单独部署或调试 |
 
-### 2.1 入口与配置
+配置方式：
 
-- 使用渲染库的入口挂载根组件（如 Ink 的 `render()`，或 `@opentui/solid` 的 `render()`），传入配置：
-  - `targetFps`、`exitOnCtrlC`、`useKittyKeyboard`、`autoFocus`
-  - `consoleOptions.keyBindings`、`onCopySelection`：控制台选区复制行为
-- 根节点为全屏 `box`，宽高由 `useTerminalDimensions()` 提供，背景色来自主题。
+```bash
+# 默认：自动拉起本地后端
+npm run start:tui
 
-### 2.2 布局原语
-
-- **box**：主要容器，支持 `width`、`height`、`flexDirection`、`gap`、`padding*`、`alignItems`、`justifyContent`、`position`（如 `absolute`）等。
-- **text**：文本，支持 `fg`（前景色）、`attributes`（如 `TextAttributes.BOLD`）、`wrapMode`。
-- **scrollbox / 可滚动区域**：主内容区（对话、规划、推理、执行等）必须使用**固定高度的可滚动区域**，支持在**区域内**上下滑动查看历史；仅渲染当前可见窗口内的内容，避免将所有交互内容在同一区域反复全量渲染，以兼顾性能与可读性。
-- 颜色使用 `@opentui/core` 的 `RGBA`（如 `theme.background`、`RGBA.fromInts(0,0,0,150)` 半透明遮罩）。
-
-### 2.3 交互内容区滚动
-
-- **交互板块**（主内容区）应在**固定高度**的容器内实现**区域内滚动**：用户可通过快捷键（如 PageUp/PageDown）在区域内上下滑动，查看历史消息与输出。
-- **可见滚动指示**：主内容区底部应保留一行**滚动条/行号指示**（如「1-18/45 行  Page Up/Down 滚动 ↑↓」），避免用户误以为无法滚动或不知道当前视口位置；不能仅靠"无滚动条"的连续渲染造成全量在同一区域反复刷新的错觉。
-- **渲染策略**：只对当前可见范围（viewport）内的行或块进行渲染，不应对全部历史在同一区域做全量反复渲染；内容用行数组 + 滚动偏移（scrollOffset）切片显示，新内容到达时若已在底部则自动跟到底部，否则保持当前滚动位置。
-
-### 2.4 自适应布局（终端 resize）
-
-- **随终端窗口变化**：布局应随终端窗口放大、缩小而自适应调整，与 Web 浏览器类似：监听 `process.stdout` 的 `resize` 事件，更新列数（columns）与行数（rows），根节点与主内容区高度、侧栏宽度等均基于当前尺寸计算（如内容区高度 = rows - 固定偏移，侧栏宽度 = min(22, max(12, columns/4))），避免固定宽高导致小窗口被裁切或大窗口留白。
-- 实现上可在根组件内维护 `dimensions: { columns, rows }` 状态，在 mount 时从 `stdout.columns/rows` 初始化，在 `stdout.on('resize')` 中更新，并驱动整树重算布局。
-
-### 2.5 交互钩子
-
-- `useKeyboard(callback)`：全局键盘事件，可 `evt.preventDefault()` / `evt.stopPropagation()` 拦截。
-- `useRenderer()`：访问底层渲染器，如 `getSelection()`、`clearSelection()`、`setTerminalTitle()`、`suspend()`/`resume()`、`toggleDebugOverlay()`、`console.toggle()` 等。
-- `useTerminalDimensions()`：返回当前终端宽高，用于自适应布局。
-
----
-
-## 三、状态与上下文架构
-
-### 3.1 上下文分层顺序（自外而内）
-
-为保证依赖顺序，Provider 嵌套顺序固定，例如：
-
-```
-ArgsProvider → ExitProvider → KVProvider → ToastProvider → RouteProvider
-  → SDKProvider → SyncProvider → ThemeProvider → LocalProvider → KeybindProvider
-  → PromptStashProvider → DialogProvider → CommandProvider
-  → FrecencyProvider → PromptHistoryProvider → PromptRefProvider
-  → App
+# 连接已有后端
+SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-- **ArgsProvider**：CLI 参数（continue、sessionID、model、agent、prompt、fork 等）。
-- **ExitProvider**：退出回调，统一收口退出逻辑。
-- **KVProvider**：持久化键值（如 theme、theme_mode、terminal_title_enabled、animations_enabled）。
-- **ToastProvider**：轻提示的显示与关闭。
-- **RouteProvider**：路由（home / session），`navigate(route)` 驱动页面切换。
-- **SDKProvider**：后端 URL、fetch、headers、events（EventSource），为 TUI 提供 API 与实时事件。
-- **SyncProvider**：与服务端同步的数据（session、provider、message、config 等）。
-- **ThemeProvider**：主题名、dark/light 模式、解析后的 theme 对象与 syntax 高亮。
-- **LocalProvider**：本地 UI 状态（当前 model、agent、variant 等）。
-- **KeybindProvider**：快捷键解析与 leader 键逻辑。
-- **DialogProvider**：对话框栈，`replace`/`clear`、Esc 关闭。
-- **CommandProvider**：命令列表注册、触发、slash 与 keybind 绑定。
+`spawn` 模式会把后端子进程日志写入 `logs/backend-runtime.log`，避免污染终端 UI。
 
-### 3.2 createSimpleContext 模式
+## 3. 入口与关键文件
 
-通过 `createSimpleContext({ name, init })` 统一创建「带 Provider 的 Context」：
+| 文件 | 职责 |
+|------|------|
+| `terminal-ui/src/cli.tsx` | 解析 CLI 参数和后端模式，启动 Ink 渲染 |
+| `terminal-ui/src/backendSpawn.ts` | 分配端口、启动本地后端、等待 `/api/system/info` 可用 |
+| `terminal-ui/src/App.tsx` | TUI 根组件、全局布局和退出逻辑 |
+| `terminal-ui/src/MainContent.tsx` | 主内容区渲染 |
+| `terminal-ui/src/useChat.ts` | 聊天状态、SSE 事件处理、会话消息流 |
+| `terminal-ui/src/sse.ts` | SSE 请求和事件解析 |
+| `terminal-ui/src/api.ts` | REST API 调用 |
+| `terminal-ui/src/slash.ts` | 斜杠命令解析与补全 |
 
-- `init` 可接收 props（如 Theme 的 `mode`），在 Provider 内执行一次，返回值作为 context value。
-- 可选 `init.ready`：为 false 时 Provider 不渲染子组件（用于异步就绪，如主题加载）。
-- 使用方通过 `useXxx()` 获取，并在非 Provider 下抛出明确错误。
+## 4. 布局结构
 
-这样每个能力（路由、主题、快捷键、对话框等）职责单一，且依赖关系通过嵌套顺序表达清晰。
+TUI 的主界面围绕三块区域组织：
 
----
+- 欢迎与状态区：展示 Logo、当前连接状态、模型与智能体等摘要。
+- 主内容区：流式展示用户消息、规划、推理、工具调用、报告和错误。
+- 输入区：接收普通消息和 `/` 斜杠命令。
 
-## 四、交互模式
+主内容区会把后端 SSE 事件转换为统一的内容块，再交给 `ContentBlock` / `blocks/*` 渲染。这样可以把报告、代码、表格、工具结果、错误等结构化内容拆开维护。
 
-### 4.1 键盘优先
+## 5. SSE 事件渲染
 
-- 所有主要操作都绑定到快捷键（keybind），通过 **KeybindProvider** 从配置（如 `sync.data.config.keybinds`）解析并匹配。
-- **Leader 键**：先按 leader，再按组合键，避免与终端/编辑器冲突；leader 有 2 秒超时自动取消。
-- 匹配逻辑：`keybind.match(key, evt)`，支持 `ParsedKey`（name、ctrl、shift 等）；特殊键如 Ctrl+Underscore 做单独映射。
-- 展示：`keybind.print(key)` 用于在命令列表等地方显示「可读的快捷键说明」。
+`POST /api/chat` 返回 SSE。TUI 主要处理这些事件：
 
-### 4.2 全局键盘与焦点
+| 事件 | UI 行为 |
+|------|---------|
+| `connected` | 标记连接已建立 |
+| `planning` | 展示计划或 Todo |
+| `thought_start` / `thought_chunk` / `thought` | 展示推理过程 |
+| `action_start` / `action_result` | 展示工具执行过程与结果 |
+| `content` | 渲染结构化内容块 |
+| `report` | 渲染最终或阶段性报告 |
+| `phase` | 更新当前阶段 |
+| `root_required` | 打开 root 权限确认对话框 |
+| `error` | 展示错误块 |
+| `response` | 展示最终回复 |
+| `done` | 标记本轮完成 |
 
-- 在 App 根或 Dialog 等处使用 `useKeyboard`：
-  - 无对话框时：根据 keybind 执行命令（如打开命令列表、切换 session、打开设置等）。
-  - 有对话框时：Escape 或 Ctrl+C 关闭当前对话框并弹栈，必要时 `refocus()` 回之前的焦点。
-- 对话框打开时会将当前焦点保存并 blur，关闭后通过 `setTimeout(..., 1)` 再 focus，避免焦点丢失。
+事件解析集中在 `useChat.ts`，渲染细节集中在 `components/blocks/`，避免把网络状态和 UI 表现耦合在一起。
 
-### 4.3 鼠标与选区
+## 6. 斜杠命令
 
-- **选区复制**：
-  - 若启用「选择即复制」：`onMouseUp` 时调用 `Selection.copy(renderer, toast)`，复制选中文本并 toast。
-  - 若禁用：仅在 Ctrl+C 或右键时复制选区，Escape 清除选区。
-- 对话框最外层 **backdrop** 使用 `onMouseDown`/`onMouseUp`：若在 backdrop 上发生的是「先选中再点击」，则视为取消选择而不关闭对话框；否则 `onMouseUp` 关闭对话框。内容区域 `onMouseUp` 中 `stopPropagation()` 防止误关。
-- **Link** 组件：`<text onMouseUp={() => open(href)}>`，点击在默认浏览器打开链接。
+输入 `/` 会触发命令补全。常用命令包括：
 
-### 4.4 对话框栈
+| 命令 | 说明 |
+|------|------|
+| `/model` | 打开模型与 provider 配置 |
+| `/agent` | 切换智能体 |
+| `/list-agents` | 查看后端返回的智能体列表 |
+| `/system-info` | 查看系统信息 |
+| `/db-stats` | 查看 SQLite 统计 |
+| `/help` | 查看可用工具和帮助信息 |
 
-- **DialogProvider** 维护 `stack: { element, onClose }[]` 和 `size: 'medium' | 'large'`。
-- **replace(element, onClose?)**：清空栈并推入新对话框；若栈原为空，会先保存当前焦点并 blur。
-- **clear()**：关闭栈中所有项并清空，再 refocus。
-- **Dialog** 组件：全屏半透明 backdrop + 居中内容 box（宽度 60/80、maxWidth 限制），点击 backdrop 触发 onClose；内容区阻止冒泡。
-- 键盘：Escape/Ctrl+C 弹栈并调用当前项的 onClose，再 refocus（若存在选区则可能不关，避免误触）。
+命令实现位于 `terminal-ui/src/slash.ts`，部分命令会打开对话框，部分命令会调用 REST API。
 
----
+## 7. 对话框与反馈
 
-## 五、命令与命令面板
+主要对话框位于 `terminal-ui/src/components/`：
 
-### 5.1 命令注册
+- `ModelConfigDialog.tsx`：模型 provider、API Key、Base URL 和模型名配置。
+- `AgentSelectDialog.tsx`：智能体选择。
+- `ToolsDialog.tsx`：工具列表。
+- `RootPermissionDialog.tsx`：敏感命令授权确认。
+- `RestResultDialog.tsx`：REST API 调用结果展示。
+- `Toast.tsx`：轻量状态反馈。
 
-- **CommandProvider** 提供 `register(cb)`，`cb` 返回 `CommandOption[]`。
-- 每条命令包含：`title`、`value`、`category`、`keybind`（对应 KeybindsConfig 的 key）、`slash`（/name、aliases）、`suggested`、`hidden`、`onSelect(dialog)`。
-- 注册用 `createMemo(cb)`，这样命令列表随依赖（如 sync、route）自动更新；组件卸载时从 registrations 中移除。
+对话框状态通过 `contexts/DialogContext.tsx` 管理，Toast 通过 `contexts/ToastContext.tsx` 管理。
 
-### 5.2 触发方式
+## 8. Context 分层
 
-- **快捷键**：`useKeyboard` 中遍历 `entries()`，若 `keybind.match(option.keybind, evt)` 则执行 `option.onSelect(dialog)`。
-- **命令面板**：某 keybind（如 `command_list`）打开 `DialogSelect`，展示所有可见命令；支持模糊过滤、分类、建议置顶。
-- **Slash 命令**：在输入框输入 `/` 可调出与命令面板一致的选项，选择后 `trigger(option.value)`。
-- **外部事件**：`sdk.event.on(TuiEvent.CommandExecute.type, evt => command.trigger(evt.properties.command))`，便于服务端或 MCP 触发命令。
+当前 TUI 的全局状态拆在 `terminal-ui/src/contexts/`：
 
-### 5.3 DialogSelect 通用列表
+| Context | 职责 |
+|---------|------|
+| `ExitContext` | 退出流程与退出动画 |
+| `RouteContext` | 首页/会话视图路由 |
+| `SDKContext` | 后端地址与 API 能力 |
+| `SyncContext` | 与后端同步的配置/状态 |
+| `ThemeContext` | 主题颜色 |
+| `LocalContext` | 当前 mode、agent 等本地 UI 状态 |
+| `DialogContext` | 对话框栈 |
+| `CommandContext` | 命令注册和触发 |
+| `KeybindContext` | 快捷键处理 |
+| `ToastContext` | Toast 展示 |
 
-- **DialogSelect**：通用「标题 + 过滤输入 + 分组列表」对话框。
-- 选项：`title`、`value`、`description`、`footer`（如快捷键文案）、`category`、`disabled`、`onSelect(ctx)`。
-- 过滤：使用 fuzzysort，对 title/category 加权；过滤后可按 category 分组展示。
-- 键盘：上下移动高亮，Enter 选中；支持 `current` 受控高亮项。
-- 可配合 `keybind` 数组在列表内绑定额外快捷键（如删除、重命名等）。
+入口处由 `AllProviders` 统一包裹应用，新增全局能力时优先放到独立 Context，而不是继续扩大 `App.tsx`。
 
----
+## 9. 内容块渲染
 
-## 六、主题系统
+`terminal-ui/src/components/blocks/` 保存结构化块渲染器，例如：
 
-### 6.1 主题数据结构
+- `CodeBlock`
+- `TableBlock`
+- `ToolResultBlock`
+- `PlanningBlock`
+- `ReportBlock`
+- `ErrorBlock`
+- `WarningBlock`
+- `SuccessBlock`
 
-- 主题为 JSON，包含 `defs`（颜色名 → 十六进制）和 `theme`（语义 token → 颜色或引用）。
-- 支持 **dark/light 变体**：`theme.primary` 可为 `{ dark: "#...", light: "#..." }` 或引用 `defs` 中的 key。
-- 解析时根据当前 `mode` 取对应颜色，最终得到 `ThemeColors`（primary、text、background、border、diff*、markdown*、syntax* 等），并转为 `RGBA`。
+如果新增后端 `content` 类型，推荐流程是：
 
-### 6.2 语义 token 设计
+1. 在 `terminal-ui/src/types.ts` 或相关内容类型中补充字段。
+2. 在 `components/blocks/` 增加专门渲染组件。
+3. 在 `BlockRenderer.tsx` 或判别器中接入。
+4. 用一个最小 SSE payload 或组件测试验证展示。
 
-- **基础**：primary、secondary、accent、error、warning、success、info、text、textMuted、selectedListItemText。
-- **背景**：background、backgroundPanel、backgroundElement、backgroundMenu。
-- **边框**：border、borderActive、borderSubtle。
-- **Diff**：diffAdded、diffRemoved、diffContext、diffHunkHeader、diff*Bg、diffLineNumber 等。
-- **Markdown**：markdownText、markdownHeading、markdownLink、markdownCode 等。
-- **语法高亮**：syntaxComment、syntaxKeyword、syntaxFunction、syntaxString 等。
-- 可选：`thinkingOpacity`、`selectedListItemText`、`backgroundMenu`（缺省时用默认或 backgroundElement）。
+## 10. 真实终端要求
 
-### 6.3 使用方式
+Ink 依赖 TTY raw mode。若在 IDE 集成终端、CI 或无 TTY 子进程中启动，TUI 可能无法进入交互状态。Windows 下仓库提供：
 
-- `useTheme()` 返回 `theme`（当前解析后的颜色对象）、`syntax`/`subtleSyntax`（高亮规则）、`selected`、`set(themeName)`、`mode()`、`setMode(dark|light)` 等。
-- 列表选中前景色：`selectedForeground(theme, bg)`，若未定义 selectedListItemText 则按背景亮度计算黑白对比色。
-- **系统主题**：可从终端调色板（如 `renderer.getPalette()`）生成 `system` 主题，与 `mode` 一起用于「跟随终端」的体验。
+```powershell
+.\scripts\start-cli.ps1
+```
 
----
+也可以双击 `scripts/start-cli.bat`，它会打开新的系统终端窗口。
 
-## 七、Toast 与反馈
+## 11. 设计原则
 
-- **ToastProvider** 维护 `currentToast: { title?, message, variant, duration } | null`。
-- **show(options)**：设置 currentToast，用 `setTimeout` 在 duration 后清空；连续 show 会重置定时器。
-- **error(err)**：若 err 为 Error 用 message，否则固定文案。
-- **Toast 组件**：绝对定位（如右上角），用 `theme.backgroundPanel` 与 `theme[variant]` 边框，展示 title + message；无 title 时仅 message。
-- 事件：`sdk.event.on(TuiEvent.ToastShow.type, evt => toast.show(evt.properties))`，便于后端驱动提示。
-
----
-
-## 八、路由
-
-- **Route** 为联合类型：`{ type: 'home', initialPrompt? }` 或 `{ type: 'session', sessionID, initialPrompt? }`。
-- **RouteProvider** 用 store 存当前 route，提供 `data` 与 `navigate(route)`。
-- 根内容用 `<Switch>/<Match when={route.data.type === 'home'}><Home /></Match> ...` 切换。
-- 初始化（如 `--continue`、`--session`、`--fork`）在 onMount/createEffect 中根据 args 与 sync 状态调用 `navigate`。
-
----
-
-## 九、事件总线（应用内解耦）
-
-- 使用 **BusEvent.define(name, zodSchema)** 定义事件类型，保证 payload 类型安全。
-- 典型事件：
-  - **tui.prompt.append**：向输入框追加文本。
-  - **tui.command.execute**：执行指定命令（如 session.list、prompt.submit）。
-  - **tui.toast.show**：显示 Toast（title、message、variant、duration）。
-  - **tui.session.select**：切换到指定 sessionID。
-- 订阅：`sdk.event.on(EventType.type, handler)`；发布由 SDK/服务端或内部调用，实现 UI 与后端、多模块间的解耦。
-
----
-
-## 十、CLI 层 UI（非 TUI）
-
-- **UI 命名空间**（如 `cli/ui.ts`）：
-  - **Style**：ANSI 转义常量（TEXT_HIGHLIGHT、TEXT_DIM、TEXT_WARNING、TEXT_DANGER、TEXT_SUCCESS 等）。
-  - **print** / **println**：写 stderr；**empty()** 保证上一次输出后换行。
-  - **logo(pad?)**：多行 Logo 绘制，用字符与颜色块（如 `_`、`^`、`~`）拼出品牌图。
-  - **input(prompt)**：readline 同步用户输入。
-  - **error(message)**：红色 "Error: " + message。
-- 适合在非 TUI 命令（如 init、upgrade）中做简单提示与错误输出。
-
----
-
-## 十一、可复用设计要点小结
-
-1. **分层 Context**：按「能力」拆成独立 Provider，依赖关系用嵌套顺序表达，便于测试与替换。
-2. **键盘优先 + 键位可配置**：所有操作可键控；keybind 从配置读取，支持 leader 与可读展示。
-3. **对话框栈 + Esc 关闭**：replace/clear 统一管理；Esc/Ctrl+C 弹栈并 refocus，避免焦点丢失。
-4. **主题 token 化**：语义 token + defs 引用 + dark/light，便于换肤与无障碍对比度。
-5. **列表与命令统一抽象**：DialogSelect 负责过滤、分组、键盘导航；CommandOption 统一描述命令、快捷键与 slash。
-6. **事件驱动**：用类型安全的事件总线连接「后端 / MCP / 多模块」与 UI（Toast、命令、路由），避免直接耦合。
-7. **选区与复制**：明确「选择即复制」与「按键复制」两种策略，并在对话框与全局键盘中区分「选中状态」与「关闭对话框」。
-8. **错误边界与降级**：TUI 根节点用 ErrorBoundary，fallback 提供「复制 issue URL」「Reset」「Exit」等，并保证 Ctrl+C 可退出。
-
----
-
-## 十二、在其他项目中复用的建议
-
-- **终端 TUI**：可直接参考 Provider 顺序、Dialog/Toast/Command/Keybind 的设计，以及 theme token 与 JSON 主题格式；若不用 Solid，可改为 React Context + 相同分层与交互语义。
-- **桌面/Web**：可复用「命令面板 + 快捷键 + slash」「对话框栈」「主题 token」「事件总线」等概念，将 `box`/`text` 换成 div/span，键盘用 keydown、鼠标用 click。
-- **CLI 工具**：可复用 CLI 层的 Style/print/println/error/input 与 Logo 绘制思路，保持输出简洁、错误醒目、必要时同步读入。
-
-如需具体代码与实现细节，请参阅本仓库 **terminal-ui** 目录（TypeScript：Ink + React）。
+- 保持 TUI 轻量：复杂业务放在后端 Agent / Tool / Service 中。
+- 保持事件契约稳定：新增 SSE 事件要兼容旧事件，不要随意改名。
+- 优先结构化渲染：后端能返回块结构时，不要只返回一整段纯文本。
+- 避免阻塞终端：长任务通过 SSE 持续反馈阶段、工具和结果。
+- 明确运行边界：TUI 是本地交互界面，长期部署以 NestJS 后端为主。

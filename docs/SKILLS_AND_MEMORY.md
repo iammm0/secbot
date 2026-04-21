@@ -1,150 +1,175 @@
 # 技能与记忆系统
 
-Secbot 提供两套知识管理与上下文保留机制：
+当前仓库里有两类“知识/上下文”相关能力：
 
-## 技能系统
+- `skills/`：Markdown 技能资料，目前是给 Agent 或开发者引用的知识资产，不存在 `server/src/modules/skills/` 运行时模块。
+- `server/src/modules/memory/`：已经接入后端的记忆 API 与本地存储。
 
-基于 Markdown 的技能体系，遵循 OpenAI Agent Skills 标准。
+## 1. 技能目录
 
-### 目录结构
+当前仓库的技能文件位于：
 
-```
+```text
 skills/
-├── base/                      # 基础技能
-│   └── nmap-usage/
-│       ├── SKILL.md          # 技能清单 + 说明
-│       ├── scripts/          # 可选脚本
-│       ├── references/       # 可选参考资料
-│       └── assets/           # 可选资源文件
-├── penetration/              # 渗透测试技能
-├── enumeration/              # 枚举技能
-├── exploitation/             # 漏洞利用技能
-└── reporting/                # 报告技能
+└── base/
+    ├── command-execution/
+    ├── nmap-usage/
+    ├── system-commands/
+    ├── system-control/
+    └── terminal-session/
 ```
 
-### SKILL.md 格式
+每个技能目录包含 `SKILL.md`。这些文件用于沉淀安全测试流程、命令用法和操作规范。当前 TypeScript 后端没有自动扫描 `skills/` 并注入 LLM 上下文的 `SkillsService`，因此不要再按旧文档去调用 `server/src/modules/skills/`。
 
-```markdown
----
-name: skill-name
-description: 说明该技能的触发时机
-version: "1.0.0"
-author: "作者名"
-tags: ["tag1", "tag2"]
-triggers: ["keyword1", "keyword2"]
-prerequisites: ["requirement1"]
----
+如果后续要把技能系统接入运行时，建议新增明确模块，例如：
 
-# 技能说明
-
-技能内容……
+```text
+server/src/modules/skills/
+├── skills.module.ts
+├── skills.service.ts
+└── dto/
 ```
 
-### 使用方式
+在此之前，`skills/` 只应被视为仓库内知识文档。
 
-技能系统由 `server/src/modules/skills/` 中的 SkillsService 管理：
+## 2. 记忆模块
 
-```typescript
-import { SkillsService } from './skills/skills.service';
+记忆模块位于：
 
-// 通过 NestJS 依赖注入获取实例
-constructor(private readonly skills: SkillsService) {}
-
-// 获取指定技能
-const skill = this.skills.getSkill('nmap-usage');
-
-// 根据触发词匹配技能
-const matched = this.skills.getSkillsByTriggers('scan ports');
-
-// 列出所有技能
-const allSkills = this.skills.listSkills();
+```text
+server/src/modules/memory/
+├── memory.controller.ts
+├── memory.module.ts
+├── memory.service.ts
+├── memory.models.ts
+├── database-memory.service.ts
+├── vector-store.service.ts
+└── dto/
 ```
 
----
+`MemoryService` 支持三类普通记忆：
 
-## 记忆系统
+| 类型 | 存储方式 | 默认路径 |
+|------|----------|----------|
+| `short_term` | 内存数组，超过上限自动裁剪 | 进程内 |
+| `episodic` | JSON 文件 | `data/episodic_memory.json` |
+| `long_term` | JSON 文件 | `data/long_term_memory.json` |
 
-三层记忆架构，灵感来自 OpenAI Agents SDK 与 CrewAI。
+向量记忆由 `VectorStoreManagerService` 管理，默认写入：
 
-### 架构
-
-```
-MemoryManager
-├── ShortTermMemory    # 会话上下文（内存队列，自动裁剪）
-├── EpisodicMemory     # 跨会话事件（JSON 文件）
-└── LongTermMemory     # 持久化知识（JSON 文件）
-```
-
-### 使用方式
-
-记忆系统由 `server/src/modules/memory/` 中的 MemoryService 管理：
-
-```typescript
-import { MemoryService } from './memory/memory.service';
-
-// 通过 NestJS 依赖注入获取实例
-constructor(private readonly memory: MemoryService) {}
-
-// 记住内容
-await this.memory.remember({
-  content: 'Target 192.168.1.10 has port 22 open',
-  memoryType: 'episodic',
-  importance: 0.7,
-  target: '192.168.1.10',
-});
-
-// 回忆
-const memories = await this.memory.recall('192.168.1.10');
-
-// 获取智能体上下文
-const context = await this.memory.getContextForAgent('target information');
-
-// 从对话中提炼
-await this.memory.distillFromConversation({
-  conversation: history,
-  summary: 'Scanned target, found SSH service',
-});
+```text
+data/vectors.db
 ```
 
-### 记忆类型
+可用 `VECTOR_STORE_PATH` 覆盖。
 
-| 类型 | 存储方式 | 用途 |
-|------|---------|------|
-| `short_term` | 内存队列 | 当前会话上下文 |
-| `episodic` | JSON 文件 | 历史事件与经验 |
-| `long_term` | JSON 文件 | 持久化知识 |
+## 3. 记忆 API
 
----
+### `POST /api/memory/remember`
 
-## 集成示例
+写入普通记忆。
 
-```typescript
-import { SkillsService } from './skills/skills.service';
-import { MemoryService } from './memory/memory.service';
-
-export class AgentService {
-  constructor(
-    private readonly skills: SkillsService,
-    private readonly memory: MemoryService,
-  ) {}
-
-  async process(message: string) {
-    // 获取相关技能
-    const relevantSkills = this.skills.getSkillsByTriggers(message);
-
-    // 获取记忆上下文
-    const context = await this.memory.getContextForAgent(message);
-
-    // 组合提示词
-    const prompt = this.buildPrompt(message, relevantSkills, context);
-
-    // 处理并记忆
-    await this.memory.remember({
-      content: message,
-      memoryType: 'short_term',
-    });
-
-    return response;
+```json
+{
+  "content": "Target 192.168.1.10 has port 22 open",
+  "memoryType": "episodic",
+  "importance": 0.7,
+  "metadata": {
+    "target": "192.168.1.10"
   }
 }
 ```
+
+### `GET /api/memory/recall`
+
+按 query、memoryType 和 limit 回忆。
+
+```bash
+curl "http://127.0.0.1:8000/api/memory/recall?query=192.168.1.10&memoryType=episodic&limit=5"
+```
+
+### `GET /api/memory/context`
+
+返回供智能体使用的上下文文本。
+
+### `GET /api/memory/list`
+
+列出记忆。
+
+### `POST /api/memory/distill`
+
+从对话摘要写入情景记忆。
+
+### `POST /api/memory/episode`
+
+写入一次事件经验。
+
+### `POST /api/memory/knowledge`
+
+写入长期知识。
+
+### `POST /api/memory/clear`
+
+清理某类或全部记忆。
+
+### `GET /api/memory/stats`
+
+返回普通记忆数量。
+
+## 4. 向量记忆 API
+
+### `POST /api/memory/vector/add`
+
+写入向量记忆。调用方需要提供向量数组，当前后端不负责自动生成 embedding。
+
+```json
+{
+  "content": "SSH service found on target",
+  "vector": [0.1, 0.2, 0.3],
+  "memoryType": "episodic",
+  "metadata": {
+    "target": "192.168.1.10"
+  }
+}
+```
+
+### `POST /api/memory/vector/search`
+
+按向量相似度检索。
+
+### `GET /api/memory/vector/stats`
+
+返回已打开 collection 的统计信息。
+
+## 5. 代码使用
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { MemoryService } from './memory.service';
+
+@Injectable()
+export class MyService {
+  constructor(private readonly memory: MemoryService) {}
+
+  async rememberTarget() {
+    await this.memory.remember(
+      'Target 192.168.1.10 has port 22 open',
+      'episodic',
+      0.7,
+      { target: '192.168.1.10' },
+    );
+  }
+
+  async buildContext(query: string) {
+    return this.memory.get_context_for_agent(query);
+  }
+}
+```
+
+方法名以当前代码为准，例如 `get_context_for_agent`、`distill_from_conversation`、`add_episode`、`add_knowledge`。
+
+## 6. 维护建议
+
+- 不要在文档里宣称已有 `SkillsService`，除非代码中真正实现并注册。
+- 如果修改记忆 API DTO，请同步更新本文件和 [API.md](API.md)。
+- 生产备份时，除主 SQLite 数据库外，也要备份记忆 JSON 和 `vectors.db`。

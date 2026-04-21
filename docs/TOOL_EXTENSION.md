@@ -1,88 +1,159 @@
 # Secbot 工具扩展机制
 
-Secbot 的安全工具位于 `server/src/modules/tools/` 目录下，当前集成了 54 个工具。新工具通过继承 `BaseTool` 类并注册到工具模块即可被发现和调用。
+安全工具位于 `server/src/modules/tools/`。当前 `ToolsService` 不是运行时目录扫描，而是从各分类 `index.ts` 导入静态工具数组，再合并成工具注册表。
 
-## 方式一：继承 BaseTool（推荐）
+## 1. 当前分类
 
-在 `server/src/modules/tools/` 下创建新的工具文件，继承 `BaseTool` 类：
+| 分类 ID | 路径 | 说明 |
+|---------|------|------|
+| `security` | `server/src/modules/tools/security/` | 核心安全扫描与攻击测试工具 |
+| `defense` | `server/src/modules/tools/defense/` | 防御扫描与系统检查 |
+| `utility` | `server/src/modules/tools/utility/` | 编码、哈希、日志、依赖、安全辅助工具 |
+| `protocol` | `server/src/modules/tools/protocol/` | MySQL、Redis、SMB、SNMP 等协议探测 |
+| `osint` | `server/src/modules/tools/osint/` | OSINT 查询 |
+| `cloud` | `server/src/modules/tools/cloud/` | 云与运行时环境检查 |
+| `reporting` | `server/src/modules/tools/reporting/` | 报告生成 |
+| `control` | `server/src/modules/tools/control/` | 命令执行与终端会话 |
+| `crawler` | `server/src/modules/tools/crawler/` | 爬虫工具 |
+| `web_research` | `server/src/modules/tools/web-research/` | 搜索、页面提取、深度爬取、API 客户端 |
+
+## 2. BaseTool 接口
+
+`BaseTool` 定义在：
+
+```text
+server/src/modules/tools/core/base-tool.ts
+```
+
+当前接口：
 
 ```typescript
-import { BaseTool, ToolResult } from '../base-tool';
+export interface ToolResult {
+  success: boolean;
+  result: unknown;
+  error?: string;
+}
 
-export class MyCustomTool extends BaseTool {
-  name = 'my_custom_tool';
-  description = '自定义工具描述（供 LLM 理解）';
-  sensitivity = 'low'; // 'low' | 'high'，high 表示敏感操作需用户确认
+export abstract class BaseTool {
+  readonly name: string;
+  readonly description: string;
+  readonly sensitive: boolean;
 
-  getSchema() {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: {
-        type: 'object',
-        properties: {
-          target: {
-            type: 'string',
-            description: '目标地址',
-          },
-        },
-        required: ['target'],
-      },
-    };
+  constructor(name: string, description: string, sensitive = false) {
+    this.name = name;
+    this.description = description;
+    this.sensitive = sensitive;
   }
 
-  async execute(params: Record<string, any>): Promise<ToolResult> {
-    const { target } = params;
-    // 工具逻辑
+  abstract run(params: Record<string, unknown>): Promise<ToolResult>;
+}
+```
+
+注意当前没有 `getSchema()`、`execute()` 或 `sensitivity` 字段；请使用 `run()` 和 `sensitive`。
+
+## 3. 新增工具流程
+
+以新增 utility 工具为例。
+
+### 3.1 创建工具文件
+
+```typescript
+import { BaseTool, ToolResult } from '../core/base-tool';
+
+export class MyCustomTool extends BaseTool {
+  constructor() {
+    super('my_custom_tool', '自定义工具描述，供 LLM 和工具列表理解。');
+  }
+
+  async run(params: Record<string, unknown>): Promise<ToolResult> {
+    const target = String(params['target'] ?? '').trim();
+    if (!target) {
+      return {
+        success: false,
+        result: null,
+        error: 'target is required',
+      };
+    }
+
     return {
       success: true,
-      output: `扫描 ${target} 完成`,
+      result: {
+        target,
+        message: `processed ${target}`,
+      },
     };
   }
 }
 ```
 
-然后在对应的工具注册模块中导入并注册。
+建议路径：
 
-## 方式二：环境变量（用于临时扩展）
+```text
+server/src/modules/tools/utility/my-custom.tool.ts
+```
+
+### 3.2 注册到分类 `index.ts`
+
+在对应分类的 `index.ts` 中导出并加入数组。例如：
+
+```typescript
+export { MyCustomTool } from './my-custom.tool';
+
+import { MyCustomTool } from './my-custom.tool';
+
+export const UTILITY_TOOLS = [
+  // existing tools...
+  new MyCustomTool(),
+];
+```
+
+具体写法请以该分类当前 `index.ts` 的结构为准，避免重复导入或覆盖已有工具。
+
+### 3.3 验证工具列表
 
 ```bash
-# 基础工具目录，逗号分隔
-export SECBOT_TOOL_DIRS="/path/to/custom-tools"
-
-# 高级工具目录
-export SECBOT_TOOL_DIRS_ADVANCED="/path/to/advanced-tools"
+npm run build
+npm run dev
+curl http://127.0.0.1:8000/api/tools
 ```
 
-## 工具分类
+确认 `total`、对应分类 `count` 和工具名都正确。
 
-- **基础工具（basic）**：hackbot / superhackbot 均可用
-- **高级工具（advanced）**：仅 superhackbot 可用，需用户确认
+### 3.4 直接执行工具
 
-## 工具类要求
-
-继承 `BaseTool`，实现以下成员：
-
-- `name`：工具唯一标识
-- `description`：描述（供 LLM 理解）
-- `getSchema()`：返回 `{ name, description, parameters }`
-- `execute(params)`：异步执行，返回 `ToolResult`
-
-可选：`sensitivity = 'high'` 表示敏感操作，superhackbot 会要求用户确认。
-
-## 目录结构
-
+```bash
+curl -X POST http://127.0.0.1:8000/api/tools/execute \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"my_custom_tool","params":{"target":"127.0.0.1"}}'
 ```
-server/src/modules/tools/
-├── base-tool.ts          # BaseTool 基类与 ToolResult 类型
-├── tools.module.ts       # 工具模块注册
-├── tools.service.ts      # 工具发现与管理服务
-├── network/              # 网络扫描相关工具
-├── security/             # 安全检测工具
-├── web/                  # Web 安全工具
-├── exploit/              # 漏洞利用工具
-├── defense/              # 防御工具
-├── osint/                # 开源情报工具
-├── reporting/            # 报告生成工具
-└── ...                   # 更多分类
+
+## 4. 敏感工具
+
+`BaseTool` 构造函数第三个参数是 `sensitive`：
+
+```typescript
+super('dangerous_tool', '可能执行敏感操作的工具', true);
 ```
+
+敏感行为还应在工具自身或调用链中做二次校验。不要只依赖 LLM 提示词约束。
+
+## 5. 当前不支持的旧机制
+
+以下旧文档中提到的机制当前代码没有实现：
+
+- `SECBOT_TOOL_DIRS`
+- `SECBOT_TOOL_DIRS_ADVANCED`
+- 运行时扫描外部工具目录
+- `getSchema()` 自动暴露工具 schema
+- `execute(params)` 作为工具入口
+- `advanced_count` 中的独立高级工具池
+
+`GET /api/tools` 目前仍返回 `basic_count` 和 `advanced_count` 字段，但 `advanced_count` 为 `0`，所有注册工具都在统一工具池中。
+
+## 6. 维护建议
+
+- 工具名保持稳定，TUI、Agent 和文档可能引用它。
+- `run()` 返回结构尽量可 JSON 序列化。
+- 外部命令调用要处理超时、错误码和缺失依赖。
+- 高风险工具必须限制输入范围，并在执行结果中给出清晰错误。
+- 新增工具后同步更新 [TS_MIGRATION_STATUS.md](TS_MIGRATION_STATUS.md) 中的工具总数和分类统计。

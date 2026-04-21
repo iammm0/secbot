@@ -1,151 +1,69 @@
-# 提示词链使用指南
+# 提示词与模板说明
 
-## 概述
+当前 TypeScript 版本没有实现可通过 TUI 使用的 `/prompt-list`、`prompt_file`、`prompt_template` 或 `prompt_chain` 运行时命令。旧文档中关于交互式提示词链管理的内容已经移除。
 
-提示词链功能允许你灵活配置智能体的系统提示词，支持：
-- 单个提示词
-- 提示词链（多个提示词组合）
-- 预定义模板
-- 从文件加载
+## 当前存在的内容
 
-## 基本使用
+仓库保留了静态提示词模板目录：
 
-启动 Secbot 后进入交互模式（`npm start` 或 `npm run start:stack`），交互模式会占据整个终端。在交互界面内可：
+```text
+prompts/
+└── templates/
+    └── hackbot_security.yaml
+```
 
-1. **使用自定义提示词 / 模板 / 链**：通过界面内的模型或提示配置、或斜杠命令（如 `/model`、`/prompt-list`）进行设置。
-2. **查看可用模板与链**：在交互模式中输入 `/prompt-list` 查看已注册的模板和提示词链。
-3. **使用提示词链**：在配置或对话上下文中指定组合（如 expert,technical）。
-4. **从文件加载**：若项目支持从文件加载提示词，可在配置或相应命令中指定路径（如 prompts/my_prompt.txt 或 prompts/my_chain.json）。具体以当前版本界面为准。
+该 YAML 文件用于保存 Hackbot 角色、能力边界和行为准则等提示词内容。当前后端 Agent 的系统提示词主要写在 TypeScript 类中，例如：
 
-## 创建提示词链
+- `server/src/modules/agents/core/base-agent.ts`
+- `server/src/modules/agents/core/hackbot-agent.ts`
+- `server/src/modules/agents/core/superhackbot-agent.ts`
+- `server/src/modules/agents/core/planner-agent.ts`
+- `server/src/modules/agents/core/qa-agent.ts`
+- `server/src/modules/agents/core/summary-agent.ts`
 
-可通过数据库、配置文件或交互模式内提供的功能创建提示词链（具体以当前版本为准）。以下为 JSON 文件格式说明，便于手工或脚本创建。
+如果需要修改当前运行时提示词，请优先查看这些文件，而不是只修改 `prompts/templates/`。
 
-### 使用 JSON 文件创建
+## `prompt_chains` 数据表
 
-创建 `prompts/my_chain.json`:
+SQLite 中仍有 `prompt_chains` 表，`DatabaseService` 也保留了这些方法：
+
+- `savePromptChain`
+- `getPromptChain`
+- `listPromptChains`
+- `deletePromptChain`
+
+但当前没有公开的 PromptController，也没有 TUI 命令直接管理这些记录。因此它是可复用的底层存储能力，不是完整产品功能。
+
+## 聊天请求中的 `prompt` 字段
+
+`POST /api/chat` 的 DTO 保留了可选 `prompt` 字段：
 
 ```json
 {
-  "name": "expert_assistant",
-  "nodes": [
-    {
-      "name": "role",
-      "content": "你是一个专业的技术顾问",
-      "order": 0,
-      "metadata": {}
-    },
-    {
-      "name": "instruction",
-      "content": "请提供详细、准确的技术建议",
-      "order": 10,
-      "metadata": {}
-    },
-    {
-      "name": "constraint",
-      "content": "回答要简洁明了，不超过200字",
-      "order": 20,
-      "metadata": {}
-    }
-  ]
+  "message": "扫描本机系统信息",
+  "mode": "agent",
+  "agent": "hackbot",
+  "prompt": "optional custom prompt"
 }
 ```
 
-### 使用YAML文件创建
+当前主执行路径没有完整接入这个字段来覆盖 Agent 系统提示词。请不要把它当成稳定的提示词注入 API。
 
-创建 `prompts/my_chain.yaml`:
+## 如果要重新接入提示词链
 
-```yaml
-name: expert_assistant
-nodes:
-  - name: role
-    content: "你是一个专业的技术顾问"
-    order: 0
-  - name: instruction
-    content: "请提供详细、准确的技术建议"
-    order: 10
-  - name: constraint
-    content: "回答要简洁明了，不超过200字"
-    order: 20
+建议按下面顺序实现，避免文档先行造成误导：
+
+1. 新增 `PromptModule` 或在现有模块中暴露明确 controller。
+2. 为 `prompt_chains` 提供 CRUD API。
+3. 在 `ChatService` 或 Agent 构造流程中定义清晰的提示词优先级。
+4. 在 TUI 中新增 `/prompt-list`、选择、预览和启用逻辑。
+5. 为提示词链格式补测试。
+6. 最后再更新本文档。
+
+建议的优先级可以是：
+
+```text
+请求显式 prompt > 已启用 prompt_chain > Agent 默认 systemPrompt
 ```
 
-## 提示词链结构
-
-提示词链由多个节点组成，每个节点有：
-
-- **name**: 节点名称
-- **content**: 提示词内容
-- **order**: 排序顺序（数字越小越靠前）
-- **metadata**: 元数据（可选）
-
-节点会按照 `order` 排序后组合。
-
-## 预定义模板
-
-系统内置以下模板：
-
-- `assistant`: 通用助手
-- `expert`: 专家模式
-- `creative`: 创意模式
-- `analytical`: 分析模式
-- `friendly`: 友好模式
-- `technical`: 技术专家模式
-
-## 在交互模式中使用
-
-启动 Secbot（`npm start` 或 `npm run start:stack`）进入交互模式。在交互界面内可通过斜杠命令或模型/提示配置使用提示词、模板或提示词链，例如使用 `/model` 选择后端后，在对话中或相应设置里指定自定义提示词、模板（如 expert）或链（如 expert,technical）。具体以当前界面提供的命令为准；输入 `/` 后回车可查看全部命令。
-
-## 提示词链最佳实践
-
-1. **角色定义** (order: 0-9): 定义智能体的角色
-2. **指令** (order: 10-19): 说明智能体应该如何工作
-3. **上下文** (order: 20-29): 提供背景信息
-4. **约束** (order: 30-39): 设置限制条件
-5. **示例** (order: 40+): 提供示例
-
-## 示例
-
-以下为提示词链内容示例，可写入 JSON 文件或通过交互模式/数据库配置使用：
-
-- **技术专家**：角色「资深的软件工程师，10年以上开发经验」；指令「用专业但易懂的语言解释技术问题，提供代码示例」；约束「代码示例要完整可运行，注释要清晰」。
-- **创意写作助手**：角色「富有创造力的写作助手」；指令「创作富有想象力和感染力的文字」；示例「当用户要求写诗时，创作押韵且有意境的诗歌」。
-- **数据分析师**：角色「数据分析专家」；指令「分析数据时提供统计信息、趋势分析和建议」；约束「所有数据要准确，结论要有依据」。
-
-## 提示词文件格式
-
-### 纯文本格式
-
-直接包含提示词内容：
-
-```
-你是一个专业的安全领域编程助手。
-请用简洁明了的语言回答问题。
-提供代码示例时要确保可运行。
-```
-
-### JSON格式（提示词链）
-
-```json
-{
-  "name": "my_chain",
-  "nodes": [
-    {
-      "name": "role",
-      "content": "角色定义",
-      "order": 0
-    },
-    {
-      "name": "instruction",
-      "content": "指令",
-      "order": 10
-    }
-  ]
-}
-```
-
-## 注意事项
-
-1. 提示词链中的节点会按照 `order` 排序
-2. 如果多个选项同时指定，优先级：`prompt_file` > `prompt_chain` > `prompt_template` > `prompt`
-3. 提示词过长可能影响性能，建议控制在合理长度
-4. 可以保存提示词链到文件以便重复使用
+在代码未实现前，本文档只记录当前状态，不提供不存在的使用命令。

@@ -47,7 +47,7 @@ export class DatabaseService {
   private db: Database;
 
   constructor(private configService: ConfigService) {
-    this.db = new Database(configService.get('DATABASE_PATH') ?? 'data/secbot.db');
+    this.db = new Database(configService.get('DATABASE_PATH') ?? 'data/app.db');
   }
 }
 ```

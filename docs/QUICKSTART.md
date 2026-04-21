@@ -1,29 +1,24 @@
 # 快速启动指南
 
-本文档按"最快跑起来"的顺序整理当前仓库可用的启动方式。内容已对齐当前代码与目录结构。
+本文档只保留当前仓库真实存在、可维护的启动方式：`server/` NestJS 后端和 `terminal-ui/` Ink 终端界面。仓库当前没有 `app/`、`desktop/`、Dockerfile 或 docker-compose 启动链路。
 
-## 1. 从源码拉起完整终端版本
+## 1. 环境要求
 
-### 1.1 安装依赖
+- Node.js `>= 24`
+- npm `>= 10`（随新版 Node.js 一起安装即可）
+- 真实终端 TTY（运行 Ink TUI 时需要；Windows 推荐 CMD、PowerShell 或 Windows Terminal）
+- 可选：Ollama（只在使用本地模型时需要）
 
-```bash
-git clone https://github.com/iammm0/secbot.git
-cd secbot
-npm install
-```
+## 2. 配置模型
 
-> 要求 Node.js 24+ 和 npm。
-
-### 1.2 新建 `.env`
-
-仓库根目录当前没有 `.env.example`，请手动创建 `.env`。下面给出两个最常见的最小配置。
+在仓库根目录创建 `.env`。当前仓库没有 `.env.example`，下面是最小示例。
 
 使用 DeepSeek：
 
 ```env
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-your-api-key
-DEEPSEEK_MODEL=deepseek-reasoner
+DEEPSEEK_MODEL=deepseek-chat
 ```
 
 使用 Ollama：
@@ -31,141 +26,149 @@ DEEPSEEK_MODEL=deepseek-reasoner
 ```env
 LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=gemma3:1b
+OLLAMA_MODEL=llama3.2
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-### 1.3 启动
+说明：
+
+- TUI 里可以通过 `/model` 修改 provider、API Key、Base URL 和模型。
+- 通过 TUI 保存的配置会写入 SQLite / `config.yaml`，后续启动会优先使用已保存配置。
+
+## 3. 从源码启动完整 TUI
 
 ```bash
-npm start
-# 或
+git clone https://github.com/iammm0/secbot.git
+cd secbot
+npm install
 npm run start:stack
 ```
 
-这两种方式都会：
+`npm run start:stack` 会先构建后端，再启动 `terminal-ui`。TUI 默认使用 `spawn` 模式，也就是在本地自动拉起一个 NestJS 后端子进程，并通过 `/api/chat` 的 SSE 流展示规划、推理、工具执行和最终报告。
 
-- 在本地自动检查并启动后端（NestJS，端口 8000）
-- 进入 `terminal-ui` 的全屏交互界面
-- 通过 `/api/chat` 使用 SSE 实时展示规划、推理、执行、报告过程
+也可以直接运行：
 
-## 2. 只启动后端 API
+```bash
+npm start
+```
 
-适合对接移动端、桌面端，或单独调试接口。
+`npm start` 只启动已经构建好的后端；如果你想进入 TUI，优先使用 `npm run start:stack` 或 `npm run start:tui`。
+
+## 4. 只启动后端 API
+
+适合 API 调试、自动化脚本或把 TUI 连接到已有服务。
 
 ```bash
 npm run dev
-# 或
-npm run build && node server/dist/main.js
+```
+
+或构建后运行：
+
+```bash
+npm run build
+node server/dist/main.js
 ```
 
 默认地址：
 
-- API：`http://127.0.0.1:8000`
-- Swagger UI：`http://127.0.0.1:8000/docs`
+- Base URL：`http://127.0.0.1:8000`
+- 健康检查：`GET /health`
+- 系统信息：`GET /api/system/info`
 
-## 3. 单独启动 `terminal-ui`
+当前后端没有注册 Swagger UI，因此不要依赖 `/docs` 页面。
 
-在后端已运行的前提下：
+## 5. 单独启动 `terminal-ui`
+
+默认 `terminal-ui` 会自行启动本地后端子进程：
+
+```bash
+npm run build
+npm run start:tui
+```
+
+如果后端已经在运行，并且你只想让 TUI 连接已有服务，请使用 service 模式：
+
+```bash
+SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
+```
+
+也可以在 `terminal-ui/` 目录中直接运行：
 
 ```bash
 cd terminal-ui
+npm install
 npm run tui
 ```
 
-仓库也保留了一键脚本：
+## 6. 全局安装或 npx
+
+发布包名是 `@opensec/secbot`：
 
 ```bash
-# Linux / macOS
-./scripts/start-ts-tui.sh
-
-# Windows PowerShell
-./scripts/start-ts-tui.ps1
-```
-
-## 4. 启动移动端与桌面端
-
-### 4.1 Expo / React Native 移动端
-
-```bash
-# 先启动后端
-npm run dev
-
-# 新开一个终端
-cd app
-npm install
-npm start
-```
-
-常用命令：
-
-```bash
-npm run ios
-npm run android
-npm run web
-```
-
-`app/src/api/config.ts` 已内置常见开发地址：
-
-- Android 模拟器：`http://10.0.2.2:8000`
-- iOS 模拟器 / Web：`http://localhost:8000`
-- 真机：改为你的局域网 IP
-
-### 4.2 Tauri 桌面端
-
-```bash
-cd desktop
-npm install
-npm run tauri dev
-```
-
-桌面端默认连接本机 `http://127.0.0.1:8000`，并可通过 `SECBOT_DESKTOP=1` 模式拉起内嵌后端。
-
-## 5. 常见命令
-
-```bash
-# 构建后端
-npm run build
-
-# 开发模式（tsx watch 热重载）
-npm run dev
-
-# 启动完整栈（后端 + TUI）
-npm run start:stack
-
-# 全局安装后使用 CLI
-npm install -g secbot
+npm install -g @opensec/secbot
 secbot
-
-# 或通过 npx 直接运行
-npx secbot
 ```
 
-## 6. 常见问题
+或一次性运行：
 
-### 6.1 运行 `secbot` 但没有进入 TUI
+```bash
+npx @opensec/secbot
+```
 
-若你是通过 `npm install -g secbot` 安装的全局包，包内可能不包含 `terminal-ui` 的 Node 前端资源。此时程序会优先确保后端可启动，但不会提供完整全屏 TUI。
+后端专用入口：
 
-建议：
+```bash
+secbot-server
+```
 
-- 使用当前仓库源码运行
-- 或下载 GitHub Release 提供的完整打包产物
+## 7. 常见命令
 
-### 6.2 `terminal-ui` 无法启动
+```bash
+npm run build              # 构建 server/dist
+npm run build:terminal-ui  # 构建 terminal-ui/dist
+npm run typecheck          # TypeScript 类型检查
+npm test                   # 运行 vitest
+npm run start:stack        # 构建并进入 TUI
+npm run start:tui          # 启动 TUI
+```
 
-优先检查：
+## 8. 常见问题
 
-- `terminal-ui/node_modules` 是否已生成
-- `node -v` 是否满足 `24+`
-- 后端是否已在 `8000` 端口启动
+### 8.1 TUI 没有进入全屏界面
 
-### 6.3 Ollama 连接失败
+Ink 需要真实 TTY。请在系统终端中运行，不要在没有 TTY 的 IDE 子进程里直接启动。Windows 下可以使用：
+
+```powershell
+.\scripts\start-cli.ps1
+```
+
+或双击 `scripts/start-cli.bat`。
+
+### 8.2 TUI 提示找不到后端构建
+
+默认 spawn 模式需要 `server/dist/main.js`。先在仓库根目录执行：
+
+```bash
+npm run build
+```
+
+### 8.3 service 模式连接失败
+
+确认后端已启动，并检查：
+
+```bash
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/api/system/info
+```
+
+如果后端不在本机或端口不是 `8000`，请同步修改 `SECBOT_API_URL`。
+
+### 8.4 Ollama 连接失败
 
 请确认：
 
-- `ollama serve` 或 Ollama 桌面应用已启动
-- `OLLAMA_BASE_URL` 配置正确
-- 已拉取 `OLLAMA_MODEL` 指定的模型
+- Ollama 服务已启动。
+- `OLLAMA_BASE_URL` 指向正确地址。
+- `OLLAMA_MODEL` 指定的模型已存在，或可由 Ollama 拉取。
 
 更详细说明见 [OLLAMA_SETUP.md](OLLAMA_SETUP.md)。

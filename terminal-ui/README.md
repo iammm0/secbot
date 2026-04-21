@@ -101,7 +101,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://192.168.1.100:8000 npm run tui
 
 输入 `/` 可触发命令补全，Enter 执行。
 
-- **会话**：`/ask`、`/agent [hackbot|super]`
+- **会话**：`/ask`、`/agent [secbot-cli|super]`
 - **REST**：`/model`（当前模型/配置）、`/help`（集成安全工具）、`/list-agents`、`/system-info`、`/db-stats`
 
 ## 一键启动（推荐：解决「进不去 CLI」）
