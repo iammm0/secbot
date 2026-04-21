@@ -566,8 +566,18 @@ async def run_interactive(
     while True:
         try:
             if pt_session is not None:
-                # prompt_toolkit 提供候选弹窗与 Tab 补全
-                user_input = (pt_session.prompt(">>> ") or "").strip()
+                # prompt_toolkit 提供候选弹窗与 Tab 补全（在 asyncio 事件循环内必须用 prompt_async）
+                try:
+                    if hasattr(pt_session, "prompt_async"):
+                        user_input = (await pt_session.prompt_async(">>> ") or "").strip()
+                    else:
+                        # 极端情况下 prompt_toolkit 版本过旧，没有 async API，则降级
+                        user_input = console.input("[bold green]>>> [/bold green]").strip()
+                        pt_session = None
+                except Exception:
+                    # prompt_toolkit 在某些环境下可能初始化失败；降级到 Rich 输入
+                    user_input = console.input("[bold green]>>> [/bold green]").strip()
+                    pt_session = None
             else:
                 user_input = console.input("[bold green]>>> [/bold green]").strip()
         except (EOFError, KeyboardInterrupt):
