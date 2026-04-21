@@ -15,12 +15,14 @@ from sse_starlette.sse import EventSourceResponse
 from router.dependencies import (
     get_agent,
     get_agents,
+    get_context_assembler,
     get_planner_agent,
     get_qa_agent,
     get_summary_agent,
 )
 from router.schemas import ChatRequest, ChatResponse, RootResponseRequest
 from secbot_agent.core.session import SessionManager
+from utils.error_mapper import map_exception_to_client, redact_sensitive_text
 from utils.event_bus import EventBus, EventType, Event
 from utils.logger import logger
 from utils.log_context import log_context
@@ -32,6 +34,14 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 _root_pending: dict[str, asyncio.Future[dict[str, Any] | None]] = {}
 
 
+def _sse_step_key(data: dict, iteration: int) -> str:
+    """与 npm 端 sseStepKey 对齐：并行子任务以 todo_id 区分，避免前端时间线串台。"""
+    todo_id = data.get("todo_id") or data.get("todoId")
+    if todo_id is not None and str(todo_id).strip():
+        return f"todo-{todo_id}"
+    return f"iter-{iteration}"
+
+
 def _event_to_sse(event: Event) -> tuple[str, dict] | None:
     """将 EventBus 事件映射为前端 SSE 的 (event_name, data)。"""
     t, d = event.type, event.data
@@ -40,47 +50,58 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
             "planning",
             {
                 "content": d.get("summary", ""),
+                "summary": d.get("summary", ""),
+                "scope": d.get("scope", "master"),
                 "todos": d.get("todos", []),
                 "agent": d.get("agent"),
             },
         )
     if t == EventType.THINK_START:
+        iteration = d.get("iteration", 1)
         return (
             "thought_start",
             {
-                "iteration": d.get("iteration", 1),
+                "iteration": iteration,
+                "step_key": _sse_step_key(d, iteration),
                 "agent": d.get("agent"),
             },
         )
     if t == EventType.THINK_CHUNK:
+        iteration = d.get("iteration", 1)
         return (
             "thought_chunk",
             {
                 "chunk": d.get("chunk", ""),
-                "iteration": d.get("iteration", 1),
+                "iteration": iteration,
+                "step_key": _sse_step_key(d, iteration),
                 "agent": d.get("agent"),
             },
         )
     if t == EventType.THINK_END:
+        iteration = d.get("iteration", 1)
         return (
             "thought",
             {
                 "content": d.get("thought", ""),
-                "iteration": d.get("iteration", 1),
+                "iteration": iteration,
+                "step_key": _sse_step_key(d, iteration),
                 "agent": d.get("agent"),
             },
         )
     if t == EventType.EXEC_START:
+        iteration = d.get("iteration", 1)
         return (
             "action_start",
             {
                 "tool": d.get("tool", ""),
                 "params": d.get("params", {}),
-                "iteration": d.get("iteration", 1),
+                "iteration": iteration,
+                "step_key": _sse_step_key(d, iteration),
                 "agent": d.get("agent"),
             },
         )
     if t == EventType.EXEC_RESULT:
+        iteration = d.get("iteration", 1)
         return (
             "action_result",
             {
@@ -88,7 +109,8 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
                 "success": d.get("success", True),
                 "result": d.get("result"),
                 "error": d.get("error", ""),
-                "iteration": d.get("iteration", 1),
+                "iteration": iteration,
+                "step_key": _sse_step_key(d, iteration),
                 "view_type": d.get("view_type", "raw"),
                 "agent": d.get("agent"),
             },
@@ -201,6 +223,7 @@ async def _interaction_event_generator(
         planner=get_planner_agent(),
         qa_agent=get_qa_agent(),
         summary_agent=get_summary_agent(),
+        context_assembler=get_context_assembler(),
         get_root_password=get_root_password,
     )
 
@@ -229,10 +252,15 @@ async def _interaction_event_generator(
                 )
                 final_response.append(response)
         except Exception as e:
+            mapped = map_exception_to_client(e)
             queue.put_nowait(
                 {
                     "event": "error",
-                    "data": {"error": str(e), "traceback": traceback.format_exc()},
+                    "data": {
+                        "error": mapped.message,
+                        "code": mapped.code.value,
+                        "statusCode": mapped.status_code,
+                    },
                 }
             )
         finally:

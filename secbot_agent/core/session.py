@@ -16,6 +16,7 @@ from secbot_agent.core.agents.planner_agent import PlannerAgent
 from secbot_agent.core.agents.qa_agent import QAAgent
 from secbot_agent.core.agents.router import route_with_llm as message_route_with_llm
 from secbot_agent.core.agents.summary_agent import SummaryAgent
+from secbot_agent.core.context_assembler import ContextAssembler
 from secbot_agent.core.executor import TaskExecutor
 from secbot_agent.core.models import (
     InteractionSummary,
@@ -29,6 +30,37 @@ from secbot_agent.core.models import (
 from utils.event_bus import EventBus, EventType, Event
 from utils.logger import logger
 from hackbot_config import settings
+
+
+def build_stream_summary_payload(summary: InteractionSummary) -> dict:
+    """
+    与 npm 端 buildStreamSummaryPayload 对齐：
+    结构化精炼报告 + 较短最终回复，避免刷屏。
+    返回 {"report": str, "response": str}
+    """
+    findings = "\n".join(f"- {l}" for l in (summary.key_findings or [])[:6])
+    recs = "\n".join(f"- {l}" for l in (summary.recommendations or [])[:6])
+    parts: list[str] = []
+    head = (summary.task_summary or "").strip()
+    if head:
+        parts.append(f"## 摘要\n{head}")
+    if findings:
+        parts.append(f"## 关键发现\n{findings}")
+    if recs:
+        parts.append(f"## 修复建议\n{recs}")
+    tail = (summary.overall_conclusion or "").strip()
+    if tail:
+        parts.append(f"## 总结\n{tail}")
+    report = "\n\n".join(parts)
+    if not report.strip():
+        report = (summary.raw_report or "").strip()[:12000] or "（未能生成摘要，请查看服务端日志。）"
+    response = (
+        tail
+        or ((summary.key_findings[0].strip() if summary.key_findings and summary.key_findings[0].strip() else "")
+            and f"首要发现：{summary.key_findings[0].strip()}")
+        or "详情见上方「安全报告」。"
+    )
+    return {"report": report, "response": response}
 
 
 class SessionManager:
@@ -50,6 +82,7 @@ class SessionManager:
         planner: Optional[PlannerAgent] = None,
         qa_agent: Optional[QAAgent] = None,
         summary_agent: Optional[SummaryAgent] = None,
+        context_assembler: Optional[ContextAssembler] = None,
         get_root_password: Optional[Callable[[str], Awaitable[Optional[str]]]] = None,
         resolve_agent: Optional[Callable[[str], Any]] = None,
     ):
@@ -58,6 +91,7 @@ class SessionManager:
         self.planner = planner or PlannerAgent()
         self.qa_agent = qa_agent or QAAgent()
         self.summary_agent = summary_agent or SummaryAgent()
+        self.context_assembler = context_assembler
         self.agents = agents or {}
         self.get_root_password = get_root_password
         self.resolve_agent = resolve_agent
@@ -211,6 +245,33 @@ class SessionManager:
 
         self._current_tool_results = []
         self._thought_done_iterations = set()
+
+        # ---- 上下文组装（与 npm ContextAssemblerService.build 对齐）----
+        context_block = ""
+        if self.context_assembler and self.current_session:
+            try:
+                ctx = await self.context_assembler.build(
+                    query=user_input,
+                    session=self.current_session,
+                    session_id=self.current_session.id,
+                    agent_type=agent_type or self.get_current_agent_type(),
+                )
+                context_block = ctx.context_block
+                # context_debug 事件（SECBOT_CONTEXT_DEBUG=1 时启用）
+                import os
+                if os.environ.get("SECBOT_CONTEXT_DEBUG") in ("1", "true"):
+                    await self.event_bus.emit_simple_async(
+                        EventType.CONTENT,
+                        content="",
+                        type="context_debug",
+                        session_id=self.current_session.id,
+                        session_messages=ctx.debug.session_messages,
+                        sqlite_turns=ctx.debug.sqlite_turns,
+                        vector_hits=ctx.debug.vector_hits,
+                    )
+            except Exception as e:
+                logger.warning(f"上下文组装失败: {e}")
+
         # ---- 强制 Q&A 或 路由（含 LLM 分类）-> Q&A / 人格回复 / 技术流 ----
         if force_qa:
             await self.event_bus.emit_simple_async(
@@ -367,30 +428,8 @@ class SessionManager:
 
         # 若 Agent 定义了并发锁，则在锁内串行执行整个任务，避免多个请求并发打在同一个 Agent 上
         lock = getattr(agent_instance, "_concurrency_lock", None)
-        if lock is not None:
-            async with lock:
-                if use_layer_executor:
-                    executor = TaskExecutor(
-                        plan_result=plan_result,
-                        agent=agent_instance,
-                        planner=self.planner,
-                        event_bus=self.event_bus,
-                        get_root_password=getattr(self, "get_root_password", None),
-                    )
-                    response = await executor.run(
-                        user_input, on_event=event_bridge
-                    )
-                    # 分层执行后需记录工具结果供摘要使用（由 event_bridge 已更新 _current_tool_results）
-                else:
-                    response = await agent_instance.process(
-                        user_input,
-                        on_event=event_bridge,
-                        skip_planning=True,
-                        skip_report=True,
-                        todos=todos_snapshot,
-                        get_root_password=getattr(self, "get_root_password", None),
-                    )
-        else:
+
+        async def _do_execute():
             if use_layer_executor:
                 executor = TaskExecutor(
                     plan_result=plan_result,
@@ -399,11 +438,9 @@ class SessionManager:
                     event_bus=self.event_bus,
                     get_root_password=getattr(self, "get_root_password", None),
                 )
-                response = await executor.run(
-                    user_input, on_event=event_bridge
-                )
+                return await executor.run(user_input, on_event=event_bridge)
             else:
-                response = await agent_instance.process(
+                resp = await agent_instance.process(
                     user_input,
                     on_event=event_bridge,
                     skip_planning=True,
@@ -411,6 +448,76 @@ class SessionManager:
                     todos=todos_snapshot,
                     get_root_password=getattr(self, "get_root_password", None),
                 )
+                return resp
+
+        if lock is not None:
+            async with lock:
+                exec_result = await _do_execute()
+        else:
+            exec_result = await _do_execute()
+
+        # 兼容旧返回值（字符串）与新 ExecutionResult
+        from secbot_agent.core.executor import ExecutionResult
+        if isinstance(exec_result, ExecutionResult):
+            response = exec_result.summary
+            first_cancelled = exec_result.cancelled_count
+        else:
+            response = exec_result or ""
+            first_cancelled = 0
+
+        # ---- 穿插规划（Adaptive Replan）：与 npm ChatService 对齐 ----
+        import os
+        adaptive_off = os.environ.get("SECBOT_ADAPTIVE_REPLAN", "").lower() in ("0", "false")
+        if not adaptive_off and first_cancelled > 0 and use_layer_executor:
+            await self.event_bus.emit_simple_async(
+                EventType.TASK_PHASE, phase="planning",
+                detail="穿插规划：根据未成功子任务补充方案…",
+            )
+            adaptive_prompt = (
+                f"{user_input}\n\n"
+                f"【穿插规划】上一阶段有 {first_cancelled} 个子任务未成功。"
+                f"请仅输出需要补充执行的新子任务 JSON 数组（新 id 建议 followup-1、followup-2）；"
+                f"若无须补充则输出 []。\n\n"
+                f"阶段摘要（节选）：\n{response[:4000]}"
+            )
+            sub_plan = await self.planner.plan(adaptive_prompt)
+            if sub_plan.todos and not sub_plan.direct_response:
+                await self.event_bus.emit_simple_async(
+                    EventType.PLAN_START,
+                    summary=sub_plan.plan_summary,
+                    scope="adaptive",
+                    agent="planner",
+                    todos=[
+                        {
+                            "id": t.id,
+                            "content": t.content,
+                            "status": t.status.value,
+                            "depends_on": t.depends_on,
+                            "tool_hint": t.tool_hint,
+                        }
+                        for t in sub_plan.todos
+                    ],
+                    tools_required=getattr(sub_plan, "tools_required", None) or [],
+                )
+                await self.event_bus.emit_simple_async(
+                    EventType.TASK_PHASE, phase="executing", detail="执行穿插任务…",
+                )
+                followup_executor = TaskExecutor(
+                    plan_result=sub_plan,
+                    agent=agent_instance,
+                    planner=self.planner,
+                    event_bus=self.event_bus,
+                    get_root_password=getattr(self, "get_root_password", None),
+                )
+                if lock is not None:
+                    async with lock:
+                        followup_result = await followup_executor.run(user_input, on_event=event_bridge)
+                else:
+                    followup_result = await followup_executor.run(user_input, on_event=event_bridge)
+                if isinstance(followup_result, ExecutionResult) and followup_result.summary:
+                    response = response + "\n" + followup_result.summary if response else followup_result.summary
+                # 将补充 todos 合并到 plan_result，供摘要使用
+                plan_result.todos.extend(sub_plan.todos)
 
         # ---- 阶段 3：摘要 ----
         summary = await self._run_summary(
@@ -435,6 +542,11 @@ class SessionManager:
                 response,
                 summary=summary.task_summary if summary else None,
             )
+
+        # 持久化本轮对话（SQLite + 向量记忆）
+        await self._persist_turn(
+            user_input, response, agent_type or self.get_current_agent_type()
+        )
 
         return response
 
@@ -462,6 +574,7 @@ class SessionManager:
             await self.event_bus.emit_simple_async(
                 EventType.PLAN_START,
                 summary=plan_result.plan_summary,
+                scope="master",
                 agent="planner",
                 todos=[
                     {
@@ -526,10 +639,11 @@ class SessionManager:
                 agent_tool_results_by_agent=agent_tool_results_by_agent,
             )
 
-            # 发射报告事件
+            stream_payload = build_stream_summary_payload(summary)
+
             await self.event_bus.emit_simple_async(
                 EventType.REPORT_END,
-                report=summary.raw_report,
+                report=stream_payload["report"],
                 summary={
                     "task_summary": summary.task_summary,
                     "todo_completion": summary.todo_completion,
@@ -844,6 +958,36 @@ class SessionManager:
             return "\n".join(lines)
 
         return None
+
+    # ------------------------------------------------------------------
+    # 持久化
+    # ------------------------------------------------------------------
+
+    async def _persist_turn(
+        self, user_message: str, assistant_message: str, agent_type: str
+    ) -> None:
+        """与 npm ChatService.persistTurn 对齐：SQLite 持久化 + 上下文向量记忆。"""
+        session_id = self.current_session.id if self.current_session else "default"
+        # SQLite 对话持久化（通过 agent 上已绑定的 db_memory）
+        agent_instance = self.get_agent(agent_type)
+        if agent_instance:
+            db_mem = getattr(agent_instance, "db_memory", None)
+            if db_mem is not None:
+                try:
+                    await db_mem.save_conversation(user_message, assistant_message)
+                except Exception as e:
+                    logger.warning(f"对话持久化失败: {e}")
+        # 向量记忆
+        if self.context_assembler is not None:
+            try:
+                await self.context_assembler.remember_turn(
+                    session_id=session_id,
+                    agent_type=agent_type,
+                    user_message=user_message,
+                    assistant_message=assistant_message,
+                )
+            except Exception as e:
+                logger.warning(f"上下文记忆写入失败: {e}")
 
     # ------------------------------------------------------------------
     # 便捷方法
