@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || needs.release.outputs.tag || github.ref }}
+          ref: ${{ github.event.inputs.ref || needs.release.outputs.tag || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -122,7 +122,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || needs.release.outputs.tag || github.sha }}
+          ref: ${{ github.event.inputs.ref || needs.release.outputs.tag || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
