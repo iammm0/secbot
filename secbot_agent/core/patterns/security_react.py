@@ -205,7 +205,9 @@ class SecurityReActAgent(BaseAgent):
         # LLM
         self._provider_override: Optional[str] = None
         self._model_override: Optional[str] = None
-        self.llm = _create_llm()
+        # 延迟初始化：允许 CLI 先启动，再通过 /model 配置 Key 后再真正调用 LLM。
+        # 否则在未配置 API Key 时会在构造阶段直接抛错，导致用户无法进入交互界面。
+        self.llm: Optional[BaseChatModel] = None
 
         # ReAct 状态
         # 当前任务的 think/act/obs 历史
@@ -350,6 +352,22 @@ class SecurityReActAgent(BaseAgent):
 
     # ---- LLM 调用 ----
 
+    def _ensure_llm(self) -> None:
+        """确保 LLM 已就绪；未配置时给出可执行的配置提示。"""
+        if self.llm is not None:
+            return
+        p = self._provider_override or settings.llm_provider or "deepseek"
+        m = self._model_override
+        try:
+            self.llm = _create_llm(provider=p, model=m)
+        except Exception as e:
+            # 这里不要在构造阶段抛出；只在真正需要推理时提示用户去配置。
+            config = get_provider_config((p or "").strip().lower()) or {"name": p}
+            name = config.get("name") or p
+            raise ValueError(
+                f"尚未配置 {name} 的模型鉴权信息。请先在 CLI 中输入 `/model` 完成配置后再重试。"
+            ) from e
+
     async def _call_llm(self, messages: List) -> str:
         """调用 LLM 并提取文本内容。"""
         import asyncio
@@ -363,6 +381,7 @@ class SecurityReActAgent(BaseAgent):
         started = time.perf_counter()
         llm_logger.info("llm non-stream invoke started")
         try:
+            self._ensure_llm()
             response = await asyncio.wait_for(self.llm.ainvoke(messages), timeout=30.0)
         except Exception as e:
             duration_ms = int((time.perf_counter() - started) * 1000)
@@ -410,6 +429,7 @@ class SecurityReActAgent(BaseAgent):
         """非流式调用 LLM，返回完整文本。用于流式不可用或 API 仅返回整段内容时的回退。"""
         import asyncio
 
+        self._ensure_llm()
         response = await asyncio.wait_for(
             self.llm.ainvoke(messages), timeout=timeout
         )
@@ -429,6 +449,7 @@ class SecurityReActAgent(BaseAgent):
         import asyncio
 
         try:
+            self._ensure_llm()
             full_response = ""
             chunk_count = 0
             emit_buffer = ""
