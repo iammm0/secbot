@@ -30,6 +30,14 @@ from router.dependencies import (
 from utils.event_bus import EventBus, EventType, Event
 from utils.logger import logger
 
+try:
+    # 可选：为 “输入 / 自动弹出命令候选” 提供交互补全
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import WordCompleter
+except Exception:  # pragma: no cover
+    PromptSession = None
+    WordCompleter = None
+
 
 @dataclass
 class RenderBlock:
@@ -403,12 +411,12 @@ def _render_startup_screen(
 ) -> None:
     """启动欢迎页（对齐 `assets/show_picture.png` 风格）。"""
     banner = r"""
-██╗  ██╗ █████╗  ██████╗██╗  ██╗██████╗  ██████╗ ████████╗
-██║  ██║██╔══██╗██╔════╝██║ ██╔╝██╔══██╗██╔═══██╗╚══██╔══╝
-███████║███████║██║     █████╔╝ ██████╔╝██║   ██║   ██║
-██╔══██║██╔══██║██║     ██╔═██╗ ██╔══██╗██║   ██║   ██║
-██║  ██║██║  ██║╚██████╗██║  ██╗██████╔╝╚██████╔╝   ██║
-╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝  ╚═════╝    ╚═╝
+███████╗███████╗ ██████╗██████╗  ██████╗ ████████╗
+██╔════╝██╔════╝██╔════╝██╔══██╗██╔═══██╗╚══██╔══╝
+███████╗█████╗  ██║     ██████╔╝██║   ██║   ██║
+╚════██║██╔══╝  ██║     ██╔══██╗██║   ██║   ██║
+███████║███████╗╚██████╗██████╔╝╚██████╔╝   ██║
+╚══════╝╚══════╝ ╚═════╝╚═════╝  ╚═════╝    ╚═╝
 """.strip("\n")
 
     console.print()
@@ -435,7 +443,7 @@ def _render_startup_screen(
     _ = agent_type  # 预留：后续若要在徽标行展示可按 agent_type 显示
     console.print(
         Text.assemble(
-            (" hackbot ", "bold white on blue"),
+            (" secbot ", "bold white on blue"),
             (" ", ""),
             (" default ", "bold white on green"),
             (" ", ""),
@@ -493,7 +501,7 @@ def _render_startup_screen(
             ("。输入 ", "white"),
             ("/agent", "bold cyan"),
             (" 切换；启动时 ", "white"),
-            ("-a hackbot", "bold cyan"),
+            ("-a secbot-cli", "bold cyan"),
             (" | ", "white"),
             ("-a superhackbot", "bold cyan"),
             ("。", "white"),
@@ -505,6 +513,46 @@ def _render_startup_screen(
     console.print()
 
 
+def _slash_command_specs() -> list[tuple[str, str]]:
+    """CLI 内置 slash 命令说明（用于 / 自动提示与 /help 输出）。"""
+    return [
+        ("/help", "显示命令列表"),
+        ("/model", "选择/配置推理后端与模型"),
+        ("/agent", "切换智能体（hackbot / superhackbot）"),
+        ("/ask", "仅问答不执行工具（Ask 模式）"),
+        ("/plan", "仅生成计划（不执行）"),
+        ("/start", "执行计划"),
+        ("/accept", "确认敏感操作（superhackbot）"),
+        ("/reject", "拒绝敏感操作（superhackbot）"),
+        ("/exit", "退出（也可用 exit/quit）"),
+    ]
+
+
+def _render_slash_help(console: Console) -> None:
+    rows = _slash_command_specs()
+    grid = Table.grid(padding=(0, 3))
+    grid.add_column(justify="left")
+    grid.add_column(justify="left")
+    for cmd, desc in rows:
+        grid.add_row(Text(cmd, style="bold cyan"), Text(desc, style="white"))
+    console.print(Panel(grid, title="命令列表", border_style="bright_blue"))
+
+
+def _build_prompt_session() -> Optional["PromptSession"]:
+    """创建支持补全的 PromptSession；不可用则返回 None。"""
+    if PromptSession is None or WordCompleter is None:
+        return None
+    try:
+        if not sys.stdin.isatty():
+            return None
+    except Exception:
+        return None
+
+    commands = [c for c, _ in _slash_command_specs()]
+    completer = WordCompleter(commands, ignore_case=True, match_middle=True)
+    return PromptSession(completer=completer, complete_while_typing=True)
+
+
 async def run_interactive(
     console: Console,
     agent_type: Optional[str] = None,
@@ -513,15 +561,28 @@ async def run_interactive(
     """交互式 REPL：循环读取用户输入并处理。"""
     session_manager = _create_session_manager(console)
     _render_startup_screen(console, session_manager, agent_type)
+    pt_session = _build_prompt_session()
 
     while True:
         try:
-            user_input = console.input("[bold green]>>> [/bold green]").strip()
+            if pt_session is not None:
+                # prompt_toolkit 提供候选弹窗与 Tab 补全
+                user_input = (pt_session.prompt(">>> ") or "").strip()
+            else:
+                user_input = console.input("[bold green]>>> [/bold green]").strip()
         except (EOFError, KeyboardInterrupt):
             console.print("\n[dim]再见！[/dim]")
             break
 
         if not user_input:
+            continue
+        if user_input == "/":
+            # 对齐“输入 / 后自动弹出”：无法在 Rich 原生 input 中做到弹窗，
+            # 但至少在用户敲回车时给出命令列表，并提示可用 Tab 补全（若启用 prompt_toolkit）。
+            _render_slash_help(console)
+            continue
+        if user_input.lower() in ("/help", "help"):
+            _render_slash_help(console)
             continue
         if user_input.lower() in ("exit", "quit", "/exit", "/quit"):
             console.print("[dim]再见！[/dim]")
