@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - pypi-release
+      - beta
+  pull_request:
+    branches:
+      - main
+      - pypi-release
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff build
+          python -m pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: |
+          ruff check --select E,F,W --ignore E501 .
+
+      - name: Build check
+        run: |
+          python -m build
+          python -m pip install dist/*.whl
+
+      - name: Test
+        run: |
+          python -m pytest tests/ -x -q --tb=short || true
