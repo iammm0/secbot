@@ -1,29 +1,80 @@
-# 提示词链使用指南
+# 提示词与提示词链指南
 
-## 概述
+本文档对齐当前 Python 代码里的 `secbot_agent.prompts` 实现。当前 CLI 没有 `prompt-load`、`prompt-list`、`chat --prompt-chain` 这类子命令；提示词能力主要通过 API 请求参数和编程接口使用。
 
-提示词链功能允许你灵活配置智能体的系统提示词，支持：
-- 单个提示词
-- 提示词链（多个提示词组合）
-- 预定义模板
-- 从文件加载
+## 一、当前可用入口
 
-## 基本使用
+### API 单次覆盖系统提示词
 
-本程序无参数启动即进入交互模式（`python scripts/main.py` 或 `secbot`），交互模式会占据整个终端。在交互界面内可：
+`POST /api/chat` 与 `POST /api/chat/sync` 请求体支持 `prompt` 字段。传入后，后端会临时更新目标智能体的系统提示词。
 
-1. **使用自定义提示词 / 模板 / 链**：通过界面内的模型或提示配置、或斜杠命令（如 `/model`、`/prompt-list`）进行设置。
-2. **查看可用模板与链**：在交互模式中输入 `/prompt-list` 查看已注册的模板和提示词链。
-3. **使用提示词链**：在配置或对话上下文中指定组合（如 expert,technical）。
-4. **从文件加载**：若项目支持从文件加载提示词，可在配置或相应命令中指定路径（如 prompts/my_prompt.txt 或 prompts/my_chain.json）。具体以当前版本界面为准。
+```bash
+curl -N -X POST http://127.0.0.1:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "解释这段日志的安全风险",
+    "mode": "ask",
+    "agent": "secbot-cli",
+    "prompt": "你是一个严谨的安全日志分析助手，回答时先列风险再给建议。"
+  }'
+```
 
-## 创建提示词链
+### 编程接口管理模板与链
 
-可通过数据库、配置文件或交互模式内提供的功能创建提示词链（具体以当前版本为准）。以下为 JSON 文件格式说明，便于手工或脚本创建。
+核心类：
 
-### 使用 JSON 文件创建
+- `secbot_agent.prompts.manager.PromptManager`
+- `secbot_agent.prompts.chain.PromptChain`
+- `secbot_agent.prompts.chain.PromptChainBuilder`
 
-创建 `prompts/my_chain.json`:
+`PromptManager` 可加载内置模板、注册提示词链、从 JSON/YAML/文本文件加载链，并在传入 `DatabaseManager` 时保存到 SQLite。
+
+## 二、内置模板
+
+`PromptManager` 默认内置：
+
+- `assistant`：通用助手。
+- `expert`：专家模式。
+- `creative`：创意模式。
+- `analytical`：分析模式。
+- `friendly`：友好模式。
+- `technical`：技术专家模式。
+- `hackbot_security`：Secbot 安全测试系统提示词。
+
+示例：
+
+```python
+from secbot_agent.prompts.manager import PromptManager
+
+manager = PromptManager()
+print(manager.list_templates())
+print(manager.get_template("technical"))
+```
+
+## 三、创建提示词链
+
+### 使用构建器
+
+```python
+from secbot_agent.prompts.manager import PromptManager
+
+manager = PromptManager()
+
+chain = (
+    manager.create_chain("expert_assistant")
+    .add_role("你是一个专业的技术顾问", order=0)
+    .add_instruction("请提供详细、准确的技术建议", order=10)
+    .add_constraint("回答要简洁明了，不超过 200 字", order=20)
+    .build()
+)
+
+manager.register_chain(chain)
+print(chain.get_combined())
+```
+
+### 使用 JSON 文件
+
+`prompts/my_chain.json`：
 
 ```json
 {
@@ -43,7 +94,7 @@
     },
     {
       "name": "constraint",
-      "content": "回答要简洁明了，不超过200字",
+      "content": "回答要简洁明了，不超过 200 字",
       "order": 20,
       "metadata": {}
     }
@@ -51,16 +102,21 @@
 }
 ```
 
-然后加载：
+加载：
 
-```bash
-python scripts/main.py prompt-load prompts/my_chain.json
-python scripts/main.py chat "解释Python" --prompt-chain expert_assistant
+```python
+from pathlib import Path
+
+from secbot_agent.prompts.manager import PromptManager
+
+manager = PromptManager()
+chain = manager.load_chain_from_file(Path("prompts/my_chain.json"))
+print(chain.get_combined() if chain else "加载失败")
 ```
 
-### 使用YAML文件创建
+### 使用 YAML 文件
 
-创建 `prompts/my_chain.yaml`:
+`prompts/my_chain.yaml`：
 
 ```yaml
 name: expert_assistant
@@ -72,88 +128,60 @@ nodes:
     content: "请提供详细、准确的技术建议"
     order: 10
   - name: constraint
-    content: "回答要简洁明了，不超过200字"
+    content: "回答要简洁明了，不超过 200 字"
     order: 20
 ```
 
-## 提示词链结构
+### 使用纯文本文件
 
-提示词链由多个节点组成，每个节点有：
+纯文本文件会被加载为只有一个节点的提示词链，链名为文件名 stem。
 
-- **name**: 节点名称
-- **content**: 提示词内容
-- **order**: 排序顺序（数字越小越靠前）
-- **metadata**: 元数据（可选）
-
-节点会按照 `order` 排序后组合。
-
-## 预定义模板
-
-系统内置以下模板：
-
-- `assistant`: 通用助手
-- `expert`: 专家模式
-- `creative`: 创意模式
-- `analytical`: 分析模式
-- `friendly`: 友好模式
-- `technical`: 技术专家模式
-
-## 在交互模式中使用
-
-无参数启动即进入交互模式（`python scripts/main.py` 或 `secbot`）。在交互界面内可通过斜杠命令或模型/提示配置使用提示词、模板或提示词链，例如使用 `/model` 选择后端后，在对话中或相应设置里指定自定义提示词、模板（如 expert）或链（如 expert,technical）。具体以当前界面提供的命令为准；输入 `/` 后回车可查看全部命令。
-
-## 提示词链最佳实践
-
-1. **角色定义** (order: 0-9): 定义智能体的角色
-2. **指令** (order: 10-19): 说明智能体应该如何工作
-3. **上下文** (order: 20-29): 提供背景信息
-4. **约束** (order: 30-39): 设置限制条件
-5. **示例** (order: 40+): 提供示例
-
-## 示例
-
-以下为提示词链内容示例，可写入 JSON 文件或通过交互模式/数据库配置使用：
-
-- **技术专家**：角色「资深的软件工程师，10年以上开发经验」；指令「用专业但易懂的语言解释技术问题，提供代码示例」；约束「代码示例要完整可运行，注释要清晰」。
-- **创意写作助手**：角色「富有创造力的写作助手」；指令「创作富有想象力和感染力的文字」；示例「当用户要求写诗时，创作押韵且有意境的诗歌」。
-- **数据分析师**：角色「数据分析专家」；指令「分析数据时提供统计信息、趋势分析和建议」；约束「所有数据要准确，结论要有依据」。
-
-## 提示词文件格式
-
-### 纯文本格式
-
-直接包含提示词内容：
-
-```
-你是一个专业的Python编程助手。
+```text
+你是一个专业的 Python 编程助手。
 请用简洁明了的语言回答问题。
 提供代码示例时要确保可运行。
 ```
 
-### JSON格式（提示词链）
+## 四、持久化到 SQLite
 
-```json
-{
-  "name": "my_chain",
-  "nodes": [
-    {
-      "name": "role",
-      "content": "角色定义",
-      "order": 0
-    },
-    {
-      "name": "instruction",
-      "content": "指令",
-      "order": 10
-    }
-  ]
-}
+向 `PromptManager` 传入 `DatabaseManager` 后，`register_chain()` 会保存到 `prompt_chains` 表。
+
+```python
+from secbot_agent.database.manager import DatabaseManager
+from secbot_agent.prompts.manager import PromptManager
+
+db = DatabaseManager()
+manager = PromptManager(db_manager=db)
+
+chain = manager.build_from_string("你是安全测试助手。\n---\n只在授权范围内回答。")
+manager.register_chain(chain)
+
+print(manager.list_chains())
 ```
 
-## 注意事项
+## 五、提示词链结构
 
-1. 提示词链中的节点会按照 `order` 排序
-2. 如果多个选项同时指定，优先级：`prompt_file` > `prompt_chain` > `prompt_template` > `prompt`
-3. 提示词过长可能影响性能，建议控制在合理长度
-4. 可以保存提示词链到文件以便重复使用
+提示词链由多个节点组成，每个节点包含：
+
+- `name`：节点名称。
+- `content`：提示词内容。
+- `order`：排序顺序，数字越小越靠前。
+- `metadata`：可选元数据。
+
+组合时会按 `order` 排序，再用空行拼接为最终提示词。
+
+## 六、最佳实践
+
+1. 角色定义放在最前，例如 `order=0`。
+2. 指令放在角色之后，例如 `order=10`。
+3. 上下文、边界、授权范围放在中段，例如 `order=20`。
+4. 约束和输出格式靠后，例如 `order=30`。
+5. 示例可以放在最后，例如 `order=40` 以后。
+
+## 七、注意事项
+
+1. 当前 CLI 交互命令主要是 `/help` 与 `/model`；不要把提示词链当作已暴露的 CLI 子命令使用。
+2. API 的 `prompt` 是单次请求级别的覆盖；如果需要跨请求复用，请在外部客户端或自定义集成中加载提示词链后再传入。
+3. 提示词过长会增加上下文成本，也可能影响模型稳定性。
+4. 保存到 SQLite 前请确认内容不包含不应落盘的敏感信息。
 

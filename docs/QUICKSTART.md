@@ -12,11 +12,13 @@ cd secbot
 uv sync
 ```
 
-### 1.2 配置 `.env`
+### 1.2 配置模型
 
-仓库根目录手动创建 `.env`，至少提供一组可用推理后端配置。
+可以先不创建 `.env`。首次启动后，在交互界面输入 `/model`，或直接运行 `uv run secbot model` / `secbot model`，选择厂商、填写 API Key、Base URL 与默认模型。配置会写入 SQLite，下次启动优先使用。
 
-使用 DeepSeek：
+`.env` 只用于 CI、无人值守启动或临时覆盖默认值。需要时可参考根目录 `env.example` 与 `.env.backup`。
+
+DeepSeek 环境变量示例：
 
 ```env
 LLM_PROVIDER=deepseek
@@ -24,7 +26,7 @@ DEEPSEEK_API_KEY=sk-your-api-key
 DEEPSEEK_MODEL=deepseek-reasoner
 ```
 
-使用 Ollama：
+Ollama 环境变量示例：
 
 ```env
 LLM_PROVIDER=ollama
@@ -46,7 +48,9 @@ uv run secbot
 适合对接外部客户端或做接口调试。
 
 ```bash
-uv run secbot --backend
+secbot server
+# 或源码仓中
+uv run secbot server
 # 或
 python -m router.main
 ```
@@ -82,15 +86,15 @@ uv run secbot model
 
 优先检查：
 
-- `.env` 是否存在且变量名正确
+- 是否已经通过 `/model` 或 `secbot model` 保存过模型配置
 - API Key 是否有效
-- `LLM_PROVIDER` 与对应厂商变量是否匹配
+- 如使用 `.env`，变量名是否正确，`LLM_PROVIDER` 是否与对应厂商变量匹配
 
 ### 4.2 Ollama 连接失败
 
 请确认：
 
-- `ollama serve` 或 Ollama 桌面应用已启动
+- `ollama serve` 或 Ollama 应用已启动
 - `OLLAMA_BASE_URL` 配置正确
 - 已拉取 `OLLAMA_MODEL` 指定模型
 

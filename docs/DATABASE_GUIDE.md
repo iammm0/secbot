@@ -1,190 +1,190 @@
 # 数据库使用指南
 
-## 概述
+Secbot 当前使用 SQLite 作为本地持久化数据库，主要由 `secbot_agent.database.manager.DatabaseManager` 管理。
 
-M-Bot 使用 SQLite 作为轻量级数据库，用于持久化存储以下信息：
+## 一、数据库用途
 
-- **对话历史**：所有智能体的对话记录
-- **提示词链**：用户创建的提示词链配置
-- **用户配置**：应用配置和用户偏好
-- **爬虫任务**：爬虫任务的执行记录
+数据库用于保存：
 
-## 数据库位置
+- **对话历史**：智能体与用户的对话记录。
+- **提示词链**：由 `PromptManager` 注册或加载的提示词链。
+- **用户配置**：通过 `/model`、`secbot model` 等入口保存的模型厂商、API Key、Base URL、日志级别等配置。
+- **爬虫任务**：爬虫任务执行记录。
+- **攻击任务与扫描结果**：安全测试相关任务与结果。
+- **审计留痕**：工具执行、确认、拒绝、结果等过程记录。
 
-数据库文件默认存储在：`data/m_bot.db`
+## 二、数据库位置
 
-可以通过环境变量或配置修改数据库路径。
+默认连接串：
 
-## 数据表结构
-
-### 1. conversations（对话历史表）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| agent_type | TEXT | 智能体类型 |
-| user_message | TEXT | 用户消息 |
-| assistant_message | TEXT | 助手回复 |
-| session_id | TEXT | 会话ID |
-| timestamp | DATETIME | 时间戳 |
-| metadata | TEXT | 元数据（JSON） |
-
-### 2. prompt_chains（提示词链表）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| name | TEXT | 链名称（唯一） |
-| content | TEXT | 链内容（JSON） |
-| description | TEXT | 描述 |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
-| metadata | TEXT | 元数据（JSON） |
-
-### 3. user_configs（用户配置表）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| key | TEXT | 配置键（唯一） |
-| value | TEXT | 配置值（JSON） |
-| category | TEXT | 分类 |
-| description | TEXT | 描述 |
-| updated_at | DATETIME | 更新时间 |
-
-### 4. crawler_tasks（爬虫任务表）
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| url | TEXT | URL |
-| task_type | TEXT | 任务类型 |
-| status | TEXT | 状态 |
-| result | TEXT | 结果（JSON） |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
-| metadata | TEXT | 元数据（JSON） |
-
-## CLI 命令
-
-### 查看数据库统计
-
-```bash
-python scripts/main.py db-stats
+```text
+sqlite:///./data/secbot.db
 ```
 
-显示：
-- 对话记录数
-- 提示词链数
-- 用户配置数
-- 爬虫任务数
-- 爬虫任务状态分布
+相对路径会按当前实现解析到 `hackbot_config/` 包目录下。例如源码运行时通常是：
 
-### 查看对话历史
-
-```bash
-# 查看最近的10条对话
-python scripts/main.py db-history
-
-# 查看指定数量的对话
-python scripts/main.py db-history --limit 20
-
-# 查看特定智能体的对话
-python scripts/main.py db-history --agent simple
-
-# 查看特定会话的对话
-python scripts/main.py db-history --session <session_id>
+```text
+hackbot_config/data/secbot.db
 ```
 
-### 清空对话历史
+长期运行、系统服务或安装包场景建议使用绝对路径：
 
-```bash
-# 清空所有对话（需要确认）
-python scripts/main.py db-clear --yes
-
-# 清空特定智能体的对话
-python scripts/main.py db-clear --agent simple --yes
-
-# 清空特定会话的对话
-python scripts/main.py db-clear --session <session_id> --yes
+```env
+DATABASE_URL=sqlite:////srv/secbot/data/secbot.db
 ```
 
-## 自动保存
+Windows 示例：
 
-系统会自动保存以下信息：
+```env
+DATABASE_URL=sqlite:///C:/Users/you/secbot/secbot.db
+```
 
-1. **对话历史**：每次智能体处理用户消息后，自动保存到数据库
-2. **提示词链**：使用 `prompt-create` 创建提示词链时，自动保存到数据库
-3. **爬虫任务**：执行爬虫任务时，自动记录到数据库
+首次创建 `DatabaseManager` 时会自动创建目录、数据库文件、表和索引。
 
-## 编程接口
+## 三、主要数据表
 
-### 使用 DatabaseManager
+### `conversations`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | INTEGER | 主键 |
+| `agent_type` | TEXT | 智能体类型，如 `secbot-cli` / `superhackbot` |
+| `user_message` | TEXT | 用户消息 |
+| `assistant_message` | TEXT | 助手回复 |
+| `session_id` | TEXT | 会话 ID |
+| `timestamp` | DATETIME | 时间戳 |
+| `metadata` | TEXT | JSON 元数据 |
+
+### `prompt_chains`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | INTEGER | 主键 |
+| `name` | TEXT | 链名称，唯一 |
+| `content` | TEXT | 链内容，JSON |
+| `description` | TEXT | 描述 |
+| `created_at` | DATETIME | 创建时间 |
+| `updated_at` | DATETIME | 更新时间 |
+| `metadata` | TEXT | JSON 元数据 |
+
+### `user_configs`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | INTEGER | 主键 |
+| `key` | TEXT | 配置键，唯一 |
+| `value` | TEXT | 配置值 |
+| `category` | TEXT | 分类 |
+| `description` | TEXT | 描述 |
+| `updated_at` | DATETIME | 更新时间 |
+
+### `crawler_tasks`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | INTEGER | 主键 |
+| `url` | TEXT | URL |
+| `task_type` | TEXT | 任务类型 |
+| `status` | TEXT | 状态 |
+| `result` | TEXT | JSON 结果 |
+| `created_at` | DATETIME | 创建时间 |
+| `updated_at` | DATETIME | 更新时间 |
+| `metadata` | TEXT | JSON 元数据 |
+
+### 其他表
+
+- `attack_tasks`：攻击测试任务。
+- `scan_results`：扫描结果。
+- `audit_trail`：操作审计留痕。
+
+## 四、API 操作
+
+当前 CLI 没有 `db-stats`、`db-history`、`db-clear` 子命令。需要查看或清理数据库时，请启动 FastAPI 后端：
+
+```bash
+secbot server
+```
+
+查看统计：
+
+```bash
+curl http://127.0.0.1:8000/api/db/stats
+```
+
+查看最近 10 条对话：
+
+```bash
+curl "http://127.0.0.1:8000/api/db/history?limit=10"
+```
+
+按智能体筛选：
+
+```bash
+curl "http://127.0.0.1:8000/api/db/history?agent=secbot-cli&limit=20"
+```
+
+按会话筛选：
+
+```bash
+curl "http://127.0.0.1:8000/api/db/history?session_id=<session_id>"
+```
+
+删除对话历史：
+
+```bash
+curl -X DELETE "http://127.0.0.1:8000/api/db/history"
+```
+
+按智能体或会话删除：
+
+```bash
+curl -X DELETE "http://127.0.0.1:8000/api/db/history?agent=secbot-cli"
+curl -X DELETE "http://127.0.0.1:8000/api/db/history?session_id=<session_id>"
+```
+
+## 五、编程接口
+
+### 使用 `DatabaseManager`
 
 ```python
-from database.manager import DatabaseManager
-from database.models import Conversation
+from secbot_agent.database.manager import DatabaseManager
+from secbot_agent.database.models import Conversation
 
-# 初始化数据库管理器
 db = DatabaseManager()
 
-# 保存对话
 conversation = Conversation(
-    agent_type="simple",
+    agent_type="secbot-cli",
     user_message="你好",
-    assistant_message="你好！有什么可以帮助你的吗？"
+    assistant_message="你好！有什么可以帮助你的吗？",
+    session_id="session-123",
 )
 db.save_conversation(conversation)
 
-# 获取对话历史
-conversations = db.get_conversations(agent_type="simple", limit=10)
-
-# 获取统计信息
+conversations = db.get_conversations(agent_type="secbot-cli", limit=10)
 stats = db.get_stats()
 ```
 
-### 使用 DatabaseMemory
+### 使用 `DatabaseMemory`
 
 ```python
-from database.manager import DatabaseManager
-from core.memory.database_memory import DatabaseMemory
+from secbot_agent.database.manager import DatabaseManager
+from secbot_agent.core.memory.database_memory import DatabaseMemory
 
-# 创建数据库记忆
 db = DatabaseManager()
-memory = DatabaseMemory(db, agent_type="simple", session_id="session-123")
+memory = DatabaseMemory(db, agent_type="secbot-cli", session_id="session-123")
 
-# 保存对话
 await memory.save_conversation("用户消息", "助手回复")
-
-# 获取历史
 messages = await memory.get(limit=10)
 ```
 
-## 数据备份
-
-SQLite 数据库是单个文件，备份非常简单：
-
-```bash
-# 备份数据库
-cp data/m_bot.db data/m_bot.db.backup
-
-# 恢复数据库
-cp data/m_bot.db.backup data/m_bot.db
-```
-
-## 数据清理
-
 ### 清理旧对话
-
-可以通过编程方式清理指定日期之前的对话：
 
 ```python
 from datetime import datetime, timedelta
-from database.manager import DatabaseManager
+
+from secbot_agent.database.manager import DatabaseManager
 
 db = DatabaseManager()
-
-# 删除30天前的对话
 cutoff_date = datetime.now() - timedelta(days=30)
 count = db.delete_conversations(before_date=cutoff_date)
 print(f"删除了 {count} 条对话记录")
@@ -193,20 +193,38 @@ print(f"删除了 {count} 条对话记录")
 ### 清理特定会话
 
 ```python
-# 删除特定会话的所有对话
 count = db.delete_conversations(session_id="session-123")
 ```
 
-## 性能优化
+## 六、备份与恢复
 
-1. **索引**：数据库已自动创建必要的索引
-2. **批量操作**：大量数据操作时，考虑使用事务
-3. **定期清理**：定期清理旧数据以保持数据库性能
+SQLite 数据库是单个文件。先确认实际路径：
 
-## 注意事项
+```python
+from secbot_agent.database.manager import DatabaseManager
 
-1. SQLite 是文件数据库，不支持并发写入
-2. 数据库文件会随着使用增长，建议定期备份
-3. 删除操作不可恢复，请谨慎使用
-4. 大量数据时，考虑使用 `limit` 参数限制查询结果
+db = DatabaseManager()
+print(db.db_path)
+```
+
+备份：
+
+```bash
+cp /srv/secbot/data/secbot.db /srv/secbot/data/secbot.db.backup
+```
+
+恢复：
+
+```bash
+cp /srv/secbot/data/secbot.db.backup /srv/secbot/data/secbot.db
+```
+
+如果你使用默认相对路径，请把示例中的 `/srv/secbot/data/secbot.db` 替换为实际打印出来的路径。
+
+## 七、注意事项
+
+1. SQLite 适合单机本地使用，支持多读单写；大量并发写入时需要额外评估。
+2. API 的 `DELETE /api/db/history` 会删除匹配条件的对话记录，操作不可恢复，请先备份。
+3. 长期运行建议使用绝对 `DATABASE_URL`，避免安装路径或工作目录变化导致多个数据库文件并存。
+4. 数据库文件、`data/` 和 `logs/` 不应提交到版本控制。
 

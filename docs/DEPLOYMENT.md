@@ -1,18 +1,43 @@
 # Secbot 部署指南
 
-本文档聚焦当前仓库已存在且可维护的部署方式：**Python 后端服务**。
+本文档只覆盖当前 `pypi-release` 分支实际维护的 Python 形态：`secbot` 命令行工具与可选 FastAPI 后端。
 
 ## 当前部署建议
 
-- **本地交互**：使用 `python scripts/main.py` 或 `uv run secbot`
-- **长期运行后端**：使用 `uv run secbot --backend`、`python -m router.main`，再由自定义客户端调用 API
-- **二进制分发**：优先使用 GitHub Release 中的现成 zip 包
+- **本地交互**：安装后直接运行 `secbot`，或在源码仓运行 `uv run secbot` / `python scripts/main.py`。
+- **长期运行 API**：使用 `secbot server`、`uv run secbot server` 或 `python -m router.main` 启动 FastAPI。
+- **模型配置**：优先在程序内通过 `/model` 或 `secbot model` 配置，配置会写入 SQLite；`.env` 仅用于 CI、无人值守启动或显式覆盖默认值。
 
-当前仓库**没有维护中的 Dockerfile / docker-compose 产物**。如果你需要容器化部署，请先阅读 [DOCKER_SETUP.md](DOCKER_SETUP.md)。
+需要进程守护时，建议使用 systemd、supervisor、launchd 或你自己的平台编排方式。
 
-## 一、从源码部署后端
+## 一、从 PyPI 部署
 
-### 1. 安装依赖
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install secbot
+```
+
+启动交互 CLI：
+
+```bash
+secbot
+```
+
+启动 FastAPI：
+
+```bash
+secbot server
+```
+
+默认监听 `0.0.0.0:8000`，可通过 `--host` / `--port` 覆盖：
+
+```bash
+secbot server --host 127.0.0.1 --port 8000
+```
+
+## 二、从源码部署
 
 ```bash
 git clone https://github.com/iammm0/secbot.git
@@ -20,15 +45,50 @@ cd secbot
 uv sync
 ```
 
-如果希望本地注册命令入口，也可以额外执行：
+交互 CLI：
+
+```bash
+uv run secbot
+# 或
+python scripts/main.py
+```
+
+FastAPI：
+
+```bash
+uv run secbot server
+# 或
+python -m router.main
+```
+
+如果希望在当前环境注册可执行入口：
 
 ```bash
 uv pip install -e .
 ```
 
-### 2. 配置模型与密钥（推荐在程序内持久化）
+## 三、配置模型与密钥
 
-默认不必先建 `.env`：启动后通过 `/model` 或 `secbot model` 写入 SQLite，作为后续真源。仅在 CI、容器或需环境注入时，再参考根目录 `.env.backup` / `env.example` 使用 `.env`。最小示例：
+推荐方式：
+
+```bash
+secbot model
+```
+
+或进入交互 CLI 后输入：
+
+```text
+/model
+```
+
+程序会把当前推理后端、API Key、Base URL、模型名等写入 SQLite，下次启动优先读取这些持久化配置。
+
+只在需要环境注入时创建 `.env`。仓库提供：
+
+- `env.example`：极简说明，强调 `.env` 可选。
+- `.env.backup`：完整变量参考，可复制为 `.env` 后按需取消注释。
+
+DeepSeek 示例：
 
 ```env
 LLM_PROVIDER=deepseek
@@ -37,7 +97,7 @@ DEEPSEEK_MODEL=deepseek-reasoner
 LOG_LEVEL=INFO
 ```
 
-使用 Ollama 时可改为：
+Ollama 示例：
 
 ```env
 LLM_PROVIDER=ollama
@@ -46,21 +106,7 @@ OLLAMA_MODEL=gemma3:1b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-### 3. 启动后端
-
-```bash
-uv run secbot --backend
-```
-
-或：
-
-```bash
-python -m router.main
-```
-
-默认监听 `0.0.0.0:8000`。
-
-## 二、环境变量说明
+## 四、环境变量说明
 
 常用配置如下：
 
@@ -75,21 +121,32 @@ python -m router.main
 | `OLLAMA_EMBEDDING_MODEL` | Ollama 嵌入模型 | `nomic-embed-text` |
 | `DATABASE_URL` | SQLite 连接串 | `sqlite:///./data/secbot.db` |
 | `LOG_LEVEL` | 日志级别 | `INFO` |
-| `SECBOT_SERVER_HOST` | 覆盖监听地址 | 自动推导 |
-| `SECBOT_SERVER_PORT` | 覆盖监听端口 | `8000` |
-| `SECBOT_SERVER_RELOAD` | 是否启用热重载 | 桌面模式默认关，其它默认开 |
+| `SECBOT_SERVER_HOST` | `python -m router.main` 的监听地址 | `0.0.0.0` |
+| `SECBOT_SERVER_PORT` | `python -m router.main` 的监听端口 | `8000` |
+| `SECBOT_SERVER_RELOAD` | `python -m router.main` 是否启用热重载 | `false` |
 
-## 三、数据与日志
+说明：
+
+- `secbot server` 子命令也支持 `--host`、`--port`、`--reload`。
+- `SECBOT_SERVER_RELOAD` 只有设置为 `1`、`true` 或 `yes` 时才会开启热重载。
+
+## 五、数据与日志
 
 ### SQLite 数据库
 
-默认 `DATABASE_URL` 为：
+默认 `DATABASE_URL`：
 
 ```text
 sqlite:///./data/secbot.db
 ```
 
-需要注意的是，当前实现会把相对路径解析到 `hackbot_config/` 包目录下。因此生产环境更建议显式指定**绝对路径**，例如：
+当前实现会把相对数据库路径解析到 `hackbot_config/` 包目录下。源码运行时通常会落在：
+
+```text
+hackbot_config/data/secbot.db
+```
+
+长期运行或系统服务场景建议显式指定绝对路径，避免工作目录、安装路径变化造成数据分散：
 
 ```env
 DATABASE_URL=sqlite:////srv/secbot/data/secbot.db
@@ -103,14 +160,14 @@ DATABASE_URL=sqlite:////srv/secbot/data/secbot.db
 logs/agent.log
 ```
 
-TUI / 启动器在源码模式下还可能写入：
+如果你使用仓库里的开发脚本，脚本自身还可能写入：
 
 - `logs/backend-runtime.log`
 - `logs/tui-runtime.log`
 
-## 四、systemd 示例
+## 六、systemd 示例
 
-适合把后端作为 Linux 服务长期运行。
+适合把 FastAPI 后端作为 Linux 服务长期运行。
 
 示例文件：`/etc/systemd/system/secbot.service`
 
@@ -124,7 +181,8 @@ Type=simple
 User=secbot
 WorkingDirectory=/srv/secbot
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/usr/bin/env uv run secbot --backend
+Environment=DATABASE_URL=sqlite:////srv/secbot/data/secbot.db
+ExecStart=/srv/secbot/.venv/bin/secbot server --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
 
@@ -147,7 +205,13 @@ sudo systemctl status secbot
 journalctl -u secbot -f
 ```
 
-## 五、部署后验证
+如果从源码目录用 `uv` 运行，也可以把 `ExecStart` 改为：
+
+```ini
+ExecStart=/usr/bin/env uv run secbot server --host 0.0.0.0 --port 8000
+```
+
+## 七、部署后验证
 
 ```bash
 curl http://127.0.0.1:8000/health
@@ -159,7 +223,17 @@ curl http://127.0.0.1:8000/api/system/info
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/redoc`
 
-## 六、更新流程
+## 八、更新流程
+
+PyPI 安装：
+
+```bash
+source /srv/secbot/.venv/bin/activate
+pip install --upgrade secbot
+sudo systemctl restart secbot
+```
+
+源码部署：
 
 ```bash
 cd /srv/secbot
@@ -168,37 +242,33 @@ uv sync
 sudo systemctl restart secbot
 ```
 
-若你使用的是安装式部署：
-
-```bash
-uv pip install -e .
-sudo systemctl restart secbot
-```
-
-## 七、排障
+## 九、排障
 
 ### 1. 端口 8000 被占用
 
-`router.main` 启动前会主动检查端口占用。若报错，请先结束占用进程，再重启服务。
+`python -m router.main` 启动前会主动检查端口占用。`secbot server` 由 Uvicorn 直接启动，也会在端口不可用时报错。请先结束占用进程，再重启服务。
 
-### 2. 客户端能连接但接口失败
+### 2. 能连接但接口失败
 
 优先检查：
 
-- 后端是否真的监听在客户端使用的地址与端口
-- CORS 是否为默认配置
-- 客户端是否误连到了错误的 host/port
+- 服务是否监听在客户端使用的地址与端口。
+- `.env`、SQLite 中的模型配置是否有效。
+- 反向代理、防火墙或本机代理是否改写了请求。
+- 生产环境是否需要在反向代理或应用层补充鉴权。
 
 ### 3. Ollama 无法列出模型
 
-`/api/system/ollama-models` 会先检测 Ollama 是否在线。若返回 `error` 字段，请先确认：
+`/api/system/ollama-models` 会先检测 Ollama 是否在线。若返回 `error` 字段，请确认：
 
-- `ollama serve` 或桌面应用已启动
-- `OLLAMA_BASE_URL` 指向正确地址
+- `ollama serve` 或 Ollama 应用已启动。
+- `OLLAMA_BASE_URL` 指向正确地址。
+- 默认模型 `gemma3:1b` 或你配置的模型已拉取。
 
-## 八、相关文档
+## 十、相关文档
 
 - [API.md](API.md)
-- [DOCKER_SETUP.md](DOCKER_SETUP.md)
-- [RELEASE.md](RELEASE.md)
+- [QUICKSTART.md](QUICKSTART.md)
 - [OLLAMA_SETUP.md](OLLAMA_SETUP.md)
+- [DATABASE_GUIDE.md](DATABASE_GUIDE.md)
+- [RELEASE.md](RELEASE.md)
