@@ -1,7 +1,6 @@
 """SNMP 查询工具：通过 SNMP 协议查询目标设备的系统信息、接口列表等"""
 import asyncio
 import socket
-import struct
 from typing import Any, Dict
 from tools.base import BaseTool, ToolResult
 

@@ -109,13 +109,13 @@ class CredentialLeakTool(BaseTool):
             import hashlib
             sha1 = hashlib.sha1(email.lower().encode()).hexdigest().upper()
             prefix = sha1[:5]
-            suffix = sha1[5:]
+            _suffix = sha1[5:]
 
             url = f"https://api.pwnedpasswords.com/range/{prefix}"
             req = Request(url)
             req.add_header("User-Agent", "HackBot")
             with urlopen(req, timeout=10) as resp:
-                data = resp.read().decode()
+                _data = resp.read().decode()
 
             # 这是密码检查，不是邮箱检查，但可以作为参考
             return [{"Name": "PwnedPasswords", "note": "使用 k-anonymity 方式查询"}]

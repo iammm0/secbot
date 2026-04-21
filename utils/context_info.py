@@ -6,7 +6,6 @@ import platform
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 
 def get_current_time_str() -> str:

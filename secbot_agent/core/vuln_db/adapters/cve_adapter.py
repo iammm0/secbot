@@ -14,8 +14,6 @@ from loguru import logger
 
 from secbot_agent.core.vuln_db.schema import (
     AffectedProduct,
-    ExploitRef,
-    Mitigation,
     UnifiedVuln,
     VulnSeverity,
     VulnSource,

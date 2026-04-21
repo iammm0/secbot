@@ -1,5 +1,5 @@
 """攻击载荷生成器：生成常见漏洞利用 payload（仅生成文本，不执行）"""
-from typing import Any, Dict, List
+from typing import Any, Dict
 from tools.base import BaseTool, ToolResult
 
 

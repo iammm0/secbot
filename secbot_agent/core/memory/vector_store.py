@@ -7,8 +7,8 @@ import json
 import sqlite3
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, asdict
+from typing import List, Dict, Optional, Tuple
+from dataclasses import dataclass
 from loguru import logger
 
 
@@ -207,7 +207,7 @@ class SQLiteVectorStore:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM vector_items")
         conn.commit()
-        logger.info(f"已清空向量存储")
+        logger.info("已清空向量存储")
 
     def count(self) -> int:
         """统计数量"""

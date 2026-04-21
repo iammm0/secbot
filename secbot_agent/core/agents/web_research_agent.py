@@ -15,7 +15,6 @@ from utils.context_info import get_agent_context_block
 from utils.logger import logger
 
 from langchain_core.messages import SystemMessage, HumanMessage
-from hackbot_config import settings
 
 
 # -----------------------------------------------------------------

@@ -446,7 +446,6 @@ class SecurityReActAgent(BaseAgent):
         iteration: Optional[int] = None,
     ) -> str:
         """流式调用 LLM，触发事件；若 API 不返回流式 chunk 则自动回退到非流式。"""
-        import asyncio
 
         try:
             self._ensure_llm()
@@ -1706,7 +1705,6 @@ Final Answer: <最终结论和报告>
         单步执行：根据 todo 的 tool_hint 执行对应工具，供 TaskExecutor 分层调度使用。
         返回 {success, obs, result}。
         """
-        from secbot_agent.core.models import TodoItem
 
         tool_hint = getattr(todo, "tool_hint", None) or (
             todo.get("tool_hint") if isinstance(todo, dict) else None

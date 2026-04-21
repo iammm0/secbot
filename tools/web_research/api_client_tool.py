@@ -298,8 +298,8 @@ class ApiClientTool(BaseTool):
         # 尝试导入 httpx
         try:
             import httpx
-        except ImportError as e:
-            msg = f"缺少依赖: httpx，请先安装: pip install httpx"
+        except ImportError:
+            msg = "缺少依赖: httpx，请先安装: pip install httpx"
             logger.error(msg)
             _error_collector.add_error("ImportError", msg, request_context)
             return ToolResult(success=False, result=None, error=msg)

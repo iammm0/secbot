@@ -3,20 +3,20 @@
 """
 import json
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from utils.logger import logger
 
 
 class AuthorizationManager:
     """授权管理器：管理授权信息"""
-    
+
     def __init__(self, auth_file: Optional[Path] = None):
         self.auth_file = auth_file or Path("data/authorizations.json")
         self.auth_file.parent.mkdir(parents=True, exist_ok=True)
         self.authorizations: Dict[str, Dict] = {}
         self._load_authorizations()
-    
+
     def _load_authorizations(self):
         """加载授权信息"""
         if self.auth_file.exists():
@@ -29,7 +29,7 @@ class AuthorizationManager:
                 self.authorizations = {}
         else:
             self.authorizations = {}
-    
+
     def _save_authorizations(self):
         """保存授权信息"""
         try:
@@ -37,7 +37,7 @@ class AuthorizationManager:
                 json.dump(self.authorizations, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"保存授权失败: {e}")
-    
+
     def add_authorization(
         self,
         target_ip: str,
@@ -56,13 +56,13 @@ class AuthorizationManager:
             "description": description,
             "status": "active"
         }
-        
+
         self.authorizations[target_ip] = auth
         self._save_authorizations()
-        
+
         logger.info(f"添加授权: {target_ip}, 类型: {auth_type}")
         return True
-    
+
     def revoke_authorization(self, target_ip: str) -> bool:
         """撤销授权"""
         if target_ip in self.authorizations:
@@ -72,18 +72,18 @@ class AuthorizationManager:
             logger.info(f"撤销授权: {target_ip}")
             return True
         return False
-    
+
     def is_authorized(self, target_ip: str) -> bool:
         """检查是否已授权"""
         if target_ip not in self.authorizations:
             return False
-        
+
         auth = self.authorizations[target_ip]
-        
+
         # 检查状态
         if auth.get("status") != "active":
             return False
-        
+
         # 检查过期时间
         if auth.get("expires_at"):
             expires = datetime.fromisoformat(auth["expires_at"])
@@ -91,24 +91,24 @@ class AuthorizationManager:
                 auth["status"] = "expired"
                 self._save_authorizations()
                 return False
-        
+
         return True
-    
+
     def get_authorization(self, target_ip: str) -> Optional[Dict]:
         """获取授权信息"""
         if self.is_authorized(target_ip):
             return self.authorizations[target_ip]
         return None
-    
+
     def list_authorizations(self, status: Optional[str] = None) -> List[Dict]:
         """列出授权"""
         auths = list(self.authorizations.values())
-        
+
         if status:
             auths = [a for a in auths if a.get("status") == status]
-        
+
         return auths
-    
+
     def update_credentials(self, target_ip: str, credentials: Dict):
         """更新凭据"""
         if target_ip in self.authorizations:

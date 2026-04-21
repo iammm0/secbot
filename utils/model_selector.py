@@ -437,7 +437,7 @@ def prompt_and_save_api_key(provider: str, console: Optional[Console] = None) ->
                     description=f"{display_name} Base URL",
                 )
                 if console:
-                    console.print(f"[green]✓ Base URL 已保存[/green]")
+                    console.print("[green]✓ Base URL 已保存[/green]")
         return True
     except Exception as e:
         if console:

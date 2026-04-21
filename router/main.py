@@ -20,7 +20,7 @@ from router.database import router as database_router
 from router.tools import router as tools_router
 from router.memory import router as memory_router
 from router.dependencies import get_db_manager
-from utils.error_mapper import map_exception_to_client, redact_sensitive_text
+from utils.error_mapper import map_exception_to_client
 from utils.logger import logger
 from utils.log_context import log_context
 

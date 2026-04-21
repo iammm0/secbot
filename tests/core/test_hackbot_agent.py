@@ -11,7 +11,7 @@ class TestHackbotAgent(unittest.TestCase):
         self.assertEqual(agent.system_prompt, HACKBOT_SYSTEM_PROMPT)
         self.assertTrue(agent.auto_execute)
         self.assertGreater(len(agent.security_tools), 0)
-        
+
         # Verify tools are loaded
         # tools list contains tool instances
         self.assertTrue(any(t for t in agent.security_tools))

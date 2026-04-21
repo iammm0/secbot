@@ -9,7 +9,7 @@ ContextAssembler：三层上下文组装器
 import math
 import unicodedata
 from dataclasses import dataclass
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 from utils.logger import logger
 
@@ -99,11 +99,11 @@ class ContextAssembler:
 
         parts: List[str] = []
         if recent_session:
-            parts.append(f"【RecentSession】\n" + "\n".join(recent_session))
+            parts.append("【RecentSession】\n" + "\n".join(recent_session))
         if sqlite_lines:
-            parts.append(f"【SQLiteHistory】\n" + "\n\n".join(sqlite_lines))
+            parts.append("【SQLiteHistory】\n" + "\n\n".join(sqlite_lines))
         if vector_lines:
-            parts.append(f"【VectorMemory】\n" + "\n\n".join(vector_lines))
+            parts.append("【VectorMemory】\n" + "\n\n".join(vector_lines))
         parts.append(f"【RequestMeta】\nsession_id: {session_id}\nagent: {agent_type}")
 
         return AssembledContext(

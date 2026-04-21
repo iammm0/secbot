@@ -1,9 +1,8 @@
 """
 网页内容 AI 智能提取工具：支持纯文本 / 结构化 / 自定义 schema 三种提取模式
 """
-import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 from tools.base import BaseTool, ToolResult
 from utils.logger import logger
 

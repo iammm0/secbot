@@ -547,7 +547,8 @@ class DependencyAuditTool(BaseTool):
             cvss = None
             for s in vuln.get("severity", []):
                 if s.get("type") == "CVSS_V3":
-                    score_match = re.search(r"CVSS:3\.\d/AV:\w/.*", s.get("score", ""))
+                    # 预留：后续可解析向量字符串
+                    _score_match = re.search(r"CVSS:3\.\d/AV:\w/.*", s.get("score", ""))
                     cvss = s.get("score")
             for db_ref in vuln.get("database_specific", {}).get("severity", []):
                 severity = db_ref

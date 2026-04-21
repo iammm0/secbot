@@ -8,7 +8,7 @@ def generate_report(test_results_file, report_file):
 
     # Extract relevant information using regex
     ran_match = re.search(r"Ran (\d+) tests", results)
-    ok_match = results.strip().endswith("OK")
+    _ok_match = results.strip().endswith("OK")
     failed_match = re.search(r"FAILED \(failures=(\d+)\)", results)
     errors_match = re.search(r"FAILED \(errors=(\d+)\)", results)
     failures_and_errors_match = re.search(r"FAILED \(failures=(\d+), errors=(\d+)\)", results)
@@ -32,7 +32,7 @@ def generate_report(test_results_file, report_file):
     # Generate the report content
     report = f"""# Test Report
 
-**Generated on:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} 
+**Generated on:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 ## Summary
 

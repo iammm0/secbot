@@ -10,12 +10,12 @@ class TestAgentsEndpoints(unittest.TestCase):
     def test_list_agents(self, mock_get_db, mock_get_agents):
         # Mock database
         mock_get_db.return_value = MagicMock()
-        
+
         # Mock agents
         mock_agent = MagicMock()
         mock_agent.name = "Hackbot"
         mock_get_agents.return_value = {"secbot-cli": mock_agent}
-        
+
         with TestClient(app) as client:
             response = client.get("/api/agents")
             self.assertEqual(response.status_code, 200)
@@ -27,16 +27,16 @@ class TestAgentsEndpoints(unittest.TestCase):
     @patch("router.main.get_db_manager")
     def test_clear_memory(self, mock_get_db, mock_get_agents):
         mock_get_db.return_value = MagicMock()
-        
+
         mock_agent = MagicMock()
         mock_get_agents.return_value = {"secbot-cli": mock_agent}
-        
+
         with TestClient(app) as client:
             # Clear specific agent
             response = client.post("/api/agents/clear", json={"agent": "secbot-cli"})
             self.assertEqual(response.status_code, 200)
             mock_agent.clear_memory.assert_called_once()
-            
+
             # Clear all
             mock_agent.clear_memory.reset_mock()
             response = client.post("/api/agents/clear", json={})

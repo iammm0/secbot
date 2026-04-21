@@ -2,7 +2,6 @@
 防御路由 — 安全扫描、监控状态、封禁IP管理、报告
 """
 
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 

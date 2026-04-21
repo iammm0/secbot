@@ -7,7 +7,6 @@ Secbot 入口 — 直接调用 Typer CLI。
 """
 
 import os
-import sys
 
 os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
 

@@ -4,7 +4,6 @@
 
 import sqlite3
 import json
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -15,8 +14,6 @@ from secbot_agent.database.models import (
     PromptChainModel,
     UserConfig,
     CrawlerTask,
-    AttackTask,
-    ScanResult,
     AuditRecord,
 )
 from hackbot_config import settings
@@ -210,7 +207,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO conversations 
+                INSERT INTO conversations
                 (agent_type, user_message, assistant_message, session_id, timestamp, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
             """,
@@ -320,7 +317,7 @@ class DatabaseManager:
                 # 更新
                 cursor.execute(
                     """
-                    UPDATE prompt_chains 
+                    UPDATE prompt_chains
                     SET content = ?, description = ?, updated_at = ?, metadata = ?
                     WHERE name = ?
                 """,
@@ -424,7 +421,7 @@ class DatabaseManager:
                 # 更新
                 cursor.execute(
                     """
-                    UPDATE user_configs 
+                    UPDATE user_configs
                     SET value = ?, category = ?, description = ?, updated_at = ?
                     WHERE key = ?
                 """,
@@ -521,7 +518,7 @@ class DatabaseManager:
 
             cursor.execute(
                 """
-                INSERT INTO crawler_tasks 
+                INSERT INTO crawler_tasks
                 (url, task_type, status, result, created_at, updated_at, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """,

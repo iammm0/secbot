@@ -21,9 +21,9 @@ class TestWebResearchTool(unittest.TestCase):
             # Mock _auto_research method
             with patch.object(self.tool, '_auto_research', new_callable=AsyncMock) as mock_method:
                 mock_method.return_value = ToolResult(success=True, result="Auto Research Result")
-                
+
                 result = await self.tool.execute(query="test query", mode="auto")
-                
+
                 mock_method.assert_called_once_with("test query")
                 self.assertTrue(result.success)
                 self.assertEqual(result.result, "Auto Research Result")
@@ -34,10 +34,10 @@ class TestWebResearchTool(unittest.TestCase):
             # Mock _direct_search method
             with patch.object(self.tool, '_direct_search', new_callable=AsyncMock) as mock_method:
                 mock_method.return_value = ToolResult(success=True, result="Search Result")
-                
+
                 kwargs = {"query": "test query", "mode": "search", "max_results": 5}
                 result = await self.tool.execute(**kwargs)
-                
+
                 mock_method.assert_called_once()
                 args, _ = mock_method.call_args
                 self.assertEqual(args[0], "test query")
@@ -50,17 +50,17 @@ class TestWebResearchTool(unittest.TestCase):
             # Mock _direct_extract method
             with patch.object(self.tool, '_direct_extract', new_callable=AsyncMock) as mock_method:
                 mock_method.return_value = ToolResult(success=True, result="Extract Result")
-                
+
                 kwargs = {"url": "http://example.com", "mode": "extract"}
                 result = await self.tool.execute(**kwargs)
-                
+
                 mock_method.assert_called_once()
                 args, _ = mock_method.call_args
                 self.assertEqual(args[0], "http://example.com")
                 self.assertEqual(args[1], kwargs)
                 self.assertTrue(result.success)
         asyncio.run(run_test())
-    
+
     def test_invalid_mode(self):
         async def run_test():
             result = await self.tool.execute(query="test", mode="invalid_mode")

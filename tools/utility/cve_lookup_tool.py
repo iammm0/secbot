@@ -1,6 +1,8 @@
 """CVE 漏洞查询工具：查询 CVE 漏洞详情"""
 import asyncio
 import json
+import urllib.request
+import urllib.error
 from typing import Any, Dict
 from tools.base import BaseTool, ToolResult
 
@@ -22,7 +24,6 @@ class CveLookupTool(BaseTool):
         product = kwargs.get("product", "")
 
         try:
-            import urllib.request
 
             loop = asyncio.get_event_loop()
 

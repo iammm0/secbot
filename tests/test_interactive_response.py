@@ -14,17 +14,10 @@ if str(ROOT) not in sys.path:
 def test_imports():
     """确保关键模块可导入"""
     from rich.console import Console
-    from utils.event_bus import EventBus, EventType, Event
-    from secbot_agent.core.models import RequestType, PlanResult, TodoItem, TodoStatus
-    from secbot_agent.core.agents.planner_agent import PlannerAgent
-    from secbot_agent.core.session import SessionManager
-    from secbot_agent.core.agents.hackbot_agent import HackbotAgent
-    from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
-    from utils.audit import AuditTrail
-    from secbot_agent.database.manager import DatabaseManager
+    from utils.event_bus import EventBus, EventType
     console = Console(width=80)
     assert console is not None
-    bus = EventBus()
+    _bus = EventBus()
     assert EventType.PLAN_START in EventType
     print("OK  imports")
 
@@ -67,14 +60,14 @@ async def test_simple_reply():
 async def test_technical_flow_no_llm():
     """技术请求：仅跑规划 + 一次 process（不依赖 LLM 可用时再测）"""
     from rich.console import Console
-    from utils.event_bus import EventBus, EventType
+    from utils.event_bus import EventBus
     from secbot_agent.core.session import SessionManager
     from secbot_agent.core.agents.planner_agent import PlannerAgent
     from secbot_agent.database.manager import DatabaseManager
     from utils.audit import AuditTrail
     from secbot_agent.core.agents.hackbot_agent import HackbotAgent
     from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
-    from secbot_agent.core.models import PlanResult, RequestType
+    from secbot_agent.core.models import RequestType
 
     console = Console(width=80)
     event_bus = EventBus()
@@ -120,7 +113,7 @@ def test_agent_process_skip_flags():
     from utils.audit import AuditTrail
     from secbot_agent.core.agents.hackbot_agent import HackbotAgent
 
-    console = Console(width=80)
+    _console = Console(width=80)
     db = DatabaseManager()
     audit = AuditTrail(db, "test-skip")
     agent = HackbotAgent(name="Hackbot", audit_trail=audit)

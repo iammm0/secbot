@@ -5,7 +5,7 @@ import os
 import platform
 import sys
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict
 from utils.logger import logger
 
 
@@ -21,7 +21,7 @@ class SystemInfo:
     python_version: str
     hostname: str
     username: str
-    
+
     def to_dict(self) -> Dict:
         """转换为字典"""
         return {
@@ -39,12 +39,12 @@ class SystemInfo:
 
 class OSDetector:
     """操作系统检测器"""
-    
+
     @staticmethod
     def detect() -> SystemInfo:
         """检测当前操作系统信息"""
         system = platform.system().lower()
-        
+
         # 确定OS类型
         if system == "windows":
             os_type = "windows"
@@ -68,19 +68,19 @@ class OSDetector:
             os_type = "unknown"
             os_name = platform.system()
             os_version = platform.version()
-        
+
         # 获取主机名和用户名
         try:
             import getpass
             username = getpass.getuser()
         except Exception:
             username = "unknown"
-        
+
         try:
             hostname = platform.node()
         except Exception:
             hostname = "unknown"
-        
+
         info = SystemInfo(
             os_type=os_type,
             os_name=os_name,
@@ -92,25 +92,25 @@ class OSDetector:
             hostname=hostname,
             username=username
         )
-        
+
         logger.info(f"检测到操作系统: {info.os_type} - {info.os_name} {info.os_version}")
         return info
-    
+
     @staticmethod
     def is_windows() -> bool:
         """判断是否为Windows"""
         return platform.system().lower() == "windows"
-    
+
     @staticmethod
     def is_linux() -> bool:
         """判断是否为Linux"""
         return platform.system().lower() == "linux"
-    
+
     @staticmethod
     def is_macos() -> bool:
         """判断是否为macOS"""
         return platform.system().lower() == "darwin"
-    
+
     @staticmethod
     def get_shell() -> str:
         """获取默认shell（Windows上优先使用cmd）"""

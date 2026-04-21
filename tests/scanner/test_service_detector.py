@@ -37,10 +37,10 @@ class TestServiceDetector(unittest.TestCase):
             mock_scanner_cls.return_value = mock_scanner
 
             result = await self.detector.detect_all_services("localhost")
-            
+
             self.assertEqual(result["host"], "localhost")
             self.assertEqual(len(result["services"]), 2)
-            
+
             services = {s["port"]: s["service"] for s in result["services"]}
             self.assertEqual(services[80], "http")
             self.assertEqual(services[22], "ssh")

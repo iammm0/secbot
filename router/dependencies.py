@@ -4,9 +4,7 @@
 """
 
 import uuid
-from functools import lru_cache
 
-from secbot_agent.core.agents.hackbot_agent import HackbotAgent
 from secbot_agent.core.agents.coordinator_agent import CoordinatorAgent
 from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
 from secbot_agent.core.agents.qa_agent import QAAgent

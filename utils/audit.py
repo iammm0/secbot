@@ -62,11 +62,11 @@ class AuditTrail:
             return "暂无操作记录。"
 
         lines = [
-            f"# 操作审计报告",
-            f"",
+            "# 操作审计报告",
+            "",
             f"**会话 ID**: `{self.session_id}`",
             f"**记录数**: {len(records)}",
-            f"",
+            "",
             "---",
             "",
         ]
@@ -84,20 +84,20 @@ class AuditTrail:
             icon = step_icons.get(rec.step_type, "📌")
             ts = rec.timestamp.strftime("%H:%M:%S") if rec.timestamp else "?"
             lines.append(f"### {i}. {icon} {rec.step_type.upper()} [{ts}]")
-            lines.append(f"")
+            lines.append("")
             lines.append(f"**智能体**: {rec.agent}")
-            lines.append(f"")
+            lines.append("")
             lines.append(rec.content)
             if rec.metadata:
-                lines.append(f"")
-                lines.append(f"<details><summary>元数据</summary>")
-                lines.append(f"")
-                lines.append(f"```json")
+                lines.append("")
+                lines.append("<details><summary>元数据</summary>")
+                lines.append("")
+                lines.append("```json")
                 import json
                 lines.append(json.dumps(rec.metadata, ensure_ascii=False, indent=2))
-                lines.append(f"```")
-                lines.append(f"</details>")
-            lines.append(f"")
+                lines.append("```")
+                lines.append("</details>")
+            lines.append("")
             lines.append("---")
             lines.append("")
 

@@ -6,7 +6,6 @@
 """
 
 import sys
-import os
 from pathlib import Path
 
 # 设置 Windows 控制台编码
@@ -16,7 +15,7 @@ if sys.platform == "win32":
 
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
-    except:
+    except Exception:
         pass
 
 

@@ -6,7 +6,6 @@ SessionManager：会话编排管理器
 
 import uuid
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable, Dict, List, Optional, Any
 
@@ -24,8 +23,6 @@ from secbot_agent.core.models import (
     PlanResult,
     RequestType,
     Session,
-    TodoItem,
-    TodoStatus,
 )
 from utils.event_bus import EventBus, EventType, Event
 from utils.logger import logger
@@ -38,8 +35,12 @@ def build_stream_summary_payload(summary: InteractionSummary) -> dict:
     结构化精炼报告 + 较短最终回复，避免刷屏。
     返回 {"report": str, "response": str}
     """
-    findings = "\n".join(f"- {l}" for l in (summary.key_findings or [])[:6])
-    recs = "\n".join(f"- {l}" for l in (summary.recommendations or [])[:6])
+    findings = "\n".join(
+        f"- {item}" for item in (summary.key_findings or [])[:6]
+    )
+    recs = "\n".join(
+        f"- {item}" for item in (summary.recommendations or [])[:6]
+    )
     parts: list[str] = []
     head = (summary.task_summary or "").strip()
     if head:
@@ -247,7 +248,7 @@ class SessionManager:
         self._thought_done_iterations = set()
 
         # ---- 上下文组装（与 npm ContextAssemblerService.build 对齐）----
-        context_block = ""
+        _context_block = ""
         if self.context_assembler and self.current_session:
             try:
                 ctx = await self.context_assembler.build(
@@ -256,7 +257,7 @@ class SessionManager:
                     session_id=self.current_session.id,
                     agent_type=agent_type or self.get_current_agent_type(),
                 )
-                context_block = ctx.context_block
+                _context_block = ctx.context_block
                 # context_debug 事件（SECBOT_CONTEXT_DEBUG=1 时启用）
                 import os
                 if os.environ.get("SECBOT_CONTEXT_DEBUG") in ("1", "true"):
@@ -654,7 +655,7 @@ class SessionManager:
             )
 
             return summary
-        except Exception as e:
+        except Exception:
             logger.bind(event="summary").exception("摘要阶段错误")
             return None
 

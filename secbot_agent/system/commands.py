@@ -6,29 +6,28 @@ import subprocess
 import shutil
 import psutil
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional
 from datetime import datetime
-import json
 from utils.logger import logger
 from .detector import OSDetector
 
 
 class SystemCommands:
     """系统操作命令集合"""
-    
+
     def __init__(self):
         self.detector = OSDetector()
         self.system_info = self.detector.detect()
-    
+
     # ========== 文件操作 ==========
-    
+
     def list_files(self, path: str = ".", recursive: bool = False) -> List[Dict]:
         """列出文件"""
         try:
             path_obj = Path(path)
             if not path_obj.exists():
                 return []
-            
+
             files = []
             if recursive:
                 for item in path_obj.rglob("*"):
@@ -48,12 +47,12 @@ class SystemCommands:
                         "size": item.stat().st_size if item.is_file() else 0,
                         "modified": datetime.fromtimestamp(item.stat().st_mtime).isoformat()
                     })
-            
+
             return files
         except Exception as e:
             logger.error(f"列出文件错误: {e}")
             return []
-    
+
     def read_file(self, file_path: str, encoding: str = "utf-8") -> str:
         """读取文件"""
         try:
@@ -62,7 +61,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"读取文件错误: {e}")
             raise
-    
+
     def write_file(self, file_path: str, content: str, encoding: str = "utf-8") -> bool:
         """写入文件"""
         try:
@@ -73,7 +72,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"写入文件错误: {e}")
             return False
-    
+
     def create_directory(self, dir_path: str) -> bool:
         """创建目录"""
         try:
@@ -82,7 +81,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"创建目录错误: {e}")
             return False
-    
+
     def delete_file(self, file_path: str) -> bool:
         """删除文件"""
         try:
@@ -91,7 +90,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"删除文件错误: {e}")
             return False
-    
+
     def delete_directory(self, dir_path: str) -> bool:
         """删除目录"""
         try:
@@ -100,7 +99,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"删除目录错误: {e}")
             return False
-    
+
     def copy_file(self, src: str, dst: str) -> bool:
         """复制文件"""
         try:
@@ -109,7 +108,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"复制文件错误: {e}")
             return False
-    
+
     def move_file(self, src: str, dst: str) -> bool:
         """移动文件"""
         try:
@@ -118,14 +117,14 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"移动文件错误: {e}")
             return False
-    
+
     def get_file_info(self, file_path: str) -> Dict:
         """获取文件信息"""
         try:
             path_obj = Path(file_path)
             if not path_obj.exists():
                 return {}
-            
+
             stat = path_obj.stat()
             return {
                 "path": str(path_obj),
@@ -139,9 +138,9 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"获取文件信息错误: {e}")
             return {}
-    
+
     # ========== 进程操作 ==========
-    
+
     def list_processes(self, filter_name: Optional[str] = None) -> List[Dict]:
         """列出进程"""
         try:
@@ -158,7 +157,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"列出进程错误: {e}")
             return []
-    
+
     def kill_process(self, pid: int) -> bool:
         """终止进程"""
         try:
@@ -168,7 +167,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"终止进程错误: {e}")
             return False
-    
+
     def get_process_info(self, pid: int) -> Dict:
         """获取进程信息"""
         try:
@@ -185,13 +184,13 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"获取进程信息错误: {e}")
             return {}
-    
+
     # ========== 系统信息 ==========
-    
+
     def get_system_info(self) -> Dict:
         """获取系统信息"""
         return self.system_info.to_dict()
-    
+
     def get_cpu_info(self) -> Dict:
         """获取CPU信息"""
         try:
@@ -204,7 +203,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"获取CPU信息错误: {e}")
             return {}
-    
+
     def get_memory_info(self) -> Dict:
         """获取内存信息"""
         try:
@@ -219,7 +218,7 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"获取内存信息错误: {e}")
             return {}
-    
+
     def get_disk_info(self) -> List[Dict]:
         """获取磁盘信息"""
         try:
@@ -242,13 +241,13 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"获取磁盘信息错误: {e}")
             return []
-    
+
     def get_network_info(self) -> Dict:
         """获取网络信息"""
         try:
             net_io = psutil.net_io_counters()
             net_if = psutil.net_if_addrs()
-            
+
             interfaces = {}
             for interface_name, addresses in net_if.items():
                 interfaces[interface_name] = [
@@ -259,7 +258,7 @@ class SystemCommands:
                     }
                     for addr in addresses
                 ]
-            
+
             return {
                 "bytes_sent": net_io.bytes_sent,
                 "bytes_recv": net_io.bytes_recv,
@@ -270,9 +269,9 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"获取网络信息错误: {e}")
             return {}
-    
+
     # ========== 命令执行 ==========
-    
+
     def execute_command(self, command: str, shell: bool = True, timeout: int = 30) -> Dict:
         """执行系统命令"""
         try:
@@ -310,7 +309,7 @@ class SystemCommands:
                     timeout=timeout,
                     executable="/bin/bash" if self.system_info.os_type == "linux" else "/bin/zsh"
                 )
-            
+
             return {
                 "success": result.returncode == 0,
                 "returncode": result.returncode,
@@ -332,13 +331,13 @@ class SystemCommands:
                 "stdout": "",
                 "stderr": str(e)
             }
-    
+
     # ========== 环境变量 ==========
-    
+
     def get_env(self, key: str) -> Optional[str]:
         """获取环境变量"""
         return os.environ.get(key)
-    
+
     def set_env(self, key: str, value: str) -> bool:
         """设置环境变量"""
         try:
@@ -347,17 +346,17 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"设置环境变量错误: {e}")
             return False
-    
+
     def list_env(self) -> Dict[str, str]:
         """列出所有环境变量"""
         return dict(os.environ)
-    
+
     # ========== 路径操作 ==========
-    
+
     def get_current_directory(self) -> str:
         """获取当前工作目录"""
         return os.getcwd()
-    
+
     def change_directory(self, path: str) -> bool:
         """切换目录"""
         try:
@@ -366,19 +365,19 @@ class SystemCommands:
         except Exception as e:
             logger.error(f"切换目录错误: {e}")
             return False
-    
+
     def expand_path(self, path: str) -> str:
         """展开路径（处理~和变量）"""
         return os.path.expanduser(os.path.expandvars(path))
-    
+
     def path_exists(self, path: str) -> bool:
         """检查路径是否存在"""
         return os.path.exists(path)
-    
+
     def is_file(self, path: str) -> bool:
         """检查是否为文件"""
         return os.path.isfile(path)
-    
+
     def is_directory(self, path: str) -> bool:
         """检查是否为目录"""
         return os.path.isdir(path)

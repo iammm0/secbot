@@ -1,6 +1,6 @@
 
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from utils.config_storage import get_api_key, set_api_key, delete_api_key, show_config_status
 
 class TestConfigStorage(unittest.TestCase):
@@ -28,9 +28,9 @@ class TestConfigStorage(unittest.TestCase):
             if username == "deepseek":
                 return "key1"
             return None
-        
+
         mock_keyring.get_password.side_effect = side_effect
-        
+
         status = show_config_status()
         self.assertTrue(status["deepseek"])
         self.assertFalse(status["ollama"])

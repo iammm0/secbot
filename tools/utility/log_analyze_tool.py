@@ -65,7 +65,6 @@ class LogAnalyzeTool(BaseTool):
         findings: Dict[str, List] = defaultdict(list)
         ip_counter = Counter()
         severity_counter = Counter()
-        timeline = defaultdict(int)
 
         for i, line in enumerate(lines, 1):
             line = line.strip()

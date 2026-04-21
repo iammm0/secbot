@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """直接测试DeepSeek API"""
 
-import os
 from openai import OpenAI
 
 # 从.env读取API密钥
