@@ -16,6 +16,8 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
+from rich.align import Align
+from rich.table import Table
 
 from secbot_agent.core.session import SessionManager
 from router.dependencies import (
@@ -396,6 +398,113 @@ async def _run_single_message(
     )
 
 
+def _render_startup_screen(
+    console: Console, session_manager: SessionManager, agent_type: Optional[str]
+) -> None:
+    """启动欢迎页（对齐 `assets/show_picture.png` 风格）。"""
+    banner = r"""
+██╗  ██╗ █████╗  ██████╗██╗  ██╗██████╗  ██████╗ ████████╗
+██║  ██║██╔══██╗██╔════╝██║ ██╔╝██╔══██╗██╔═══██╗╚══██╔══╝
+███████║███████║██║     █████╔╝ ██████╔╝██║   ██║   ██║
+██╔══██║██╔══██║██║     ██╔═██╗ ██╔══██╗██║   ██║   ██║
+██║  ██║██║  ██║╚██████╗██║  ██╗██████╔╝╚██████╔╝   ██║
+╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝  ╚═════╝    ╚═╝
+""".strip("\n")
+
+    console.print()
+    console.print(Align.center(Text(banner, style="bold cyan")))
+    console.print(Align.center(Text("Security Testing Agent", style="cyan")))
+    console.print()
+
+    # 顶部徽标行：hackbot/default/auto + 工具数 + 模型提示（不触发 LLM 初始化）
+    tools_count = 0
+    try:
+        agents = getattr(session_manager, "agents", None) or {}
+        # CLI 进程内 agents 结构：{'secbot-cli': CoordinatorAgent, 'superhackbot': SuperHackbotAgent}
+        # 优先使用当前 agent_type 对应实例，回退到 secbot-cli。
+        coordinator = agents.get(agent_type or "secbot-cli") or agents.get("secbot-cli")
+        default_agent = getattr(coordinator, "_default_agent", None) if coordinator else None
+        tools = getattr(default_agent, "security_tools", None) if default_agent else None
+        tools_count = len(tools) if isinstance(tools, list) else 0
+    except Exception:
+        tools_count = 0
+
+    # 为了对齐启动引导与截图效果：启动页固定提示用户用 /model 选择。
+    model_tip = "未选择（/model 选择）"
+
+    _ = agent_type  # 预留：后续若要在徽标行展示可按 agent_type 显示
+    console.print(
+        Text.assemble(
+            (" hackbot ", "bold white on blue"),
+            (" ", ""),
+            (" default ", "bold white on green"),
+            (" ", ""),
+            (" auto ", "bold white on grey37"),
+            ("  ", ""),
+            (f"{tools_count} tools", "dim"),
+            ("  ", ""),
+            (model_tip, "dim"),
+        )
+    )
+    console.print()
+
+    # Quick Start（两列）
+    left = [
+        "• 扫描当前主机所在内网环境",
+        "• 你好 / 你能做什么",
+        "• Scan localhost for open ports",
+        "• /plan 编写测试计划，/start 执行计划，/ask 仅提问不执行",
+    ]
+    right = [
+        "推荐首条，发现内网主机与端口",
+        "问候或了解能力（走问答）",
+        "扫描本机开放端口",
+        "命令一览：规划/执行/问答",
+    ]
+
+    grid = Table.grid(padding=(0, 3))
+    grid.add_column(justify="left", ratio=2)
+    grid.add_column(justify="left", ratio=3)
+    for l, r in zip(left, right):
+        grid.add_row(Text(l, style="cyan"), Text(r, style="white"))
+
+    body = Table.grid(padding=(0, 0))
+    body.add_column(ratio=1)
+    body.add_row(Text("不知道做什么？试试这些：", style="bold cyan"))
+    body.add_row(Text(" ", style="white"))
+    body.add_row(grid)
+
+    console.print(
+        Panel(
+            body,
+            title="Quick Start",
+            title_align="center",
+            border_style="bright_blue",
+        )
+    )
+    console.print(
+        Text.assemble(
+            ("模式 ", "white"),
+            ("default", "bold"),
+            ("（自动） | ", "white"),
+            ("super", "bold"),
+            ("（专家）；当前：", "white"),
+            ("default", "bold green"),
+            ("。输入 ", "white"),
+            ("/agent", "bold cyan"),
+            (" 切换；启动时 ", "white"),
+            ("-a hackbot", "bold cyan"),
+            (" | ", "white"),
+            ("-a superhackbot", "bold cyan"),
+            ("。", "white"),
+        )
+    )
+    console.print(Text("输入 / 后回车可列出所有命令（或输入 / 后自动弹出）。exit 退出", style="dim"))
+    console.print()
+    console.print(Text.assemble(("— 模式：", "dim"), (" 默认", "bold blue")))
+    console.print()
+
+
 async def run_interactive(
     console: Console,
     agent_type: Optional[str] = None,
@@ -403,15 +512,7 @@ async def run_interactive(
 ) -> None:
     """交互式 REPL：循环读取用户输入并处理。"""
     session_manager = _create_session_manager(console)
-
-    console.print(
-        Panel(
-            "Secbot — 自动化安全测试助手\n"
-            "输入你的问题或任务，输入 exit/quit 退出，输入 /help 查看帮助。",
-            title="[bold bright_blue]Secbot CLI[/bold bright_blue]",
-            border_style="bright_blue",
-        )
-    )
+    _render_startup_screen(console, session_manager, agent_type)
 
     while True:
         try:
