@@ -21,7 +21,7 @@ async def test_think():
         thought = await asyncio.wait_for(
             agent._think("扫描127.0.0.1的端口"), timeout=5.0
         )
-        print(f"=== _think 返回 ===", file=sys.stderr)
+        print("=== _think 返回 ===", file=sys.stderr)
         print(f"Thought: {thought}", file=sys.stderr)
     except asyncio.TimeoutError:
         print("=== _think 超时 ===", file=sys.stderr)

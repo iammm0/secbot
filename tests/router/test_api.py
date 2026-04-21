@@ -10,7 +10,7 @@ class TestRouter(unittest.TestCase):
         # Mock database manager to avoid actual DB connection during startup
         mock_db = MagicMock()
         mock_get_db.return_value = mock_db
-        
+
         with TestClient(app) as client:
             response = client.get("/health")
             self.assertEqual(response.status_code, 200)

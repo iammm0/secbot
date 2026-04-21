@@ -5,7 +5,6 @@
 
 from typing import Optional, List, Dict, Any
 
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import BaseTool as LangChainBaseTool
 
@@ -243,7 +242,7 @@ class ToolCallingAgent(BaseAgent):
             result = str(response)
             if result and result != "None":
                 return result
-        except:
+        except Exception:
             pass
 
         # 如果都失败了，返回空字符串
@@ -353,7 +352,7 @@ class ToolCallingAgent(BaseAgent):
                                             },
                                         }
                                     )
-                            except:
+                            except Exception:
                                 pass
 
                 # 执行工具调用

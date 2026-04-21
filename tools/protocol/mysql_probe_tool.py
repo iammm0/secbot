@@ -48,8 +48,8 @@ class MysqlProbeTool(BaseTool):
 
                 # 解析 MySQL Protocol Handshake (v10)
                 # 4 bytes header: 3 bytes length + 1 byte sequence
-                pkt_len = struct.unpack("<I", data[0:3] + b"\x00")[0]
-                seq = data[3]
+                _pkt_len = struct.unpack("<I", data[0:3] + b"\x00")[0]
+                _seq = data[3]
                 payload = data[4:]
 
                 # 检查是否是错误包

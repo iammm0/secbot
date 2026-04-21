@@ -1,6 +1,5 @@
 """Shodan 查询工具：通过 Shodan API 查询目标 IP 的开放端口、服务、漏洞等信息"""
 import asyncio
-import json
 from typing import Any, Dict
 from tools.base import BaseTool, ToolResult
 

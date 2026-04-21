@@ -31,13 +31,13 @@ def _adapt_command_for_platform(command: str) -> str:
 
 class CommandTool(BaseTool):
     """命令执行工具：执行系统终端命令"""
-    
+
     def __init__(self):
         super().__init__(
             name="execute_command",
             description="执行系统终端命令。可执行文件操作、进程管理、网络等。在 macOS 上 netstat 不支持 -t/-u/-l/-p/-o 等 Linux 选项，会自动改为 netstat -an。"
         )
-    
+
     async def execute(
         self,
         command: str,
@@ -85,9 +85,9 @@ class CommandTool(BaseTool):
                     executable="/bin/bash" if sys.platform != "darwin" else "/bin/zsh",
                     **run_kw,
                 )
-            
+
             success = result.returncode == 0
-            
+
             return ToolResult(
                 success=success,
                 result={
@@ -99,7 +99,7 @@ class CommandTool(BaseTool):
                 },
                 error=result.stderr if not success else ""
             )
-            
+
         except subprocess.TimeoutExpired:
             logger.warning(f"命令执行超时: {command}")
             return ToolResult(
@@ -114,7 +114,7 @@ class CommandTool(BaseTool):
                 result=None,
                 error=str(e)
             )
-    
+
     def get_schema(self) -> dict:
         """获取工具模式"""
         return {

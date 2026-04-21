@@ -24,7 +24,7 @@ async def test_react():
     try:
         # 设置超时
         response = await asyncio.wait_for(agent.process(user_input), timeout=10.0)
-        print(f"=== 响应 ===", file=sys.stderr)
+        print("=== 响应 ===", file=sys.stderr)
         print(response)
     except asyncio.TimeoutError:
         print("=== 超时 ===", file=sys.stderr)

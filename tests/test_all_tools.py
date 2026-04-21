@@ -257,12 +257,12 @@ def test_agents_have_tools():
     s = SuperHackbotAgent(audit_trail=audit)
 
     mark(
-        f"Hackbot tools count",
+        "Hackbot tools count",
         len(h.security_tools) >= 25,
         f"count={len(h.security_tools)}",
     )
     mark(
-        f"SuperHackbot tools count",
+        "SuperHackbot tools count",
         len(s.security_tools) >= 25,
         f"count={len(s.security_tools)}",
     )

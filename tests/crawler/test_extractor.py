@@ -24,16 +24,16 @@ class TestAIExtractor(unittest.TestCase):
                 }
             }
             mock_response.raise_for_status = MagicMock()
-            
+
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             # Run extract
             schema = {"name": "string", "type": "string"}
             result = await self.extractor.extract("Some content", schema)
-            
+
             self.assertEqual(result, expected_data)
-        
+
         asyncio.run(run_test())
 
     @patch("secbot_agent.crawler.extractor.httpx.AsyncClient")
@@ -49,15 +49,15 @@ class TestAIExtractor(unittest.TestCase):
                 }
             }
             mock_response.raise_for_status = MagicMock()
-            
+
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             # Run extract_summary
             result = await self.extractor.extract_summary("Long content")
-            
+
             self.assertEqual(result, summary_text)
-        
+
         asyncio.run(run_test())
 
     @patch("secbot_agent.crawler.extractor.httpx.AsyncClient")
@@ -73,18 +73,18 @@ class TestAIExtractor(unittest.TestCase):
                 }
             }
             mock_response.raise_for_status = MagicMock()
-            
+
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value.__aenter__.return_value = mock_client
 
             # Run extract_keywords
             result = await self.extractor.extract_keywords("Content")
-            
+
             self.assertEqual(len(result), 3)
             self.assertEqual(result[0], "key1")
             self.assertEqual(result[1], "key2")
             self.assertEqual(result[2], "key3")
-        
+
         asyncio.run(run_test())
 
     def test_extract_json_helper(self):
@@ -92,7 +92,7 @@ class TestAIExtractor(unittest.TestCase):
         text = "Some text before { \"key\": \"value\" } some text after"
         json_str = self.extractor._extract_json(text)
         self.assertEqual(json_str, '{ "key": "value" }')
-        
+
         text_no_json = "No json here"
         json_str = self.extractor._extract_json(text_no_json)
         self.assertEqual(json_str, '{}')

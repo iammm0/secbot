@@ -3,7 +3,6 @@
 不再经过 HTTP/SSE 网络通信，CLI 与核心逻辑在同一进程内完成。
 """
 
-import asyncio
 import json
 import re
 import sys
@@ -11,7 +10,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from rich.console import Console
-from rich.live import Live
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -473,8 +471,8 @@ def _render_startup_screen(
     grid = Table.grid(padding=(0, 3))
     grid.add_column(justify="left", ratio=2)
     grid.add_column(justify="left", ratio=3)
-    for l, r in zip(left, right):
-        grid.add_row(Text(l, style="cyan"), Text(r, style="white"))
+    for left_item, right_item in zip(left, right):
+        grid.add_row(Text(left_item, style="cyan"), Text(right_item, style="white"))
 
     body = Table.grid(padding=(0, 0))
     body.add_column(ratio=1)

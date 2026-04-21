@@ -3,8 +3,8 @@ import asyncio
 import re
 from typing import Any, Dict, List
 from urllib.request import Request, urlopen
-from urllib.parse import urlencode, urlparse, parse_qs, urljoin
-from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlparse, parse_qs
+from urllib.error import HTTPError
 from tools.base import BaseTool, ToolResult
 
 

@@ -8,8 +8,7 @@ PlannerAgent v2：通用任务规划智能体
 
 import json
 import re
-import uuid
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Tuple
 from urllib.parse import urlparse
 
 from secbot_agent.core.agents.base import BaseAgent

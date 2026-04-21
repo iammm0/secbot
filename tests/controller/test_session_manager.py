@@ -1,7 +1,6 @@
 
 import unittest
 from secbot_agent.controller.session_manager import SessionManager
-from datetime import datetime
 
 class TestSessionManager(unittest.TestCase):
     def setUp(self):
@@ -18,11 +17,11 @@ class TestSessionManager(unittest.TestCase):
     def test_update_activity(self):
         session_id = self.manager.create_session("192.168.1.1", "ssh", {})
         old_time = self.manager.get_session(session_id)["last_activity"]
-        
+
         # Ensure time passes
         import time
         time.sleep(0.1)
-        
+
         self.manager.update_session_activity(session_id)
         new_time = self.manager.get_session(session_id)["last_activity"]
         self.assertNotEqual(old_time, new_time)
@@ -30,7 +29,7 @@ class TestSessionManager(unittest.TestCase):
     def test_add_command(self):
         session_id = self.manager.create_session("192.168.1.1", "ssh", {})
         self.manager.add_command(session_id, "ls -la", {"stdout": "ok"})
-        
+
         session = self.manager.get_session(session_id)
         self.assertEqual(len(session["commands_executed"]), 1)
         self.assertEqual(session["commands_executed"][0]["command"], "ls -la")
@@ -38,7 +37,7 @@ class TestSessionManager(unittest.TestCase):
     def test_close_session(self):
         session_id = self.manager.create_session("192.168.1.1", "ssh", {})
         self.manager.close_session(session_id)
-        
+
         session = self.manager.get_session(session_id)
         self.assertEqual(session["status"], "closed")
         self.assertIn("closed_at", session)
@@ -47,10 +46,10 @@ class TestSessionManager(unittest.TestCase):
         sid1 = self.manager.create_session("1.1.1.1", "ssh", {})
         sid2 = self.manager.create_session("2.2.2.2", "ssh", {})
         self.manager.close_session(sid1)
-        
+
         all_sessions = self.manager.list_sessions()
         self.assertEqual(len(all_sessions), 2)
-        
+
         active_sessions = self.manager.list_sessions(status="active")
         self.assertEqual(len(active_sessions), 1)
         self.assertEqual(active_sessions[0]["session_id"], sid2)
@@ -59,7 +58,7 @@ class TestSessionManager(unittest.TestCase):
         self.manager.create_session("1.1.1.1", "ssh", {})
         self.manager.create_session("1.1.1.1", "winrm", {})
         self.manager.create_session("2.2.2.2", "ssh", {})
-        
+
         sessions = self.manager.get_session_by_target("1.1.1.1")
         self.assertEqual(len(sessions), 2)
 

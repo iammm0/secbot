@@ -3,9 +3,9 @@ Memory REST API — 与 npm-release 的 MemoryController 对齐
 暴露 /api/memory 系列端点，对接 MemoryManager 和 VectorStoreManager
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from router.dependencies import get_memory_manager, get_vector_store_manager

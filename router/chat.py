@@ -4,7 +4,6 @@
 
 import asyncio
 import json
-import traceback
 import uuid
 from typing import Any, AsyncGenerator
 
@@ -22,7 +21,7 @@ from router.dependencies import (
 )
 from router.schemas import ChatRequest, ChatResponse, RootResponseRequest
 from secbot_agent.core.session import SessionManager
-from utils.error_mapper import map_exception_to_client, redact_sensitive_text
+from utils.error_mapper import map_exception_to_client
 from utils.event_bus import EventBus, EventType, Event
 from utils.logger import logger
 from utils.log_context import log_context

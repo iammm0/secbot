@@ -12,7 +12,6 @@ from utils.logger import logger
 
 from .state import (
     AttackChainResult,
-    AttackChainState,
     AttackStep,
     StepStatus,
 )

@@ -5,12 +5,12 @@ LangGraph 攻击链推理工作流
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import time
 from utils.logger import logger
 
-from .state import AttackChainResult, AttackChainState, AttackStep
+from .state import AttackChainResult
 from . import nodes as N
 
 

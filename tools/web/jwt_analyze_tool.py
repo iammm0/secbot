@@ -77,7 +77,7 @@ class JwtAnalyzeTool(BaseTool):
             now = int(time.time())
             exp = payload.get("exp")
             iat = payload.get("iat")
-            nbf = payload.get("nbf")
+            _nbf = payload.get("nbf")
 
             if exp is None:
                 warnings.append({

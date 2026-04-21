@@ -1,6 +1,6 @@
 """S3 存储桶枚举工具：枚举公开的 S3 存储桶并检查权限"""
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from tools.base import BaseTool, ToolResult

@@ -1,8 +1,7 @@
 """
 服务识别器：识别端口上运行的服务
 """
-import asyncio
-from typing import Dict, List, Optional
+from typing import Dict
 
 # 端口到服务的映射
 PORT_SERVICES = {

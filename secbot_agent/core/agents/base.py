@@ -16,7 +16,7 @@ class AgentMessage(BaseModel):
 
 class BaseAgent(ABC):
     """基础智能体抽象类"""
-    
+
     def __init__(self, name: str, system_prompt: Optional[str] = None):
         self.name = name
         self.system_prompt = system_prompt or self._default_system_prompt()
@@ -24,21 +24,21 @@ class BaseAgent(ABC):
         # 对话历史（列表）；外部可能将 self.memory 设为 MemoryManager，故用独立列表
         self._conversation: List[AgentMessage] = []
         self.memory: List[AgentMessage] = []  # 默认列表；main/cli 可能替换为 MemoryManager
-        
+
         if self.system_prompt:
             self.messages.append(
                 AgentMessage(role="system", content=self.system_prompt)
             )
         self.log = logger.bind(agent=self.name, attempt=1)
         self.log.bind(event="stage_start").info(f"初始化智能体: {self.name}")
-    
+
     def _default_system_prompt(self) -> str:
         """默认系统提示词"""
         # 如果是 m-bot，使用安全机器人提示词
         if "m-bot" in self.name.lower() or "m_bot" in self.name.lower():
             return self._m_bot_security_prompt()
         return f"你是一个名为 {self.name} 的智能助手。"
-    
+
     def _m_bot_security_prompt(self) -> str:
         """M-Bot 安全机器人系统提示词（开源版自动化安全测试智能体）"""
         return """你是 m-bot，开源版本的自动化安全测试智能体，面向社区用户使用。
@@ -73,33 +73,33 @@ class BaseAgent(ABC):
 - 语气专业、可靠、高效，但保持友好
 - 对潜在风险操作给出明确警告
 - 理解自然语言指令，支持中英文"""
-    
+
     @abstractmethod
     async def process(self, user_input: str, **kwargs) -> str:
         """
         处理用户输入
-        
+
         Args:
             user_input: 用户输入
             **kwargs: 其他参数
-            
+
         Returns:
             智能体的响应
         """
         pass
-    
+
     def add_message(self, role: str, content: str, metadata: Optional[Dict] = None):
         """添加消息到历史"""
         message = AgentMessage(role=role, content=content, metadata=metadata)
         self.messages.append(message)
         self._conversation.append(message)
-    
+
     def get_conversation_history(self, limit: Optional[int] = None) -> List[AgentMessage]:
         """获取对话历史"""
         if limit:
             return self._conversation[-limit:]
         return self._conversation
-    
+
     def clear_memory(self):
         """清空记忆"""
         self._conversation.clear()
@@ -107,7 +107,7 @@ class BaseAgent(ABC):
             # MemoryManager.clear_all 为 async，此处仅清空对话列表；持久记忆由调用方按需清空
             pass
         self.log.bind(event="stage_end").info(f"智能体 {self.name} 的记忆已清空")
-    
+
     def update_system_prompt(self, new_prompt: str):
         """更新系统提示词"""
         self.system_prompt = new_prompt
@@ -119,6 +119,6 @@ class BaseAgent(ABC):
         else:
             # 如果没有system消息，添加一个
             self.messages.insert(0, AgentMessage(role="system", content=new_prompt))
-        
+
         self.log.bind(event="stage_end").info(f"智能体 {self.name} 的系统提示词已更新")
 

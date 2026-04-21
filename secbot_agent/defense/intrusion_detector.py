@@ -10,7 +10,7 @@ from utils.logger import logger
 
 class IntrusionDetector:
     """入侵检测器：实时检测攻击行为"""
-    
+
     def __init__(self):
         self.attack_patterns: Dict[str, List[str]] = {
             "port_scan": [
@@ -48,15 +48,15 @@ class IntrusionDetector:
                 r"eval\(.*\)"
             ]
         }
-        
+
         self.detected_attacks: List[Dict] = []
         self.attack_counts: defaultdict = defaultdict(int)
         self.ip_reputation: Dict[str, Dict] = {}
-    
+
     def detect_attack(self, source_ip: str, data: str, connection_info: Optional[Dict] = None) -> Optional[Dict]:
         """检测攻击"""
         detected = None
-        
+
         for attack_type, patterns in self.attack_patterns.items():
             for pattern in patterns:
                 if re.search(pattern, data, re.IGNORECASE):
@@ -69,28 +69,28 @@ class IntrusionDetector:
                         "connection_info": connection_info,
                         "data_sample": data[:200]  # 限制长度
                     }
-                    
+
                     self.detected_attacks.append(detected)
                     self.attack_counts[source_ip] += 1
-                    
+
                     logger.warning(f"检测到 {attack_type} 攻击，来源: {source_ip}")
                     break
-            
+
             if detected:
                 break
-        
+
         return detected
-    
+
     def detect_port_scan(self, connection_logs: List[Dict]) -> List[Dict]:
         """检测端口扫描"""
         scans = []
-        
+
         # 按源IP分组
         ip_ports = defaultdict(set)
         for log in connection_logs:
             if "source_ip" in log and "port" in log:
                 ip_ports[log["source_ip"]].add(log["port"])
-        
+
         # 检测扫描行为（短时间内访问多个端口）
         for ip, ports in ip_ports.items():
             if len(ports) > 10:  # 阈值
@@ -102,20 +102,20 @@ class IntrusionDetector:
                     "severity": "Medium",
                     "timestamp": datetime.now().isoformat()
                 })
-        
+
         return scans
-    
+
     def detect_brute_force(self, failed_logins: List[Dict]) -> List[Dict]:
         """检测暴力破解"""
         brute_forces = []
-        
+
         # 按IP和用户名分组
         ip_user_attempts = defaultdict(lambda: defaultdict(int))
         for login in failed_logins:
             ip = login.get("source_ip", "unknown")
             user = login.get("username", "unknown")
             ip_user_attempts[ip][user] += 1
-        
+
         # 检测暴力破解（同一IP对同一用户多次失败登录）
         for ip, users in ip_user_attempts.items():
             for user, attempts in users.items():
@@ -128,23 +128,23 @@ class IntrusionDetector:
                         "severity": "High",
                         "timestamp": datetime.now().isoformat()
                     })
-        
+
         return brute_forces
-    
+
     def detect_dos(self, request_logs: List[Dict], time_window: int = 60) -> List[Dict]:
         """检测DoS攻击"""
         dos_attacks = []
-        
+
         # 按时间窗口和源IP统计请求
         now = datetime.now()
         window_start = now - timedelta(seconds=time_window)
-        
+
         ip_requests = defaultdict(int)
         for log in request_logs:
             log_time = datetime.fromisoformat(log.get("timestamp", now.isoformat()))
             if log_time >= window_start:
                 ip_requests[log.get("source_ip", "unknown")] += 1
-        
+
         # 检测DoS（短时间内大量请求）
         for ip, count in ip_requests.items():
             if count > 100:  # 阈值：每分钟100个请求
@@ -155,9 +155,9 @@ class IntrusionDetector:
                     "severity": "High",
                     "timestamp": datetime.now().isoformat()
                 })
-        
+
         return dos_attacks
-    
+
     def update_ip_reputation(self, ip: str, attack_type: str, severity: str):
         """更新IP信誉"""
         if ip not in self.ip_reputation:
@@ -168,22 +168,22 @@ class IntrusionDetector:
                 "first_seen": datetime.now().isoformat(),
                 "last_seen": datetime.now().isoformat()
             }
-        
+
         self.ip_reputation[ip]["attack_count"] += 1
         self.ip_reputation[ip]["attack_types"].add(attack_type)
         self.ip_reputation[ip]["last_seen"] = datetime.now().isoformat()
-        
+
         # 更新严重程度
         severity_levels = {"Low": 1, "Medium": 2, "High": 3, "Critical": 4}
         current_level = severity_levels.get(self.ip_reputation[ip]["severity"], 0)
         new_level = severity_levels.get(severity, 0)
         if new_level > current_level:
             self.ip_reputation[ip]["severity"] = severity
-    
+
     def get_malicious_ips(self, min_attacks: int = 3) -> List[Dict]:
         """获取恶意IP列表"""
         malicious = []
-        
+
         for ip, reputation in self.ip_reputation.items():
             if reputation["attack_count"] >= min_attacks:
                 malicious.append({
@@ -194,20 +194,20 @@ class IntrusionDetector:
                     "first_seen": reputation["first_seen"],
                     "last_seen": reputation["last_seen"]
                 })
-        
+
         return sorted(malicious, key=lambda x: x["attack_count"], reverse=True)
-    
+
     def get_recent_attacks(self, hours: int = 24) -> List[Dict]:
         """获取最近的攻击"""
         cutoff = datetime.now() - timedelta(hours=hours)
-        
+
         recent = [
             attack for attack in self.detected_attacks
             if datetime.fromisoformat(attack["timestamp"]) >= cutoff
         ]
-        
+
         return sorted(recent, key=lambda x: x["timestamp"], reverse=True)
-    
+
     def _get_severity(self, attack_type: str) -> str:
         """获取攻击严重程度"""
         severity_map = {
@@ -219,7 +219,7 @@ class IntrusionDetector:
             "malware": "Critical"
         }
         return severity_map.get(attack_type, "Medium")
-    
+
     def get_statistics(self) -> Dict:
         """获取检测统计"""
         return {

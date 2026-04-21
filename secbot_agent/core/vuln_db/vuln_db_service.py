@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 from loguru import logger
 
-from secbot_agent.core.vuln_db.schema import UnifiedVuln, ScanVulnMapping, VulnSource
+from secbot_agent.core.vuln_db.schema import UnifiedVuln, ScanVulnMapping
 from secbot_agent.core.vuln_db.vuln_vector_store import VulnVectorStore
 from secbot_agent.core.vuln_db.adapters.base_adapter import BaseVulnAdapter
 from secbot_agent.core.vuln_db.adapters.cve_adapter import CveAdapter

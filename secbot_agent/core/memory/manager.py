@@ -7,7 +7,7 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, List
 from dataclasses import dataclass, field, asdict
 from collections import deque
 from loguru import logger
@@ -258,8 +258,6 @@ class MemoryManager:
                 return await self.episodic.search(query, limit)
             elif memory_type == "long_term":
                 return await self.long_term.search(query, limit)
-
-        all_memories = []
 
         short = await self.short_term.search(query, limit)
         episodic = await self.episodic.search(query, limit)

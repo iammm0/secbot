@@ -3,7 +3,6 @@
 """
 import asyncio
 import random
-import string
 from typing import Any, Dict, List
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from utils.logger import logger
@@ -240,7 +239,7 @@ class AttackTester:
                         "User-Agent", f"Mozilla/5.0 (DoS Test {random.randint(1000,9999)})")
                     urllib.request.urlopen(req, timeout=2)
                     count += 1
-                except:
+                except Exception:
                     pass
             return count
 

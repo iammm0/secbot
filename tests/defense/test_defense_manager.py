@@ -1,7 +1,7 @@
 
 import unittest
 import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import patch
 from secbot_agent.defense.defense_manager import DefenseManager
 
 class TestDefenseManager(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestDefenseManager(unittest.TestCase):
             self.mock_components["report"].generate_security_report.return_value = {"report_id": "123"}
 
             result = await self.manager.full_scan()
-            
+
             self.assertEqual(result["report_id"], "123")
             self.mock_components["info"].collect_all.assert_called_once()
             self.mock_components["report"].generate_security_report.assert_called_once()
@@ -47,9 +47,9 @@ class TestDefenseManager(unittest.TestCase):
             "severity": "high"
         }
         self.mock_components["counter"].auto_respond.return_value = {"action": "block"}
-        
+
         result = self.manager.detect_and_respond("1.2.3.4", "payload")
-        
+
         self.assertEqual(result["action"], "block")
         self.mock_components["ids"].detect_attack.assert_called_with("1.2.3.4", "payload")
         self.mock_components["ids"].update_ip_reputation.assert_called()

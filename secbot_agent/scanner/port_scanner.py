@@ -2,7 +2,6 @@
 端口扫描器：基于 TCP connect 的端口扫描
 """
 import asyncio
-import socket
 from typing import Dict, List, Optional
 
 # 常见端口

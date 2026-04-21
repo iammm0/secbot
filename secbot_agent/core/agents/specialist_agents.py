@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from typing import Optional, List
 
-from secbot_agent.core.agents.base import BaseAgent
 from secbot_agent.core.patterns.security_react import SecurityReActAgent
 from tools.base import BaseTool
 from tools.pentest.security import (

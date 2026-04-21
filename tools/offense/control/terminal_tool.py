@@ -589,7 +589,7 @@ class TerminalSessionTool(BaseTool):
             return ToolResult(
                 success=False,
                 result=None,
-                error=f"请使用 action=open 返回的真实 session_id 执行命令，不要使用占位符。当前活跃会话可先 action=list 查看。",
+                error="请使用 action=open 返回的真实 session_id 执行命令，不要使用占位符。当前活跃会话可先 action=list 查看。",
             )
 
         session = _sessions.get(session_id)

@@ -3,7 +3,7 @@ ReAct模式：推理和行动循环（旧版骨架实现）
 注意：新版 LLM 驱动的 ReAct 引擎请使用 patterns/security_react.py 中的 SecurityReActAgent。
 """
 
-from typing import List, Dict, Any
+from typing import List, Any
 from secbot_agent.core.agents.base import BaseAgent
 from utils.logger import logger
 
@@ -58,7 +58,7 @@ ReAct模式包含以下步骤：
 
             # 检查是否完成任务
             if await self._is_complete(observation):
-                response_parts.append(f"✅ 任务完成！\n")
+                response_parts.append("✅ 任务完成！\n")
                 break
 
         result = "".join(response_parts)

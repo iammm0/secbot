@@ -1,8 +1,7 @@
 
 import unittest
 import asyncio
-from typing import Dict
-from secbot_agent.core.agents.base import BaseAgent, AgentMessage
+from secbot_agent.core.agents.base import BaseAgent
 
 class ConcreteAgent(BaseAgent):
     """用于测试的具体 Agent 实现"""
@@ -25,7 +24,7 @@ class TestBaseAgent(unittest.TestCase):
         self.assertEqual(len(self.agent.messages), 2)
         self.assertEqual(self.agent.messages[1].role, "user")
         self.assertEqual(self.agent.messages[1].content, "Hello")
-        
+
         # 验证 conversation history
         history = self.agent.get_conversation_history()
         self.assertEqual(len(history), 1) # system prompt 也在 messages 中，但 add_message 同时添加到 _conversation
@@ -37,14 +36,14 @@ class TestBaseAgent(unittest.TestCase):
         # add_message:
         #     self.messages.append(...)
         #     self._conversation.append(...)
-        
+
         self.assertEqual(history[0].content, "Hello")
 
     def test_get_conversation_history_limit(self):
         self.agent.add_message("user", "1")
         self.agent.add_message("assistant", "2")
         self.agent.add_message("user", "3")
-        
+
         history = self.agent.get_conversation_history(limit=2)
         self.assertEqual(len(history), 2)
         self.assertEqual(history[0].content, "2")
@@ -71,7 +70,7 @@ class TestBaseAgent(unittest.TestCase):
         async def run_test():
             response = await self.agent.process("input")
             self.assertEqual(response, "Processed: input")
-        
+
         asyncio.run(run_test())
 
 if __name__ == "__main__":

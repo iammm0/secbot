@@ -2,8 +2,7 @@
 技能注入器 - 在智能体处理过程中自动注入相关技能
 """
 
-import re
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from loguru import logger
 
 from secbot_agent.skills.loader import SkillLoader, Skill, DEFAULT_SKILL_DIR

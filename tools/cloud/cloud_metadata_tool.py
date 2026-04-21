@@ -1,6 +1,6 @@
 """云元数据探测工具：检测云环境元数据端点是否可访问（SSRF 风险评估）"""
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from tools.base import BaseTool, ToolResult

@@ -4,7 +4,7 @@ OpenAI 兼容的 chat/completions HTTP 直连回退。
 可用此模块直接发 POST 请求获取回复。
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import httpx
 
 

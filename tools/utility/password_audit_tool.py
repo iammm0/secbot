@@ -1,7 +1,6 @@
 """密码强度审计工具：评估密码强度、检查常见弱密码、审计系统密码策略"""
 import math
 import re
-import string
 from typing import Any, Dict
 from tools.base import BaseTool, ToolResult
 

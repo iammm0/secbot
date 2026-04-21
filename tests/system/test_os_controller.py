@@ -1,6 +1,6 @@
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from secbot_agent.system.controller import OSController
 from secbot_agent.system.detector import SystemInfo
 
@@ -15,10 +15,10 @@ class TestOSController(unittest.TestCase):
             architecture="x86_64", processor="x86_64", python_version="3.8",
             hostname="test", username="testuser"
         )
-        
+
         # Mock SystemCommands
         self.mock_commands = mock_commands_cls.return_value
-        
+
         self.controller = OSController()
 
     def test_get_system_info(self):

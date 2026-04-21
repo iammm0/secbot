@@ -2,9 +2,9 @@
 
 from secbot_agent.database.manager import DatabaseManager
 from secbot_agent.database.models import (
-    Conversation, 
-    PromptChainModel, 
-    UserConfig, 
+    Conversation,
+    PromptChainModel,
+    UserConfig,
     CrawlerTask,
     AttackTask,
     ScanResult

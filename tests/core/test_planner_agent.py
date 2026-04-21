@@ -1,7 +1,7 @@
 
 import unittest
 import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import patch
 from secbot_agent.core.agents.planner_agent import PlannerAgent
 from secbot_agent.core.models import PlanResult, RequestType, TodoItem
 
@@ -41,7 +41,7 @@ class TestPlannerAgent(unittest.TestCase):
                 plan_summary="Scanning"
             )
             mock_plan_tech.return_value = expected_result
-            
+
             result = await self.agent.plan("Scan localhost")
             self.assertEqual(result.request_type, RequestType.TECHNICAL)
             self.assertEqual(len(result.todos), 1)
@@ -59,13 +59,13 @@ class TestPlannerAgent(unittest.TestCase):
             ],
             plan_summary="Test"
         )
-        
+
         layers = self.agent.get_execution_order()
         # Expected layers:
         # 1. [step_1]
         # 2. [step_2, step_3] (or step_3, step_2)
         # 3. [step_4]
-        
+
         self.assertEqual(len(layers), 3)
         self.assertEqual(layers[0], ["step_1"])
         self.assertIn("step_2", layers[1])

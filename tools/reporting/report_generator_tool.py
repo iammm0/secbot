@@ -1,7 +1,6 @@
 """安全报告生成工具：将扫描发现整理为 Markdown / HTML / JSON 格式的安全报告，
 支持标准渗透测试报告（含攻击链步骤、漏洞利用结果和修复建议）。"""
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -138,8 +137,8 @@ class ReportGeneratorTool(BaseTool):
             "",
             "## 概要",
             "",
-            f"| 等级 | 数量 |",
-            f"|------|------|",
+            "| 等级 | 数量 |",
+            "|------|------|",
             f"| 严重 | {stats['critical']} |",
             f"| 高危 | {stats['high']} |",
             f"| 中危 | {stats['medium']} |",
@@ -243,7 +242,7 @@ th{{background:#f2f2f2;}}</style></head>
         ]
         if target:
             lines.append(f"**测试目标**: {target}  ")
-        lines.append(f"**报告类型**: 渗透测试报告  ")
+        lines.append("**报告类型**: 渗透测试报告  ")
         lines += [
             "",
             "---",
@@ -356,13 +355,13 @@ th{{background:#f2f2f2;}}</style></head>
         total = sum(stats.values())
         high_risk = stats["critical"] + stats["high"]
         if high_risk > 0:
-            lines.append(f"**风险等级**: 高  ")
+            lines.append("**风险等级**: 高  ")
             lines.append(f"发现 {high_risk} 个高危及以上漏洞，建议立即修复。")
         elif stats["medium"] > 0:
-            lines.append(f"**风险等级**: 中  ")
+            lines.append("**风险等级**: 中  ")
             lines.append(f"发现 {stats['medium']} 个中危漏洞，建议尽快修复。")
         elif total > 0:
-            lines.append(f"**风险等级**: 低  ")
+            lines.append("**风险等级**: 低  ")
             lines.append("仅发现低危或信息级别问题。")
         else:
             lines.append("**风险等级**: 安全  ")

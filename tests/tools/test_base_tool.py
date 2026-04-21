@@ -27,7 +27,7 @@ class TestBaseTool(unittest.TestCase):
             result = await self.tool.execute(param="value")
             self.assertTrue(result.success)
             self.assertEqual(result.result, "Executed with {'param': 'value'}")
-        
+
         asyncio.run(run_test())
 
 if __name__ == "__main__":
