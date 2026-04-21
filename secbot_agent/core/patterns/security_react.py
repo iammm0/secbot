@@ -1722,6 +1722,22 @@ Final Answer: <最终结论和报告>
 
         tool = None
         if tool_hint:
+            # 兼容规划器可能输出的“通用工具名/别名”，映射到本项目真实工具名称
+            aliases = {
+                # 子域/搜索/DNS：planner 常见命名 -> 本仓库工具
+                "search_engine": "web_search",
+                "web_search_engine": "web_search",
+                "dns_query": "dns_lookup",
+                "dns_lookup": "dns_lookup",
+                "online_subdomain_api": "subdomain_enum",
+                "subdomain_api": "subdomain_enum",
+                "subdomain_enumeration": "subdomain_enum",
+            }
+            normalized = str(tool_hint).strip()
+            mapped = aliases.get(normalized.lower())
+            if mapped:
+                tool_hint = mapped
+
             tool = self.tools_dict.get(tool_hint)
             if not tool:
                 for name, t in self.tools_dict.items():
