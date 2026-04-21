@@ -71,7 +71,7 @@ npm run start:stack
 
 按提示选择 **Ollama** 或 **DeepSeek** 等后端，并确保：
 
-- 使用 Ollama 时：本机已启动 `ollama serve`，且已 pull 所需模型（默认 `gemma3:1b`，本地没有时打开模型列表会自动拉取）。
+- 使用 Ollama 时：本机已启动 `ollama serve`，且已 pull 所需模型（默认 `llama3.2`；当前模型列表接口不会自动拉取模型）。
 - 使用 DeepSeek 等 API 时：按提示配置 API Key。
 
 ### 2.3 目标授权（可选但推荐）

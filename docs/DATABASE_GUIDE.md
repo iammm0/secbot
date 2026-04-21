@@ -1,132 +1,116 @@
 # 数据库使用指南
 
-## 概述
+Secbot 当前使用 SQLite 与 `better-sqlite3`，数据库逻辑位于 `server/src/modules/database/`。
 
-Secbot 使用 SQLite 作为轻量级数据库，通过 `better-sqlite3` 驱动进行数据访问，用于持久化存储以下信息：
+默认主数据库路径来自 `DATABASE_PATH`，未设置时为：
 
-- **对话历史**：所有智能体的对话记录
-- **提示词链**：用户创建的提示词链配置
-- **用户配置**：应用配置和用户偏好
-- **爬虫任务**：爬虫任务的执行记录
+```text
+data/opencomsagent.db
+```
 
-## 数据库位置
+如果你希望使用更明确的文件名，可以在 `.env` 中设置：
 
-数据库文件默认存储在：`data/secbot.db`
+```env
+DATABASE_PATH=./data/secbot.db
+```
 
-可以通过环境变量 `DATABASE_PATH` 修改数据库路径。
-
-## 技术架构
-
-数据库模块位于 `server/src/modules/database/`，采用 NestJS 模块化设计：
+## 1. DatabaseModule
 
 ```text
 server/src/modules/database/
-├── database.module.ts      # DatabaseModule 模块定义
-├── database.service.ts     # DatabaseService 服务层
-└── dto/                    # 数据传输对象
+├── database.controller.ts
+├── database.module.ts
+├── database.service.ts
+├── dto/
+└── entities/
 ```
 
-- **DatabaseModule**：NestJS 模块，通过依赖注入提供 `DatabaseService`
-- **DatabaseService**：封装 `better-sqlite3` 操作，提供类型安全的数据库访问接口
+`DatabaseService` 在模块初始化时会：
 
-## 数据表结构
+1. 创建数据库目录。
+2. 打开 SQLite 文件。
+3. 设置 `journal_mode = WAL`。
+4. 初始化表结构。
+5. 将 `config.yaml` 中的部分配置同步到 `user_configs`。
 
-### 1. conversations（对话历史表）
+## 2. 表结构
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| agent_type | TEXT | 智能体类型 |
-| user_message | TEXT | 用户消息 |
-| assistant_message | TEXT | 助手回复 |
-| session_id | TEXT | 会话ID |
-| timestamp | DATETIME | 时间戳 |
-| metadata | TEXT | 元数据（JSON） |
+当前代码会创建这些表：
 
-### 2. prompt_chains（提示词链表）
+| 表 | 用途 |
+|----|------|
+| `conversations` | 对话历史 |
+| `prompt_chains` | 提示词链 |
+| `user_configs` | 用户配置与 provider 配置 |
+| `crawler_tasks` | 爬虫任务 |
+| `attack_tasks` | 攻击测试任务记录 |
+| `scan_results` | 扫描结果 |
+| `audit_records` | Agent / 工具执行审计记录 |
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INTEGER | 主键 |
-| name | TEXT | 链名称（唯一） |
-| content | TEXT | 链内容（JSON） |
-| description | TEXT | 描述 |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
-| metadata | TEXT | 元数据（JSON） |
-
-### 3. user_configs（用户配置表）
+### `conversations`
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| id | INTEGER | 主键 |
-| key | TEXT | 配置键（唯一） |
-| value | TEXT | 配置值（JSON） |
-| category | TEXT | 分类 |
-| description | TEXT | 描述 |
-| updated_at | DATETIME | 更新时间 |
+| `id` | INTEGER | 主键 |
+| `agent_type` | TEXT | 智能体类型 |
+| `user_message` | TEXT | 用户消息 |
+| `assistant_message` | TEXT | 助手回复 |
+| `session_id` | TEXT | 会话 ID |
+| `timestamp` | TEXT | 时间戳 |
+| `metadata` | TEXT | JSON 字符串 |
 
-### 4. crawler_tasks（爬虫任务表）
+### `user_configs`
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| id | INTEGER | 主键 |
-| url | TEXT | URL |
-| task_type | TEXT | 任务类型 |
-| status | TEXT | 状态 |
-| result | TEXT | 结果（JSON） |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
-| metadata | TEXT | 元数据（JSON） |
+| `id` | INTEGER | 主键 |
+| `key` | TEXT | 配置键，唯一 |
+| `value` | TEXT | 配置值 |
+| `category` | TEXT | 分类 |
+| `description` | TEXT | 描述 |
+| `updated_at` | TEXT | 更新时间 |
 
-## API 接口
+## 3. API
 
-### 查看数据库统计
-
-```text
-GET /api/db/stats
-```
+### `GET /api/db/stats`
 
 返回：
-- 对话记录数
-- 提示词链数
-- 用户配置数
-- 爬虫任务数
-- 爬虫任务状态分布
 
-### 查看对话历史
+- `conversations`
+- `promptChains`
+- `userConfigs`
+- `crawlerTasks`
+- `crawlerTasksByStatus`
 
-```text
-GET /api/db/history?limit=10&agent=simple&session=<session_id>
+### `GET /api/db/history`
+
+查询对话历史。
+
+```bash
+curl "http://127.0.0.1:8000/api/db/history?limit=10&agent=hackbot"
 ```
 
-参数：
-- `limit`：返回条数（默认 10）
-- `agent`：按智能体类型过滤
-- `session`：按会话 ID 过滤
+支持 query 参数：
 
-### 清空对话历史
+| 参数 | 说明 |
+|------|------|
+| `agent` | 按 `agent_type` 过滤 |
+| `sessionId` | 按会话 ID 过滤 |
+| `limit` | 1 到 100，默认 10 |
 
-```text
-DELETE /api/db/history?agent=simple&session=<session_id>
+### `DELETE /api/db/history`
+
+删除对话历史。
+
+```bash
+curl -X DELETE "http://127.0.0.1:8000/api/db/history?agent=hackbot"
 ```
 
-参数：
-- `agent`：清空特定智能体的对话（可选）
-- `session`：清空特定会话的对话（可选）
-- 不带参数则清空全部
+不带过滤参数会删除全部对话历史，请谨慎使用。
 
-## 自动保存
+## 4. 在代码中使用
 
-系统会自动保存以下信息：
-
-1. **对话历史**：每次智能体处理用户消息后，自动保存到数据库
-2. **提示词链**：使用提示词链创建功能时，自动保存到数据库
-3. **爬虫任务**：执行爬虫任务时，自动记录到数据库
-
-## 编程接口
-
-### 使用 DatabaseService
+`DatabaseService` 不暴露通用 `run/all/get` 方法，业务代码应使用已经封装好的方法。
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -136,89 +120,64 @@ import { DatabaseService } from '../database/database.service';
 export class MyService {
   constructor(private readonly db: DatabaseService) {}
 
-  async saveConversation() {
-    this.db.run(
-      `INSERT INTO conversations (agent_type, user_message, assistant_message, session_id, timestamp)
-       VALUES (?, ?, ?, ?, datetime('now'))`,
-      ['simple', '你好', '你好！有什么可以帮助你的吗？', 'session-123']
-    );
+  saveExampleConversation() {
+    this.db.saveConversation({
+      agentType: 'hackbot',
+      userMessage: '你好',
+      assistantMessage: '你好，需要我帮你检查什么？',
+      sessionId: 'default',
+      timestamp: new Date().toISOString(),
+      metadata: '{}',
+    });
   }
 
-  getConversations(agentType: string, limit: number = 10) {
-    return this.db.all(
-      'SELECT * FROM conversations WHERE agent_type = ? ORDER BY timestamp DESC LIMIT ?',
-      [agentType, limit]
-    );
-  }
-
-  getStats() {
-    const conversations = this.db.get<{ count: number }>(
-      'SELECT COUNT(*) as count FROM conversations'
-    );
-    return { conversations: conversations?.count ?? 0 };
+  listRecentConversations() {
+    return this.db.getConversations({
+      agentType: 'hackbot',
+      limit: 10,
+    });
   }
 }
 ```
 
-### 在模块中注入
+常用方法包括：
 
-```typescript
-import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../database/database.module';
-import { MyService } from './my.service';
+- `saveConversation`
+- `getConversations`
+- `deleteConversations`
+- `saveConfig`
+- `getConfig`
+- `listConfigs`
+- `deleteConfig`
+- `savePromptChain`
+- `getPromptChain`
+- `listPromptChains`
+- `saveCrawlerTask`
+- `getCrawlerTasks`
+- `saveAuditRecord`
+- `getAuditTrail`
+- `saveScanResult`
+- `getStats`
 
-@Module({
-  imports: [DatabaseModule],
-  providers: [MyService],
-})
-export class MyModule {}
-```
+## 5. 备份与恢复
 
-## 数据备份
-
-SQLite 数据库是单个文件，备份非常简单：
-
-```bash
-# 备份数据库
-cp data/secbot.db data/secbot.db.backup
-
-# 恢复数据库
-cp data/secbot.db.backup data/secbot.db
-```
-
-## 数据清理
-
-### 通过 API 清理
+如果使用默认路径：
 
 ```bash
-# 清空全部对话历史
-curl -X DELETE http://localhost:8000/api/db/history
-
-# 清空特定智能体的对话
-curl -X DELETE http://localhost:8000/api/db/history?agent=simple
-
-# 清空特定会话的对话
-curl -X DELETE http://localhost:8000/api/db/history?session=session-123
+cp data/opencomsagent.db data/opencomsagent.db.backup
+cp data/opencomsagent.db.backup data/opencomsagent.db
 ```
 
-### 通过代码清理
+如果你设置了 `DATABASE_PATH`，请备份对应文件。
 
-```typescript
-import { DatabaseService } from '../database/database.service';
+SQLite WAL 模式可能同时产生 `-wal` 和 `-shm` 文件。做冷备份时建议先停止后端，或同时备份这些伴随文件。
 
-// 在 Service 中注入 DatabaseService 后使用
-this.db.run('DELETE FROM conversations WHERE timestamp < datetime("now", "-30 days")');
-```
+## 6. 相关存储
 
-## 性能优化
+记忆与向量系统还会使用：
 
-1. **索引**：数据库已自动创建必要的索引
-2. **批量操作**：大量数据操作时，考虑使用事务
-3. **定期清理**：定期清理旧数据以保持数据库性能
+- `data/episodic_memory.json`
+- `data/long_term_memory.json`
+- `data/vectors.db`
 
-## 注意事项
-
-1. SQLite 是文件数据库，不支持并发写入
-2. 数据库文件会随着使用增长，建议定期备份
-3. 删除操作不可恢复，请谨慎使用
-4. 大量数据时，考虑使用 `limit` 参数限制查询结果
+这些不属于 `DatabaseService` 的主库，但同样需要纳入生产备份策略。

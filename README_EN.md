@@ -6,12 +6,12 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-24%2B-339933.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
-[![Version](https://img.shields.io/badge/version-2.0.3-brightgreen.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-2.0.0--b1-brightgreen.svg)](package.json)
 [![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/iammm0/secbot/releases)
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E.svg)](https://nestjs.com/)
 
-English | [中文](README.md)
+English | [中文](README_CN.md)
 
 </div>
 
@@ -125,12 +125,12 @@ Configure environment variables — create a `.env` file:
 ```env
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-your-api-key
-DEEPSEEK_MODEL=deepseek-reasoner
+DEEPSEEK_MODEL=deepseek-chat
 
 # Or use local Ollama
 # LLM_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://localhost:11434
-# OLLAMA_MODEL=gemma3:1b
+# OLLAMA_MODEL=llama3.2
 ```
 
 ### Option C: Download from GitHub Releases
@@ -171,11 +171,11 @@ npm run start:tui     # Terminal TUI (default: spawn local backend)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `LLM_PROVIDER` | Inference backend | `deepseek` |
+| `LLM_PROVIDER` | Inference backend | `ollama` |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | — |
-| `DEEPSEEK_MODEL` | DeepSeek model | `deepseek-reasoner` |
+| `DEEPSEEK_MODEL` | DeepSeek model | `deepseek-chat` |
 | `OLLAMA_BASE_URL` | Ollama service URL | `http://localhost:11434` |
-| `OLLAMA_MODEL` | Ollama model | `gemma3:1b` |
+| `OLLAMA_MODEL` | Ollama model | `llama3.2` |
 | `PORT` | Backend listen port | `8000` |
 | `SECBOT_TUI_BACKEND` | TUI backend mode: `spawn` / `service` / `remote` / `auto` | prefer `spawn`; use `service`/`remote` explicitly for existing backends |
 
