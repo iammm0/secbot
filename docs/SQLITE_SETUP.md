@@ -1,169 +1,153 @@
 # SQLite 数据库配置指南
 
-## 概述
+Secbot 当前仅使用 SQLite 作为本地数据库。本文聚焦数据库路径、初始化、验证与备份；表结构和编程接口详见 [DATABASE_GUIDE.md](DATABASE_GUIDE.md)。
 
-本项目使用 SQLite 作为本地数据库，用于存储：
-- 对话历史记录
-- 提示词链
-- 用户配置
-- 爬虫任务
-- 攻击任务
-- 扫描结果
+## 一、默认行为
 
-## 快速开始
+不配置任何环境变量时，默认连接串为：
 
-### 1. 配置数据库路径
+```text
+sqlite:///./data/secbot.db
+```
 
-在 `.env` 文件中配置 `DATABASE_URL`：
+当前实现会把这个相对路径解析到 `hackbot_config/` 包目录下，因此源码运行时通常生成：
+
+```text
+hackbot_config/data/secbot.db
+```
+
+首次运行 `secbot`、`secbot model` 或 `secbot server` 时，数据库会自动创建并初始化表结构，无需手动建表。
+
+## 二、自定义数据库路径
+
+长期运行建议显式指定绝对路径，避免安装路径或工作目录变化导致多个数据库文件并存。
+
+Linux / macOS：
 
 ```env
-# 相对路径（推荐，存储在项目根目录的 data 文件夹）
-DATABASE_URL=sqlite:///./data/m_bot.db
-
-# 绝对路径（Windows）
-DATABASE_URL=sqlite:///C:/path/to/m_bot.db
-
-# 绝对路径（Linux/Mac）
-DATABASE_URL=sqlite:////path/to/m_bot.db
+DATABASE_URL=sqlite:////srv/secbot/data/secbot.db
 ```
 
-**如果不配置，默认使用**: `data/m_bot.db`
+Windows：
 
-### 2. 数据库自动初始化
+```env
+DATABASE_URL=sqlite:///C:/Users/you/secbot/secbot.db
+```
 
-首次运行时，数据库会自动创建并初始化所有表结构。无需手动操作。
+源码开发时也可以使用相对路径：
 
-### 3. 测试数据库连接
+```env
+DATABASE_URL=sqlite:///./data/secbot.db
+```
 
-运行测试脚本验证数据库功能：
+但需要注意：相对路径仍会按 `hackbot_config/` 包目录解析，不是按当前 shell 所在目录解析。
+
+## 三、验证数据库
+
+启动交互 CLI：
 
 ```bash
-python test_sqlite_connection.py
+secbot
 ```
 
-## 数据库结构
+或只启动 API：
 
-### 表说明
+```bash
+secbot server
+```
 
-1. **conversations** - 对话历史记录
-   - 存储智能体与用户的对话
-   - 支持按智能体类型、会话ID查询
+查看数据库统计：
 
-2. **prompt_chains** - 提示词链
-   - 存储自定义提示词链配置
-   - 支持名称唯一性
+```bash
+curl http://127.0.0.1:8000/api/db/stats
+```
 
-3. **user_configs** - 用户配置
-   - 存储用户自定义配置项
-   - 支持分类管理
-
-4. **crawler_tasks** - 爬虫任务
-   - 记录爬虫任务执行历史
-   - 支持状态跟踪
-
-5. **attack_tasks** - 攻击任务
-   - 记录网络攻击测试任务
-   - 支持定时调度
-
-6. **scan_results** - 扫描结果
-   - 存储网络扫描结果
-   - 包含漏洞信息
-
-## 使用示例
-
-### 在代码中使用 DatabaseManager
+如果你只是想在 Python 中确认实际路径：
 
 ```python
-from database.manager import DatabaseManager
-from database.models import Conversation
-from datetime import datetime
+from secbot_agent.database.manager import DatabaseManager
 
-# 初始化数据库管理器
 db = DatabaseManager()
-
-# 保存对话
-conversation = Conversation(
-    agent_type="simple",
-    user_message="你好",
-    assistant_message="你好！有什么可以帮助你的吗？",
-    session_id="session-123",
-    timestamp=datetime.now()
-)
-db.save_conversation(conversation)
-
-# 获取对话历史
-conversations = db.get_conversations(agent_type="simple", limit=10)
-
-# 获取统计信息
-stats = db.get_stats()
-print(f"对话记录数: {stats['conversations']}")
+print(db.db_path)
+print(db.get_stats())
 ```
 
-### CLI 命令
+## 四、数据表概览
+
+当前 `DatabaseManager` 会创建：
+
+- `conversations`：对话历史。
+- `prompt_chains`：提示词链。
+- `user_configs`：用户配置，包括 `/model` 或 `secbot model` 保存的模型配置。
+- `crawler_tasks`：爬虫任务。
+- `attack_tasks`：攻击测试任务。
+- `scan_results`：扫描结果。
+- `audit_trail`：操作审计留痕。
+
+## 五、备份和恢复
+
+先确认实际数据库路径：
+
+```python
+from secbot_agent.database.manager import DatabaseManager
+
+print(DatabaseManager().db_path)
+```
+
+Linux / macOS 备份示例：
 
 ```bash
-# 查看数据库统计
-python scripts/main.py db-stats
-
-# 查看对话历史
-python scripts/main.py db-history --limit 10
-
-# 清空对话历史
-python scripts/main.py db-clear --yes
+mkdir -p /srv/secbot/backup
+cp /srv/secbot/data/secbot.db /srv/secbot/backup/secbot.db.backup
 ```
 
-## 数据库文件位置
-
-- **默认位置**: `项目根目录/data/m_bot.db`
-- **自定义位置**: 通过 `DATABASE_URL` 环境变量配置
-
-## 备份和恢复
-
-### 备份数据库
+Linux / macOS 恢复示例：
 
 ```bash
-# Windows
-copy data\m_bot.db backup\m_bot_backup.db
-
-# Linux/Mac
-cp data/m_bot.db backup/m_bot_backup.db
+cp /srv/secbot/backup/secbot.db.backup /srv/secbot/data/secbot.db
 ```
 
-### 恢复数据库
+Windows 备份示例：
 
-```bash
-# Windows
-copy backup\m_bot_backup.db data\m_bot.db
-
-# Linux/Mac
-cp backup/m_bot_backup.db data/m_bot.db
+```bat
+copy C:\Users\you\secbot\secbot.db C:\Users\you\secbot\backup\secbot.db.backup
 ```
 
-## 注意事项
+Windows 恢复示例：
 
-1. **数据库文件已添加到 `.gitignore`**，不会被提交到版本控制
-2. **数据目录**: `data/` 目录包含所有数据库文件，已添加到 `.gitignore`
-3. **并发访问**: SQLite 支持多读单写，适合单机应用
-4. **性能**: 对于大量数据，建议定期清理历史记录
+```bat
+copy C:\Users\you\secbot\backup\secbot.db.backup C:\Users\you\secbot\secbot.db
+```
 
-## 故障排除
+请把示例路径替换成 `DatabaseManager().db_path` 打印出的真实路径。
+
+## 六、故障排除
 
 ### 数据库文件锁定
 
-如果遇到 "database is locked" 错误：
-- 检查是否有其他进程正在使用数据库
-- 确保所有数据库连接已正确关闭
+如果遇到 `database is locked`：
+
+- 检查是否有多个长时间写入进程同时操作同一个数据库。
+- 确认没有调试脚本持有连接不释放。
+- 重启长期运行的 API 服务后再重试。
 
 ### 权限问题
 
 如果遇到权限错误：
-- 确保数据库文件所在目录有写权限
-- 检查文件系统权限设置
+
+- 确认数据库目录存在且运行用户有读写权限。
+- systemd 场景下确认 `User=` 对 `DATABASE_URL` 指向目录有权限。
 
 ### 数据库损坏
 
 如果数据库文件损坏：
-- 使用备份文件恢复
-- 或删除数据库文件，系统会在下次运行时自动重建
 
-**说明**：本项目仅使用 SQLite 作为数据库，不支持迁移到其他数据库类型。
+- 优先从备份恢复。
+- 无关键数据时可删除数据库文件，系统会在下次运行时重新创建空库。
+
+## 七、注意事项
+
+1. 数据库文件、`data/` 和 `logs/` 不应提交到版本控制。
+2. SQLite 支持多读单写，适合本地 CLI 与单机 API 服务。
+3. 删除对话历史前建议先备份，API 删除操作不可恢复。
+4. 当前项目没有数据库迁移到其他数据库类型的正式支持。

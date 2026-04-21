@@ -26,7 +26,7 @@ curl -fsSL https://ollama.ai/install.sh | sh
 ollama pull gemma3:1b
 ```
 
-如果你希望更强的本地模型，也可以改成自己常用的模型名，并同步更新 `.env` 里的 `OLLAMA_MODEL`。
+如果你希望更强的本地模型，也可以改成自己常用的模型名，并在 `/model`、`secbot model` 或 `.env` 里同步更新 `OLLAMA_MODEL`。
 
 ### 2. 向量嵌入模型
 
@@ -45,7 +45,19 @@ ollama run gemma3:1b "你好"
 
 ## 四、配置 Secbot
 
-在项目根目录或发布包目录创建 `.env`：
+推荐直接在程序内配置：
+
+```bash
+secbot model
+```
+
+或启动交互 CLI 后输入：
+
+```text
+/model
+```
+
+如果你需要无人值守启动或环境变量覆盖，也可以在项目根目录或发布包目录创建 `.env`：
 
 ```env
 LLM_PROVIDER=ollama
@@ -56,8 +68,8 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
 说明：
 
-- 当前仓库没有根目录 `env.example` / `.env.example`
-- 请直接手动创建 `.env`
+- 根目录 `env.example` 说明 `.env` 是可选项
+- `.env.backup` 是完整变量参考，可复制为 `.env` 后按需取消注释
 
 ## 五、启动方式
 
@@ -72,7 +84,9 @@ uv run secbot
 ### 仅启动后端 API
 
 ```bash
-uv run secbot --backend
+secbot server
+# 或源码仓中
+uv run secbot server
 # 或
 python -m router.main
 ```
@@ -100,7 +114,7 @@ GET /api/system/ollama-models
 请检查：
 
 - Ollama 应用或 `ollama serve` 是否已启动
-- `.env` 中的 `OLLAMA_BASE_URL` 是否正确
+- `/model` / `secbot model` 中保存的 Ollama 地址是否正确；若使用 `.env`，检查 `OLLAMA_BASE_URL`
 - 11434 端口是否被防火墙或代理影响
 
 ### 2. 模型不存在

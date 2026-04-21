@@ -7,7 +7,9 @@
 ### 启动后端
 
 ```bash
-uv run secbot --backend
+secbot server
+# 或源码仓中
+uv run secbot server
 # 或
 python -m router.main
 ```

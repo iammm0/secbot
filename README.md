@@ -60,7 +60,7 @@ uv pip install -e .
 
 ### 1. Configure model backend (persistent)
 
-You can start with **no** `.env`: run `secbot` and use `/model` (interactive) or `secbot model` to set provider, API keys, and defaults—these are **saved to SQLite** and used on next launch. Use a `.env` file only for CI, containers, or non-interactive defaults.
+You can start with **no** `.env`: run `secbot` and use `/model` (interactive) or `secbot model` to set provider, API keys, and defaults—these are **saved to SQLite** and used on next launch. Use a `.env` file only for CI, unattended runs, or non-interactive defaults.
 
 Optional `.env` example:
 

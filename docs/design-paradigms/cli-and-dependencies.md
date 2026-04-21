@@ -14,9 +14,9 @@
 - **好处**：避免进程内重复创建大模型客户端或重型依赖；同一类型 Agent 共享状态（如记忆）时也更一致。
 - **类型校验**：get_agent 内校验 agent_type 是否在允许枚举内，非法则打印错误并 `raise SystemExit(1)`，便于脚本与 CI 获得明确退出码。
 
-## 3. 单例容器（用于 API/服务端）
+## 3. 单例依赖注册器（用于 API/服务端）
 
-- **场景**：Web API 或长驻进程需要与 CLI 共用同一套「DB、审计、Agent、Planner、QA」等实例时，可抽象一个「单例容器」类（如 `_Singletons`），用类方法 + 私有类变量做懒加载。
+- **场景**：Web API 或长驻进程需要与 CLI 共用同一套「DB、审计、Agent、Planner、QA」等实例时，可抽象一个「单例依赖注册器」类（如 `_Singletons`），用类方法 + 私有类变量做懒加载。
 - **示例**：`_Singletons.db_manager()` 首次调用时 `_db_manager = DatabaseManager()` 并返回，之后均返回同一实例。Agent 等依赖 audit、db 的，在单例内部按依赖顺序初始化（先 db_manager，再 audit_trail，再 agents）。
 - **会话 ID**：服务端可在进程启动时生成一个 `_session_id = str(uuid.uuid4())`，整个进程内复用，便于日志与审计关联。
 
@@ -29,5 +29,5 @@
 
 - CLI 入口：单命令、只做依赖组装 + 调用一个 run_xxx。
 - 重型依赖：懒加载 + 缓存（dict 或单例类），通过 get_xxx() 统一获取。
-- 单例容器：类方法 + 私有类变量，按依赖顺序初始化，便于 API 与 CLI 共用。
+- 单例依赖注册器：类方法 + 私有类变量，按依赖顺序初始化，便于 API 与 CLI 共用。
 - 依赖模块：get_xxx 函数集中放在 dependencies，CLI 与 FastAPI Depends 共用，保证行为一致。

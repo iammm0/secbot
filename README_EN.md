@@ -62,7 +62,7 @@ After install, the console command is **`secbot`** (a `hackbot` alias may also b
 
 ### 1. Configure model backend (persistent)
 
-You can start **without** a `.env`: run `secbot`, then use `/model` in interactive mode or `secbot model` to set provider, API keys, and defaults—they are **stored in SQLite** and picked up on the next launch. Use `.env` only for CI, containers, or unattended defaults.
+You can start **without** a `.env`: run `secbot`, then use `/model` in interactive mode or `secbot model` to set provider, API keys, and defaults—they are **stored in SQLite** and picked up on the next launch. Use `.env` only for CI, unattended runs, or non-interactive defaults.
 
 Optional `.env` example:
 
