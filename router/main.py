@@ -18,7 +18,9 @@ from router.defense import router as defense_router
 from router.network import router as network_router
 from router.database import router as database_router
 from router.tools import router as tools_router
+from router.memory import router as memory_router
 from router.dependencies import get_db_manager
+from utils.error_mapper import map_exception_to_client, redact_sensitive_text
 from utils.logger import logger
 from utils.log_context import log_context
 
@@ -29,7 +31,7 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title="Hackbot API",
         description="Hackbot AI 安全测试机器人 — REST + SSE 接口",
-        version="1.0.0",
+        version="2.0.0b1",
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -60,15 +62,17 @@ def create_app() -> FastAPI:
                 ).info(f"{request.method} {request.url.path} -> {response.status_code}")
                 response.headers["X-Request-Id"] = request_id
                 return response
-            except Exception:
+            except Exception as exc:
                 duration_ms = int((time.perf_counter() - start) * 1000)
                 logger.bind(
                     event="system_error", duration_ms=duration_ms
                 ).exception(f"{request.method} {request.url.path} unhandled exception")
+                mapped = map_exception_to_client(exc)
                 return JSONResponse(
-                    status_code=500,
+                    status_code=mapped.status_code,
                     content={
-                        "detail": "内部服务异常，请查看日志",
+                        "detail": mapped.message,
+                        "code": mapped.code.value,
                         "request_id": request_id,
                     },
                     headers={"X-Request-Id": request_id},
@@ -85,6 +89,7 @@ def create_app() -> FastAPI:
     application.include_router(network_router)
     application.include_router(database_router)
     application.include_router(tools_router)
+    application.include_router(memory_router)
 
     # ------------------------------------------------------------------
     # 启动时初始化数据库（确保 secbot.db 与表在首次请求前就存在）
