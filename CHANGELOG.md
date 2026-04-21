@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v2.0.0b1 (2026-04-21)
+
+### Features
+
+- **context**: 新增 ContextAssembler 三层上下文组装（会话 + SQLite 历史 + 向量 episodic 记忆）
+- **session**: 穿插规划（Adaptive Replan）：多 todo 首轮有失败子任务时自动补充规划与执行
+- **session**: persistTurn 统一持久化调用（SQLite 对话 + 上下文向量记忆）
+- **react**: 统一 REACT_OPERATING_POLICY 提示词策略块，与 npm 端对齐
+- **memory**: 新增 /api/memory REST 端点（remember/recall/context/vector/stats/clear）
+- **server**: 统一客户端错误映射与脱敏（HTTP + SSE），新增 ClientErrorCode 与 LLM 上游错误分类
+
+### Enhancements
+
+- **sse**: SSE 协议新增 step_key（并行子任务不串台）、scope（master/adaptive 规划区分）、context_debug 事件
+- **sse**: 移植 buildStreamSummaryPayload 精炼报告逻辑，report/response 分离
+- **llm**: 运行时无效 API Key 自清理（检测 401/auth 后自动删除 SQLite 持久化密钥）
+- **config**: normalize_bearer_api_key 自动去除误写的 Bearer 前缀
+
+### CI/CD
+
+- 新增独立 CI 工作流（.github/workflows/ci.yml），对 pypi-release 分支的 push/PR 执行 lint + build + test
+- 增强 release.yml：tag 与 pyproject.toml 版本校验、GitHub Release 上传 wheel/sdist、prerelease 自动判定
+
+### Version
+
+- 版本号升级至 2.0.0b1，与 npm 端 v2.0.0-b1 语义对齐
+
 ## v1.10.0 (2026-04-03)
 
 ### Features
