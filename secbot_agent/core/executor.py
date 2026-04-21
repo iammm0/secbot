@@ -8,11 +8,19 @@ TaskExecutor：分层任务执行器
 
 import asyncio
 import time
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from secbot_agent.core.models import PlanResult, TodoItem
 from utils.event_bus import EventBus, EventType
 from utils.logger import logger
+
+
+@dataclass
+class ExecutionResult:
+    """TaskExecutor.run() 的返回结果，与 npm 端 TaskExecutor 对齐。"""
+    summary: str = ""
+    cancelled_count: int = 0
 
 
 class TaskExecutor:
@@ -48,18 +56,19 @@ class TaskExecutor:
         self,
         user_input: str,
         on_event: Optional[Callable[[str, dict], None]] = None,
-    ) -> str:
+    ) -> ExecutionResult:
         """
-        按分层顺序执行所有任务，返回最终响应文本。
+        按分层顺序执行所有任务，返回 ExecutionResult（summary + cancelled_count）。
         """
         if not self.plan_result.todos:
-            return ""
+            return ExecutionResult()
 
         layers = self.planner.get_execution_order()
         if not layers:
             layers = [[t.id for t in self.plan_result.todos]]
 
         response_parts: List[str] = []
+        cancelled_count = 0
         iteration = 0
 
         for layer in layers:
@@ -76,6 +85,8 @@ class TaskExecutor:
                     todo, user_input, iteration, on_event, emit_events=True
                 )
                 self._layer_results[todo.id] = result
+                if isinstance(result, dict) and not result.get("success", True):
+                    cancelled_count += 1
                 if result.get("obs"):
                     response_parts.append(result["obs"])
                 # 未指定工具的步骤：由执行器标记为已完成并通知 UI
@@ -115,6 +126,7 @@ class TaskExecutor:
                 for todo, res in zip(todos_in_layer, results):
                     if isinstance(res, Exception):
                         logger.error(f"Todo {todo.id} 执行异常: {res}")
+                        cancelled_count += 1
                         err_msg = str(res)
                         self._layer_results[todo.id] = {
                             "success": False,
@@ -123,6 +135,11 @@ class TaskExecutor:
                             "tool": getattr(todo, "tool_hint", ""),
                             "params": {},
                         }
+                    elif isinstance(res, dict) and not res.get("success", True):
+                        cancelled_count += 1
+                        self._layer_results[todo.id] = res
+                        if res.get("obs"):
+                            response_parts.append(res["obs"])
                     else:
                         self._layer_results[todo.id] = res
                         if res.get("obs"):
@@ -169,7 +186,8 @@ class TaskExecutor:
                         )
                 iteration += len(todos_in_layer)
 
-        return "\n".join(response_parts) if response_parts else ""
+        summary = "\n".join(response_parts) if response_parts else ""
+        return ExecutionResult(summary=summary, cancelled_count=cancelled_count)
 
     async def _execute_single_todo(
         self,

@@ -47,6 +47,31 @@ from hackbot_config import settings, get_provider_api_key
 from utils.model_selector import get_provider_config, get_default_model_for_provider, get_base_url_for_provider
 
 
+REACT_OPERATING_POLICY = (
+    "【工作模式】执行优先：在具备授权前提下优先给出可落地步骤、命令和工具调用；"
+    "若缺关键参数，先提出最少澄清问题再继续。\n"
+    "【上下文约束】必须优先使用已提供的 RecentSession / SQLiteHistory / VectorMemory；"
+    "不得忽略上下文重复询问已知信息。\n"
+    "【安全边界】禁止无授权的破坏性/越权攻击；涉及高风险命令时先说明影响并给出确认建议。\n"
+    "【输出要求】每轮给出：当前结论、依据证据、下一步动作。"
+)
+
+
+def _auto_cleanup_invalid_key(exc: Exception, provider: str) -> None:
+    """
+    运行时无效 Key 自清理 —— 与 npm 端 onInvalidPersistedApiKey 回调对齐。
+    当 LLM 调用因 401/403/auth 失败时，自动删除 SQLite 中持久化的 API Key。
+    """
+    from hackbot_config import delete_provider_api_key, _get_config_from_sqlite
+    err_str = str(exc).lower()
+    auth_keywords = ("401", "unauthorized", "authentication", "invalid api key", "api_key", "forbidden", "403")
+    if any(kw in err_str for kw in auth_keywords):
+        sqlite_key = _get_config_from_sqlite(f"{provider}_api_key")
+        if sqlite_key:
+            logger.warning(f"检测到 {provider} API Key 无效（{type(exc).__name__}），自动清理持久化密钥")
+            delete_provider_api_key(provider)
+
+
 def _create_llm(
     provider: Optional[str] = None,
     model: Optional[str] = None,
@@ -352,6 +377,8 @@ class SecurityReActAgent(BaseAgent):
                 or getattr(settings, "llm_provider", None)
                 or "ollama"
             )
+            # 无效 Key 自清理：与 npm onInvalidPersistedApiKey 对齐
+            _auto_cleanup_invalid_key(e, provider)
             hint = get_llm_connection_hint(e, provider=provider)
             return f"[LLM 调用失败: {hint}]"
 
@@ -1178,6 +1205,8 @@ class SecurityReActAgent(BaseAgent):
         context_block = get_agent_context_block()
 
         prompt = f"""你是一个安全测试专家，使用 ReAct 模式工作。
+
+{REACT_OPERATING_POLICY}
 
 {tools_desc}
 

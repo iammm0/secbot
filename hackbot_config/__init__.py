@@ -133,16 +133,23 @@ def delete_provider_api_key(provider: str) -> bool:
 _get_api_key_from_sqlite = _get_config_from_sqlite
 
 
+def normalize_bearer_api_key(key: str) -> str:
+    """去掉用户误写的 'Bearer ' 前缀，与 npm normalizeBearerApiKey 对齐。"""
+    if key and key.strip().lower().startswith("bearer "):
+        return key.strip()[7:].strip()
+    return key.strip() if key else ""
+
+
 def get_provider_api_key(provider: str) -> Optional[str]:
-    """获取任意厂商的 API Key（优先 SQLite，其次环境变量）"""
+    """获取任意厂商的 API Key（优先 SQLite，其次环境变量），自动规范化 Bearer 前缀。"""
     # SQLite
     key = _get_config_from_sqlite(f"{provider}_api_key")
     if key and key.strip():
-        return key.strip()
+        return normalize_bearer_api_key(key)
     # 环境变量 (如 OPENAI_API_KEY / DEEPSEEK_API_KEY / ...)
     env_val = os.getenv(f"{provider.upper()}_API_KEY")
     if env_val and env_val.strip():
-        return env_val.strip()
+        return normalize_bearer_api_key(env_val)
     return None
 
 

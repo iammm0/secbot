@@ -12,8 +12,11 @@ from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
 from secbot_agent.core.agents.qa_agent import QAAgent
 from secbot_agent.core.agents.planner_agent import PlannerAgent
 from secbot_agent.core.agents.summary_agent import SummaryAgent
+from secbot_agent.core.context_assembler import ContextAssembler
 from secbot_agent.database.manager import DatabaseManager
 from secbot_agent.core.memory.database_memory import DatabaseMemory
+from secbot_agent.core.memory.manager import MemoryManager
+from secbot_agent.core.memory.vector_store import VectorStoreManager
 from secbot_agent.defense.defense_manager import DefenseManager
 from secbot_agent.controller.controller import MainController
 from secbot_agent.system.controller import OSController
@@ -41,6 +44,9 @@ class _Singletons:
     _qa_agent: QAAgent | None = None
     _planner_agent: PlannerAgent | None = None
     _summary_agent: SummaryAgent | None = None
+    _context_assembler: ContextAssembler | None = None
+    _memory_manager: MemoryManager | None = None
+    _vector_store_manager: VectorStoreManager | None = None
     _defense_manager: DefenseManager | None = None
     _main_controller: MainController | None = None
     _os_controller: OSController | None = None
@@ -109,6 +115,29 @@ class _Singletons:
         if cls._summary_agent is None:
             cls._summary_agent = SummaryAgent()
         return cls._summary_agent
+
+    # -- 记忆与上下文 --
+    @classmethod
+    def memory_manager(cls) -> MemoryManager:
+        if cls._memory_manager is None:
+            cls._memory_manager = MemoryManager()
+        return cls._memory_manager
+
+    @classmethod
+    def vector_store_manager(cls) -> VectorStoreManager:
+        if cls._vector_store_manager is None:
+            cls._vector_store_manager = VectorStoreManager()
+        return cls._vector_store_manager
+
+    @classmethod
+    def context_assembler(cls) -> ContextAssembler:
+        if cls._context_assembler is None:
+            cls._context_assembler = ContextAssembler(
+                db_manager=cls.db_manager(),
+                memory_manager=cls.memory_manager(),
+                vector_store_manager=cls.vector_store_manager(),
+            )
+        return cls._context_assembler
 
     # -- 防御管理器 --
     @classmethod
@@ -191,6 +220,18 @@ def get_os_controller() -> OSController:
 
 def get_os_detector() -> OSDetector:
     return _Singletons.os_detector()
+
+
+def get_context_assembler() -> ContextAssembler:
+    return _Singletons.context_assembler()
+
+
+def get_memory_manager() -> MemoryManager:
+    return _Singletons.memory_manager()
+
+
+def get_vector_store_manager() -> VectorStoreManager:
+    return _Singletons.vector_store_manager()
 
 
 def get_session_id() -> str:
