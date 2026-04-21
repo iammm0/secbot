@@ -59,6 +59,7 @@ dist/
 *.egg
 *.whl
 *.tar.gz
+*.tgz
 
 # 数据目录（包含SQLite数据库和Docker数据）
 data/
