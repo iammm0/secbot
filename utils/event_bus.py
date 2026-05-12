@@ -47,6 +47,15 @@ class EventType(str, Enum):
     SESSION_UPDATE = "session_update"
     ERROR = "error"
 
+    # 编排 / 上下文（与 npm SSE 对齐）
+    INTENT_DECISION = "intent_decision"
+    EXPLORE_START = "explore_start"
+    EXPLORE_STEP = "explore_step"
+    EXPLORE_END = "explore_end"
+    CONTEXT_PATCH = "context_patch"
+    CONTEXT_USAGE = "context_usage"
+    CLARIFY = "clarify"
+
     # UI 反馈（OpenCode 理念：事件驱动 Toast）
     TOAST_SHOW = "toast_show"
     COMMAND_EXECUTE = "command_execute"

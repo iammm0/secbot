@@ -14,6 +14,7 @@ from typing import Optional, List, Dict, Any
 from secbot_agent.core.agents.base import BaseAgent
 from secbot_agent.core.agents.summary_agent import SummaryAgent
 from tools.base import BaseTool, ToolResult
+from secbot_agent.core.parse_tool_action import parse_tool_action
 from utils.audit import AuditTrail
 from utils.confirmation import UserConfirmation, ActionOption
 from utils.context_info import get_agent_context_block
@@ -1304,17 +1305,20 @@ Final Answer: <最终结论和报告>
         self, thought: str, iteration: int = 0
     ) -> Optional[Dict[str, Any]]:
         """
-        从 LLM 输出中解析 Action JSON。
+        从 LLM 输出中解析 Action JSON（优先 npm 对齐的 parse_tool_action）。
         如果输出包含 Final Answer 则返回 None。
-        支持嵌套花括号（如 "params": {"category": "process"}）。
         """
         if "Final Answer:" in thought or "final answer:" in thought.lower():
             return None
 
-        # 1) 定位 Action: 后的第一个 {
+        parsed = parse_tool_action(thought)
+        if parsed:
+            return {"tool": parsed.tool, "params": parsed.params}
+
+        # 兼容旧版：Action: 后直接跟平衡花括号
         action_label = re.search(r"Action:\s*\{", thought, re.IGNORECASE)
         if action_label:
-            start = action_label.end() - 1  # 从 { 开始
+            start = action_label.end() - 1
             depth = 0
             for i in range(start, len(thought)):
                 if thought[i] == "{":
@@ -1323,11 +1327,10 @@ Final Answer: <最终结论和报告>
                     depth -= 1
                     if depth == 0:
                         try:
-                            return json.loads(thought[start: i + 1])
+                            return json.loads(thought[start : i + 1])
                         except json.JSONDecodeError:
                             break
-            # 若括号匹配失败，继续尝试其他方式
-        # 2) 任意位置匹配包含 "tool" 的平衡花括号 JSON
+
         for match in re.finditer(r"\{", thought):
             start = match.start()
             depth = 0
@@ -1337,7 +1340,7 @@ Final Answer: <最终结论和报告>
                 elif thought[i] == "}":
                     depth -= 1
                     if depth == 0:
-                        snippet = thought[start: i + 1]
+                        snippet = thought[start : i + 1]
                         if '"tool"' in snippet or "'tool'" in snippet:
                             try:
                                 obj = json.loads(snippet)

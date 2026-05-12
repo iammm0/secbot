@@ -9,8 +9,11 @@ from secbot_agent.core.agents.coordinator_agent import CoordinatorAgent
 from secbot_agent.core.agents.superhackbot_agent import SuperHackbotAgent
 from secbot_agent.core.agents.qa_agent import QAAgent
 from secbot_agent.core.agents.planner_agent import PlannerAgent
+from secbot_agent.core.agents.explore_agent import ExploreAgent
+from secbot_agent.core.agents.intent_router import IntentRouter
 from secbot_agent.core.agents.summary_agent import SummaryAgent
 from secbot_agent.core.context_assembler import ContextAssembler
+from secbot_agent.core.context_store import ContextStore
 from secbot_agent.database.manager import DatabaseManager
 from secbot_agent.core.memory.database_memory import DatabaseMemory
 from secbot_agent.core.memory.manager import MemoryManager
@@ -42,7 +45,10 @@ class _Singletons:
     _qa_agent: QAAgent | None = None
     _planner_agent: PlannerAgent | None = None
     _summary_agent: SummaryAgent | None = None
+    _context_store: ContextStore | None = None
     _context_assembler: ContextAssembler | None = None
+    _intent_router: IntentRouter | None = None
+    _explore_agent: ExploreAgent | None = None
     _memory_manager: MemoryManager | None = None
     _vector_store_manager: VectorStoreManager | None = None
     _defense_manager: DefenseManager | None = None
@@ -128,14 +134,50 @@ class _Singletons:
         return cls._vector_store_manager
 
     @classmethod
+    def context_store(cls) -> ContextStore:
+        if cls._context_store is None:
+            cls._context_store = ContextStore()
+        return cls._context_store
+
+    @classmethod
     def context_assembler(cls) -> ContextAssembler:
         if cls._context_assembler is None:
             cls._context_assembler = ContextAssembler(
                 db_manager=cls.db_manager(),
                 memory_manager=cls.memory_manager(),
                 vector_store_manager=cls.vector_store_manager(),
+                context_store=cls.context_store(),
             )
         return cls._context_assembler
+
+    @classmethod
+    def intent_router(cls) -> IntentRouter:
+        if cls._intent_router is None:
+            cls._intent_router = IntentRouter()
+        return cls._intent_router
+
+    @classmethod
+    def explore_agent(cls) -> ExploreAgent:
+        if cls._explore_agent is None:
+            from tools.utility.vuln_db_query_tool import VulnDbQueryTool
+            from tools.web_research.browser_session_tool import BrowserSessionTool
+
+            browser = BrowserSessionTool()
+            tools: list = [VulnDbQueryTool(), browser]
+            try:
+                from tools.web_research.page_extract_tool import PageExtractTool
+
+                tools.append(PageExtractTool())
+            except Exception:
+                pass
+            try:
+                from tools.web_research.smart_search_tool import SmartSearchTool
+
+                tools.append(SmartSearchTool())
+            except Exception:
+                pass
+            cls._explore_agent = ExploreAgent(tools=tools, browser_tool=browser)
+        return cls._explore_agent
 
     # -- 防御管理器 --
     @classmethod
@@ -222,6 +264,18 @@ def get_os_detector() -> OSDetector:
 
 def get_context_assembler() -> ContextAssembler:
     return _Singletons.context_assembler()
+
+
+def get_context_store() -> ContextStore:
+    return _Singletons.context_store()
+
+
+def get_intent_router() -> IntentRouter:
+    return _Singletons.intent_router()
+
+
+def get_explore_agent() -> ExploreAgent:
+    return _Singletons.explore_agent()
 
 
 def get_memory_manager() -> MemoryManager:

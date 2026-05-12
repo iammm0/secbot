@@ -3,9 +3,86 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 from enum import Enum
+
+
+# ---------------------------------------------------------------------------
+# IntentRouter / ContextStore（与 npm-release types 对齐）
+# ---------------------------------------------------------------------------
+
+Intent = Literal[
+    "small_talk",
+    "meta",
+    "qa",
+    "clarify_needed",
+    "task_simple",
+    "task_complex",
+]
+
+ContextTtl = Literal["turn", "session", "persistent"]
+
+ContextItemSource = Literal[
+    "recent", "sqlite", "vector", "explore", "user_pinned"
+]
+
+
+@dataclass
+class IntentDecision:
+    intent: str
+    confidence: float
+    needs_explore: bool
+    needs_report: bool
+    focus: List[str] = field(default_factory=list)
+    direct_response: Optional[str] = None
+    clarify_question: Optional[str] = None
+    rationale: str = ""
+
+
+@dataclass
+class ContextPatchFact:
+    key: str
+    value: str
+    priority: float = 0.7
+    ttl: str = "session"
+    tags: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ContextPatch:
+    facts: List[ContextPatchFact] = field(default_factory=list)
+    pinned: List[str] = field(default_factory=list)
+    unresolved: List[str] = field(default_factory=list)
+    suggested_focus: List[str] = field(default_factory=list)
+    explore_summary: str = ""
+
+
+@dataclass
+class ContextItem:
+    id: str
+    content: str
+    source: ContextItemSource
+    priority: float
+    tokens_estimate: int
+    tags: List[str]
+    ttl: str
+    created_at: datetime
+
+
+@dataclass
+class FocusEntry:
+    keyword: str
+    weight: float
+    last_seen_at: datetime
+
+
+@dataclass
+class SessionContextState:
+    pinned: List[ContextItem] = field(default_factory=list)
+    focus: List[FocusEntry] = field(default_factory=list)
+    unresolved: List[str] = field(default_factory=list)
+    model_name: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
