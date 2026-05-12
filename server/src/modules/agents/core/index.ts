@@ -6,4 +6,8 @@ export { QAAgent } from './qa-agent';
 export { SummaryAgent } from './summary-agent';
 export { PlannerAgent } from './planner-agent';
 export { route, routeWithLLM } from './agent-router';
+export { IntentRouter } from './intent-router';
+export type { IntentRouteArgs } from './intent-router';
+export { ExploreAgent } from './explore-agent';
+export type { ExploreArgs } from './explore-agent';
 export { TaskExecutor } from './task-executor';

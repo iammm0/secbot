@@ -7,16 +7,17 @@ import { TodoItem } from '../../../common/types';
 import { validateToolInvocation } from './tool-action-validate';
 import { formatExecuteCommandObservation } from './observation-format';
 import { type ClientShellPayload, formatClientShellContextBlock } from './client-shell-context.js';
+import {
+  extractFinalAnswer,
+  hasFinalAnswer,
+  parseToolAction,
+  type ParsedAction,
+} from './parse-tool-action';
 
 interface ReActStep {
   type: 'thought' | 'action' | 'observation';
   content: string;
   iteration: number;
-}
-
-interface ParsedAction {
-  tool: string;
-  params: Record<string, unknown>;
 }
 
 type OnEventCallback = (event: BusEvent) => void;
@@ -102,13 +103,36 @@ export class SecurityReActAgent extends BaseAgent {
         iteration,
       });
 
-      const action = this.parseAction(thought);
+      const action = parseToolAction(thought);
 
       if (!action) {
-        const finalAnswer = this.extractFinalAnswer(thought);
-        const response = finalAnswer ?? thought;
-        this.addMessage('assistant', response);
-        return response;
+        /** 模型明确给了 Final Answer：作为最终回复返回 */
+        if (hasFinalAnswer(thought)) {
+          const finalAnswer = extractFinalAnswer(thought) ?? thought;
+          this.addMessage('assistant', finalAnswer);
+          return finalAnswer;
+        }
+        /** 没有 Action 也没有 Final Answer：很可能是格式问题（缺 JSON / 代码块未闭合）。
+         *  给 LLM 一次纠正机会，而不是直接把"思考过程"当作最终回复返回。 */
+        if (iteration < this.maxIterations) {
+          messages.push({ role: 'assistant', content: thought });
+          messages.push({
+            role: 'user',
+            content:
+              '上一轮回复既未解析到 `Action:` 也未声明 `Final Answer:`。请严格按以下两种格式之一回复：\n' +
+              '1) 需要调用工具：\n' +
+              '   Thought: <一句话原因>\n' +
+              '   Action: {"tool":"<tool_name>","params":{...}}\n' +
+              '2) 已经得到结论：\n' +
+              '   Thought: <一句话原因>\n' +
+              '   Final Answer: <最终结论>\n' +
+              '不要使用 ```json 代码块包裹 Action JSON；params 必须是对象。',
+          });
+          continue;
+        }
+        /** 达到最大轮次仍未输出标准格式，作为兜底返回原文 */
+        this.addMessage('assistant', thought);
+        return thought;
       }
 
       this._reactHistory.push({
@@ -199,40 +223,9 @@ export class SecurityReActAgent extends BaseAgent {
     return fallback;
   }
 
+  /** 兼容旧 import；内部直接走共享 parseToolAction，统一处理代码块/粗体/嵌套花括号等变体 */
   parseAction(thought: string): ParsedAction | null {
-    if (/Final\s*Answer\s*:/i.test(thought)) {
-      return null;
-    }
-
-    const actionMatch = thought.match(/Action\s*:\s*(\{[\s\S]*?\})\s*(?:\n|$)/);
-    if (!actionMatch) {
-      return null;
-    }
-
-    try {
-      const parsed = JSON.parse(actionMatch[1]) as {
-        tool?: string;
-        params?: Record<string, unknown>;
-      };
-      if (typeof parsed.tool !== 'string') {
-        return null;
-      }
-      let params: Record<string, unknown> =
-        parsed.params !== undefined && parsed.params !== null
-          ? (parsed.params as Record<string, unknown>)
-          : {};
-      if (typeof params !== 'object' || Array.isArray(params)) {
-        return null;
-      }
-      return {
-        tool: parsed.tool.trim(),
-        params,
-      };
-    } catch {
-      /* malformed JSON — treat as no action */
-    }
-
-    return null;
+    return parseToolAction(thought);
   }
 
   async executeTool(toolName: string, params: Record<string, unknown>): Promise<ToolResult> {
@@ -329,9 +322,9 @@ export class SecurityReActAgent extends BaseAgent {
       iteration: 0,
     });
 
-    const action = this.parseAction(thought);
+    const action = parseToolAction(thought);
     if (!action) {
-      const finalAnswer = this.extractFinalAnswer(thought) ?? thought;
+      const finalAnswer = extractFinalAnswer(thought) ?? thought;
       return { todoId: todo.id, success: true, result: finalAnswer };
     }
 
@@ -387,11 +380,6 @@ export class SecurityReActAgent extends BaseAgent {
       result: result.result,
       error: result.error,
     };
-  }
-
-  private extractFinalAnswer(thought: string): string | null {
-    const match = thought.match(/Final\s*Answer\s*:\s*([\s\S]*)/i);
-    return match ? match[1].trim() : null;
   }
 
   private buildSystemMessage(clientShell?: ClientShellPayload, contextBlock?: string): string {

@@ -375,6 +375,32 @@ export function streamStateToBlocks(
         continue;
       }
 
+      if (item.type === "browser_event") {
+        if (timelineEmitted++ > 0) addVisualGap();
+        const browserSteps = item.browserSteps ?? [];
+        const focus = item.focus ?? [];
+        const summary = item.exploreSummary;
+        /** body 用占位文本（不参与渲染主体，由 BrowserTimelineBlock 接管） */
+        const placeholder = browserSteps.length > 0
+          ? `（共 ${browserSteps.length} 步）`
+          : "（暂无浏览步骤）";
+        const lineCount = blockLines(item.title || "浏览路径", placeholder)
+          + browserSteps.length;
+        blocks.push({
+          id: item.id,
+          type: "browser",
+          title: item.title || "ExploreAgent · 浏览路径",
+          body: placeholder,
+          lineStart,
+          lineEnd: lineStart + lineCount,
+          browserSteps,
+          focus,
+          exploreSummary: summary,
+        });
+        lineStart += lineCount;
+        continue;
+      }
+
       if (item.type === "observation") {
         if (
           chatMode === "ask" &&

@@ -1,6 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
 export enum EventType {
+  INTENT_DECISION = 'intent_decision',
+
+  EXPLORE_START = 'explore_start',
+  EXPLORE_STEP = 'explore_step',
+  EXPLORE_END = 'explore_end',
+
+  CONTEXT_PATCH = 'context_patch',
+
   PLAN_START = 'plan_start',
   PLAN_TODO = 'plan_todo',
   PLAN_COMPLETE = 'plan_complete',

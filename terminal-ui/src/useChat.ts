@@ -17,6 +17,7 @@ import { connectSSE } from "./sse.js";
 import { TRANSIENT_TOOLS } from "./streamConstants.js";
 import { buildObservationBody } from "./toolObservation.js";
 import type {
+  BrowserStep,
   ChatRequest,
   ChatMode,
   StreamState,
@@ -38,14 +39,17 @@ const initialStreamState: StreamState = {
   error: null,
   response: null,
   timeline: [],
+  contextUsage: null,
 };
 
-function resetStreamState(): StreamState {
+function resetStreamState(prev?: StreamState | null): StreamState {
+  /** 跨轮保留 contextUsage，让右下角上下文存量在两轮之间不闪烁 */
   return {
     ...initialStreamState,
     thoughtChunks: new Map(),
     actions: [],
     timeline: [],
+    contextUsage: prev?.contextUsage ?? null,
   };
 }
 
@@ -71,6 +75,9 @@ function cloneStreamState(s: StreamState): StreamState {
       ...t,
       ...(t.todos
         ? { todos: t.todos.map((x) => ({ ...x })) }
+        : {}),
+      ...(t.browserSteps
+        ? { browserSteps: t.browserSteps.map((x) => ({ ...x })) }
         : {}),
     })),
     planning: s.planning
@@ -175,6 +182,10 @@ export function useChat() {
   const thoughtSeqRef = useRef<number>(0);
   /** 按 step_key（子任务 todo / ReAct 轮次）关联推理时间线项，避免并行子任务共用 iteration 时串台 */
   const activeThoughtIdByStepRef = useRef<Map<string, string>>(new Map());
+  /** 当前轮次 ExploreAgent 的 browser timeline id；explore_step/end 都 upsert 到此 id */
+  const currentBrowserTraceIdRef = useRef<string | null>(null);
+  /** 当前 browser timeline 已收集的步骤计数，用于步骤 index 递增 */
+  const browserStepCounterRef = useRef<number>(0);
 
   /** 多会话（客户端隔离对话上下文） */
   const activeSessionIdRef = useRef<string>("default");
@@ -446,7 +457,7 @@ export function useChat() {
       setCurrentUserMessage(message);
       setCurrentSentAt(now);
       setCurrentCompletedAt(0);
-      setStreamState(resetStreamState());
+      setStreamState((prev) => resetStreamState(prev));
       setApiOutput(null);
       setStreaming(true);
 
@@ -783,6 +794,169 @@ export function useChat() {
                   detail: (data.detail as string) ?? "",
                 }));
                 break;
+
+              case "context_usage": {
+                const focusRaw = data.focus;
+                const focus = Array.isArray(focusRaw)
+                  ? (focusRaw as unknown[]).filter(
+                      (x): x is string => typeof x === "string",
+                    )
+                  : [];
+                const rawRatio = Number(data.ratio ?? 0);
+                const ratio =
+                  Number.isFinite(rawRatio) && rawRatio >= 0
+                    ? Math.min(1, rawRatio)
+                    : 0;
+                setStreamState((s) => ({
+                  ...s,
+                  contextUsage: {
+                    model:
+                      typeof data.model === "string" ? data.model : null,
+                    contextWindow: Number(data.context_window ?? 0),
+                    promptBudget: Number(data.prompt_budget ?? 0),
+                    usedTokens: Number(data.used_tokens ?? 0),
+                    reservedTokens: Number(data.reserved_tokens ?? 0),
+                    ratio,
+                    focus,
+                    pinned: Number(data.pinned ?? 0),
+                    updatedAt: Date.now(),
+                  },
+                }));
+                break;
+              }
+
+              case "explore_start": {
+                /** 为本次 explore 新建一个 browser timeline 块 */
+                const traceId = `browser-trace-${Date.now()}-${Math.random()
+                  .toString(36)
+                  .slice(2, 8)}`;
+                currentBrowserTraceIdRef.current = traceId;
+                browserStepCounterRef.current = 0;
+                const focusRaw = data.focus;
+                const focus = Array.isArray(focusRaw)
+                  ? (focusRaw as unknown[]).filter(
+                      (x): x is string => typeof x === "string",
+                    )
+                  : [];
+                const startStep: BrowserStep = {
+                  index: browserStepCounterRef.current++,
+                  kind: "start",
+                  detail: focus.length > 0 ? `focus: ${focus.join(", ")}` : "",
+                  ts: Date.now(),
+                };
+                setStreamState((s) => ({
+                  ...s,
+                  timeline: [
+                    ...s.timeline,
+                    {
+                      id: traceId,
+                      type: "browser_event",
+                      title: "ExploreAgent · 浏览路径",
+                      body: "",
+                      browserSteps: [startStep],
+                      focus,
+                      status: "running",
+                    },
+                  ],
+                }));
+                break;
+              }
+
+              case "explore_step": {
+                const traceId = currentBrowserTraceIdRef.current;
+                if (!traceId) break;
+                const kindRaw = String(data.kind ?? "thought");
+                const validKinds: BrowserStep["kind"][] = [
+                  "start",
+                  "thought",
+                  "action_start",
+                  "action_result",
+                  "action_error",
+                  "sensitive_denied",
+                  "end",
+                ];
+                const kind = (
+                  validKinds.includes(kindRaw as BrowserStep["kind"])
+                    ? (kindRaw as BrowserStep["kind"])
+                    : "thought"
+                );
+                const tool =
+                  typeof data.tool === "string" && data.tool ? data.tool : undefined;
+                /** target：browser_session 的 params.url / link_id / query；其他工具的 params 摘要 */
+                let target: string | undefined;
+                let detail: string | undefined;
+                const params = (data.params ?? {}) as Record<string, unknown>;
+                if (tool === "browser_session" && params) {
+                  if (typeof params.url === "string") target = params.url;
+                  else if (typeof params.query === "string") target = params.query;
+                  else if (typeof params.link_id === "string") target = `link:${params.link_id}`;
+                  else if (typeof params.action === "string") target = `action:${params.action}`;
+                }
+                if (typeof data.thought === "string" && data.thought) {
+                  const t = data.thought.trim();
+                  detail = t.length > 200 ? t.slice(0, 200) + "…" : t;
+                } else if (typeof data.observation === "string" && data.observation) {
+                  const o = data.observation.trim();
+                  detail = o.length > 200 ? o.slice(0, 200) + "…" : o;
+                }
+                const ok = kind === "action_error" || kind === "sensitive_denied" ? false : undefined;
+                const step: BrowserStep = {
+                  index: browserStepCounterRef.current++,
+                  kind,
+                  tool,
+                  target,
+                  detail,
+                  ok,
+                  ts: Date.now(),
+                };
+                setStreamState((s) => ({
+                  ...s,
+                  timeline: upsertTimelineItem(s.timeline, traceId, (prev) => ({
+                    id: traceId,
+                    type: "browser_event",
+                    title: prev?.title ?? "ExploreAgent · 浏览路径",
+                    body: prev?.body ?? "",
+                    browserSteps: [...(prev?.browserSteps ?? []), step],
+                    focus: prev?.focus,
+                    status: "running",
+                  })),
+                }));
+                break;
+              }
+
+              case "explore_end": {
+                const traceId = currentBrowserTraceIdRef.current;
+                if (!traceId) break;
+                const factsCount = Number(data.facts_count ?? 0);
+                const unresolvedRaw = data.unresolved;
+                const unresolved = Array.isArray(unresolvedRaw)
+                  ? (unresolvedRaw as unknown[])
+                      .filter((x): x is string => typeof x === "string")
+                  : [];
+                const summary =
+                  typeof data.summary === "string" ? data.summary : "";
+                const endStep: BrowserStep = {
+                  index: browserStepCounterRef.current++,
+                  kind: "end",
+                  detail: summary || (factsCount > 0 ? `补充 ${factsCount} 条事实` : ""),
+                  ts: Date.now(),
+                };
+                setStreamState((s) => ({
+                  ...s,
+                  timeline: upsertTimelineItem(s.timeline, traceId, (prev) => ({
+                    id: traceId,
+                    type: "browser_event",
+                    title: prev?.title ?? "ExploreAgent · 浏览路径",
+                    body: prev?.body ?? "",
+                    browserSteps: [...(prev?.browserSteps ?? []), endStep],
+                    focus: prev?.focus,
+                    exploreSummary: { factsCount, unresolved, summary },
+                    status: "done",
+                  })),
+                }));
+                currentBrowserTraceIdRef.current = null;
+                break;
+              }
 
               case "root_required":
                 setPendingRootRequest({

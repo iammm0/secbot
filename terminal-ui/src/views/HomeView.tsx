@@ -5,6 +5,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import figlet from 'figlet';
+import { sanitizeInputValue } from '../hooks/mouseFilter.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useKeybind, inkKeyToParsedKey, isInkEscape } from '../contexts/KeybindContext.js';
 import { useRoute } from '../contexts/RouteContext.js';
@@ -122,7 +123,7 @@ export function HomeView() {
             <Text color={theme.textMuted}>› </Text>
             <TextInput
               value={inputValue}
-              onChange={setInputValue}
+              onChange={(next) => setInputValue(sanitizeInputValue(next))}
               onSubmit={() => {
                 if (slashSuggestions.length > 0) {
                   const sel = slashSuggestions[Math.min(slashSelectedIndex, slashSuggestions.length - 1)];

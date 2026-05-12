@@ -37,6 +37,7 @@ import { SuggestionBlock } from "./SuggestionBlock.js";
 import { SuccessBlock } from "./SuccessBlock.js";
 import { InfoBlock } from "./InfoBlock.js";
 import { UserMessageBlock } from "./UserMessageBlock.js";
+import { BrowserTimelineBlock } from "./BrowserTimelineBlock.js";
 
 interface BlockRendererProps {
   block: ContentBlockType;
@@ -248,6 +249,8 @@ export function BlockRenderer({ block, noMargin }: BlockRendererProps) {
       return (
         <InfoBlock title={block.title} body={block.body} noMargin={noMargin} />
       );
+    case "browser":
+      return <BrowserTimelineBlock block={block} noMargin={noMargin} />;
     default:
       return (
         <ResultBlock

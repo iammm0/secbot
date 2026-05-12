@@ -37,3 +37,4 @@ export { LabelValue } from './LabelValue.js';
 export { SectionDivider } from './SectionDivider.js';
 export { TodoList } from './TodoList.js';
 export { ActionItem } from './ActionItem.js';
+export { BrowserTimelineBlock } from './BrowserTimelineBlock.js';
