@@ -11,7 +11,7 @@ export const byTypeDiscriminator: BlockDiscriminator = (block) => {
     'content', 'report', 'response', 'user_message', 'warning', 'summary', 'code',
     'json', 'table', 'bullet', 'numbered', 'quote', 'heading', 'divider',
     'link', 'key_value', 'diff', 'terminal', 'exploring', 'spacer', 'security', 'tool_result',
-    'exception', 'suggestion', 'success', 'info',
+    'exception', 'suggestion', 'success', 'info', 'browser',
   ];
   if (known.includes(block.type)) return block.type;
   return null;
@@ -48,10 +48,11 @@ export const byContentDiscriminator: BlockDiscriminator = (block) => {
   return null;
 };
 
-/** 按结构判别：有 todos → planning，有 actions → actions */
+/** 按结构判别：有 todos → planning，有 actions → actions，有 browserSteps → browser */
 export const byStructureDiscriminator: BlockDiscriminator = (block) => {
   if (block.todos && block.todos.length > 0) return 'planning';
   if (block.actions && block.actions.length > 0) return 'actions';
+  if (block.browserSteps && block.browserSteps.length > 0) return 'browser';
   return null;
 };
 

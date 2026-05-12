@@ -5,11 +5,12 @@ import { ToolsModule } from '../tools/tools.module';
 import { DatabaseModule } from '../database/database.module';
 import { MemoryModule } from '../memory/memory.module';
 import { ContextAssemblerService } from './context-assembler.service';
+import { ContextStoreService } from './context-store.service';
 
 @Module({
   imports: [ToolsModule, DatabaseModule, MemoryModule],
   controllers: [ChatController],
-  providers: [ChatService, ContextAssemblerService],
+  providers: [ChatService, ContextAssemblerService, ContextStoreService],
   exports: [ChatService],
 })
 export class ChatModule {}

@@ -29,7 +29,33 @@ export type TimelineItemType =
   | "action"
   | "observation"
   | "final"
-  | "planning";
+  | "planning"
+  | "browser_event";
+
+/** ExploreAgent 虚拟浏览器的一步（来自后端 explore_start/step/end 事件） */
+export interface BrowserStep {
+  /** 序号（按发生顺序），用于 UI 排序与折叠 */
+  index: number;
+  /** 步骤类型；与 explore_step 的 kind 字段对齐 */
+  kind:
+    | "start"
+    | "thought"
+    | "action_start"
+    | "action_result"
+    | "action_error"
+    | "sensitive_denied"
+    | "end";
+  /** 工具名（browser_session / vuln_db_query / page_extract / smart_search …） */
+  tool?: string;
+  /** 该步骤的目标 URL / 关键字 / link_id 等，简短摘要展示 */
+  target?: string;
+  /** 简短摘要文本（observation 截断后的前若干字） */
+  detail?: string;
+  /** 是否成功；用于 UI 染色 */
+  ok?: boolean;
+  /** 发生时刻（Date.now()） */
+  ts: number;
+}
 
 /** 按事件发生顺序记录的时间线项，用于 TUI 顺序渲染 */
 export interface StreamTimelineItem {
@@ -49,6 +75,38 @@ export interface StreamTimelineItem {
   status?: "running" | "done";
   /** 工具调用块：与 action_start 同源，便于结束时仍显示 execute_command 等参数 */
   params?: Record<string, unknown>;
+  /** browser_event 块：ExploreAgent 虚拟浏览器的步骤集合（合并后的整体时间线） */
+  browserSteps?: BrowserStep[];
+  /** browser_event 块：本次 explore 的 focus（路由层抽取的关键词） */
+  focus?: string[];
+  /** browser_event 块：facts/unresolved 计数等汇总信息（end 阶段写入） */
+  exploreSummary?: {
+    factsCount?: number;
+    unresolved?: string[];
+    summary?: string;
+  };
+}
+
+/** 当前上下文用量快照（每次后端 build context 后由 SSE 推送） */
+export interface ContextUsageSnapshot {
+  /** 当前模型；null 时表示后端未识别 */
+  model: string | null;
+  /** 模型总上下文窗口（input + output） */
+  contextWindow: number;
+  /** 留给 prompt 的预算 */
+  promptBudget: number;
+  /** 实际占用 token（估算） */
+  usedTokens: number;
+  /** 给输出 + system 预留的 token */
+  reservedTokens: number;
+  /** usedTokens / promptBudget，已 clamp 到 0-1 */
+  ratio: number;
+  /** 当前会话 focus 关键词 */
+  focus: string[];
+  /** ContextStore 中 pinned 条目数 */
+  pinned: number;
+  /** 上次更新时刻（Date.now()） */
+  updatedAt: number;
 }
 
 /** 流式状态：用于 UI 展示 */
@@ -75,6 +133,8 @@ export interface StreamState {
   error: string | null;
   response: string | null;
   timeline: StreamTimelineItem[];
+  /** 最近一次上下文用量；后端每轮 build context 后推送 */
+  contextUsage: ContextUsageSnapshot | null;
 }
 
 /** 规划待办项（供 TodoList 渲染） */
@@ -124,7 +184,8 @@ export type BlockRenderType =
   | "exception"
   | "suggestion"
   | "success"
-  | "info";
+  | "info"
+  | "browser";
 
 /**
  * 内容块：用于分块 + Markdown 渲染
@@ -144,6 +205,16 @@ export interface ContentBlock {
   todos?: TodoItemData[];
   /** 执行块专用：工具列表，有则用 ActionItem 渲染 */
   actions?: ActionItemData[];
+  /** 浏览器时间线块专用：浏览步骤序列 */
+  browserSteps?: BrowserStep[];
+  /** 浏览器时间线块专用：focus 关键词 */
+  focus?: string[];
+  /** 浏览器时间线块专用：本次 explore 汇总 */
+  exploreSummary?: {
+    factsCount?: number;
+    unresolved?: string[];
+    summary?: string;
+  };
   /** 块起始行（用于滚动计算） */
   lineStart: number;
   /** 块结束行（不含） */

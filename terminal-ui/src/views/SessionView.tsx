@@ -13,7 +13,7 @@ import TextInput from "ink-text-input";
 import { MainContent } from "../MainContent.js";
 import { SlashSuggestions } from "../components/SlashSuggestions.js";
 import { useMouseScroll } from "../hooks/useMouseScroll.js";
-import { getMouseEmitter } from "../hooks/mouseFilter.js";
+import { getMouseEmitter, sanitizeInputValue } from "../hooks/mouseFilter.js";
 import { parseSlash, getAgentFromState } from "../slash.js";
 import { isSimpleGreetingOrNonTask } from "../intent.js";
 import {
@@ -36,17 +36,65 @@ import { LoadingBar } from "../components/LoadingBar.js";
 import { SessionSelectDialog } from "../components/SessionSelectDialog.js";
 import { useRoute } from "../contexts/RouteContext.js";
 
+/** 把 token 数字压成 1.2k / 12k / 1.2M 这种紧凑形式 */
+function formatTokenCount(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  if (n < 1_000) return String(Math.floor(n));
+  if (n < 10_000) return `${(n / 1_000).toFixed(1)}k`;
+  if (n < 1_000_000) return `${Math.floor(n / 1_000)}k`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
+}
+
+/** 上下文存量条：右下角 widget，显示 `model · used/budget · NN%` */
+function ContextUsageWidget({
+  usage,
+  theme,
+}: {
+  usage: import("../types.js").ContextUsageSnapshot | null;
+  theme: Pick<ThemeColors, "textMuted" | "success" | "warning" | "error">;
+}) {
+  if (!usage) {
+    return (
+      <Text color={theme.textMuted} dimColor>
+        ctx —
+      </Text>
+    );
+  }
+  const ratio = Math.min(1, Math.max(0, usage.ratio));
+  const pct = Math.round(ratio * 100);
+  const color =
+    ratio >= 0.9 ? theme.error : ratio >= 0.7 ? theme.warning : theme.success;
+  const used = formatTokenCount(usage.usedTokens);
+  const budget = formatTokenCount(usage.promptBudget);
+  const window = formatTokenCount(usage.contextWindow);
+  const modelLabel = usage.model ?? "model?";
+  return (
+    <Text>
+      <Text color={theme.textMuted}>ctx </Text>
+      <Text color={color} bold>
+        {pct}%
+      </Text>
+      <Text color={theme.textMuted}>
+        {" "}
+        · {used}/{budget} of {window} · {modelLabel}
+      </Text>
+    </Text>
+  );
+}
+
 /** 底部状态栏：SECBOT 固定绿色，无定时器，避免全屏下周期性重绘底部区域 */
 function SessionStatusBar({
   mode,
   agent,
   sessionLabel,
   theme,
+  usage,
 }: {
   mode: string;
   agent: string;
   sessionLabel: string;
-  theme: Pick<ThemeColors, "textMuted" | "success">;
+  theme: Pick<ThemeColors, "textMuted" | "success" | "warning" | "error">;
+  usage: import("../types.js").ContextUsageSnapshot | null;
 }) {
   return (
     <Box
@@ -67,6 +115,7 @@ function SessionStatusBar({
           · {sessionLabel} · {mode} · {agent}
         </Text>
       </Text>
+      <ContextUsageWidget usage={usage} theme={theme} />
     </Box>
   );
 }
@@ -665,7 +714,7 @@ export function SessionView({
         <Text color={theme.success}>{"> "}</Text>
         <TextInput
           value={inputValue}
-          onChange={setInputValue}
+          onChange={(next) => setInputValue(sanitizeInputValue(next))}
           onSubmit={() => {
             if (slashSuggestions.length > 0) {
               const sel =
@@ -684,12 +733,13 @@ export function SessionView({
         />
       </Box>
 
-      {/* 底部状态栏 — SECBOT（固定绿色）· mode · agent */}
+      {/* 底部状态栏 — 左：SECBOT · session · mode · agent；右：上下文存量 */}
       <SessionStatusBar
         mode={mode}
         agent={agent}
         sessionLabel={activeSessionLabel}
         theme={theme}
+        usage={streamState.contextUsage}
       />
 
       {/* 统计与快捷键 — 置于最底部 */}

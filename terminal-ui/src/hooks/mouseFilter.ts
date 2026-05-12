@@ -44,6 +44,40 @@ function getMousePrefixLength(input: string, index: number): number {
   return 0;
 }
 
+/** X10 / 1000 模式鼠标编码：ESC [ M + 3 字节（>=32） */
+function getX10MousePrefixLength(input: string, index: number): number {
+  if (input.startsWith("\x1b[M", index)) return 3;
+  if (input.startsWith("[M", index)) return 2;
+  return 0;
+}
+
+function tryParseX10MouseSequence(
+  input: string,
+  index: number,
+): { kind: "complete"; nextIndex: number; buttonCode: number }
+  | { kind: "incomplete" }
+  | { kind: "invalid" } {
+  const prefix = getX10MousePrefixLength(input, index);
+  if (prefix === 0) return { kind: "invalid" };
+  /** ESC [ M Cb Cx Cy 共需 prefix+3 字节；不足则 incomplete */
+  if (index + prefix + 3 > input.length) return { kind: "incomplete" };
+  /** 三字节都应 >= 32（实际编码 = byte - 32），否则当作非鼠标序列 */
+  for (let i = 0; i < 3; i++) {
+    if (input.charCodeAt(index + prefix + i) < 32) return { kind: "invalid" };
+  }
+  const buttonCode = input.charCodeAt(index + prefix) - 32;
+  return { kind: "complete", nextIndex: index + prefix + 3, buttonCode };
+}
+
+/** bracketed paste 起止标记：ESC [ 200 ~ / ESC [ 201 ~  */
+function getBracketedPasteMarkerLength(input: string, index: number): number {
+  if (input.startsWith("\x1b[200~", index)) return 6;
+  if (input.startsWith("\x1b[201~", index)) return 6;
+  if (input.startsWith("[200~", index)) return 5;
+  if (input.startsWith("[201~", index)) return 5;
+  return 0;
+}
+
 function readNumber(
   input: string,
   index: number,
@@ -131,36 +165,69 @@ export function filterMouseInputChunk(raw: string, carry = ""): FilterResult {
   let index = 0;
 
   while (index < input.length) {
-    const prefixLength = getMousePrefixLength(input, index);
-    if (prefixLength === 0) {
+    // 1) bracketed paste 起止标记：直接吞掉（保留中间的真实粘贴文本）
+    const pasteMarkerLen = getBracketedPasteMarkerLength(input, index);
+    if (pasteMarkerLen > 0) {
+      index += pasteMarkerLen;
+      continue;
+    }
+    /** 不完整的 bracketed paste 起始（ESC [ + 部分数字 + ~）：留到下一轮 */
+    if (
+      (input.startsWith("\x1b[", index) || input.startsWith("[", index)) &&
+      isPartialBracketedPaste(input, index)
+    ) {
+      return { clean, pending: input.slice(index), scrolls };
+    }
+
+    // 2) SGR 鼠标序列 ESC [ < args [Mm]
+    const sgrPrefixLength = getMousePrefixLength(input, index);
+    if (sgrPrefixLength > 0) {
+      const parsed = parseSgrMouseSequence(input, index);
+      if (parsed.kind === "complete") {
+        const direction = decodeScrollDirection(parsed.buttonCode);
+        if (direction) scrolls.push(direction);
+        index = parsed.nextIndex;
+        continue;
+      }
+      if (parsed.kind === "incomplete") {
+        return { clean, pending: input.slice(index), scrolls };
+      }
+      /** invalid：按单字符回退，避免误吞合法输入 */
       clean += input[index];
       index += 1;
       continue;
     }
 
-    const parsed = parseSgrMouseSequence(input, index);
-    if (parsed.kind === "complete") {
-      const direction = decodeScrollDirection(parsed.buttonCode);
-      if (direction) scrolls.push(direction);
-      index = parsed.nextIndex;
+    // 3) X10/1000 鼠标编码 ESC [ M + 3 字节
+    const x10PrefixLength = getX10MousePrefixLength(input, index);
+    if (x10PrefixLength > 0) {
+      const parsed = tryParseX10MouseSequence(input, index);
+      if (parsed.kind === "complete") {
+        /** X10 编码中按钮 64/65 表示滚轮上/下 */
+        if (parsed.buttonCode === 64) scrolls.push("up");
+        else if (parsed.buttonCode === 65) scrolls.push("down");
+        index = parsed.nextIndex;
+        continue;
+      }
+      if (parsed.kind === "incomplete") {
+        return { clean, pending: input.slice(index), scrolls };
+      }
+      clean += input[index];
+      index += 1;
       continue;
     }
 
-    if (parsed.kind === "incomplete") {
-      return {
-        clean,
-        pending: input.slice(index),
-        scrolls,
-      };
-    }
-
-    // 只有真正长得像鼠标序列时才进入这里；若最后发现不是合法 SGR 鼠标串，
-    // 逐字符回退，避免误吞普通输入。
     clean += input[index];
     index += 1;
   }
 
   return { clean, pending: "", scrolls };
+}
+
+/** 判断 input[index..] 是否可能是不完整的 bracketed paste 标记 */
+function isPartialBracketedPaste(input: string, index: number): boolean {
+  const rest = input.slice(index, index + 6);
+  return /^(\x1b\[?|\[)2(0(0|1)?)?~?$/.test(rest);
 }
 
 /**
@@ -210,7 +277,8 @@ export function initMouseFilter(): void {
   } as any;
 
   // 开启 SGR 扩展鼠标追踪（1000=按钮事件, 1006=SGR 编码）
-  process.stdout.write("\x1b[?1000h\x1b[?1006h");
+  // 显式关闭 bracketed paste（?2004），避免粘贴标记残片污染输入框
+  process.stdout.write("\x1b[?1000h\x1b[?1006h\x1b[?2004l");
 
   _cleanup = () => {
     // 关闭鼠标追踪
@@ -223,6 +291,23 @@ export function initMouseFilter(): void {
     _pendingMouseChunk = "";
     _emitter = null;
   };
+}
+
+/**
+ * 输入框兜底清洗：剥掉任何到达 TextInput.onChange 的 ANSI 控制残片。
+ *
+ * 设计取舍：用比较宽松的 CSI 正则吃掉 "ESC [ ... 终止符"；
+ * 单独的 ESC 字符也吃掉（已没用，IME 不会输入 ESC）。
+ * 对于鼠标残骸常见形态 "<\d+;\d+;\d+[Mm]" 单独处理（不会误伤普通 < > 字符）。
+ */
+export function sanitizeInputValue(raw: string): string {
+  if (!raw) return raw;
+  return raw
+    .replace(/\x1b\[[\d;<>?]*[ -/]*[@-~]/g, "")
+    .replace(/<\d+;\d+;\d+[Mm]/g, "")
+    .replace(/\x1b\[200~/g, "")
+    .replace(/\x1b\[201~/g, "")
+    .replace(/\x1b/g, "");
 }
 
 /** 获取滚轮事件 emitter（组件层调用） */

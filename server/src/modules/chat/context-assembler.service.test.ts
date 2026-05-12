@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ContextAssemblerService } from './context-assembler.service';
+import { ContextStoreService } from './context-store.service';
 import { MessageRole, createSession } from '../../common/types';
 
 describe('ContextAssemblerService', () => {
@@ -25,7 +26,11 @@ describe('ContextAssemblerService', () => {
         },
       ]),
     };
-    const service = new ContextAssemblerService(memoryService as never, databaseService as never);
+    const service = new ContextAssemblerService(
+      memoryService as never,
+      databaseService as never,
+      new ContextStoreService(),
+    );
     const session = createSession({ id: 's-1' });
     session.messages.push({
       role: MessageRole.USER,
@@ -58,7 +63,11 @@ describe('ContextAssemblerService', () => {
     const databaseService = {
       getConversations: vi.fn().mockReturnValue([]),
     };
-    const service = new ContextAssemblerService(memoryService as never, databaseService as never);
+    const service = new ContextAssemblerService(
+      memoryService as never,
+      databaseService as never,
+      new ContextStoreService(),
+    );
 
     await service.rememberTurn({
       sessionId: 's-2',
