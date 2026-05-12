@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Dict, List
 from dataclasses import dataclass, field, asdict
 from collections import deque
-from loguru import logger
+from utils.logger import logger
 
 
 @dataclass

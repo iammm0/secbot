@@ -17,7 +17,7 @@ English | [中文](README_CN.md)
 
 - **CLI-first** interactive and one-shot workflows in the terminal.
 - **Optional API**: `secbot server` runs FastAPI (REST / SSE) for automation pipelines.
-- **Multi-agent** modes such as `secbot-cli` and `superhackbot` for plan, execute, and summarize loops.
+- **Multi-agent** modes such as `secbot-cli` and `superhackbot` for plan, execute, and summarize loops. Chat orchestration matches the TypeScript/npm reference (`IntentRouter` with six intents, budgeted `ContextStore` assembly, optional `ExploreAgent`, aligned SSE event names).
 - **Security toolchain** across network, web, OSINT, defense checks, reporting, and system utilities.
 - **Multiple LLM backends**: Ollama, DeepSeek, OpenAI-compatible APIs, and more.
 
@@ -130,6 +130,9 @@ secbot server
 | `OLLAMA_EMBEDDING_MODEL` | Ollama embedding model | `nomic-embed-text` |
 | `DATABASE_URL` | SQLite database URL | `sqlite:///./data/secbot.db` |
 | `LOG_LEVEL` | Log level | `INFO` |
+| `SECBOT_EXPLORE_MAX_ITERS` | Max ExploreAgent ReAct iterations | `12` |
+| `SECBOT_CONTEXT_DEBUG` | If set, log extra context-assembly debug details | unset |
+| `SECBOT_ADAPTIVE_REPLAN` | Set to `0` or `false` to disable mid-run replanning | enabled unless disabled |
 
 ## Documentation
 

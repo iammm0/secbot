@@ -20,6 +20,9 @@ from rich.table import Table
 from secbot_agent.core.session import SessionManager
 from router.dependencies import (
     get_agents,
+    get_context_assembler,
+    get_explore_agent,
+    get_intent_router,
     get_planner_agent,
     get_qa_agent,
     get_summary_agent,
@@ -382,6 +385,9 @@ def _create_session_manager(console: Console) -> SessionManager:
         planner=get_planner_agent(),
         qa_agent=get_qa_agent(),
         summary_agent=get_summary_agent(),
+        context_assembler=get_context_assembler(),
+        intent_router=get_intent_router(),
+        explore_agent=get_explore_agent(),
         get_root_password=root_callback,
     )
     return session_manager

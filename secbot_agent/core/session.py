@@ -13,9 +13,8 @@ from rich.console import Console
 
 from secbot_agent.core.agents.planner_agent import PlannerAgent
 from secbot_agent.core.agents.qa_agent import QAAgent
-from secbot_agent.core.agents.router import route_with_llm as message_route_with_llm
 from secbot_agent.core.agents.summary_agent import SummaryAgent
-from secbot_agent.core.context_assembler import ContextAssembler
+from secbot_agent.core.context_assembler import ContextAssembler, ContextDebugMeta
 from secbot_agent.core.executor import TaskExecutor
 from secbot_agent.core.models import (
     InteractionSummary,
@@ -84,6 +83,8 @@ class SessionManager:
         qa_agent: Optional[QAAgent] = None,
         summary_agent: Optional[SummaryAgent] = None,
         context_assembler: Optional[ContextAssembler] = None,
+        intent_router: Optional[Any] = None,
+        explore_agent: Optional[Any] = None,
         get_root_password: Optional[Callable[[str], Awaitable[Optional[str]]]] = None,
         resolve_agent: Optional[Callable[[str], Any]] = None,
     ):
@@ -93,6 +94,32 @@ class SessionManager:
         self.qa_agent = qa_agent or QAAgent()
         self.summary_agent = summary_agent or SummaryAgent()
         self.context_assembler = context_assembler
+        if intent_router is None:
+            from secbot_agent.core.agents.intent_router import IntentRouter
+
+            intent_router = IntentRouter()
+        self.intent_router = intent_router
+        if explore_agent is None:
+            from secbot_agent.core.agents.explore_agent import ExploreAgent
+            from tools.utility.vuln_db_query_tool import VulnDbQueryTool
+            from tools.web_research.browser_session_tool import BrowserSessionTool
+
+            _browser = BrowserSessionTool()
+            _ex_tools = [VulnDbQueryTool(), _browser]
+            try:
+                from tools.web_research.page_extract_tool import PageExtractTool
+
+                _ex_tools.append(PageExtractTool())
+            except Exception:
+                pass
+            try:
+                from tools.web_research.smart_search_tool import SmartSearchTool
+
+                _ex_tools.append(SmartSearchTool())
+            except Exception:
+                pass
+            explore_agent = ExploreAgent(_ex_tools, _browser)
+        self.explore_agent = explore_agent
         self.agents = agents or {}
         self.get_root_password = get_root_password
         self.resolve_agent = resolve_agent
@@ -172,6 +199,103 @@ class SessionManager:
                 return instance
         return None
 
+    async def _emit_context_usage(self, debug: ContextDebugMeta) -> None:
+        ratio = (
+            min(1.0, max(0.0, debug.used_tokens / debug.prompt_budget))
+            if debug.prompt_budget > 0
+            else 0.0
+        )
+        await self.event_bus.emit_simple_async(
+            EventType.CONTEXT_USAGE,
+            model=debug.model_name,
+            context_window=debug.context_window,
+            prompt_budget=debug.prompt_budget,
+            used_tokens=debug.used_tokens,
+            reserved_tokens=debug.reserved_tokens,
+            ratio=ratio,
+            focus=debug.focus,
+            pinned=debug.pinned,
+        )
+
+    def _last_agent_response_text(self, agent_instance) -> str:
+        inner = getattr(agent_instance, "_default_agent", None) or agent_instance
+        if hasattr(inner, "get_conversation_history"):
+            hist = inner.get_conversation_history(8)
+            for m in reversed(hist):
+                if getattr(m, "role", "") == "assistant" and (m.content or "").strip():
+                    return m.content.strip()
+        return "已完成。"
+
+    async def _persist_and_return(
+        self,
+        user_input: str,
+        answer: str,
+        agent_tag: str,
+        emit_content: bool = True,
+    ) -> str:
+        if emit_content:
+            await self.event_bus.emit_simple_async(
+                EventType.CONTENT,
+                content=answer,
+                view_type="summary",
+                agent=agent_tag,
+            )
+        if self.current_session:
+            self.current_session.add_message(MessageRole.ASSISTANT, answer)
+        await self._persist_turn(user_input, answer, agent_tag)
+        return answer
+
+    async def _maybe_handle_conversational_intent(
+        self,
+        intent,
+        user_input: str,
+        agent_type: Optional[str],
+        model_name: Optional[str],
+    ) -> Optional[str]:
+        """small_talk / meta / qa / clarify_needed → 直接返回并持久化；否则 None。"""
+        if intent.intent in ("small_talk", "meta"):
+            ans = (intent.direct_response or "").strip()
+            if not ans:
+                ans = (
+                    "收到～有需要执行的安全任务随时说。"
+                    if intent.intent == "small_talk"
+                    else "我会尽量帮你查清楚。"
+                )
+            return await self._persist_and_return(user_input, ans, intent.intent)
+
+        if intent.intent == "qa":
+            if not self.context_assembler or not self.current_session:
+                ans = await self.qa_agent.answer(user_input)
+                return await self._persist_and_return(user_input, ans, "qa")
+            ctx = await self.context_assembler.build(
+                query=user_input,
+                session=self.current_session,
+                session_id=self.current_session.id,
+                agent_type=agent_type or self.get_current_agent_type(),
+                model_name=model_name,
+            )
+            await self._emit_context_usage(ctx.debug)
+            hist = [
+                {"role": m.role.value, "content": m.content}
+                for m in self.current_session.messages
+            ]
+            if (intent.direct_response or "").strip():
+                ans = intent.direct_response.strip()
+            else:
+                ans = await self.qa_agent.answer_with_context(
+                    user_input, hist, ctx.context_block
+                )
+            return await self._persist_and_return(user_input, ans, "qa")
+
+        if intent.intent == "clarify_needed":
+            q = (intent.clarify_question or "").strip() or (
+                "我需要确认几个关键点：目标是什么？你期望的范围/产出是什么？是否已获得授权？"
+            )
+            await self.event_bus.emit_simple_async(EventType.CLARIFY, question=q)
+            return await self._persist_and_return(user_input, q, "router")
+
+        return None
+
     # ------------------------------------------------------------------
     # 核心编排流程
     # ------------------------------------------------------------------
@@ -185,6 +309,7 @@ class SessionManager:
         plan_only: bool = False,
         force_agent_flow: bool = False,
         request_id: Optional[str] = None,
+        model_name: Optional[str] = None,
     ) -> str:
         """
         处理单条消息的完整编排流程（Interaction）：
@@ -247,33 +372,11 @@ class SessionManager:
         self._current_tool_results = []
         self._thought_done_iterations = set()
 
-        # ---- 上下文组装（与 npm ContextAssemblerService.build 对齐）----
-        _context_block = ""
-        if self.context_assembler and self.current_session:
-            try:
-                ctx = await self.context_assembler.build(
-                    query=user_input,
-                    session=self.current_session,
-                    session_id=self.current_session.id,
-                    agent_type=agent_type or self.get_current_agent_type(),
-                )
-                _context_block = ctx.context_block
-                # context_debug 事件（SECBOT_CONTEXT_DEBUG=1 时启用）
-                import os
-                if os.environ.get("SECBOT_CONTEXT_DEBUG") in ("1", "true"):
-                    await self.event_bus.emit_simple_async(
-                        EventType.CONTENT,
-                        content="",
-                        type="context_debug",
-                        session_id=self.current_session.id,
-                        session_messages=ctx.debug.session_messages,
-                        sqlite_turns=ctx.debug.sqlite_turns,
-                        vector_hits=ctx.debug.vector_hits,
-                    )
-            except Exception as e:
-                logger.warning(f"上下文组装失败: {e}")
+        import os
 
-        # ---- 强制 Q&A 或 路由（含 LLM 分类）-> Q&A / 人格回复 / 技术流 ----
+        at = agent_type or self.get_current_agent_type()
+
+        # ---- 强制 Q&A（mode=ask）----
         if force_qa:
             await self.event_bus.emit_simple_async(
                 EventType.TASK_PHASE, phase="done", detail=""
@@ -283,33 +386,170 @@ class SessionManager:
                 self.current_session.add_message(MessageRole.ASSISTANT, response)
             return response
 
-        if not force_agent_flow and plan_override is None:
-            route_type, _direct_reply = await message_route_with_llm(user_input)
-            # 与安全/电脑无关的问候、闲聊 → 统一走 QAAgent 调用 LLM 回复
-            if route_type == "other":
-                await self.event_bus.emit_simple_async(
-                    EventType.TASK_PHASE, phase="done", detail=""
-                )
-                response = await self.qa_agent.answer(user_input)
-                if self.current_session:
-                    self.current_session.add_message(
-                        MessageRole.ASSISTANT, response
-                    )
-                return response
-            # 项目/能力/帮助类 → QAAgent
-            if route_type == "qa":
-                await self.event_bus.emit_simple_async(
-                    EventType.TASK_PHASE, phase="done", detail=""
-                )
-                response = await self.qa_agent.answer(user_input)
-                if self.current_session:
-                    self.current_session.add_message(
-                        MessageRole.ASSISTANT, response
-                    )
-                return response
-            # technical：继续走规划+执行（仅技术类请求才进行规划）
+        # ---- IntentRouter + 可选 Explore + 预算上下文 ----
+        _context_block = ""
+        sid = self.current_session.id if self.current_session else "default"
+        focus_kw: List[str] = []
+        unresolved_snap: List[str] = []
+        if self.context_assembler:
+            self.context_assembler.update_focus_from_input(sid, user_input)
+            snap = self.context_assembler.get_store_snapshot(sid)
+            focus_kw = [f.keyword for f in snap.focus]
+            unresolved_snap = list(snap.unresolved)
 
-        # 通知 UI：进入规划阶段（便于加载组件显示「规划中」）
+        intent = await self.intent_router.classify(
+            user_input=user_input,
+            recent_messages=[
+                {"role": m.role.value, "content": m.content}
+                for m in (self.current_session.messages[-4:] if self.current_session else [])
+            ],
+            force_qa=False,
+            force_agent=force_agent_flow,
+            session_focus=focus_kw,
+            unresolved=unresolved_snap,
+        )
+        if self.context_assembler:
+            self.context_assembler.merge_intent_focus(sid, intent.focus)
+
+        await self.event_bus.emit_simple_async(
+            EventType.INTENT_DECISION,
+            intent=intent.intent,
+            confidence=intent.confidence,
+            needs_explore=intent.needs_explore,
+            needs_report=intent.needs_report,
+            focus=intent.focus,
+            rationale=intent.rationale or "",
+        )
+        early = await self._maybe_handle_conversational_intent(
+            intent, user_input, agent_type, model_name
+        )
+        if early is not None:
+            return early
+
+        if self.context_assembler and intent.needs_explore and self.explore_agent:
+            await self.event_bus.emit_simple_async(
+                EventType.TASK_PHASE,
+                phase="exploring",
+                detail="正在收集上下文…",
+            )
+            try:
+
+                def _fwd_explore(event):
+                    self.event_bus.emit(event)
+
+                patch = await self.explore_agent.explore(
+                    user_input=user_input,
+                    intent=intent,
+                    context_block="",
+                    on_event=_fwd_explore,
+                )
+                self.context_assembler.apply_patch(sid, patch)
+                await self.event_bus.emit_simple_async(
+                    EventType.CONTEXT_PATCH,
+                    facts_count=len(patch.facts),
+                    pinned=len(patch.pinned or []),
+                    unresolved=patch.unresolved or [],
+                    summary=patch.explore_summary or "",
+                )
+            except Exception as ex:
+                await self.event_bus.emit_simple_async(
+                    EventType.CONTEXT_PATCH,
+                    facts_count=0,
+                    pinned=0,
+                    unresolved=[],
+                    summary="",
+                    error=str(ex),
+                )
+
+        if self.context_assembler and self.current_session:
+            try:
+                ctx = await self.context_assembler.build(
+                    query=user_input,
+                    session=self.current_session,
+                    session_id=sid,
+                    agent_type=at,
+                    model_name=model_name,
+                )
+                _context_block = ctx.context_block
+                await self._emit_context_usage(ctx.debug)
+                if os.environ.get("SECBOT_CONTEXT_DEBUG") in ("1", "true"):
+                    await self.event_bus.emit_simple_async(
+                        EventType.CONTENT,
+                        content="",
+                        type="context_debug",
+                        session_id=sid,
+                        session_messages=ctx.debug.session_messages,
+                        sqlite_turns=ctx.debug.sqlite_turns,
+                        vector_hits=ctx.debug.vector_hits,
+                        pinned=ctx.debug.pinned,
+                        prompt_budget=ctx.debug.prompt_budget,
+                        used_tokens=ctx.debug.used_tokens,
+                    )
+            except Exception as e:
+                logger.warning(f"上下文组装失败: {e}")
+
+        # ---- task_simple：跳过 Planner，直接 ReAct ----
+        if intent.intent == "task_simple":
+            await self.event_bus.emit_simple_async(
+                EventType.TASK_PHASE, phase="executing", detail="正在执行任务..."
+            )
+            agent_instance = self.get_agent(at)
+            if not agent_instance:
+                available_agents = list(self.agents.keys()) if self.agents else []
+                err = f"未找到 agent: {at}\n可用 agents: {available_agents}"
+                await self.event_bus.emit_simple_async(EventType.ERROR, error=err)
+                return err
+
+            if hasattr(agent_instance, "reset_agent_results"):
+                try:
+                    agent_instance.reset_agent_results()
+                except Exception as e:
+                    logger.warning(f"重置子 Agent 聚合结果失败: {e}")
+
+            plan_result = PlanResult(
+                request_type=RequestType.TECHNICAL,
+                todos=[],
+                plan_summary="",
+                direct_response=None,
+            )
+
+            def event_bridge(event_type: str, data: dict):
+                if "agent" not in data:
+                    data = dict(data or {})
+                    data["agent"] = getattr(
+                        agent_instance,
+                        "agent_type",
+                        getattr(agent_instance, "name", at),
+                    )
+                self._bridge_agent_event(event_type, data, plan_result)
+
+            lock = getattr(agent_instance, "_concurrency_lock", None)
+            if lock is not None:
+                async with lock:
+                    await agent_instance.process(
+                        user_input,
+                        on_event=event_bridge,
+                        skip_planning=True,
+                        skip_report=True,
+                        todos=[],
+                        get_root_password=getattr(self, "get_root_password", None),
+                    )
+            else:
+                await agent_instance.process(
+                    user_input,
+                    on_event=event_bridge,
+                    skip_planning=True,
+                    skip_report=True,
+                    todos=[],
+                    get_root_password=getattr(self, "get_root_password", None),
+                )
+
+            response = self._last_agent_response_text(agent_instance)
+            if self.current_session:
+                self.current_session.add_message(MessageRole.ASSISTANT, response)
+            await self._persist_turn(user_input, response, at)
+            return response
+
         await self.event_bus.emit_simple_async(
             EventType.TASK_PHASE, phase="planning", detail=""
         )
@@ -520,10 +760,17 @@ class SessionManager:
                 # 将补充 todos 合并到 plan_result，供摘要使用
                 plan_result.todos.extend(sub_plan.todos)
 
-        # ---- 阶段 3：摘要 ----
-        summary = await self._run_summary(
-            user_input, plan_result, agent_instance, response
-        )
+        # ---- 阶段 3：摘要（needs_report 且非 task_simple 时生成报告）----
+        summary = None
+        if intent.needs_report and intent.intent != "task_simple":
+            summary = await self._run_summary(
+                user_input, plan_result, agent_instance, response
+            )
+            if summary is not None:
+                stream = build_stream_summary_payload(summary)
+                response = stream["response"]
+        else:
+            response = self._last_agent_response_text(agent_instance)
 
         # 将本轮摘要式信息写入 agent 的会话上下文，供后续连续任务参考
         if hasattr(agent_instance, "append_turn_to_session_context") and summary is not None:

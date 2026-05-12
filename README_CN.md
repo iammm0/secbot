@@ -17,7 +17,7 @@
 
 - **CLI 优先**：交互式与一次性任务均在终端内完成。
 - **可选 API**：`secbot server` 提供 FastAPI（REST / SSE），便于接入自动化流水线。
-- **多智能体**：`secbot-cli` 与 `superhackbot` 等模式，覆盖规划、执行与总结闭环。
+- **多智能体**：`secbot-cli` 与 `superhackbot` 等模式，覆盖规划、执行与总结闭环；聊天编排与 TypeScript/npm 参考实现对齐（`IntentRouter` 六类意图、`ContextStore` 预算装配、可选 `ExploreAgent`，SSE 事件名一致）。
 - **安全工具链**：网络、Web、OSINT、防御巡检、报告与系统类工具集成。
 - **多模型后端**：Ollama、DeepSeek、OpenAI 兼容接口等。
 
@@ -130,6 +130,9 @@ secbot server
 | `OLLAMA_EMBEDDING_MODEL` | Ollama 嵌入模型 | `nomic-embed-text` |
 | `DATABASE_URL` | SQLite 连接串 | `sqlite:///./data/secbot.db` |
 | `LOG_LEVEL` | 日志级别 | `INFO` |
+| `SECBOT_EXPLORE_MAX_ITERS` | ExploreAgent 最大 ReAct 迭代次数 | `12` |
+| `SECBOT_CONTEXT_DEBUG` | 非空时在日志中输出上下文装配调试信息 | 未设置 |
+| `SECBOT_ADAPTIVE_REPLAN` | 设为 `0` 或 `false` 时关闭执行过程中的穿插再规划 | 默认开启 |
 
 ## 文档
 

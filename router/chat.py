@@ -15,6 +15,8 @@ from router.dependencies import (
     get_agent,
     get_agents,
     get_context_assembler,
+    get_explore_agent,
+    get_intent_router,
     get_planner_agent,
     get_qa_agent,
     get_summary_agent,
@@ -156,6 +158,75 @@ def _event_to_sse(event: Event) -> tuple[str, dict] | None:
                 "agent": d.get("agent"),
             },
         )
+    if t == EventType.INTENT_DECISION:
+        return (
+            "intent_decision",
+            {
+                "intent": d.get("intent"),
+                "confidence": d.get("confidence"),
+                "needs_explore": d.get("needs_explore"),
+                "needs_report": d.get("needs_report"),
+                "focus": d.get("focus") or [],
+                "rationale": d.get("rationale") or "",
+            },
+        )
+    if t == EventType.EXPLORE_START:
+        return (
+            "explore_start",
+            {
+                "focus": d.get("focus") or [],
+                "browser_session_id": d.get("browser_session_id"),
+                "userInput": d.get("userInput"),
+            },
+        )
+    if t == EventType.EXPLORE_STEP:
+        return (
+            "explore_step",
+            {
+                "iteration": d.get("iteration", 0),
+                "kind": d.get("kind", ""),
+                "tool": d.get("tool", ""),
+                "observation": d.get("observation", ""),
+                "thought": d.get("thought", ""),
+                "agent": d.get("agent"),
+            },
+        )
+    if t == EventType.EXPLORE_END:
+        return (
+            "explore_end",
+            {
+                "facts_count": d.get("factsCount", 0),
+                "unresolved": d.get("unresolved") or [],
+                "summary": d.get("summary", ""),
+            },
+        )
+    if t == EventType.CONTEXT_PATCH:
+        return (
+            "context_patch",
+            {
+                "facts_count": d.get("facts_count", 0),
+                "pinned": d.get("pinned", 0),
+                "unresolved": d.get("unresolved") or [],
+                "summary": d.get("summary", ""),
+                "error": d.get("error"),
+            },
+        )
+    if t == EventType.CONTEXT_USAGE:
+        return (
+            "context_usage",
+            {
+                "model": d.get("model"),
+                "context_window": d.get("context_window"),
+                "prompt_budget": d.get("prompt_budget"),
+                "used_tokens": d.get("used_tokens"),
+                "reserved_tokens": d.get("reserved_tokens"),
+                "ratio": d.get("ratio"),
+                "focus": d.get("focus") or [],
+                "pinned": d.get("pinned"),
+            },
+        )
+    if t == EventType.CLARIFY:
+        return ("clarify", {"question": d.get("question", "")})
     return None
 
 
@@ -195,6 +266,13 @@ async def _interaction_event_generator(
         EventType.TASK_PHASE,
         EventType.ROOT_REQUIRED,
         EventType.ERROR,
+        EventType.INTENT_DECISION,
+        EventType.EXPLORE_START,
+        EventType.EXPLORE_STEP,
+        EventType.EXPLORE_END,
+        EventType.CONTEXT_PATCH,
+        EventType.CONTEXT_USAGE,
+        EventType.CLARIFY,
     ):
         event_bus.subscribe(et, on_bus_event)
 
@@ -223,6 +301,8 @@ async def _interaction_event_generator(
         qa_agent=get_qa_agent(),
         summary_agent=get_summary_agent(),
         context_assembler=get_context_assembler(),
+        intent_router=get_intent_router(),
+        explore_agent=get_explore_agent(),
         get_root_password=get_root_password,
     )
 
@@ -248,6 +328,7 @@ async def _interaction_event_generator(
                     plan_only=plan_only,
                     force_agent_flow=force_agent_flow,
                     request_id=interaction_request_id,
+                    model_name=request.model,
                 )
                 final_response.append(response)
         except Exception as e:
