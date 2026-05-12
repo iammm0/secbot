@@ -19,6 +19,10 @@ Secbot is an AI-powered TypeScript security automation workspace with a NestJS b
 - Multi-agent orchestration with planning, tool execution, and summarization.
 - Built-in security tool modules for web, network, OSINT, defense, and reporting workflows.
 
+### Source-tree orchestration (contributors)
+
+From the repository checkout, `ChatService` routes each turn through **`IntentRouter`** (single LLM classify), optionally **`ExploreAgent`** (ReAct with `vuln_db_query` / `browser_session`, no sensitive tools), then **`ContextAssemblerService`** + **`ContextStore`** under a per-model context budget. SSE events include `intent_decision`, `explore_*`, and **`context_usage`** for the TUI token meter. **`task_simple`** skips the planner; **`SummaryAgent`** runs only when `needs_report` is true. Contributor-oriented details live in **[`CLAUDE.md`](CLAUDE.md)**; longer user docs: [`README_CN.md`](README_CN.md) / [`README_EN.md`](README_EN.md).
+
 ## Requirements
 
 - Node.js `>= 24`
@@ -55,6 +59,12 @@ DEEPSEEK_MODEL=deepseek-chat
 # LLM_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://localhost:11434
 # OLLAMA_MODEL=llama3.2
+
+# Optional: explore iterations, context debug SSE, adaptive replan, NVD rate limits
+# SECBOT_EXPLORE_MAX_ITERS=12
+# SECBOT_CONTEXT_DEBUG=1
+# SECBOT_ADAPTIVE_REPLAN=false
+# NVD_API_KEY=your-nvd-key
 ```
 
 ### 2. Start full product mode (backend + TUI)
@@ -116,6 +126,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 
 ## Documentation
 
+- **[CLAUDE.md](CLAUDE.md)** — contributor / AI coding agent guide (orchestration, SSE, env vars)
 - [Quickstart](https://github.com/iammm0/secbot/blob/main-ts-version/docs/QUICKSTART.md)
 - [API Reference](https://github.com/iammm0/secbot/blob/main-ts-version/docs/API.md)
 - [LLM Providers](https://github.com/iammm0/secbot/blob/main-ts-version/docs/LLM_PROVIDERS.md)

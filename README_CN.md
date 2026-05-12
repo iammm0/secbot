@@ -28,6 +28,8 @@
 - **AI 网络爬虫**: 实时网络信息捕获和监控
 - **记忆子系统**: 短期 / 情景 / 长期记忆管理，向量存储与语义检索
 - **漏洞数据库**: 统一漏洞 schema，适配 CVE / NVD / Exploit-DB / MITRE ATT&CK
+- **意图路由与探索**: **`IntentRouter`** 单次分类用户意图；可选 **`ExploreAgent`** 在规划前用 **`vuln_db_query`**、**`browser_session`**（遵守 robots、可读性提取）补全上下文。
+- **上下文预算**: **`ContextAssemblerService`** 按模型窗口装配历史与记忆；SSE **`context_usage`** 供 TUI 右下角用量展示。
 
 ### 渗透测试
 
@@ -68,56 +70,36 @@ flowchart LR
 
   tui -->|HTTP / SSE| api["NestJS /api/chat"]
 
-  subgraph BackendRouter["后端路由 & 会话编排"]
+  subgraph BackendRouter["会话编排"]
     api --> chatSvc["ChatService"]
-    chatSvc --> agentsSvc["AgentsService"]
+    chatSvc --> intent["IntentRouter\n(一次分类)"]
+    intent --> explore["ExploreAgent\n(可选)"]
+    explore --> ctx["ContextAssembler\n+ ContextStore"]
+    intent --> taskPath["task_simple /\ntask_complex"]
   end
 
-  subgraph PlanningExecution["规划 & 执行编排"]
-    agentsSvc --> planner["PlannerAgent"]
-    planner --> planResult["PlanResult + Todos"]
-    planResult --> executor["TaskExecutor"]
+  subgraph PlanningExecution["规划 & 执行"]
+    taskPath --> planner["PlannerAgent\n(复杂任务)"]
+    planner --> executor["TaskExecutor"]
+    taskPath --> react["SecurityReActAgent\n(简单任务)"]
+    executor --> coord["CoordinatorAgent"]
+    coord --> specialists["专职子 Agent\n(ReAct)"]
   end
 
-  subgraph AgentOrchestration["多智能体协调层"]
-    executor -->|"按层并行调用"| coord["CoordinatorAgent"]
-
-    subgraph SpecialistAgents["Specialist Agents"]
-      net[NetworkReconAgent]
-      webAgent[WebPentestAgent]
-      osint[OSINTAgent]
-      term[TerminalOpsAgent]
-      defend[DefenseMonitorAgent]
-    end
+  subgraph ToolsLayer["工具层"]
+    specialists --> toolsMod["ToolsModule\n(vuln-db / browser_session /\nweb-research / …)"]
+    explore --> toolsMod
+    react --> toolsMod
   end
 
-  coord -->|network_recon| net
-  coord -->|web_pentest| webAgent
-  coord -->|osint| osint
-  coord -->|terminal_ops| term
-  coord -->|defense_monitor| defend
+  toolsMod --> db[(SQLite)]
 
-  subgraph ToolsLayer["工具层 (54 Tools)"]
-    toolsNet[(网络探测工具集)]
-    toolsWeb[(Web 渗透工具集)]
-    toolsOsint[(OSINT + WebResearch)]
-    toolsTerm[(终端会话)]
-    toolsDef[(防御 / 自检工具)]
+  subgraph SummaryStorage["总结与记忆"]
+    coord --> memoryMod[MemoryModule]
+    coord --> summary["SummaryAgent\n(按需)"]
   end
 
-  net --> toolsNet
-  webAgent --> toolsWeb
-  osint --> toolsOsint
-  term --> toolsTerm
-  defend --> toolsDef
-
-  subgraph SummaryStorage["总结与存储"]
-    coord --> summary[SummaryAgent]
-    summary --> db[(SQLite via DatabaseModule)]
-    summary --> memoryMod[MemoryModule]
-  end
-
-  chatSvc -->|SSE 事件流| sse[SSE Stream]
+  chatSvc -->|SSE\nintent / explore /\ncontext_usage| sse[SSE Stream]
   sse --> tui
 ```
 
@@ -125,9 +107,9 @@ flowchart LR
 
 | NestJS 模块 | 职责 |
 |-------------|------|
-| `ChatModule` | SSE 聊天接口，接收用户消息并返回事件流 |
-| `AgentsModule` | 多智能体框架（Planner / Hackbot / Coordinator / Summary / QA） |
-| `ToolsModule` | 54 个安全工具，分 10 大类（security / defense / utility / protocol / osint / cloud / reporting / control / crawler / web-research） |
+| `ChatModule` | SSE 聊天；`ChatService` 串联 IntentRouter → 可选 Explore → 上下文装配 → 简单/复杂任务与按需总结 |
+| `AgentsModule` | 多智能体（IntentRouter、ExploreAgent、Planner、Coordinator、Summary、QA、各 ReAct 子 Agent） |
+| `ToolsModule` | 内置安全工具（含 **vuln-db**、`browser_session` 类人浏览、web-research、scanner 等分类） |
 | `DatabaseModule` | SQLite 持久化（对话、配置、提示词链） |
 | `MemoryModule` | 短期 / 情景 / 长期记忆，向量存储与语义检索 |
 | `VulnDbModule` | 漏洞数据库，适配 CVE / NVD / Exploit-DB / MITRE ATT&CK |
@@ -140,10 +122,12 @@ flowchart LR
 
 ### 关键设计思路
 
-#### 1. ChatModule & AgentsService（会话编排）
+#### 1. ChatModule & ChatService（会话编排）
 
-- `ChatController` 提供 `/api/chat` SSE 端点，将前端请求封装后交给 `ChatService`。
-- `ChatService` 调用 `AgentsService`，后者负责路由决策（QA / 技术流）、调用 PlannerAgent 生成执行计划、驱动 TaskExecutor。
+- `ChatController` 提供 `/api/chat` SSE 端点；`ChatService.handleMessage` 为编排核心。
+- **`IntentRouter`**：对用户消息做一次意图分类（闲聊 / 元问题 / 纯问答 / 需澄清 / 简单任务 / 复杂任务），并给出 `needs_explore`、`needs_report`、`focus` 等信号。
+- **可选 `ExploreAgent`**：在正式规划前用轻量 ReAct 补全上下文（`vuln_db_query`、`browser_session` 等）；探索阶段拒绝 `sensitive` 工具，结果写入 **`ContextStore`** 并由 **`ContextAssemblerService`** 按模型窗口预算拼进提示词；SSE 推送 `intent_decision`、`explore_*`、`context_usage`（TUI 右下角用量）、可选 `context_patch`。
+- **`task_simple`**：跳过 Planner，直接 `SecurityReActAgent`；**`task_complex`**：`PlannerAgent` → `TaskExecutor`；**`SummaryAgent`** 仅在 `needs_report` 为真时生成最终报告，避免每轮冗长总结。
 
 #### 2. PlannerAgent：结构化规划
 
@@ -206,6 +190,12 @@ DEEPSEEK_MODEL=deepseek-chat
 # LLM_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://localhost:11434
 # OLLAMA_MODEL=llama3.2
+
+# 可选：探索迭代上限、上下文调试 SSE、关闭自适应重规划、NVD 速率
+# SECBOT_EXPLORE_MAX_ITERS=12
+# SECBOT_CONTEXT_DEBUG=1
+# SECBOT_ADAPTIVE_REPLAN=false
+# NVD_API_KEY=your-nvd-key
 ```
 
 ### 4. 启动
@@ -328,6 +318,7 @@ npm run release:pack
 
 | 文档 | 说明 |
 |------|------|
+| [CLAUDE.md](CLAUDE.md) | 给 AI / 贡献者的编排说明、SSE、环境变量与目录索引 |
 | [快速开始指南](docs/QUICKSTART.md) | 安装与启动 |
 | [API 文档](docs/API.md) | REST + SSE 接口说明 |
 | [LLM 厂商配置](docs/LLM_PROVIDERS.md) | 多厂商模型后端与配置 |

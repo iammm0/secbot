@@ -30,6 +30,8 @@ English | [中文](README_CN.md)
 - **Persistent Terminal Sessions**: Agent-controlled dedicated shell for multi-step command execution
 - **Memory Subsystem**: Short-term / episodic / long-term memory with vector storage and semantic retrieval
 - **Vulnerability Database**: Unified vulnerability schema with CVE / NVD / Exploit-DB / MITRE ATT&CK adapters
+- **Intent routing & explore**: One-shot **`IntentRouter`** classifies each turn; optional **`ExploreAgent`** enriches context via **`vuln_db_query`** and **`browser_session`** (robots-aware browsing + readability) before planning or single-agent ReAct.
+- **Context budget & TUI telemetry**: **`ContextAssemblerService`** packs history, memory, and pinned facts under a model-specific window; SSE **`context_usage`** drives the terminal footer usage widget.
 
 ### Penetration Testing
 
@@ -66,13 +68,17 @@ flowchart LR
 
   tui --> api["NestJS /api/*"]
 
-  api --> chat["ChatModule"]
-  chat --> agents["AgentsModule"]
-  agents --> tools["ToolsModule (54 tools)"]
+  api --> chat["ChatModule / ChatService"]
+  chat --> intent["IntentRouter\n(single classify)"]
+  intent --> explore["ExploreAgent\n(optional)"]
+  explore --> ctx["ContextAssembler\n+ ContextStore"]
+  intent --> task["task_simple /\ntask_complex"]
+  task --> agents["AgentsModule\n(ReAct / Planner / Executor)"]
+  agents --> tools["ToolsModule\n(vuln-db, browser_session, …)"]
   tools --> db["DatabaseModule (SQLite)"]
   agents --> memory["MemoryModule"]
-  agents --> summary["SummaryAgent"]
-  summary --> sse["SSE Event Stream"]
+  agents --> summary["SummaryAgent\n(on demand)"]
+  summary --> sse["SSE\nintent / explore / context_usage"]
   sse --> tui
 ```
 
@@ -80,9 +86,9 @@ flowchart LR
 
 | NestJS Module | Responsibility |
 |---------------|----------------|
-| `ChatModule` | SSE chat endpoint, receives user messages and returns event streams |
-| `AgentsModule` | Multi-agent framework (Planner / Hackbot / Coordinator / Summary / QA) |
-| `ToolsModule` | 54 security tools across 10 categories |
+| `ChatModule` | SSE chat; `ChatService` orchestrates IntentRouter → optional Explore → context assembly → simple/complex task paths and on-demand summary |
+| `AgentsModule` | Multi-agent framework (IntentRouter, ExploreAgent, Planner, Coordinator, Summary, QA, ReAct) |
+| `ToolsModule` | Built-in security tools including **vuln-db** queries and **browser_session** human-like browsing, plus web-research, scanners, etc. |
 | `DatabaseModule` | SQLite persistence (conversations, config, prompt chains) |
 | `MemoryModule` | Short-term / episodic / long-term memory with vector storage |
 | `VulnDbModule` | Vulnerability database with CVE / NVD / Exploit-DB / MITRE adapters |
@@ -131,6 +137,12 @@ DEEPSEEK_MODEL=deepseek-chat
 # LLM_PROVIDER=ollama
 # OLLAMA_BASE_URL=http://localhost:11434
 # OLLAMA_MODEL=llama3.2
+
+# Optional: explore iterations, context debug SSE, adaptive replan, NVD rate limits
+# SECBOT_EXPLORE_MAX_ITERS=12
+# SECBOT_CONTEXT_DEBUG=1
+# SECBOT_ADAPTIVE_REPLAN=false
+# NVD_API_KEY=your-nvd-key
 ```
 
 ### Option C: Download from GitHub Releases
@@ -252,6 +264,7 @@ npm run release:pack
 
 | Document | Description |
 |----------|-------------|
+| [CLAUDE.md](CLAUDE.md) | Contributor / AI agent guide (orchestration, SSE, env vars) |
 | [Quick Start](docs/QUICKSTART.md) | Installation and getting started |
 | [API Reference](docs/API.md) | REST + SSE endpoint documentation |
 | [LLM Providers](docs/LLM_PROVIDERS.md) | Multi-vendor model configuration |
