@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ALL_SECURITY_TOOLS } from './security';
+import { ALL_SECURITY_TOOLS, VulnScannerTool } from './security';
 import { DEFENSE_TOOLS } from './defense';
 import { UTILITY_TOOLS } from './utility';
 import { PROTOCOL_TOOLS } from './protocol';
@@ -24,8 +24,14 @@ export class ToolsService {
 
   constructor(private readonly vulnDbService: VulnDbService) {
     this.vulnDbQueryTool = new VulnDbQueryTool(this.vulnDbService);
+
+    // Replace the default VulnScannerTool (no DI) with one wired to VulnDbService
+    const securityTools = ALL_SECURITY_TOOLS.map((t) =>
+      t.name === 'vuln_scan' ? new VulnScannerTool(this.vulnDbService) : t,
+    );
+
     this.categories = [
-      { id: 'security', name: 'Core Security', tools: ALL_SECURITY_TOOLS },
+      { id: 'security', name: 'Core Security', tools: securityTools },
       { id: 'defense', name: 'Defense', tools: DEFENSE_TOOLS },
       { id: 'utility', name: 'Utility', tools: UTILITY_TOOLS },
       { id: 'protocol', name: 'Protocol Probes', tools: PROTOCOL_TOOLS },
