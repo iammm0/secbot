@@ -363,10 +363,18 @@ export class ChatService {
             role: m.role as 'system' | 'user' | 'assistant',
             content: m.content,
           }));
-          const answer = intent.directResponse?.trim()
-            ? intent.directResponse.trim()
-            : await this.qaAgent.answerWithContext(message, history, ctx.contextBlock);
-          return await finishWith(answer, 'qa');
+          let answer: string;
+          if (intent.directResponse?.trim()) {
+            answer = intent.directResponse.trim();
+          } else {
+            answer = await this.qaAgent.answerWithContext(message, history, ctx.contextBlock, (chunk) => {
+              emit('response_chunk', { chunk });
+            });
+          }
+          emit('response', { content: answer, agent: 'qa' });
+          emit('done', {});
+          this.persistTurn({ sessionId, userMessage: message, assistantMessage: answer, agentType: 'qa' });
+          return answer;
         })(),
       };
     }
