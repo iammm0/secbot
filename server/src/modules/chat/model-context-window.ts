@@ -34,6 +34,8 @@ const MODEL_WINDOW_TABLE: Record<string, ModelWindow> = {
   'o3-mini': { context: 200_000, reserveForOutput: 32_000, reserveForSystem: 2_000 },
 
   // Anthropic
+  'claude-sonnet-4': { context: 200_000, reserveForOutput: 8_000, reserveForSystem: 2_000 },
+  'claude-opus-4': { context: 200_000, reserveForOutput: 8_000, reserveForSystem: 2_000 },
   'claude-3-5-sonnet': { context: 200_000, reserveForOutput: 8_000, reserveForSystem: 2_000 },
   'claude-3-7-sonnet': { context: 200_000, reserveForOutput: 8_000, reserveForSystem: 2_000 },
   'claude-3-opus': { context: 200_000, reserveForOutput: 4_000, reserveForSystem: 2_000 },

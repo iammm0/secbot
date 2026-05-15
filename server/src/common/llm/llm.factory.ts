@@ -115,29 +115,40 @@ export interface LLMConfig {
   apiKey?: string;
 }
 
+const LLM_CACHE_TTL_MS = 60_000;
+let _cachedLLM: { instance: LLMProvider; key: string; ts: number } | null = null;
+
 export function createLLM(config: LLMConfig = {}): LLMProvider {
   const provider = resolveProvider(config.provider);
+  const model = resolveModel(provider, config.model);
+  const cacheKey = `${provider}|${model}|${config.baseUrl ?? ''}|${config.apiKey ?? ''}`;
 
-  if (provider === 'ollama') {
-    return new OllamaProvider(
-      resolveOllamaBaseUrl(config.baseUrl),
-      resolveModel(provider, config.model),
-    );
+  if (_cachedLLM && _cachedLLM.key === cacheKey && Date.now() - _cachedLLM.ts < LLM_CACHE_TTL_MS) {
+    return _cachedLLM.instance;
   }
 
-  const baseUrl =
-    resolveOpenAICompatBaseUrl(provider, config.baseUrl) ??
-    getDefaultOpenAICompatBaseUrl(provider) ??
-    (provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.openai.com');
-  const model = resolveModel(provider, config.model);
-  const apiKey = resolveOpenAICompatApiKey(provider, config.apiKey);
+  let instance: LLMProvider;
 
-  return new OpenAICompatProvider(baseUrl, apiKey.value, model, {
-    onInvalidPersistedApiKey:
-      apiKey.source === 'sqlite' && apiKey.sqliteKey
-        ? () => {
-            deletePersistedConfig(apiKey.sqliteKey!);
-          }
-        : undefined,
-  });
+  if (provider === 'ollama') {
+    instance = new OllamaProvider(resolveOllamaBaseUrl(config.baseUrl), model);
+  } else {
+    const baseUrl =
+      resolveOpenAICompatBaseUrl(provider, config.baseUrl) ??
+      getDefaultOpenAICompatBaseUrl(provider) ??
+      (provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.openai.com');
+    const apiKey = resolveOpenAICompatApiKey(provider, config.apiKey);
+
+    instance = new OpenAICompatProvider(baseUrl, apiKey.value, model, {
+      onInvalidPersistedApiKey:
+        apiKey.source === 'sqlite' && apiKey.sqliteKey
+          ? () => {
+              deletePersistedConfig(apiKey.sqliteKey!);
+              _cachedLLM = null; // invalidate cache on bad key
+            }
+          : undefined,
+    });
+  }
+
+  _cachedLLM = { instance, key: cacheKey, ts: Date.now() };
+  return instance;
 }
