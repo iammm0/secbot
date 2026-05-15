@@ -5,6 +5,8 @@
 import { getBaseUrl, CONNECTION_TIMEOUT_MS } from './config.js';
 import type { SSEEvent } from './types.js';
 
+const READ_STALL_TIMEOUT_MS = 120_000;
+
 export interface SSECallbacks {
   onEvent: (event: SSEEvent) => void;
   onError?: (error: Error) => void;
@@ -38,12 +40,16 @@ export function connectSSE(
   const controller = new AbortController();
   const url = `${getBaseUrl()}${path}`;
   let connectionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  let readStallId: ReturnType<typeof setTimeout> | null = null;
 
   const clearConnectionTimeout = () => {
     if (connectionTimeoutId != null) {
       clearTimeout(connectionTimeoutId);
       connectionTimeoutId = null;
     }
+  };
+  const clearReadStall = () => {
+    if (readStallId != null) { clearTimeout(readStallId); readStallId = null; }
   };
 
   (async () => {
@@ -81,6 +87,14 @@ export function connectSSE(
         let buffer = '';
         let hasReceivedEvent = false;
 
+        const resetReadStall = () => {
+          clearReadStall();
+          readStallId = setTimeout(() => {
+            controller.abort();
+            callbacks.onError?.(new Error('读取超时：服务端长时间无响应'));
+          }, READ_STALL_TIMEOUT_MS);
+        };
+
         connectionTimeoutId = setTimeout(() => {
           if (hasReceivedEvent) return;
           controller.abort();
@@ -90,6 +104,7 @@ export function connectSSE(
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          resetReadStall();
           buffer += decoder.decode(value, { stream: true });
           const normalized = normalizeSSEText(buffer);
           const parts = normalized.split('\n\n');
@@ -102,6 +117,7 @@ export function connectSSE(
             emitParsedEvent(parsed.event, parsed.data);
           }
         }
+        clearReadStall();
         if (buffer.trim()) {
           const parsed = parseSSESegment(buffer);
           if (parsed) {
@@ -123,6 +139,7 @@ export function connectSSE(
       }
     } catch (err: unknown) {
       clearConnectionTimeout();
+      clearReadStall();
       if (err instanceof Error && err.name !== 'AbortError') {
         callbacks.onError?.(err);
       }

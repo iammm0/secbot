@@ -986,16 +986,24 @@ export function useChat() {
                 // Typewriter 效果：即使 API 一次性返回全文，也逐步揭示
                 const fullText = (data.content as string) ?? null;
                 if (fullText) {
-                  setStreamState((s) => ({
-                    ...s,
-                    timeline: upsertTimelineItem(s.timeline, "final-summary", () => ({
-                      id: "final-summary",
-                      type: "final",
-                      title: "最终总结",
-                      body: "",
-                      status: "running",
-                    })),
-                  }));
+                  setStreamState((s) => {
+                    // 如果 timeline 中有 thought/action 步骤，才显示"最终总结"块
+                    const hasSteps = s.timeline.some(
+                      (item) => item.type === "thought" || item.type === "action"
+                    );
+                    return {
+                      ...s,
+                      timeline: hasSteps
+                        ? upsertTimelineItem(s.timeline, "final-summary", () => ({
+                            id: "final-summary",
+                            type: "final",
+                            title: "最终总结",
+                            body: "",
+                            status: "running",
+                          }))
+                        : s.timeline,
+                    };
+                  });
                   startTypewriter(fullText);
                 }
                 break;
