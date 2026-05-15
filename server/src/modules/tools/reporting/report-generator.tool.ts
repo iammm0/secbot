@@ -184,7 +184,11 @@ export class ReportGeneratorTool extends BaseTool {
       `**Generated At**: ${timestamp}  `,
       target ? `**Target**: ${target}  ` : '',
       '',
-      '## Summary',
+      '## Executive Summary',
+      '',
+      ...this.renderRiskAssessment(stats),
+      '',
+      '## Statistics',
       '',
       '| Risk | Count |',
       '|------|------|',
@@ -194,6 +198,7 @@ export class ReportGeneratorTool extends BaseTool {
       `| Low | ${stats.low} |`,
       `| Info | ${stats.info} |`,
       '',
+      ...this.renderCvssSummary(findings),
       '## Findings',
       '',
     ].filter(Boolean);
@@ -207,6 +212,9 @@ export class ReportGeneratorTool extends BaseTool {
     sorted.forEach((finding, index) => {
       lines.push(`### ${index + 1}. ${RISK_TAG[finding.risk]} ${finding.title}`);
       lines.push('');
+      if (finding.cvss_score) lines.push(`**CVSS**: ${finding.cvss_score}  `);
+      if (finding.vuln_id) lines.push(`**CVE/ID**: ${finding.vuln_id}  `);
+      if (finding.affected) lines.push(`**Affected**: ${finding.affected}  `);
       if (finding.description) lines.push(`**Description**: ${finding.description}`, '');
       if (finding.recommendation) lines.push(`**Recommendation**: ${finding.recommendation}`, '');
       lines.push('---', '');
@@ -426,6 +434,24 @@ export class ReportGeneratorTool extends BaseTool {
       return ['**Risk Level**: Low', 'Only low/info findings were detected.'];
     }
     return ['**Risk Level**: Secure', 'No findings were reported.'];
+  }
+
+  private renderCvssSummary(findings: Finding[]): string[] {
+    const withCvss = findings.filter((f) => f.cvss_score != null);
+    if (!withCvss.length) return [''];
+    const scores = withCvss.map((f) => f.cvss_score!);
+    const max = Math.max(...scores);
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    return [
+      '## CVSS Summary',
+      '',
+      `| Metric | Value |`,
+      `|--------|-------|`,
+      `| Findings with CVSS | ${withCvss.length} |`,
+      `| Highest CVSS | ${max.toFixed(1)} |`,
+      `| Average CVSS | ${avg.toFixed(1)} |`,
+      '',
+    ];
   }
 
   private renderRemediation(findings: Finding[]): string[] {
