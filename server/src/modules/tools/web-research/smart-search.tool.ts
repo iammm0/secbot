@@ -2,6 +2,9 @@ import { createLLM } from '../../../common/llm';
 import { BaseTool, ToolResult } from '../core/base-tool';
 import { cleanHtmlToText } from './html-utils';
 
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+
 type SearchResult = {
   title: string;
   url: string;
@@ -30,11 +33,7 @@ export class SmartSearchTool extends BaseTool {
       if (searchResults.length === 0) {
         return {
           success: true,
-          result: {
-            query,
-            message: 'No relevant search results found.',
-            results: [],
-          },
+          result: { query, message: 'No relevant search results found.', results: [] },
         };
       }
 
@@ -50,19 +49,10 @@ export class SmartSearchTool extends BaseTool {
 
       return {
         success: true,
-        result: {
-          query,
-          total: results.length,
-          results,
-          ai_summary: aiSummary,
-        },
+        result: { query, total: results.length, results, ai_summary: aiSummary },
       };
     } catch (error) {
-      return {
-        success: false,
-        result: null,
-        error: `Smart search failed: ${(error as Error).message}`,
-      };
+      return { success: false, result: null, error: `Smart search failed: ${(error as Error).message}` };
     }
   }
 
@@ -74,15 +64,58 @@ export class SmartSearchTool extends BaseTool {
   }
 
   private async search(query: string, maxResults: number): Promise<SearchResult[]> {
-    const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'secbot-ts/2.0.0' },
-    });
-    if (!response.ok) {
+    // Try DuckDuckGo HTML first, fallback to DuckDuckGo Lite
+    const results = await this.searchDDGHtml(query, maxResults);
+    if (results.length > 0) return results;
+    return this.searchDDGLite(query, maxResults);
+  }
+
+  private async searchDDGHtml(query: string, maxResults: number): Promise<SearchResult[]> {
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    try {
+      const html = await this.fetchWithRetry(url, { headers: { 'User-Agent': BROWSER_UA } });
+      if (!html) return [];
+      return this.parseDDGHtml(html, maxResults);
+    } catch {
       return [];
     }
-    const html = await response.text();
-    return this.parseDuckDuckGoLite(html, maxResults);
+  }
+
+  private async searchDDGLite(query: string, maxResults: number): Promise<SearchResult[]> {
+    const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+    try {
+      const html = await this.fetchWithRetry(url, { headers: { 'User-Agent': BROWSER_UA } });
+      if (!html) return [];
+      return this.parseDuckDuckGoLite(html, maxResults);
+    } catch {
+      return [];
+    }
+  }
+
+  private parseDDGHtml(html: string, maxResults: number): SearchResult[] {
+    const resultRegex = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    const snippetRegex = /<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+    const links: Array<{ url: string; title: string }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = resultRegex.exec(html)) !== null && links.length < maxResults) {
+      let rawUrl = String(m[1]).trim();
+      // DDG HTML wraps URLs in a redirect; extract the actual URL
+      const uddg = rawUrl.match(/[?&]uddg=([^&]+)/);
+      if (uddg) rawUrl = decodeURIComponent(uddg[1]);
+      if (!/^https?:\/\//i.test(rawUrl)) continue;
+      const title = cleanHtmlToText(String(m[2])).slice(0, 280);
+      links.push({ url: rawUrl, title });
+    }
+    const snippets: string[] = [];
+    let sm: RegExpExecArray | null;
+    while ((sm = snippetRegex.exec(html)) !== null && snippets.length < maxResults) {
+      snippets.push(cleanHtmlToText(String(sm[1])).slice(0, 320));
+    }
+    return links.map((entry, idx) => ({
+      title: entry.title,
+      url: entry.url,
+      snippet: snippets[idx] ?? '',
+    }));
   }
 
   private parseDuckDuckGoLite(html: string, maxResults: number): SearchResult[] {
@@ -111,34 +144,45 @@ export class SmartSearchTool extends BaseTool {
     }));
   }
 
+  private async fetchWithRetry(
+    url: string,
+    opts: { headers?: Record<string, string> } = {},
+    maxRetries = 2,
+    timeoutMs = 15000,
+  ): Promise<string | null> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const response = await fetch(url, {
+          redirect: 'follow',
+          headers: { 'User-Agent': BROWSER_UA, ...opts.headers },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (response.status === 429 || response.status >= 500) {
+          if (attempt < maxRetries) { await this.sleep(1500 * (attempt + 1)); continue; }
+          return null;
+        }
+        if (!response.ok) return null;
+        return await response.text();
+      } catch {
+        if (attempt < maxRetries) { await this.sleep(1000 * (attempt + 1)); continue; }
+        return null;
+      }
+    }
+    return null;
+  }
+
   private async fetchPages(results: SearchResult[]): Promise<string[]> {
-    const contents = await this.runWithConcurrency(
-      results,
-      4,
-      async (item) => await this.fetchPageContent(item.url),
-    );
-    return contents;
+    return this.runWithConcurrency(results, 4, (item) => this.fetchPageContent(item.url));
   }
 
   private async fetchPageContent(url: string): Promise<string> {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15_000);
-      const response = await fetch(url, {
-        redirect: 'follow',
-        headers: { 'User-Agent': 'secbot-ts/2.0.0' },
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (!response.ok) return '';
-      const contentType = response.headers.get('content-type') ?? '';
-      if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return '';
-      const html = await response.text();
-      const text = cleanHtmlToText(html);
-      return text.split('\n').slice(0, 200).join('\n');
-    } catch {
-      return '';
-    }
+    const html = await this.fetchWithRetry(url, {}, 1, 20000);
+    if (!html) return '';
+    const text = cleanHtmlToText(html);
+    return text.split('\n').slice(0, 200).join('\n');
   }
 
   private async summarize(query: string, pageContents: string[]): Promise<string> {
@@ -148,30 +192,27 @@ export class SmartSearchTool extends BaseTool {
       .map((item, idx) => `--- Source ${idx + 1} ---\n${item.slice(0, 2000)}`)
       .join('\n');
 
-    if (!combined) {
-      return 'No page content was extracted, summary is unavailable.';
-    }
+    if (!combined) return 'No page content was extracted, summary is unavailable.';
 
     const prompt =
       `Based on the sources below, answer the user query with a concise synthesis.\n\n` +
-      `User query: ${query}\n\n` +
-      `Sources:\n${combined.slice(0, 6000)}\n\n` +
-      `Requirements:\n` +
-      `1) Combine evidence from multiple sources.\n` +
-      `2) Mention uncertainty if sources conflict.\n` +
-      `3) Keep within 250 words.\n` +
-      `4) Answer in Chinese.\n`;
+      `User query: ${query}\n\nSources:\n${combined.slice(0, 6000)}\n\n` +
+      `Requirements:\n1) Combine evidence from multiple sources.\n` +
+      `2) Mention uncertainty if sources conflict.\n3) Keep within 250 words.\n4) Answer in Chinese.\n`;
 
     try {
       const llm = createLLM();
-      const summary = await llm.chat([
+      return (await llm.chat([
         { role: 'system', content: '你是专业信息研究助手，擅长综合多源信息并输出简洁结论。' },
         { role: 'user', content: prompt },
-      ]);
-      return summary.trim();
+      ])).trim();
     } catch (error) {
       return `AI summary failed: ${(error as Error).message}`;
     }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
   }
 
   private async runWithConcurrency<TInput, TResult>(
@@ -181,16 +222,13 @@ export class SmartSearchTool extends BaseTool {
   ): Promise<TResult[]> {
     const outputs: TResult[] = new Array(items.length);
     let index = 0;
-
     const tasks = Array.from({ length: Math.max(1, concurrency) }, async () => {
       while (true) {
-        const current = index;
-        index += 1;
+        const current = index++;
         if (current >= items.length) return;
         outputs[current] = await worker(items[current]);
       }
     });
-
     await Promise.all(tasks);
     return outputs;
   }

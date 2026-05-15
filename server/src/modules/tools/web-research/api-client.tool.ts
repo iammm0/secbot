@@ -330,6 +330,11 @@ export class ApiClientTool extends BaseTool {
     for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
       try {
         const attemptResult = await this.requestAttempt(options, timeoutSec);
+        // Retry on 429/5xx
+        if ((attemptResult.response.status === 429 || attemptResult.response.status >= 500) && attempt < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+          continue;
+        }
         return this.buildSuccessResult(options, attemptResult);
       } catch (error) {
         lastError = error as Error;
@@ -374,7 +379,10 @@ export class ApiClientTool extends BaseTool {
     const timer = setTimeout(() => controller.abort(), timeoutSec * 1000);
 
     let requestBody: string | undefined;
-    const headers = { ...options.headers };
+    const headers: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      ...options.headers,
+    };
     if (
       options.body !== null &&
       options.body !== undefined &&
@@ -474,7 +482,7 @@ export class ApiClientTool extends BaseTool {
   private async detectCityFromIp(): Promise<string | null> {
     try {
       const ipResp = await fetch('https://httpbin.org/ip', {
-        headers: { 'User-Agent': 'secbot-ts/2.0.0' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; secbot/2.0)' },
       });
       if (!ipResp.ok) return null;
       const ipPayload = (await ipResp.json()) as Record<string, unknown>;
@@ -483,7 +491,7 @@ export class ApiClientTool extends BaseTool {
       if (!ip) return null;
 
       const geoResp = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?lang=zh-CN`, {
-        headers: { 'User-Agent': 'secbot-ts/2.0.0' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; secbot/2.0)' },
       });
       if (!geoResp.ok) return null;
       const geoPayload = (await geoResp.json()) as Record<string, unknown>;
