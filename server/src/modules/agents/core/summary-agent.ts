@@ -30,11 +30,12 @@ function clipForSummary(text: string, maxChars: number): string {
 }
 
 export class SummaryAgent extends BaseAgent {
-  private readonly llm: LLMProvider;
+  get llm(): LLMProvider {
+    return createLLM();
+  }
 
   constructor() {
     super('Summary', SUMMARY_SYSTEM_PROMPT);
-    this.llm = createLLM();
   }
 
   async process(userInput: string, options?: Record<string, unknown>): Promise<string> {

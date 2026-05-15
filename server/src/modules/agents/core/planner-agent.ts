@@ -25,11 +25,12 @@ interface RawTodoPlan {
 }
 
 export class PlannerAgent extends BaseAgent {
-  private readonly llm: LLMProvider;
+  get llm(): LLMProvider {
+    return createLLM();
+  }
 
   constructor() {
     super('Planner', PLANNER_SYSTEM_PROMPT);
-    this.llm = createLLM();
   }
 
   async process(userInput: string, _options?: Record<string, unknown>): Promise<string> {
