@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useMemo, useCallback, useRef } from 'react';
 
 export interface CommandOption {
   title: string;
@@ -7,6 +7,10 @@ export interface CommandOption {
   keybind?: string;
   slash?: string;
   onSelect: (dialog: { close: () => void }) => void;
+}
+
+interface InternalCommand extends CommandOption {
+  _id: number;
 }
 
 interface CommandContextValue {
@@ -18,11 +22,13 @@ interface CommandContextValue {
 const CommandContext = createContext<CommandContextValue | null>(null);
 
 export function CommandProvider({ children }: { children: React.ReactNode }) {
-  const [list, setList] = React.useState<CommandOption[]>([]);
+  const [list, setList] = React.useState<InternalCommand[]>([]);
+  const nextId = useRef(0);
 
   const register = useCallback((cmd: CommandOption) => {
-    setList((prev) => [...prev, cmd]);
-    return () => setList((prev) => prev.filter((c) => c.value !== cmd.value));
+    const id = nextId.current++;
+    setList((prev) => [...prev, { ...cmd, _id: id }]);
+    return () => setList((prev) => prev.filter((c) => c._id !== id));
   }, []);
 
   const trigger = useCallback((value: string) => {
