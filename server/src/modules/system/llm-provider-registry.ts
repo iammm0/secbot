@@ -84,7 +84,7 @@ export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
     id: 'anthropic',
     name: 'Anthropic (Claude)',
     needsApiKey: true,
-    needsBaseUrl: false,
+    needsBaseUrl: true,
     group: 'overseas',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
     baseUrlEnv: 'ANTHROPIC_BASE_URL',
