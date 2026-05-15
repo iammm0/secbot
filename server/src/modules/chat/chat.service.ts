@@ -1,125 +1,55 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { EventBus, EventType, BusEvent } from '../../common/event-bus';
+import { EventBus, BusEvent } from '../../common/event-bus';
 import {
   Session,
   createSession,
   TodoItem,
-  InteractionSummary,
   IntentDecision,
   MessageRole,
   addSessionMessage,
   ChatMessage,
 } from '../../common/types';
-import { QAAgent } from '../agents/core/qa-agent';
-import { PlannerAgent } from '../agents/core/planner-agent';
-import { SummaryAgent } from '../agents/core/summary-agent';
-import { HackbotAgent } from '../agents/core/hackbot-agent';
-import { SuperHackbotAgent } from '../agents/core/superhackbot-agent';
 import { SecurityReActAgent } from '../agents/core/security-react-agent';
 import { TaskExecutor } from '../agents/core/task-executor';
-import { IntentRouter } from '../agents/core/intent-router';
-import { ExploreAgent } from '../agents/core/explore-agent';
 import { ChatRequestDto, ChatResponseDto } from './dto/chat.dto';
-import { ToolsService } from '../tools/tools.service';
 import { DatabaseService } from '../database/database.service';
 import { ContextAssemblerService } from './context-assembler.service';
-
-/** 与 SecurityReActAgent 中 THINK/EXEC 事件的 step 关联键一致，避免并行子任务共用 iteration 导致前端时间线串台 */
-function sseStepKey(data: Record<string, unknown>, iteration: number): string {
-  const todoId = data['todoId'];
-  if (todoId !== undefined && todoId !== null && String(todoId).length > 0) {
-    return `todo-${todoId}`;
-  }
-  return `iter-${iteration}`;
-}
-
-/** CLI 流式输出用：结构化精炼报告 + 较短最终回复，避免刷屏 */
-function buildStreamSummaryPayload(summary: InteractionSummary): {
-  report: string;
-  response: string;
-} {
-  const findings = summary.keyFindings
-    .slice(0, 6)
-    .map((l) => `- ${l}`)
-    .join('\n');
-  const recs = summary.recommendations
-    .slice(0, 6)
-    .map((l) => `- ${l}`)
-    .join('\n');
-  const parts: string[] = [];
-  const head = summary.taskSummary?.trim();
-  if (head) parts.push(`## 摘要\n${head}`);
-  if (findings) parts.push(`## 关键发现\n${findings}`);
-  if (recs) parts.push(`## 修复建议\n${recs}`);
-  const tail = summary.overallConclusion?.trim();
-  if (tail) parts.push(`## 总结\n${tail}`);
-  let report = parts.join('\n\n');
-  if (!report.trim()) {
-    report = summary.rawReport?.trim()
-      ? summary.rawReport.slice(0, 12_000)
-      : '（未能生成摘要，请查看服务端日志。）';
-  }
-  /** 短收尾：详细章节已在「安全报告」块中展示，避免 TUI 再打一屏重复摘要 */
-  const response =
-    tail ||
-    (summary.keyFindings[0]?.trim() ? `首要发现：${summary.keyFindings[0].trim()}` : '') ||
-    '详情见上方「安全报告」。';
-  return { report, response };
-}
-
-/** 推送规划块（可多次：首屏总规划 + 中途穿插规划），与终端时间线对齐 */
-function emitPlanningSse(
-  emit: (name: string, data: Record<string, unknown>) => void,
-  planSummary: string,
-  todos: TodoItem[],
-  scope: 'master' | 'adaptive',
-): void {
-  if (todos.length === 0) return;
-  emit('planning', {
-    content: planSummary,
-    summary: planSummary,
-    scope,
-    todos: todos.map((t) => ({
-      id: t.id,
-      content: t.content,
-      status: t.status,
-    })),
-  });
-}
+import { AgentFactoryService } from './agent-factory.service';
+import { mapExceptionToClientBody } from '../../common/errors/map-exception-to-client';
+import {
+  forwardAgentEvent,
+  forwardExploreEvent,
+  emitContextUsage,
+  emitPlanningSse,
+  buildStreamSummaryPayload,
+} from './sse-event-forwarder';
 
 @Injectable()
 export class ChatService {
   private eventBus = new EventBus();
-  private qaAgent: QAAgent;
-  private plannerAgent: PlannerAgent;
-  private summaryAgent: SummaryAgent;
-  private intentRouter: IntentRouter;
-  private exploreAgent: ExploreAgent;
-  private agents: Record<string, SecurityReActAgent>;
+  private readonly qaAgent;
+  private readonly plannerAgent;
+  private readonly summaryAgent;
+  private readonly intentRouter;
+  private readonly exploreAgent;
+  private readonly agents: Record<string, SecurityReActAgent>;
   private sessions = new Map<string, Session>();
   private readonly defaultSessionId = 'default';
 
   constructor(
-    private readonly config: ConfigService,
-    private readonly toolsService: ToolsService,
+    private readonly agentFactory: AgentFactoryService,
     private readonly databaseService: DatabaseService,
     private readonly contextAssembler: ContextAssemblerService,
   ) {
-    this.qaAgent = new QAAgent();
-    this.plannerAgent = new PlannerAgent();
-    this.summaryAgent = new SummaryAgent();
-    this.intentRouter = new IntentRouter();
-    /** ExploreAgent 使用 basic tools 全量；敏感工具在 ExploreAgent 内被自动拒绝。
-     *  显式注入 BrowserSessionTool 句柄，便于每次 explore 结束主动关闭 session。 */
-    this.exploreAgent = new ExploreAgent(
-      this.toolsService.getBasicTools(),
-      this.toolsService.getBrowserSessionTool(),
-    );
-
-    const hackbot = new HackbotAgent(this.toolsService.getBasicTools());
-    const superhackbot = new SuperHackbotAgent(this.toolsService.getAllTools());
-    this.agents = { hackbot, superhackbot };
+    this.qaAgent = this.agentFactory.createQAAgent();
+    this.plannerAgent = this.agentFactory.createPlannerAgent();
+    this.summaryAgent = this.agentFactory.createSummaryAgent();
+    this.intentRouter = this.agentFactory.createIntentRouter();
+    this.exploreAgent = this.agentFactory.createExploreAgent();
+    this.agents = {
+      hackbot: this.agentFactory.createHackbot(),
+      superhackbot: this.agentFactory.createSuperhackbot(),
+    };
 
     this.sessions.set(
       this.defaultSessionId,
@@ -144,6 +74,32 @@ export class ChatService {
     };
 
     emit('connected', { message: 'stream started' });
+
+    try {
+      return await this._handleMessageCore({
+        message, mode, agentType, clientShell, modelName, sessionId, session, forceQA, forceAgent, emit,
+      });
+    } catch (error) {
+      const mapped = mapExceptionToClientBody(error);
+      emit('error', { error: mapped.message, code: mapped.code, statusCode: mapped.statusCode });
+      emit('done', {});
+      return `错误：${mapped.message}`;
+    }
+  }
+
+  private async _handleMessageCore(params: {
+    message: string;
+    mode?: string;
+    agentType?: string;
+    clientShell?: ChatRequestDto['client_shell'];
+    modelName?: string;
+    sessionId: string;
+    session: Session;
+    forceQA: boolean;
+    forceAgent: boolean;
+    emit: (name: string, data: Record<string, unknown>) => void;
+  }): Promise<string> {
+    const { message, agentType, clientShell, modelName, sessionId, session, forceQA, forceAgent, emit } = params;
 
     /** 1) 启发式 focus 即时更新（IP/CVE/域名/URL/协议词） */
     this.contextAssembler.updateFocusFromInput(sessionId, message);
@@ -203,7 +159,7 @@ export class ChatService {
           userInput: message,
           intent,
           contextBlock: '',
-          onEvent: (event) => this.forwardExploreEvent(event, emit),
+          onEvent: (event) => forwardExploreEvent(event, emit),
         });
         this.contextAssembler.applyPatch(sessionId, patch);
         emit('context_patch', {
@@ -219,14 +175,16 @@ export class ChatService {
     }
 
     /** 5) 组装最终上下文（按当前模型预算 + focus 加权 + pinned 优先级） */
+    const selectedAgent = this.agents[agentType ?? 'hackbot'] ?? this.agents['hackbot'];
+    const effectiveModelName = modelName || (selectedAgent as any).llm?.model || undefined;
     const context = await this.contextAssembler.build({
       query: message,
       session,
       sessionId,
       agentType: agentType || 'hackbot',
-      modelName,
+      modelName: effectiveModelName,
     });
-    this.emitContextUsage(emit, context.debug);
+    emitContextUsage(emit, context.debug);
     if (process.env.SECBOT_CONTEXT_DEBUG === '1' || process.env.SECBOT_CONTEXT_DEBUG === 'true') {
       emit('context_debug', {
         session_id: sessionId,
@@ -234,9 +192,7 @@ export class ChatService {
       });
     }
 
-    const selectedAgent = this.agents[agentType] ?? this.agents['hackbot'];
-
-    const onAgentEvent = (event: BusEvent) => this.forwardAgentEvent(event, emit);
+    const onAgentEvent = (event: BusEvent) => forwardAgentEvent(event, emit);
 
     let todosForSummary: TodoItem[] = [];
 
@@ -394,14 +350,15 @@ export class ChatService {
       return {
         handled: true,
         result: (async () => {
+          const qaModelName = modelName || (this.qaAgent as any).llm?.model || undefined;
           const ctx = await this.contextAssembler.build({
             query: message,
             session,
             sessionId,
             agentType,
-            modelName,
+            modelName: qaModelName,
           });
-          this.emitContextUsage(emit, ctx.debug);
+          emitContextUsage(emit, ctx.debug);
           const history = session.messages.map((m) => ({
             role: m.role as 'system' | 'user' | 'assistant',
             content: m.content,
@@ -423,99 +380,6 @@ export class ChatService {
     }
 
     return { handled: false, result: Promise.resolve('') };
-  }
-
-  private emitContextUsage(
-    emit: (name: string, data: Record<string, unknown>) => void,
-    debug: {
-      modelName?: string;
-      contextWindow: number;
-      promptBudget: number;
-      usedTokens: number;
-      reservedTokens: number;
-      focus: string[];
-      pinned: number;
-    },
-  ): void {
-    const ratio =
-      debug.promptBudget > 0
-        ? Math.min(1, Math.max(0, debug.usedTokens / debug.promptBudget))
-        : 0;
-    emit('context_usage', {
-      model: debug.modelName ?? null,
-      context_window: debug.contextWindow,
-      prompt_budget: debug.promptBudget,
-      used_tokens: debug.usedTokens,
-      reserved_tokens: debug.reservedTokens,
-      ratio,
-      focus: debug.focus,
-      pinned: debug.pinned,
-    });
-  }
-
-  private forwardAgentEvent(
-    event: BusEvent,
-    emit: (name: string, data: Record<string, unknown>) => void,
-  ): void {
-    const t = event.type;
-    const d = event.data;
-    if (t === EventType.THINK_START) {
-      const iteration = Number(d['iteration'] ?? 1);
-      emit('thought_start', {
-        iteration,
-        step_key: sseStepKey(d, iteration),
-        task: d['task'] as string | undefined,
-      });
-    } else if (t === EventType.THINK_END) {
-      const iteration = Number(d['iteration'] ?? 1);
-      emit('thought', {
-        content: d['thought'] ?? '',
-        iteration,
-        step_key: sseStepKey(d, iteration),
-      });
-    } else if (t === EventType.EXEC_START) {
-      const iteration = Number(d['iteration'] ?? 1);
-      emit('action_start', {
-        tool: d['tool'] ?? '',
-        params: d['params'] ?? {},
-        iteration,
-        step_key: sseStepKey(d, iteration),
-      });
-    } else if (t === EventType.EXEC_RESULT) {
-      const iteration = Number(d['iteration'] ?? 1);
-      emit('action_result', {
-        tool: d['tool'] ?? '',
-        success: d['success'] ?? true,
-        result: d['observation'] ?? '',
-        iteration,
-        step_key: sseStepKey(d, iteration),
-      });
-    }
-  }
-
-  private forwardExploreEvent(
-    event: BusEvent,
-    emit: (name: string, data: Record<string, unknown>) => void,
-  ): void {
-    if (event.type === EventType.EXPLORE_START) {
-      emit('explore_start', {
-        focus: event.data['focus'] ?? [],
-      });
-    } else if (event.type === EventType.EXPLORE_STEP) {
-      emit('explore_step', {
-        iteration: event.data['iteration'] ?? 0,
-        kind: event.data['kind'] ?? '',
-        tool: event.data['tool'] ?? '',
-        observation: event.data['observation'] ?? '',
-        thought: event.data['thought'] ?? '',
-      });
-    } else if (event.type === EventType.EXPLORE_END) {
-      emit('explore_end', {
-        facts_count: event.data['factsCount'] ?? 0,
-        unresolved: event.data['unresolved'] ?? [],
-        summary: event.data['summary'] ?? '',
-      });
-    }
   }
 
   private lastAgentResponseText(agent: SecurityReActAgent): string {
