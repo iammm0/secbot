@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { HealthModule } from './modules/health/health.module';
 import configuration from './config/configuration';
 import { SessionsModule } from './modules/sessions/sessions.module';
@@ -19,6 +21,10 @@ import { VulnDbModule } from './modules/vuln-db/vuln-db.module';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', '..', 'web', 'dist'),
+      exclude: ['/api/(.*)'],
     }),
     HealthModule,
     SessionsModule,
