@@ -35,6 +35,6 @@ const SUPERHACKBOT_SYSTEM_PROMPT =
 
 export class SuperHackbotAgent extends SecurityReActAgent {
   constructor(tools: BaseTool[]) {
-    super('SuperHackbot', SUPERHACKBOT_SYSTEM_PROMPT, tools, false, 15);
+    super('SuperHackbot', SUPERHACKBOT_SYSTEM_PROMPT, tools, false, Infinity);
   }
 }

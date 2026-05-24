@@ -13,6 +13,9 @@ import { VulnDbQueryTool } from './vuln-db';
 import { VulnDbService } from '../vuln-db/vuln-db.service';
 import { BaseTool, ToolResult } from './core/base-tool';
 import { ListToolsResponseDto } from './dto/tools.dto';
+import { SkillsService } from '../skills/skills.service';
+import { createSkillsTools } from './skills';
+import { MCP_TOOLS } from './mcp';
 
 @Injectable()
 export class ToolsService {
@@ -22,13 +25,16 @@ export class ToolsService {
   private readonly allTools: BaseTool[];
   private readonly toolsMap: Map<string, BaseTool>;
 
-  constructor(private readonly vulnDbService: VulnDbService) {
+  constructor(
+    private readonly vulnDbService: VulnDbService,
+    private readonly skillsService: SkillsService,
+  ) {
     this.vulnDbQueryTool = new VulnDbQueryTool(this.vulnDbService);
 
-    // Replace the default VulnScannerTool (no DI) with one wired to VulnDbService
     const securityTools = ALL_SECURITY_TOOLS.map((t) =>
       t.name === 'vuln_scan' ? new VulnScannerTool(this.vulnDbService) : t,
     );
+    const skillsTools = createSkillsTools(this.skillsService);
 
     this.categories = [
       { id: 'security', name: 'Core Security', tools: securityTools },
@@ -41,13 +47,14 @@ export class ToolsService {
       { id: 'control', name: 'Control', tools: CONTROL_TOOLS },
       { id: 'crawler', name: 'Crawler', tools: CRAWLER_TOOLS },
       { id: 'web_research', name: 'Web Research', tools: WEB_RESEARCH_TOOLS },
+      { id: 'skills', name: 'Skills', tools: skillsTools },
+      { id: 'mcp', name: 'MCP', tools: MCP_TOOLS },
       { id: 'vuln_db', name: 'Vulnerability DB', tools: [this.vulnDbQueryTool] },
     ];
     this.allTools = this.uniqueTools(this.categories.flatMap((c) => c.tools));
     this.toolsMap = new Map(this.allTools.map((t) => [t.name, t]));
   }
 
-  /** 暴露给 ExploreAgent 等需要"显式 close 虚拟浏览器 session"的场景 */
   getBrowserSessionTool(): BrowserSessionTool {
     return this.browserSessionTool;
   }

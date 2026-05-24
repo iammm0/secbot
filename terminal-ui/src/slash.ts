@@ -39,6 +39,28 @@ export interface SlashResult {
   fetchThen?: () => Promise<string>;
 }
 
+function parseOptionValues(parts: string[], flag: string): string[] {
+  const values: string[] = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    if (parts[i] !== flag) continue;
+    const segment: string[] = [];
+    let j = i + 1;
+    while (j < parts.length && !parts[j].startsWith('--')) {
+      segment.push(parts[j]);
+      j += 1;
+    }
+    if (segment.length > 0) {
+      values.push(segment.join(' '));
+    }
+    i = j - 1;
+  }
+  return values;
+}
+
+function parseOptionValue(parts: string[], flag: string): string | undefined {
+  return parseOptionValues(parts, flag)[0];
+}
+
 export function parseSlash(
   input: string,
   localState: { mode: ChatMode; agent: string }
@@ -136,6 +158,62 @@ export function parseSlash(
           lines.push('');
         }
         return lines.join('\n');
+      },
+    };
+  }
+  if (cmd === '/skills') {
+    return {
+      handled: true,
+      fetchThen: async () => {
+        const r = await api.get<{ skills: Array<{ slug: string; description: string; scope: string }> }>('/api/skills');
+        const lines = ['SECBOT Skills', ''];
+        for (const skill of r.skills ?? []) {
+          lines.push(`${skill.slug} [${skill.scope}] — ${skill.description}`);
+        }
+        return lines.join('\n');
+      },
+    };
+  }
+  if (cmd === '/skill') {
+    const name = parts[1]?.trim();
+    return {
+      handled: true,
+      fetchThen: async () => {
+        if (!name) {
+          return '用法: /skill <name>';
+        }
+        const r = await api.get<{ slug: string; description: string; body: string; triggers: string[]; tags: string[] }>(`/api/skills/${encodeURIComponent(name)}`);
+        return [
+          `# ${r.slug}`,
+          '',
+          r.description,
+          '',
+          `triggers: ${(r.triggers ?? []).join(', ')}`,
+          `tags: ${(r.tags ?? []).join(', ')}`,
+          '',
+          r.body,
+        ].join('\n');
+      },
+    };
+  }
+  if (cmd === '/create-skill') {
+    const name = parts[1]?.trim();
+    return {
+      handled: true,
+      fetchThen: async () => {
+        if (!name) {
+          return '用法: /create-skill <name> [--description 文本] [--trigger xxx] [--tag xxx] [--prerequisite xxx] [--author xxx]';
+        }
+        const payload = {
+          name,
+          description: parseOptionValue(parts, '--description'),
+          author: parseOptionValue(parts, '--author'),
+          tags: parseOptionValues(parts, '--tag'),
+          triggers: parseOptionValues(parts, '--trigger'),
+          prerequisites: parseOptionValues(parts, '--prerequisite'),
+        };
+        const r = await api.post<{ slug: string; relativeDir: string; description: string }>('/api/skills', payload);
+        return `已创建 skill ${r.slug}\n路径: ${r.relativeDir}\n描述: ${r.description}`;
       },
     };
   }

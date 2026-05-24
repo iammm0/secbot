@@ -46,7 +46,7 @@ export class SecurityReActAgent extends BaseAgent {
     systemPrompt: string,
     tools: BaseTool[],
     autoExecute = true,
-    maxIterations = 10,
+    maxIterations = Infinity,
   ) {
     super(name, systemPrompt, tools);
     this.autoExecute = autoExecute;

@@ -7,13 +7,16 @@
   "main": "server/dist/main.js",
   "bin": {
     "secbot": "npm-bin/secbot.js",
-    "secbot-server": "npm-bin/secbot-server.js"
+    "secbot-server": "npm-bin/secbot-server.js",
+    "secbot-mcp": "npm-bin/secbot-mcp.js"
   },
   "files": [
     "server/dist",
     "terminal-ui/dist",
     "terminal-ui/package.json",
     "scripts/run-product.js",
+    "skills",
+    "web/dist",
     "README.md",
     "README_CN.md",
     "README_EN.md",
@@ -23,7 +26,8 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('server/dist',{recursive:true,force:true})\"",
     "build": "tsc -p server/tsconfig.json",
-    "dev": "tsx watch server/src/main.ts",
+    "dev": "tsc -p server/tsconfig.json && node server/dist/main.js",
+    "dev:watch": "tsc -p server/tsconfig.json --watch & sleep 3 && node --watch server/dist/main.js",
     "prestart": "npm run build",
     "start": "node server/dist/main.js",
     "start:stack": "node scripts/start_stack.js",
@@ -37,8 +41,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepack": "npm run build && npm run build:terminal-ui",
+    "prepack": "npm run build && npm run build:terminal-ui && npm run build:web",
     "build:terminal-ui": "tsc -p terminal-ui/tsconfig.json",
+    "build:web": "npm --prefix web run build",
     "pack:npm": "npm pack",
     "release:build": "npm run clean && npm run build",
     "release:pack": "npm run release:build && npm pack",
@@ -63,21 +68,24 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/serve-static": "^5.0.5",
     "better-sqlite3": "^11.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
-    "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
     "figlet": "^1.10.0",
     "fuzzysort": "^3.0.0",
     "ink": "^4.4.1",
     "ink-markdown": "^1.0.4",
     "ink-text-input": "^5.0.1",
-    "react": "^18.2.0"
+    "react": "^18.2.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@emnapi/core": "1.9.2",

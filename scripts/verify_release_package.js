@@ -102,11 +102,27 @@ function tailLogs(value, maxLines = 20) {
 }
 
 function parseJsonText(raw, label) {
+  const normalized = raw.replace(/^\uFEFF/, '').trim();
   try {
-    return JSON.parse(raw.replace(/^\uFEFF/, '').trim());
-  } catch (error) {
-    throw new Error(`${label}: ${(error).message}`);
+    return JSON.parse(normalized);
+  } catch {}
+
+  const starts = [];
+  for (let i = 0; i < normalized.length; i += 1) {
+    const ch = normalized[i];
+    if (ch === '{' || ch === '[') {
+      starts.push(i);
+    }
   }
+
+  for (let i = starts.length - 1; i >= 0; i -= 1) {
+    const candidate = normalized.slice(starts[i]).trim();
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  throw new Error(`${label}: unable to locate valid JSON in output`);
 }
 
 function getFreePort() {
