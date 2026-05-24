@@ -32,12 +32,15 @@ function looksLikeInvalidApiKeyResponse(status: number, text: string): boolean {
 }
 
 export class OpenAICompatProvider implements LLMProvider {
+  readonly model: string;
   constructor(
     private readonly baseUrl: string,
     private readonly apiKey: string,
-    private readonly model: string,
+    model: string,
     private readonly options: OpenAICompatProviderOptions = {},
-  ) {}
+  ) {
+    this.model = model;
+  }
 
   private clearInvalidPersistedApiKey(status: number, text: string): void {
     if (!looksLikeInvalidApiKeyResponse(status, text)) return;

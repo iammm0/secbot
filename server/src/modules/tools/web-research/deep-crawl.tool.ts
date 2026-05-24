@@ -159,7 +159,10 @@ export class DeepCrawlTool extends BaseTool {
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       const response = await fetch(url, {
         redirect: 'follow',
-        headers: { 'User-Agent': 'secbot-ts/2.0.0' },
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
+        },
         signal: controller.signal,
       });
       clearTimeout(timer);

@@ -179,6 +179,8 @@ export function useChat() {
   const completedAtRef = useRef<number>(0);
   /** Typewriter 定时器，新消息到来时需要清理上一个 */
   const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** 当前轮次是否已收到 response_chunk（若是则 response 事件不再触发 typewriter） */
+  const receivedChunksRef = useRef<boolean>(false);
   const thoughtSeqRef = useRef<number>(0);
   /** 按 step_key（子任务 todo / ReAct 轮次）关联推理时间线项，避免并行子任务共用 iteration 时串台 */
   const activeThoughtIdByStepRef = useRef<Map<string, string>>(new Map());
@@ -453,6 +455,7 @@ export function useChat() {
       completedAtRef.current = 0;
       thoughtSeqRef.current = 0;
       activeThoughtIdByStepRef.current = new Map();
+      receivedChunksRef.current = false;
 
       setCurrentUserMessage(message);
       setCurrentSentAt(now);
@@ -982,21 +985,67 @@ export function useChat() {
                 break;
               }
 
+              case "response_chunk": {
+                const chunk = (data.chunk as string) ?? "";
+                if (!chunk) break;
+                receivedChunksRef.current = true;
+                setStreamState((s) => {
+                  const hasSteps = s.timeline.some(
+                    (item) => item.type === "thought" || item.type === "action"
+                  );
+                  const newResponse = (s.response ?? "") + chunk;
+                  return {
+                    ...s,
+                    response: newResponse,
+                    timeline: hasSteps
+                      ? upsertTimelineItem(s.timeline, "final-summary", (prev) => ({
+                          id: "final-summary",
+                          type: "final",
+                          title: "最终总结",
+                          body: newResponse,
+                          status: "running",
+                        }))
+                      : s.timeline,
+                  };
+                });
+                break;
+              }
+
               case "response": {
-                // Typewriter 效果：即使 API 一次性返回全文，也逐步揭示
                 const fullText = (data.content as string) ?? null;
                 if (fullText) {
-                  setStreamState((s) => ({
-                    ...s,
-                    timeline: upsertTimelineItem(s.timeline, "final-summary", () => ({
-                      id: "final-summary",
-                      type: "final",
-                      title: "最终总结",
-                      body: "",
-                      status: "running",
-                    })),
-                  }));
-                  startTypewriter(fullText);
+                  if (receivedChunksRef.current) {
+                    // Chunks already rendered progressively; just finalize
+                    setStreamState((s) => ({
+                      ...s,
+                      response: fullText,
+                      timeline: upsertTimelineItem(s.timeline, "final-summary", (prev) =>
+                        prev
+                          ? { ...prev, body: fullText, status: "done" }
+                          : { id: "final-summary", type: "final", title: "最终总结", body: fullText, status: "done" }
+                      ),
+                    }));
+                  } else {
+                    // No chunks received — use typewriter as fallback
+                    setStreamState((s) => {
+                      const hasSteps = s.timeline.some(
+                        (item) => item.type === "thought" || item.type === "action"
+                      );
+                      return {
+                        ...s,
+                        timeline: hasSteps
+                          ? upsertTimelineItem(s.timeline, "final-summary", () => ({
+                              id: "final-summary",
+                              type: "final",
+                              title: "最终总结",
+                              body: "",
+                              status: "running",
+                            }))
+                          : s.timeline,
+                      };
+                    });
+                    startTypewriter(fullText);
+                  }
                 }
                 break;
               }

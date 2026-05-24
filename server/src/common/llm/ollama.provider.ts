@@ -2,10 +2,13 @@ import { ChatMessage } from '../types';
 import { LLMProvider } from './llm.interface';
 
 export class OllamaProvider implements LLMProvider {
+  readonly model: string;
   constructor(
     private readonly baseUrl: string = 'http://localhost:11434',
-    private readonly model: string = 'llama3.2',
-  ) {}
+    model: string = 'llama3.2',
+  ) {
+    this.model = model;
+  }
 
   async chat(messages: ChatMessage[]): Promise<string> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {

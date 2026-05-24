@@ -63,24 +63,41 @@ export class PageExtractTool extends BaseTool {
     url: string,
     timeoutMs: number,
   ): Promise<{ url: string; html: string; title: string }> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, {
-        redirect: 'follow',
-        headers: { 'User-Agent': 'secbot-ts/2.0.0' },
-        signal: controller.signal,
-      });
-      if (!response.ok) {
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, {
+          redirect: 'follow',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+        if (!response.ok) {
+          return { url, html: '', title: '' };
+        }
+        const html = await response.text();
+        const finalUrl = response.url || url;
+        const title = extractTitle(html);
+        return { url: finalUrl, html, title };
+      } catch {
+        clearTimeout(timer);
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
         return { url, html: '', title: '' };
       }
-      const html = await response.text();
-      const finalUrl = response.url || url;
-      const title = extractTitle(html);
-      return { url: finalUrl, html, title };
-    } finally {
-      clearTimeout(timer);
     }
+    return { url, html: '', title: '' };
   }
 
   private extractText(html: string, url: string, title: string): Record<string, unknown> {
