@@ -85,7 +85,10 @@ const PAGE_TEXT_LIMIT = 6_000;
 const READ_SECTION_LIMIT = 2_400;
 const PAGE_CACHE_LIMIT = 16;
 const DDG_LITE_URL = 'https://lite.duckduckgo.com/lite/';
+const DDG_HTML_URL = 'https://html.duckduckgo.com/html/';
 const FETCH_TIMEOUT_MS = 20_000;
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 const VALID_ACTIONS = new Set([
   'open',
   'search',
@@ -477,26 +480,42 @@ function cachePage(state: BrowserState, url: string, page: BrowserPage): void {
   }
 }
 
-async function fetchHtml(url: string): Promise<string> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      redirect: 'follow',
-      headers: {
-        'User-Agent': RESPECTFUL_USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
-        'Accept-Language': 'en;q=0.9,zh;q=0.7',
-      },
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText}`);
+async function fetchHtml(url: string, ua?: string): Promise<string> {
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        redirect: 'follow',
+        headers: {
+          'User-Agent': ua || RESPECTFUL_USER_AGENT,
+          Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
+          'Accept-Language': 'en;q=0.9,zh;q=0.7',
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      }
+      return await res.text();
+    } catch (error) {
+      clearTimeout(timer);
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw error;
     }
-    return await res.text();
-  } finally {
-    clearTimeout(timer);
   }
+  throw new Error('fetch 重试耗尽');
 }
 
 function htmlToReaderPage(
@@ -535,12 +554,26 @@ function htmlToReaderPage(
 }
 
 async function searchAsPage(query: string, maxResults: number): Promise<BrowserPage> {
-  const url = `${DDG_LITE_URL}?q=${encodeURIComponent(query)}`;
-  /** DuckDuckGo Lite 一般不在 robots 屏蔽，但仍保留限速，避免连续触发反爬 */
-  const robots = await isAllowedByRobots(url);
-  const rateLimitedMs = await rateLimitWait(url, robots.crawlDelaySec);
-  const html = await fetchHtml(url);
-  const items = parseDuckDuckGoLite(html, maxResults);
+  const robots = await isAllowedByRobots(`${DDG_HTML_URL}?q=${encodeURIComponent(query)}`);
+  const rateLimitedMs = await rateLimitWait(DDG_HTML_URL, robots.crawlDelaySec);
+
+  // Try DDG HTML first (more reliable), fallback to Lite
+  let items: DuckDuckGoResult[] = [];
+  let usedUrl = '';
+  try {
+    usedUrl = `${DDG_HTML_URL}?q=${encodeURIComponent(query)}`;
+    const html = await fetchHtml(usedUrl, BROWSER_UA);
+    items = parseDDGHtml(html, maxResults);
+  } catch { /* fallback below */ }
+
+  if (items.length === 0) {
+    try {
+      usedUrl = `${DDG_LITE_URL}?q=${encodeURIComponent(query)}`;
+      const html = await fetchHtml(usedUrl, BROWSER_UA);
+      items = parseDuckDuckGoLite(html, maxResults);
+    } catch { /* empty results */ }
+  }
+
   const text =
     items.length === 0
       ? '（无搜索结果）'
@@ -556,7 +589,7 @@ async function searchAsPage(query: string, maxResults: number): Promise<BrowserP
     url: item.url,
   }));
   return {
-    url,
+    url: usedUrl,
     title: `搜索: ${query}`,
     text,
     rawTextLength: text.length,
@@ -573,6 +606,31 @@ async function searchAsPage(query: string, maxResults: number): Promise<BrowserP
     },
     rateLimitedMs,
   };
+}
+
+function parseDDGHtml(html: string, maxResults: number): DuckDuckGoResult[] {
+  const resultRegex = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const snippetRegex = /<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+  const links: Array<{ url: string; title: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = resultRegex.exec(html)) !== null && links.length < maxResults) {
+    let rawUrl = String(m[1]).trim();
+    const uddg = rawUrl.match(/[?&]uddg=([^&]+)/);
+    if (uddg) rawUrl = decodeURIComponent(uddg[1]);
+    if (!/^https?:\/\//i.test(rawUrl)) continue;
+    const title = decodeHtmlEntities(String(m[2]).replace(/<[^>]+>/g, '')).trim().slice(0, 280);
+    links.push({ url: rawUrl, title });
+  }
+  const snippets: string[] = [];
+  let sm: RegExpExecArray | null;
+  while ((sm = snippetRegex.exec(html)) !== null && snippets.length < maxResults) {
+    snippets.push(decodeHtmlEntities(String(sm[1]).replace(/<[^>]+>/g, '')).trim().slice(0, 320));
+  }
+  return links.map((entry, idx) => ({
+    title: entry.title,
+    url: entry.url,
+    snippet: snippets[idx] ?? '',
+  }));
 }
 
 interface DuckDuckGoResult {

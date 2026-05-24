@@ -17,6 +17,20 @@ export { ParamFuzzerTool } from './param-fuzzer.tool';
 export { SsrfDetectTool } from './ssrf-detect.tool';
 export { AttackTestTool } from './attack-test.tool';
 export { ExploitTool } from './exploit.tool';
+export { NmapScanTool } from './nmap-scan.tool';
+export { NucleiScanTool } from './nuclei-scan.tool';
+export { NiktoScanTool } from './nikto-scan.tool';
+export { ScreenshotTool } from './screenshot.tool';
+export { CodeAuditTool } from './code-audit.tool';
+export { DnsZoneTransferTool } from './dns-zone-transfer.tool';
+export { WappalyzerTool } from './wappalyzer.tool';
+export { FfufScanTool } from './ffuf-scan.tool';
+export { ApiSchemaScanTool } from './api-schema-scan.tool';
+export { TracerouteTool } from './traceroute.tool';
+export { WifiScanTool } from './wifi-scan.tool';
+export { SniffTool } from './sniff.tool';
+export { CredentialSprayTool } from './credential-spray.tool';
+export { CidrScanTool } from './cidr-scan.tool';
 
 import { PortScannerTool } from './port-scanner.tool';
 import { ServiceDetectorTool } from './service-detector.tool';
@@ -37,6 +51,20 @@ import { ParamFuzzerTool } from './param-fuzzer.tool';
 import { SsrfDetectTool } from './ssrf-detect.tool';
 import { AttackTestTool } from './attack-test.tool';
 import { ExploitTool } from './exploit.tool';
+import { NmapScanTool } from './nmap-scan.tool';
+import { NucleiScanTool } from './nuclei-scan.tool';
+import { NiktoScanTool } from './nikto-scan.tool';
+import { ScreenshotTool } from './screenshot.tool';
+import { CodeAuditTool } from './code-audit.tool';
+import { DnsZoneTransferTool } from './dns-zone-transfer.tool';
+import { WappalyzerTool } from './wappalyzer.tool';
+import { FfufScanTool } from './ffuf-scan.tool';
+import { ApiSchemaScanTool } from './api-schema-scan.tool';
+import { TracerouteTool } from './traceroute.tool';
+import { WifiScanTool } from './wifi-scan.tool';
+import { SniffTool } from './sniff.tool';
+import { CredentialSprayTool } from './credential-spray.tool';
+import { CidrScanTool } from './cidr-scan.tool';
 
 export const BASIC_SECURITY_TOOLS = [
   new PortScannerTool(),
@@ -65,4 +93,18 @@ export const ALL_SECURITY_TOOLS = [
   new SsrfDetectTool(),
   new AttackTestTool(),
   new ExploitTool(),
+  new NmapScanTool(),
+  new NucleiScanTool(),
+  new NiktoScanTool(),
+  new ScreenshotTool(),
+  new CodeAuditTool(),
+  new DnsZoneTransferTool(),
+  new WappalyzerTool(),
+  new FfufScanTool(),
+  new ApiSchemaScanTool(),
+  new TracerouteTool(),
+  new WifiScanTool(),
+  new SniffTool(),
+  new CredentialSprayTool(),
+  new CidrScanTool(),
 ];

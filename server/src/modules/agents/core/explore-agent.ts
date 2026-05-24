@@ -76,19 +76,14 @@ export interface ExploreArgs {
 }
 
 export class ExploreAgent extends BaseAgent {
-  private readonly llm: LLMProvider;
-  private readonly toolsDict: Map<string, BaseTool>;
-  private readonly tools: BaseTool[];
   private readonly browserSessionTool: BrowserSessionTool | null;
 
+  private get llm(): LLMProvider {
+    return createLLM();
+  }
+
   constructor(tools: BaseTool[], browserSessionTool: BrowserSessionTool | null = null) {
-    super('Explore', EXPLORE_SYSTEM_PROMPT);
-    this.tools = tools;
-    this.toolsDict = new Map<string, BaseTool>();
-    for (const tool of tools) {
-      this.toolsDict.set(tool.name, tool);
-    }
-    this.llm = createLLM();
+    super('Explore', EXPLORE_SYSTEM_PROMPT, tools);
     /** 显式传入的优先；否则从 tools 中按 name 找一个 */
     if (browserSessionTool) {
       this.browserSessionTool = browserSessionTool;
@@ -317,10 +312,6 @@ export class ExploreAgent extends BaseAgent {
         /* close 失败不影响 explore 结果 */
       }
     }
-  }
-
-  getToolsDescription(): string {
-    return this.tools.map((t) => `- ${t.name}: ${t.description}`).join('\n');
   }
 
   // ------ internals ------

@@ -104,10 +104,14 @@ export interface IntentRouteArgs {
 }
 
 export class IntentRouter {
-  private readonly llm: LLMProvider;
+  private readonly _llm?: LLMProvider;
+
+  private get llm(): LLMProvider {
+    return this._llm ?? createLLM();
+  }
 
   constructor(llm?: LLMProvider) {
-    this.llm = llm ?? createLLM();
+    this._llm = llm;
   }
 
   async classify(args: IntentRouteArgs): Promise<IntentDecision> {
