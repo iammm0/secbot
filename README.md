@@ -16,7 +16,9 @@ Secbot is an AI-powered TypeScript security automation workspace with a NestJS b
 - End-to-end TypeScript architecture (`NestJS + Ink + SQLite`).
 - `secbot` binary that starts terminal UI with local spawned backend by default.
 - `secbot-server` binary for backend-only API scenarios.
-- Multi-agent orchestration with planning, tool execution, and summarization.
+- `secbot-mcp` binary that exposes Secbot tools as a stdio MCP server.
+- Shared skills management across REST, TUI slash commands, CLI subcommands, and internal tools.
+- Multi-agent orchestration with planning, tool execution, MCP bridging, and summarization.
 - Built-in security tool modules for web, network, OSINT, defense, and reporting workflows.
 
 ### Source-tree orchestration (contributors)
@@ -79,7 +81,15 @@ secbot
 secbot-server
 ```
 
-### 4. Attach to an existing backend (optional)
+### 4. Start MCP server mode (optional)
+
+```bash
+secbot-mcp
+```
+
+Set `SECBOT_MCP_ALLOW_SENSITIVE=true` only when you intentionally want MCP clients to see sensitive tools.
+
+### 5. Attach to an existing backend (optional)
 
 ```bash
 # Recommended explicit service mode
@@ -95,6 +105,53 @@ SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 secbot
 | --- | --- |
 | `secbot` | Start terminal UI (default: spawn local backend; optional service mode) |
 | `secbot-server` | Start NestJS backend only |
+| `secbot-mcp` | Expose Secbot tools through stdio MCP |
+
+## Skills Management
+
+Secbot now exposes one shared skills layer for product and automation surfaces.
+
+### TUI slash commands
+
+```text
+/skills
+/skill <name>
+/create-skill <name> [--description ...] [--trigger ...] [--tag ...] [--prerequisite ...] [--author ...]
+```
+
+### CLI subcommands
+
+```bash
+secbot skills list
+secbot skills view <name>
+secbot skills create <name> --description "..." --trigger recon --tag web
+```
+
+### REST endpoints
+
+```text
+GET  /api/skills
+GET  /api/skills/:name
+POST /api/skills
+```
+
+Created skills are scaffolded under `skills/custom/<slug>/SKILL.md` and can also be reached through the internal `list_skills`, `get_skill`, and `create_skill` tools.
+
+## MCP Integration
+
+Secbot supports MCP in both directions.
+
+### Use Secbot as an MCP server
+
+```bash
+secbot-mcp
+```
+
+This exposes the current `ToolsService` catalog over stdio MCP. Sensitive tools stay hidden by default unless `SECBOT_MCP_ALLOW_SENSITIVE=true` is set.
+
+### Call external MCP servers from Secbot
+
+Use the built-in `mcp_call` tool to connect to another stdio MCP server, list its tools, or invoke one of them from Secbot workflows.
 
 ## Source Development
 
@@ -103,8 +160,11 @@ git clone https://github.com/iammm0/secbot.git
 cd secbot
 npm ci
 
-# Backend dev (watch mode)
+# Backend dev
 npm run dev
+
+# Backend dev with file watching
+npm run dev:watch
 
 # TUI (in another terminal, default: spawn local backend)
 npm run start:tui
@@ -118,11 +178,14 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 | Script | Description |
 | --- | --- |
 | `npm run build` | Build the NestJS backend |
+| `npm run build:terminal-ui` | Build the Ink terminal UI |
+| `npm run build:web` | Build the web frontend bundle |
 | `npm run typecheck` | Type-check server code |
 | `npm run lint` | Run ESLint |
 | `npm run format:check` | Check Prettier formatting |
 | `npm test` | Run tests |
 | `npm run release:pack` | Build and create npm package tarball |
+| `npm run release:verify` | Verify packaged npm release contents |
 
 ## Documentation
 

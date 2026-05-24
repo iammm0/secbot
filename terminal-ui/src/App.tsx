@@ -219,6 +219,40 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
           dialog.replace(<ToolsDialog />);
         },
       }),
+      register({
+        title: '列出 Skills',
+        value: '/skills',
+        category: 'REST',
+        slash: '/skills',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="Skills 列表"
+              fetchContent={() =>
+                api.get<{ skills: Array<{ slug: string; description: string; scope: string }> }>('/api/skills').then((r) =>
+                  (r.skills ?? []).map((skill) => `${skill.slug} [${skill.scope}] — ${skill.description}`).join('\n') || 'No skills found.'
+                )
+              }
+            />
+          );
+        },
+      }),
+      register({
+        title: '创建 Skill 用法',
+        value: '/create-skill',
+        category: 'REST',
+        slash: '/create-skill',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(
+            <RestResultDialog
+              title="/create-skill 用法"
+              fetchContent={() => Promise.resolve('用法: /create-skill <name> [--description 文本] [--trigger xxx] [--tag xxx] [--prerequisite xxx] [--author xxx]')}
+            />
+          );
+        },
+      }),
     ];
     return () => { unregs.forEach((u) => u()); };
   }, [register, setRESTOutput, setMode, dialog, toast, newSession, switchSession, sessionList]);
