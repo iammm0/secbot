@@ -8,6 +8,27 @@ type SearchResult = {
   snippet: string;
 };
 
+type SearchFailureCode = 'SEARCH_UNAVAILABLE' | 'SEARCH_TIMEOUT';
+
+const SEARCH_TIMEOUT_MS = 8_000;
+const PAGE_FETCH_TIMEOUT_MS = 15_000;
+const SEARCH_MAX_RETRIES = 3;
+
+class SearchRequestError extends Error {
+  constructor(
+    readonly code: SearchFailureCode,
+    message: string,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+    this.name = 'SearchRequestError';
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class SmartSearchTool extends BaseTool {
   constructor() {
     super(
@@ -58,10 +79,15 @@ export class SmartSearchTool extends BaseTool {
         },
       };
     } catch (error) {
+      const normalized = this.normalizeSearchError(error);
       return {
         success: false,
-        result: null,
-        error: `Smart search failed: ${(error as Error).message}`,
+        result: {
+          query,
+          code: normalized.code,
+          retryable: normalized.retryable,
+        },
+        error: normalized.message,
       };
     }
   }
@@ -74,13 +100,51 @@ export class SmartSearchTool extends BaseTool {
   }
 
   private async search(query: string, maxResults: number): Promise<SearchResult[]> {
-    const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'secbot-ts/2.0.0' },
-    });
-    if (!response.ok) {
-      return [];
+    return this.searchWithRetry(query, maxResults, SEARCH_MAX_RETRIES);
+  }
+
+  private async searchWithRetry(
+    query: string,
+    maxResults: number,
+    maxRetries: number,
+  ): Promise<SearchResult[]> {
+    let lastError: SearchRequestError | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+      try {
+        return await this.searchOnce(query, maxResults);
+      } catch (error) {
+        const normalized = this.normalizeSearchError(error);
+        lastError = normalized;
+        if (!normalized.retryable || attempt === maxRetries) {
+          throw normalized;
+        }
+        await sleep(attempt * 500);
+      }
     }
+
+    throw lastError ?? new SearchRequestError('SEARCH_UNAVAILABLE', 'Search is temporarily unavailable.', true);
+  }
+
+  private async searchOnce(query: string, maxResults: number): Promise<SearchResult[]> {
+    const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+    const response = await this.fetchWithTimeout(url, {
+      headers: { 'User-Agent': 'secbot-ts/2.0.0' },
+    }, SEARCH_TIMEOUT_MS);
+
+    if (!response.ok) {
+      throw this.httpStatusError(response.status);
+    }
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType && !/text\/html|application\/xhtml\+xml/i.test(contentType)) {
+      throw new SearchRequestError(
+        'SEARCH_UNAVAILABLE',
+        `Search provider returned unsupported content type: ${contentType}`,
+        false,
+      );
+    }
+
     const html = await response.text();
     return this.parseDuckDuckGoLite(html, maxResults);
   }
@@ -122,14 +186,10 @@ export class SmartSearchTool extends BaseTool {
 
   private async fetchPageContent(url: string): Promise<string> {
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15_000);
-      const response = await fetch(url, {
+      const response = await this.fetchWithTimeout(url, {
         redirect: 'follow',
         headers: { 'User-Agent': 'secbot-ts/2.0.0' },
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
+      }, PAGE_FETCH_TIMEOUT_MS);
       if (!response.ok) return '';
       const contentType = response.headers.get('content-type') ?? '';
       if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return '';
@@ -169,9 +229,54 @@ export class SmartSearchTool extends BaseTool {
         { role: 'user', content: prompt },
       ]);
       return summary.trim();
-    } catch (error) {
-      return `AI summary failed: ${(error as Error).message}`;
+    } catch {
+      return '';
     }
+  }
+
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new SearchRequestError('SEARCH_TIMEOUT', 'Search request timed out.', true);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private httpStatusError(status: number): SearchRequestError {
+    const retryable = status === 429 || status >= 500;
+    return new SearchRequestError(
+      retryable ? 'SEARCH_UNAVAILABLE' : 'SEARCH_UNAVAILABLE',
+      `Search provider returned HTTP ${status}.`,
+      retryable,
+    );
+  }
+
+  private normalizeSearchError(error: unknown): SearchRequestError {
+    if (error instanceof SearchRequestError) {
+      return error;
+    }
+    if (error instanceof Error && error.name === 'AbortError') {
+      return new SearchRequestError('SEARCH_TIMEOUT', 'Search request timed out.', true);
+    }
+    return new SearchRequestError(
+      'SEARCH_UNAVAILABLE',
+      'Real-time search is temporarily unavailable.',
+      true,
+    );
   }
 
   private async runWithConcurrency<TInput, TResult>(
