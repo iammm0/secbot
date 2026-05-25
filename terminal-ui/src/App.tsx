@@ -95,8 +95,8 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
   const { route } = useRoute();
   const sync = useSync();
   const local = useLocal();
-  const { sendMessage, setRESTOutput, newSession, switchSession, sessionList } = sync;
-  const { mode, agent, setMode } = local;
+  const { sendMessage, newSession, switchSession, sessionList } = sync;
+  const { agent } = local;
 
   useEffect(() => {
     const unsubToast = tuiEvents.onToastShow((opts) => {
@@ -111,8 +111,6 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
 
   useEffect(() => {
     const unregs = [
-      register({ title: 'Ask 模式', value: '/ask', category: '会话', slash: '/ask', onSelect: ({ close }) => { setMode('ask'); toast.show({ message: '已切换到问答模式', variant: 'success' }); close(); } }),
-      register({ title: '任务模式', value: '/task', category: '会话', slash: '/task', onSelect: ({ close }) => { setMode('agent'); toast.show({ message: '已切换到任务模式', variant: 'success' }); close(); } }),
       register({ title: '切换智能体', value: '/agent', category: '会话', slash: '/agent', onSelect: ({ close }) => { close(); dialog.replace(<AgentSelectDialog />); } }),
       register({
         title: '新建空白会话',
@@ -221,7 +219,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
       }),
     ];
     return () => { unregs.forEach((u) => u()); };
-  }, [register, setRESTOutput, setMode, dialog, toast, newSession, switchSession, sessionList]);
+  }, [register, dialog, toast, newSession, switchSession, sessionList]);
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);

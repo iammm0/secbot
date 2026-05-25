@@ -26,10 +26,9 @@ Binaries (npm package): `secbot` (TUI + optional spawned backend), `secbot-serve
 
 ## Chat request flow (high level)
 
-1. **TUI** → `POST /api/chat` with `{ message, session_id, mode, agent, client_shell?, model? }`.
+1. **TUI** → `POST /api/chat` with `{ message, session_id, mode: 'agent', agent, client_shell?, model? }`.
 2. **`ChatService.handleMessage`**:
-   - `mode === 'ask'` → `QAAgent` only.
-   - Else **`IntentRouter.classify`** (6 intents: `small_talk`, `meta`, `qa`, `clarify_needed`, `task_simple`, `task_complex`) → early exits for chit-chat / QA / clarify.
+   - **`IntentRouter.classify`** (6 intents: `small_talk`, `meta`, `qa`, `clarify_needed`, `task_simple`, `task_complex`) → early exits for chit-chat / QA / clarify.
    - If **`needsExplore`**: `ExploreAgent.explore` (ReAct micro-loop, `sensitive` tools rejected) → `ContextAssemblerService.applyPatch` → optional SSE `explore_*`, `context_patch`.
    - **`ContextAssemblerService.build`**: merges pinned facts, recent session, SQLite history, vector hits under a **model-context budget** (`model-context-window.ts`). Emits SSE **`context_usage`** for the TUI footer.
    - **`task_simple`**: single `SecurityReActAgent.process` (skip `PlannerAgent`).

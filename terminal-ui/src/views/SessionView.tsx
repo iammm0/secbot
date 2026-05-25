@@ -15,7 +15,6 @@ import { SlashSuggestions } from "../components/SlashSuggestions.js";
 import { useMouseScroll } from "../hooks/useMouseScroll.js";
 import { getMouseEmitter, sanitizeInputValue } from "../hooks/mouseFilter.js";
 import { parseSlash, getAgentFromState } from "../slash.js";
-import { isSimpleGreetingOrNonTask } from "../intent.js";
 import {
   useSync,
   useLocal,
@@ -169,13 +168,12 @@ export function SessionView({
     pendingRootRequest,
     setPendingRootRequest,
     sendMessage,
-    setRESTOutput,
     sessionList,
     switchSession,
     newSession,
     currentRoundChatMode,
   } = sync;
-  const { mode, agent, setMode, setAgent } = local;
+  const { agent, setAgent } = local;
 
   const activeSessionLabel = useMemo(() => {
     const hit = sessionList.find((s) => s.isActive);
@@ -559,11 +557,10 @@ export function SessionView({
           return;
         }
 
-        const result = parseSlash(trimmed, { mode, agent });
+        const result = parseSlash(trimmed, { mode: "agent", agent });
         if (result.handled) {
           setAgent(getAgentFromState(trimmed, agent));
           if (result.chat && result.chat.message) {
-            setMode(result.chat.mode);
             sendMessage(
               result.chat.message,
               result.chat.mode,
@@ -574,14 +571,9 @@ export function SessionView({
             return;
           }
           if (result.chat && !result.chat.message) {
-            setMode(result.chat.mode);
-            const modeLabels: Record<string, string> = {
-              ask: "问答",
-              agent: "执行",
-            };
             toast.show({
-              message: `已切换到${modeLabels[result.chat.mode] ?? result.chat.mode}模式`,
-              variant: "success",
+              message: "Ask/Task 已合并为 Agent 模式",
+              variant: "info",
             });
             setInputValue("");
             return;
@@ -619,17 +611,13 @@ export function SessionView({
         return;
       }
 
-      const effectiveMode = isSimpleGreetingOrNonTask(trimmed) ? "ask" : mode;
-      sendMessage(trimmed, effectiveMode, agent);
+      sendMessage(trimmed, "agent", agent);
       setInputValue("");
       toBottom();
     },
     [
-      mode,
       agent,
       sendMessage,
-      setRESTOutput,
-      setMode,
       setAgent,
       inputValue,
       toBottom,
@@ -733,9 +721,9 @@ export function SessionView({
         />
       </Box>
 
-      {/* 底部状态栏 — 左：SECBOT · session · mode · agent；右：上下文存量 */}
+      {/* 底部状态栏 — 左：SECBOT · session · agent；右：上下文存量 */}
       <SessionStatusBar
-        mode={mode}
+        mode="agent"
         agent={agent}
         sessionLabel={activeSessionLabel}
         theme={theme}

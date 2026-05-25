@@ -161,11 +161,10 @@ export function HomeView() {
         </Box>
       ) : null}
 
-      {/* 建议行 — 首项高亮（绿色），其余灰色；仅 Ask / Agent */}
+      {/* 建议行 */}
       <Box flexShrink={0} alignItems="center" justifyContent="center" width="100%" marginTop={1}>
         <Box flexDirection="row" gap={1}>
-          <Text color={theme.primary}>Ask</Text>
-          <Text color={theme.textMuted}>Agent</Text>
+          <Text color={theme.primary}>Agent</Text>
         </Box>
       </Box>
 
@@ -176,7 +175,7 @@ export function HomeView() {
         <Text color={theme.text}>
           <Text color={theme.warning}>• </Text>
           <Text color={theme.text}>
-            Tip 输入 /ask 问答、直接输入任务执行安全测试
+            Tip 直接输入问题或任务，Agent 会自动判断问答、追问或执行
           </Text>
         </Text>
       </Box>

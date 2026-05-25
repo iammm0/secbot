@@ -32,7 +32,7 @@ curl -N -X POST http://127.0.0.1:8000/api/chat \
 |------|------|------|------|
 | `message` | string | 是 | 用户输入 |
 | `session_id` | string | 否 | 会话 ID，不传则使用 `default` |
-| `mode` | `ask` / `agent` | 否 | `ask` 为问答模式，`agent` 为执行模式，默认 `agent` |
+| `mode` | `agent` | 否 | 统一 agent 模式，默认 `agent`；问答、追问、简单任务和复杂任务由后端自动分流 |
 | `agent` | string | 否 | 推荐 `hackbot` 或 `superhackbot`，默认 `hackbot` |
 | `prompt` | string | 否 | 自定义提示词，当前后端保留字段 |
 | `model` | string | 否 | 模型偏好，当前后端保留字段 |
@@ -65,7 +65,7 @@ TUI 中的 `secbot-cli` 是历史兼容别名；后端实际执行会落到 `hac
 ```bash
 curl -X POST http://127.0.0.1:8000/api/chat/sync \
   -H "Content-Type: application/json" \
-  -d '{"message":"你好","mode":"ask","agent":"hackbot"}'
+  -d '{"message":"你好","mode":"agent","agent":"hackbot"}'
 ```
 
 响应示例：

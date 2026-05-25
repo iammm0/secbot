@@ -7,7 +7,7 @@
    - `restSlashUseParseSlash = ['/help', '/list-agents']`，所以这两个**不会**走 trigger，会继续往下走 `parseSlash`。
 
 2. **parseSlash 之后**
-   - 若有 `result.chat` → 发消息或切模式。
+   - 若有 `result.chat` → 按 agent 模式发消息。
    - 若有 `result.fetchThen`：
      - **若 cmd === '/model'** → 直接 `dialog.replace(<ModelConfigDialog />)`，不调 fetch。
      - **否则** → 弹窗 `RestResultDialog`，`fetchContent` 由 parseSlash 提供（/help 为静态文案，/list-agents 为请求 API）。
@@ -22,7 +22,7 @@
 
 - **/help**：不请求后端，仅展示前端静态文案（集成安全工具概览）。
 
-**说明**：会话类斜杠命令保留 `/ask`（问答模式）、`/task`（任务模式）与 `/agent`（切换智能体）；已移除 `/plan`、`/start`，多步任务请直接输入任务描述。
+**说明**：会话类斜杠命令只展示 `/agent`（切换智能体）；`/ask xxx` 与 `/task xxx` 仅作为旧输入兼容别名，都会按 agent 模式发送。已移除 `/plan`、`/start`，多步任务请直接输入任务描述。
 
 ## /model 与 Ollama 配置
 
