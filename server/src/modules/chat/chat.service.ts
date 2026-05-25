@@ -364,7 +364,7 @@ export class ChatService {
     }
 
     if (intent.intent === 'qa') {
-      const answer = await this.qaAgent.answer(body.message);
+      const answer = await this.qaAgent.answerAdaptive(body.message, recentForRouter);
       return { response: answer, agent: 'qa' };
     }
 
@@ -434,9 +434,7 @@ export class ChatService {
             role: m.role as 'system' | 'user' | 'assistant',
             content: m.content,
           }));
-          const answer = intent.directResponse?.trim()
-            ? intent.directResponse.trim()
-            : await this.qaAgent.answerWithContext(message, history, ctx.contextBlock);
+          const answer = await this.qaAgent.answerAdaptive(message, history, ctx.contextBlock);
           return await finishWith(answer, 'qa');
         })(),
       };
