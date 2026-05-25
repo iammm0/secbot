@@ -117,7 +117,7 @@ TUI 的主界面围绕三块区域组织：
 | `SDKContext` | 后端地址与 API 能力 |
 | `SyncContext` | 与后端同步的配置/状态 |
 | `ThemeContext` | 主题颜色 |
-| `LocalContext` | 当前 mode、agent 等本地 UI 状态 |
+| `LocalContext` | 当前 agent 等本地 UI 状态 |
 | `DialogContext` | 对话框栈 |
 | `CommandContext` | 命令注册和触发 |
 | `KeybindContext` | 快捷键处理 |

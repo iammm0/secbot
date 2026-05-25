@@ -6,7 +6,7 @@ export interface SSEEvent {
   data: Record<string, unknown>;
 }
 
-export type ChatMode = "ask" | "agent";
+export type ChatMode = "agent";
 
 export interface ChatRequest {
   message: string;

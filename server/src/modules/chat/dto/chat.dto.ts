@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsOptional, IsString, ValidateNested } from 'class-validator';
 
-export type ChatMode = 'ask' | 'agent';
+export type ChatMode = 'agent';
 
 /** 客户端内置终端环境（可选），用于提示 LLM 生成与用户侧一致的命令 */
 export class ClientShellDto {
@@ -31,7 +31,8 @@ export class ChatRequestDto {
   @IsString()
   session_id?: string;
 
-  @IsIn(['ask', 'agent'])
+  @IsOptional()
+  @IsIn(['agent'])
   mode: ChatMode = 'agent';
 
   @IsString()

@@ -94,14 +94,14 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://192.168.1.100:8000 npm run tui
 
 - **主区（可滚动）**：流式显示规划、推理、执行、内容、报告与阶段；**仅在区域内渲染可见行**，底部有**行号与滚动提示**（如 1-18/45 行、Page Up/Down 滚动 ↑↓）；支持 **Page Up / Page Down** 在区域内上下滑动，避免全量反复渲染。
 - **自适应布局**：随终端窗口放大、缩小自动调整（监听 resize），列宽与行高、侧栏宽度等按当前终端尺寸计算，与浏览器窗口类似。
-- **右侧栏**：当前 mode / agent
+- **右侧栏**：当前 agent
 - **底部输入**：发送消息或斜杠命令
 
 ### 斜杠命令
 
 输入 `/` 可触发命令补全，Enter 执行。
 
-- **会话**：`/ask`、`/agent [secbot-cli|super]`
+- **会话**：`/agent [secbot-cli|super]`
 - **REST**：`/model`（当前模型/配置）、`/help`（集成安全工具）、`/list-agents`、`/system-info`、`/db-stats`
 
 ## 一键启动（推荐：解决「进不去 CLI」）

@@ -131,10 +131,8 @@ export class ChatService {
     body: ChatRequestDto,
     onSSEEvent?: (eventName: string, data: Record<string, unknown>) => void,
   ): Promise<string> {
-    const { message, mode, agent: agentType, client_shell: clientShell, model: modelName } = body;
+    const { message, agent: agentType, client_shell: clientShell, model: modelName } = body;
     const sessionId = (body.session_id ?? '').trim() || this.defaultSessionId;
-    const forceQA = mode === 'ask';
-    const forceAgent = mode === 'agent';
     this.getOrCreateSession(sessionId, agentType);
     this.appendSessionMessage(sessionId, MessageRole.USER, message);
     const session = this.getOrCreateSession(sessionId, agentType);
@@ -157,8 +155,6 @@ export class ChatService {
     const intent = await this.intentRouter.classify({
       userInput: message,
       recentMessages: recentForRouter,
-      forceAgent,
-      forceQA,
       sessionFocus: storeBefore.focus.map((f) => f.keyword),
       unresolved: storeBefore.unresolved,
     });
@@ -344,13 +340,45 @@ export class ChatService {
   }
 
   async chatSync(body: ChatRequestDto): Promise<ChatResponseDto> {
-    if (body.mode === 'ask') {
+    const sessionId = (body.session_id ?? '').trim() || this.defaultSessionId;
+    const agentType = body.agent ?? 'hackbot';
+    this.getOrCreateSession(sessionId, agentType);
+    const session = this.getOrCreateSession(sessionId, agentType);
+    const recentForRouter: ChatMessage[] = session.messages.slice(-4).map((m) => ({
+      role: m.role as 'system' | 'user' | 'assistant',
+      content: m.content,
+    }));
+    const storeBefore = this.contextAssembler.getStoreSnapshot(sessionId);
+    const intent = await this.intentRouter.classify({
+      userInput: body.message,
+      recentMessages: recentForRouter,
+      sessionFocus: storeBefore.focus.map((f) => f.keyword),
+      unresolved: storeBefore.unresolved,
+    });
+
+    if (intent.intent === 'small_talk' || intent.intent === 'meta') {
+      const answer =
+        intent.directResponse?.trim() ||
+        (intent.intent === 'small_talk' ? '收到～有需要执行的安全任务随时说。' : '我会尽量帮你查清楚。');
+      return { response: answer, agent: intent.intent };
+    }
+
+    if (intent.intent === 'qa') {
       const answer = await this.qaAgent.answer(body.message);
       return { response: answer, agent: 'qa' };
     }
-    const selectedAgent = this.agents[body.agent] ?? this.agents['hackbot'];
+
+    if (intent.intent === 'clarify_needed') {
+      return {
+        response:
+          intent.clarifyQuestion?.trim() ||
+          '我需要确认几个关键点：目标是什么？你期望的范围/产出是什么？是否已获得授权？',
+        agent: 'router',
+      };
+    }
+    const selectedAgent = this.agents[agentType] ?? this.agents['hackbot'];
     const response = await selectedAgent.process(body.message, { client_shell: body.client_shell });
-    return { response, agent: body.agent ?? 'hackbot' };
+    return { response, agent: agentType };
   }
 
   async rootResponse(_body: { requestId: string; action: string; password?: string }) {

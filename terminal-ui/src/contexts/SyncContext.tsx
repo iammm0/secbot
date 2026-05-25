@@ -27,14 +27,14 @@ export interface SyncContextValue {
   currentSentAt: number;
   /** 当前轮次 Secbot 响应的完成时刻（Date.now()），0 表示尚未完成 */
   currentCompletedAt: number;
-  /** 当前轮次请求使用的模式（ask 下去重展示等） */
+  /** 当前轮次请求使用的模式；目前固定为 agent */
   currentRoundChatMode: ChatMode;
   apiOutput: string | null;
   pendingRootRequest: PendingRootRequest | null;
   setPendingRootRequest: React.Dispatch<
     React.SetStateAction<PendingRootRequest | null>
   >;
-  sendMessage: (message: string, mode: "ask" | "agent", agent: string) => void;
+  sendMessage: (message: string, mode: ChatMode, agent: string) => void;
   setRESTOutput: (text: string | null) => void;
   activeSessionId: string;
   sessionList: SessionListEntry[];

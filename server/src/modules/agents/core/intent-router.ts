@@ -97,8 +97,6 @@ const TASK_HINTS = [
 export interface IntentRouteArgs {
   userInput: string;
   recentMessages: ChatMessage[];
-  forceAgent?: boolean;
-  forceQA?: boolean;
   sessionFocus?: string[];
   unresolved?: string[];
 }
@@ -112,19 +110,6 @@ export class IntentRouter {
 
   async classify(args: IntentRouteArgs): Promise<IntentDecision> {
     const heuristic = this.heuristic(args.userInput);
-
-    if (args.forceQA) {
-      return {
-        intent: 'qa',
-        confidence: 1,
-        needsExplore: false,
-        needsReport: false,
-        focus: heuristic.focus,
-        directResponse: null,
-        clarifyQuestion: null,
-        rationale: 'forceQA mode',
-      };
-    }
 
     const userPrompt =
       `本轮用户输入：\n${args.userInput}\n\n` +
@@ -147,12 +132,7 @@ export class IntentRouter {
       const raw = await this.llm.chat(messages);
       const parsed = this.parse(raw);
       if (parsed) {
-        const decision = this.mergeWithHeuristic(parsed, heuristic, args);
-        if (args.forceAgent && decision.intent === 'small_talk') {
-          /** forceAgent 模式下不允许把任务消息当闲聊 drop 掉，至少升级为 qa */
-          decision.intent = decision.directResponse ? 'qa' : 'task_complex';
-        }
-        return decision;
+        return this.mergeWithHeuristic(parsed, heuristic, args);
       }
     } catch {
       /* LLM 不可用 / 解析失败：走启发式 */
@@ -216,9 +196,6 @@ export class IntentRouter {
     if (heuristic.isSmallTalk) intent = 'small_talk';
     else if (heuristic.isMeta) intent = 'meta';
     else if (heuristic.isTask) intent = 'task_complex';
-
-    if (args.forceAgent && intent === 'small_talk') intent = 'qa';
-
     return {
       intent,
       confidence: 0.4,

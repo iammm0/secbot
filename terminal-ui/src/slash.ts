@@ -50,13 +50,13 @@ export function parseSlash(
   const parts = raw.split(/\s+/);
   const cmd = parts[0].toLowerCase();
 
-  // 本地：模式与智能体（仅 ask / task / agent，已移除 plan、/start）
+  // 兼容旧命令：/ask 与 /task 不再切换模式，只把后续文本按 agent 模式发送。
   if (cmd === '/ask') {
     return {
       handled: true,
       chat: {
         message: parts.slice(1).join(' ') || '',
-        mode: 'ask',
+        mode: 'agent',
         agent: localState.agent,
       },
     };
@@ -158,7 +158,6 @@ export function getAgentFromState(
 
 export function getModeFromSlash(input: string): ChatMode | null {
   const cmd = (input.trim().split(/\s+/)[0] ?? '').toLowerCase();
-  if (cmd === '/ask') return 'ask';
-  if (cmd === '/task') return 'agent';
+  if (cmd === '/ask' || cmd === '/task') return 'agent';
   return null;
 }
