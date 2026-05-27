@@ -2,6 +2,9 @@ import { createLLM } from '../../../common/llm';
 import { BaseTool, ToolResult } from '../core/base-tool';
 import { cleanHtmlToText } from './html-utils';
 
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+
 type SearchResult = {
   title: string;
   url: string;
@@ -51,11 +54,7 @@ export class SmartSearchTool extends BaseTool {
       if (searchResults.length === 0) {
         return {
           success: true,
-          result: {
-            query,
-            message: 'No relevant search results found.',
-            results: [],
-          },
+          result: { query, message: 'No relevant search results found.', results: [] },
         };
       }
 
@@ -71,12 +70,7 @@ export class SmartSearchTool extends BaseTool {
 
       return {
         success: true,
-        result: {
-          query,
-          total: results.length,
-          results,
-          ai_summary: aiSummary,
-        },
+        result: { query, total: results.length, results, ai_summary: aiSummary },
       };
     } catch (error) {
       const normalized = this.normalizeSearchError(error);
@@ -127,26 +121,58 @@ export class SmartSearchTool extends BaseTool {
   }
 
   private async searchOnce(query: string, maxResults: number): Promise<SearchResult[]> {
+    // Try DuckDuckGo HTML first, fallback to DuckDuckGo Lite
+    const results = await this.searchDDGHtml(query, maxResults);
+    if (results.length > 0) return results;
+    return this.searchDDGLite(query, maxResults);
+  }
+
+  private async searchDDGHtml(query: string, maxResults: number): Promise<SearchResult[]> {
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    try {
+      const html = await this.fetchWithRetry(url, { headers: { 'User-Agent': BROWSER_UA } });
+      if (!html) return [];
+      return this.parseDDGHtml(html, maxResults);
+    } catch {
+      return [];
+    }
+  }
+
+  private async searchDDGLite(query: string, maxResults: number): Promise<SearchResult[]> {
     const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-    const response = await this.fetchWithTimeout(url, {
-      headers: { 'User-Agent': 'secbot-ts/2.0.0' },
-    }, SEARCH_TIMEOUT_MS);
-
-    if (!response.ok) {
-      throw this.httpStatusError(response.status);
+    try {
+      const html = await this.fetchWithRetry(url, { headers: { 'User-Agent': BROWSER_UA } });
+      if (!html) return [];
+      return this.parseDuckDuckGoLite(html, maxResults);
+    } catch {
+      return [];
     }
+  }
 
-    const contentType = response.headers.get('content-type') ?? '';
-    if (contentType && !/text\/html|application\/xhtml\+xml/i.test(contentType)) {
-      throw new SearchRequestError(
-        'SEARCH_UNAVAILABLE',
-        `Search provider returned unsupported content type: ${contentType}`,
-        false,
-      );
+  private parseDDGHtml(html: string, maxResults: number): SearchResult[] {
+    const resultRegex = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    const snippetRegex = /<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+    const links: Array<{ url: string; title: string }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = resultRegex.exec(html)) !== null && links.length < maxResults) {
+      let rawUrl = String(m[1]).trim();
+      // DDG HTML wraps URLs in a redirect; extract the actual URL
+      const uddg = rawUrl.match(/[?&]uddg=([^&]+)/);
+      if (uddg) rawUrl = decodeURIComponent(uddg[1]);
+      if (!/^https?:\/\//i.test(rawUrl)) continue;
+      const title = cleanHtmlToText(String(m[2])).slice(0, 280);
+      links.push({ url: rawUrl, title });
     }
-
-    const html = await response.text();
-    return this.parseDuckDuckGoLite(html, maxResults);
+    const snippets: string[] = [];
+    let sm: RegExpExecArray | null;
+    while ((sm = snippetRegex.exec(html)) !== null && snippets.length < maxResults) {
+      snippets.push(cleanHtmlToText(String(sm[1])).slice(0, 320));
+    }
+    return links.map((entry, idx) => ({
+      title: entry.title,
+      url: entry.url,
+      snippet: snippets[idx] ?? '',
+    }));
   }
 
   private parseDuckDuckGoLite(html: string, maxResults: number): SearchResult[] {
@@ -175,25 +201,58 @@ export class SmartSearchTool extends BaseTool {
     }));
   }
 
+  private async fetchWithRetry(
+    url: string,
+    opts: { headers?: Record<string, string> } = {},
+    maxRetries = 2,
+    timeoutMs = 15000,
+  ): Promise<string | null> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, {
+          redirect: 'follow',
+          headers: { 'User-Agent': BROWSER_UA, ...opts.headers },
+          signal: controller.signal,
+        });
+        if (response.status === 429 || response.status >= 500) {
+          if (attempt < maxRetries) { await sleep(1500 * (attempt + 1)); continue; }
+          throw this.httpStatusError(response.status);
+        }
+        if (!response.ok) {
+          throw this.httpStatusError(response.status);
+        }
+        const contentType = response.headers.get('content-type') ?? '';
+        if (contentType && !/text\/html|application\/xhtml\+xml/i.test(contentType)) {
+          throw new SearchRequestError(
+            'SEARCH_UNAVAILABLE',
+            `Search provider returned unsupported content type: ${contentType}`,
+            false,
+          );
+        }
+        return await response.text();
+      } catch (error) {
+        const normalized = this.normalizeSearchError(error);
+        if (!normalized.retryable || attempt >= maxRetries) {
+          throw normalized;
+        }
+        await sleep(1000 * (attempt + 1));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    return null;
+  }
+
   private async fetchPages(results: SearchResult[]): Promise<string[]> {
-    const contents = await this.runWithConcurrency(
-      results,
-      4,
-      async (item) => await this.fetchPageContent(item.url),
-    );
-    return contents;
+    return this.runWithConcurrency(results, 4, (item) => this.fetchPageContent(item.url));
   }
 
   private async fetchPageContent(url: string): Promise<string> {
     try {
-      const response = await this.fetchWithTimeout(url, {
-        redirect: 'follow',
-        headers: { 'User-Agent': 'secbot-ts/2.0.0' },
-      }, PAGE_FETCH_TIMEOUT_MS);
-      if (!response.ok) return '';
-      const contentType = response.headers.get('content-type') ?? '';
-      if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return '';
-      const html = await response.text();
+      const html = await this.fetchWithRetry(url, {}, 1, PAGE_FETCH_TIMEOUT_MS);
+      if (!html) return '';
       const text = cleanHtmlToText(html);
       return text.split('\n').slice(0, 200).join('\n');
     } catch {
@@ -208,51 +267,22 @@ export class SmartSearchTool extends BaseTool {
       .map((item, idx) => `--- Source ${idx + 1} ---\n${item.slice(0, 2000)}`)
       .join('\n');
 
-    if (!combined) {
-      return 'No page content was extracted, summary is unavailable.';
-    }
+    if (!combined) return 'No page content was extracted, summary is unavailable.';
 
     const prompt =
       `Based on the sources below, answer the user query with a concise synthesis.\n\n` +
-      `User query: ${query}\n\n` +
-      `Sources:\n${combined.slice(0, 6000)}\n\n` +
-      `Requirements:\n` +
-      `1) Combine evidence from multiple sources.\n` +
-      `2) Mention uncertainty if sources conflict.\n` +
-      `3) Keep within 250 words.\n` +
-      `4) Answer in Chinese.\n`;
+      `User query: ${query}\n\nSources:\n${combined.slice(0, 6000)}\n\n` +
+      `Requirements:\n1) Combine evidence from multiple sources.\n` +
+      `2) Mention uncertainty if sources conflict.\n3) Keep within 250 words.\n4) Answer in Chinese.\n`;
 
     try {
       const llm = createLLM();
-      const summary = await llm.chat([
+      return (await llm.chat([
         { role: 'system', content: '你是专业信息研究助手，擅长综合多源信息并输出简洁结论。' },
         { role: 'user', content: prompt },
-      ]);
-      return summary.trim();
+      ])).trim();
     } catch {
       return '';
-    }
-  }
-
-  private async fetchWithTimeout(
-    url: string,
-    init: RequestInit,
-    timeoutMs: number,
-  ): Promise<Response> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(url, {
-        ...init,
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new SearchRequestError('SEARCH_TIMEOUT', 'Search request timed out.', true);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timer);
     }
   }
 
@@ -286,16 +316,13 @@ export class SmartSearchTool extends BaseTool {
   ): Promise<TResult[]> {
     const outputs: TResult[] = new Array(items.length);
     let index = 0;
-
     const tasks = Array.from({ length: Math.max(1, concurrency) }, async () => {
       while (true) {
-        const current = index;
-        index += 1;
+        const current = index++;
         if (current >= items.length) return;
         outputs[current] = await worker(items[current]);
       }
     });
-
     await Promise.all(tasks);
     return outputs;
   }

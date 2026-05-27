@@ -1,0 +1,5 @@
+export const API_BASE_URL = ''
+export const CONNECTION_TIMEOUT_MS = 15_000
+export const READ_STALL_TIMEOUT_MS = 120_000
+export const TYPEWRITER_CHARS_PER_TICK = 50
+export const TYPEWRITER_INTERVAL_MS = 16
