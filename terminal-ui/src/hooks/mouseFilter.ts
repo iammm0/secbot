@@ -236,21 +236,36 @@ function isPartialBracketedPaste(input: string, index: number): boolean {
  * 2. 拦截 stdin.read()，过滤鼠标转义序列
  *
  * 必须在 Ink render() 之前调用。
+ *
+ * 注意：鼠标追踪开启后，终端文本选择需按住 Option（macOS）或 Shift 键拖拽。
+ * 设置 SECBOT_MOUSE_SCROLL=0 可关闭鼠标追踪以恢复原生文本选择。
  */
 export function initMouseFilter(): void {
   if (!process.stdin.isTTY) return;
   if (_emitter) return; // 防止重复初始化
 
+  const mouseDisabled = process.env.SECBOT_MOUSE_SCROLL === '0' || process.env.SECBOT_MOUSE_SCROLL === 'false';
+
   const emitter = new EventEmitter();
   _emitter = emitter;
   _pendingMouseChunk = "";
+
+  if (mouseDisabled) {
+    // 不开启鼠标追踪，保留终端原生文本选择能力
+    // 滚动通过键盘 Page Up/Down 实现
+    _cleanup = () => {
+      _emitter = null;
+    };
+    return;
+  }
 
   // 保存原始 read；Ink 通过 readable + read() 读取原始输入。
   _origRead = process.stdin.read.bind(process.stdin);
 
   process.stdin.read = function patchedRead(...args: any[]): string | Buffer | null {
+    if (!_origRead) return null;
     while (true) {
-      const chunk = _origRead!(...args) as string | Buffer | null;
+      const chunk = _origRead(...args) as string | Buffer | null;
       if (chunk == null) {
         return null;
       }

@@ -211,13 +211,26 @@ export function ModelConfigDialog() {
       const c = input.toLowerCase();
       if (key.return || c === 'y' || c === '是') {
         if (confirmSwitchProvider) {
+          const switchedId = confirmSwitchProvider.id;
           api
-            .post<{ success: boolean; message: string }>('/api/system/config/provider', { llm_provider: confirmSwitchProvider.id })
+            .post<{ success: boolean; message: string }>('/api/system/config/provider', { llm_provider: switchedId })
             .then((r) => {
               setSwitchSuccessMessage(r.success ? r.message : r.message);
               setConfirmSwitchProvider(null);
+              if (r.success) {
+                api.get<Config>('/api/system/config').then(setConfig).catch(() => { });
+                // 如果该 provider 需要 API Key 且未配置，自动跳转到配置
+                const providerMeta = allProvidersForSwitch.find((p) => p.id === switchedId);
+                if (providerMeta && providerMeta.needs_api_key && !providerMeta.configured) {
+                  setApiKeyEditingProvider(providerMeta);
+                  setApiKeyInputValue('');
+                  setApiKeyMessage(`已切换到 ${providerMeta.name}，请配置 API Key` + (providerMeta.needs_base_url ? '（之后还需配置 Base URL）' : ''));
+                  setApiKeyStep('key');
+                  setView('api_key_input');
+                  return;
+                }
+              }
               setView('provider_switch_list');
-              if (r.success) api.get<Config>('/api/system/config').then(setConfig).catch(() => { });
             })
             .catch((e) => {
               setSwitchSuccessMessage(String((e as Error).message));

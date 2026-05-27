@@ -28,34 +28,29 @@ const REACT_OPERATING_POLICY =
   '【上下文约束】必须优先使用已提供的 RecentSession / SQLiteHistory / VectorMemory；' +
   '不得忽略上下文重复询问已知信息。\n' +
   '【安全边界】禁止无授权的破坏性/越权攻击；涉及高风险命令时先说明影响并给出确认建议。\n' +
+  '【自动安装】当工具返回"未安装"/"not found"/"ENOENT"错误时，' +
+  '立即调用 install_tool 安装对应工具，安装成功后重试原操作，无需询问用户。\n' +
   '【输出要求】每轮给出：当前结论、依据证据、下一步动作。';
 
 export class SecurityReActAgent extends BaseAgent {
-  private readonly toolsDict: Map<string, BaseTool>;
-  private readonly tools: BaseTool[];
   private readonly autoExecute: boolean;
   private readonly maxIterations: number;
-  private readonly llm: LLMProvider;
   private _reactHistory: ReActStep[] = [];
+
+  get llm(): LLMProvider {
+    return createLLM();
+  }
 
   constructor(
     name: string,
     systemPrompt: string,
     tools: BaseTool[],
     autoExecute = true,
-    maxIterations = 10,
+    maxIterations = Infinity,
   ) {
-    super(name, systemPrompt);
-    this.tools = tools;
+    super(name, systemPrompt, tools);
     this.autoExecute = autoExecute;
     this.maxIterations = maxIterations;
-
-    this.toolsDict = new Map<string, BaseTool>();
-    for (const tool of tools) {
-      this.toolsDict.set(tool.name, tool);
-    }
-
-    this.llm = createLLM();
   }
 
   get reactHistory(): ReadonlyArray<ReActStep> {
@@ -276,10 +271,6 @@ export class SecurityReActAgent extends BaseAgent {
     return JSON.stringify(result.result, null, 2);
   }
 
-  getToolsDescription(): string {
-    return this.tools.map((t) => `- ${t.name}: ${t.description}`).join('\n');
-  }
-
   async executeTodo(
     todo: TodoItem,
     userInput: string,
@@ -384,8 +375,10 @@ export class SecurityReActAgent extends BaseAgent {
 
   private buildSystemMessage(clientShell?: ClientShellPayload, contextBlock?: string): string {
     const shellBlock = formatClientShellContextBlock(clientShell);
+    const modelInfo = this.llm.model ? `当前推理模型: ${this.llm.model}\n\n` : '';
     return (
       `${this.systemPrompt}\n\n` +
+      modelInfo +
       `${REACT_OPERATING_POLICY}\n\n` +
       (contextBlock ? `【已注入上下文】\n${contextBlock}\n\n` : '') +
       (shellBlock ? `${shellBlock}\n\n` : '') +

@@ -103,8 +103,11 @@ git clone https://github.com/iammm0/secbot.git
 cd secbot
 npm ci
 
-# Backend dev (watch mode)
+# Backend dev
 npm run dev
+
+# Backend dev with file watching
+npm run dev:watch
 
 # TUI (in another terminal, default: spawn local backend)
 npm run start:tui
@@ -118,11 +121,13 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 | Script | Description |
 | --- | --- |
 | `npm run build` | Build the NestJS backend |
+| `npm run build:terminal-ui` | Build the Ink terminal UI |
 | `npm run typecheck` | Type-check server code |
 | `npm run lint` | Run ESLint |
 | `npm run format:check` | Check Prettier formatting |
 | `npm test` | Run tests |
 | `npm run release:pack` | Build and create npm package tarball |
+| `npm run release:verify` | Verify packaged npm release contents |
 
 ## Documentation
 
