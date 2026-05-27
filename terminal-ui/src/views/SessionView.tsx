@@ -545,7 +545,7 @@ export function SessionView({
           (c) => c.slash && c.slash.toLowerCase() === cmd,
         );
         const chatOnlySlash = ["/ask", "/task"];
-        const restSlashUseParseSlash = ["/help", "/list-agents", "/tools"];
+        const restSlashUseParseSlash = ["/help", "/list-agents", "/tools", "/skills", "/skill", "/create-skill"];
         if (
           exact &&
           !chatOnlySlash.includes(cmd) &&

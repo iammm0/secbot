@@ -36,8 +36,11 @@ describe('QAAgent.answerAdaptive', () => {
       }),
     };
 
+    Object.defineProperty(agent, 'llm', {
+      value: llm,
+      configurable: true,
+    });
     Object.assign(agent as object, {
-      llm,
       smartSearchTool,
       cveLookupTool: { run: vi.fn() },
     });
@@ -66,8 +69,11 @@ describe('QAAgent.answerAdaptive', () => {
       }),
     };
 
+    Object.defineProperty(agent, 'llm', {
+      value: { chat: vi.fn(), chatStream: vi.fn() },
+      configurable: true,
+    });
     Object.assign(agent as object, {
-      llm: { chat: vi.fn(), chatStream: vi.fn() },
       smartSearchTool,
       cveLookupTool: { run: vi.fn() },
     });
@@ -98,8 +104,11 @@ describe('QAAgent.answerAdaptive', () => {
       }),
     };
 
+    Object.defineProperty(agent, 'llm', {
+      value: llm,
+      configurable: true,
+    });
     Object.assign(agent as object, {
-      llm,
       smartSearchTool: { run: vi.fn() },
       cveLookupTool,
     });
@@ -112,4 +121,3 @@ describe('QAAgent.answerAdaptive', () => {
     expect(messages.some((msg) => msg.content.includes('CVE: CVE-2025-12345'))).toBe(true);
   });
 });
-

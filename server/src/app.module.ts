@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
+import { join } from 'node:path';
 import { HealthModule } from './modules/health/health.module';
 import configuration from './config/configuration';
 import { SessionsModule } from './modules/sessions/sessions.module';
@@ -15,6 +15,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { CrawlerModule } from './modules/crawler/crawler.module';
 import { MemoryModule } from './modules/memory/memory.module';
 import { VulnDbModule } from './modules/vuln-db/vuln-db.module';
+import { SkillsModule } from './modules/skills/skills.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { VulnDbModule } from './modules/vuln-db/vuln-db.module';
     CrawlerModule,
     MemoryModule,
     VulnDbModule,
+    SkillsModule,
   ],
 })
 export class AppModule {}
