@@ -61,7 +61,15 @@ export class ChatService {
     body: ChatRequestDto,
     onSSEEvent?: (eventName: string, data: Record<string, unknown>) => void,
   ): Promise<string> {
-    const { message, agent: agentType, client_shell: clientShell, model: modelName } = body;
+    const {
+      message,
+      mode,
+      agent: agentType,
+      client_shell: clientShell,
+      model: modelName,
+    } = body;
+    const forceQA = message.trim().startsWith('/ask ');
+    const forceAgent = mode === 'agent' || message.trim().startsWith('/agent ');
     const sessionId = (body.session_id ?? '').trim() || this.defaultSessionId;
     this.getOrCreateSession(sessionId, agentType);
     this.appendSessionMessage(sessionId, MessageRole.USER, message);
@@ -391,14 +399,9 @@ export class ChatService {
             role: m.role as 'system' | 'user' | 'assistant',
             content: m.content,
           }));
-          let answer: string;
-          if (intent.directResponse?.trim()) {
-            answer = intent.directResponse.trim();
-          } else {
-            answer = await this.qaAgent.answerAdaptive(message, history, ctx.contextBlock, (chunk) => {
-              emit('response_chunk', { chunk });
-            });
-          }
+          const answer = await this.qaAgent.answerAdaptive(message, history, ctx.contextBlock, (chunk) => {
+            emit('response_chunk', { chunk });
+          });
           return await finishWith(answer, 'qa');
         })(),
       };

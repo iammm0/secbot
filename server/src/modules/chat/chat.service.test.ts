@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConfigService } from '@nestjs/config';
 import { ChatService } from './chat.service';
 
 describe('ChatService QA routing', () => {
@@ -22,18 +21,21 @@ describe('ChatService QA routing', () => {
       rememberTurn: vi.fn().mockResolvedValue(undefined),
       applyPatch: vi.fn(),
     };
-    const toolsService = {
-      getBasicTools: vi.fn().mockReturnValue([]),
-      getBrowserSessionTool: vi.fn().mockReturnValue(null),
-      getAllTools: vi.fn().mockReturnValue([]),
+    const agentFactory = {
+      createQAAgent: vi.fn().mockReturnValue({ answerAdaptive: vi.fn() }),
+      createPlannerAgent: vi.fn().mockReturnValue({}),
+      createSummaryAgent: vi.fn().mockReturnValue({}),
+      createIntentRouter: vi.fn().mockReturnValue({ classify: vi.fn() }),
+      createExploreAgent: vi.fn().mockReturnValue({}),
+      createHackbot: vi.fn().mockReturnValue({}),
+      createSuperhackbot: vi.fn().mockReturnValue({}),
     };
     const databaseService = {
       saveConversation: vi.fn(),
     };
 
     return new ChatService(
-      new ConfigService(),
-      toolsService as never,
+      agentFactory as never,
       databaseService as never,
       contextAssembler as never,
     );
@@ -74,6 +76,7 @@ describe('ChatService QA routing', () => {
       '最新漏洞情况',
       expect.any(Array),
       'ctx',
+      expect.any(Function),
     );
     expect(events.some((item) => item.event === 'response')).toBe(true);
   });
