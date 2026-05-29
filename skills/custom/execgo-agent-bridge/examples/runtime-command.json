@@ -1,0 +1,25 @@
+{
+  "adapter": "secbot",
+  "agent_id": "agent-1",
+  "session_id": "session-1",
+  "action_id": "runtime-echo-1",
+  "action": {
+    "kind": "runtime.command",
+    "input": {
+      "program": "/bin/sh",
+      "args": [
+        "-c",
+        "echo hello execgo-runtime"
+      ],
+      "limits": {
+        "wall_time_ms": 30000
+      },
+      "metadata": {
+        "example": "runtime-command"
+      }
+    }
+  },
+  "metadata": {
+    "source": "execgo-agent-bridge"
+  }
+}

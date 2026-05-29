@@ -1,0 +1,15 @@
+{
+  "adapter": "secbot",
+  "agent_id": "agent-1",
+  "session_id": "session-1",
+  "action_id": "smoke-noop-1",
+  "action": {
+    "kind": "os.noop",
+    "input": {
+      "message": "hello execgo"
+    }
+  },
+  "metadata": {
+    "source": "execgo-agent-bridge"
+  }
+}
