@@ -15,6 +15,8 @@ desktop/dist/
 .vscode/
 .idea/
 .qoder/
+.claude/plan.md
+.claude/worktrees/
 *.swp
 *.swo
 *~
@@ -72,6 +74,9 @@ bin/
 
 # 其他
 .DS_Store
+.plan
+.plan.md
+skills/custom/demo-skill/
 *.bak
 *.tmp
 commit_msg.txt
