@@ -1,0 +1,136 @@
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              SecBot Architecture                                     │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────┐         SSE/REST          ┌──────────────────────────────────┐
+│   Terminal UI (Ink)   │◄────────────────────────►│      NestJS Backend (:8000)       │
+│                       │                           │                                  │
+│  cli.tsx (entry)      │   POST /api/chat (SSE)    │  main.ts (bootstrap)             │
+│  App.tsx              │   POST /api/chat/sync     │                                  │
+│  useChat.ts (hook)    │   GET  /api/tools         │  ┌────────────────────────────┐  │
+│  sse.ts               │   GET  /api/agents        │  │        AppModule           │  │
+│  api.ts               │   GET  /api/sessions      │  └────────────┬───────────────┘  │
+│  views/               │   POST /api/system        │               │                  │
+│  components/          │                           │               ▼                  │
+│  contexts/            │                           │  ┌────────────────────────────┐  │
+└──────────────────────┘                           │  │       ChatModule           │  │
+                                                    │  │  ChatService               │  │
+                                                    │  │  AgentFactoryService       │  │
+                                                    │  │  SSEEventForwarder         │  │
+                                                    │  └────────────┬───────────────┘  │
+                                                    │               │                  │
+                                                    │               ▼                  │
+                                                    │  ┌────────────────────────────┐  │
+                                                    │  │      Agent Layer           │  │
+                                                    │  │                            │  │
+                                                    │  │  IntentRouter              │  │
+                                                    │  │    ├─► QAAgent             │  │
+                                                    │  │    ├─► HackbotAgent        │  │
+                                                    │  │    ├─► SuperHackbotAgent   │  │
+                                                    │  │    ├─► ExploreAgent        │  │
+                                                    │  │    ├─► PlannerAgent        │  │
+                                                    │  │    └─► SummaryAgent        │  │
+                                                    │  │                            │  │
+                                                    │  │  SecurityReActAgent (base) │  │
+                                                    │  │  Think → Action → Observe  │  │
+                                                    │  └────────────┬───────────────┘  │
+                                                    │               │                  │
+                                                    │               ▼                  │
+                                                    │  ┌────────────────────────────┐  │
+                                                    │  │      Tools Layer (77+)     │  │
+                                                    │  │      ToolsService          │  │
+                                                    │  │                            │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ security (33)       │   │  │
+                                                    │  │  │ port_scan,nmap,     │   │  │
+                                                    │  │  │ nuclei,nikto,vuln,  │   │  │
+                                                    │  │  │ subdomain_enum,     │   │  │
+                                                    │  │  │ param_fuzzer,ffuf,  │   │  │
+                                                    │  │  │ cidr_scan,sniff,    │   │  │
+                                                    │  │  │ credential_spray... │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ protocol (8)        │   │  │
+                                                    │  │  │ ssh,ftp,mysql,redis │   │  │
+                                                    │  │  │ smb,snmp,ldap,email │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ defense (6)         │   │  │
+                                                    │  │  │ container_escape,   │   │  │
+                                                    │  │  │ intrusion_detect... │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ utility (10)        │   │  │
+                                                    │  │  │ hash,encode,cve,    │   │  │
+                                                    │  │  │ secret_scanner...   │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ cloud (4)           │   │  │
+                                                    │  │  │ bucket_enum,        │   │  │
+                                                    │  │  │ metadata_detect...  │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ osint (4)           │   │  │
+                                                    │  │  │ shodan,virustotal,  │   │  │
+                                                    │  │  │ cert_transparency.. │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ web_research (6)    │   │  │
+                                                    │  │  │ smart_search,       │   │  │
+                                                    │  │  │ browser_session...  │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ control (3)         │   │  │
+                                                    │  │  │ execute_command,    │   │  │
+                                                    │  │  │ terminal_session,   │   │  │
+                                                    │  │  │ install_tool        │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  │  ┌─────────────────────┐   │  │
+                                                    │  │  │ reporting (1)       │   │  │
+                                                    │  │  │ report_generator    │   │  │
+                                                    │  │  └─────────────────────┘   │  │
+                                                    │  └────────────────────────────┘  │
+                                                    │               │                  │
+                                                    │               ▼                  │
+                                                    │  ┌────────────────────────────┐  │
+                                                    │  │     Common / Infra         │  │
+                                                    │  │                            │  │
+                                                    │  │  LLM Factory               │  │
+                                                    │  │  ├─ OllamaProvider         │  │
+                                                    │  │  └─ OpenAICompatProvider   │  │
+                                                    │  │                            │  │
+                                                    │  │  EventBus (typed events)   │  │
+                                                    │  │  SQLite (better-sqlite3)   │  │
+                                                    │  │  Memory (vector + session) │  │
+                                                    │  │  VulnDB                    │  │
+                                                    │  │  Config (persisted KV)     │  │
+                                                    │  └────────────────────────────┘  │
+                                                    └──────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                            Data Flow                                                 │
+│                                                                                      │
+│  User Input ──► TUI (useChat) ──► POST /api/chat (SSE) ──► ChatService              │
+│                                                                │                     │
+│                                                         IntentRouter                 │
+│                                                          ├─ QA? → QAAgent            │
+│                                                          ├─ Scan? → Hackbot          │
+│                                                          └─ Complex? → SuperHackbot  │
+│                                                                │                     │
+│                                                    ReAct Loop (Think→Action→Observe) │
+│                                                                │                     │
+│                                                         ToolsService.execute()       │
+│                                                                │                     │
+│                                                    ┌───────────┴──────────┐          │
+│                                                    │  Tool returns error  │          │
+│                                                    │  "xxx 未安装"         │          │
+│                                                    └───────────┬──────────┘          │
+│                                                                │                     │
+│                                                    install_tool → brew/apt/go        │
+│                                                                │                     │
+│                                                         Retry original tool          │
+│                                                                │                     │
+│                                                         Final Answer ──► SSE ──► TUI │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
