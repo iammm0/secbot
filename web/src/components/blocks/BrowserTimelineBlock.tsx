@@ -8,7 +8,7 @@ export function BrowserTimelineBlock({ item }: Props) {
   return (
     <div className="glass-card p-4 animate-fade-in-up">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-secondary text-xs font-semibold uppercase tracking-wider">Explore</span>
+        <span className="text-secondary text-xs font-semibold uppercase tracking-wider">{item.title || 'ExploreAgent · 浏览路径'}</span>
         {item.focus?.map((f) => (
           <span key={f} className="text-xs bg-secondary/10 text-secondary px-2 py-0.5 rounded">{f}</span>
         ))}
@@ -33,7 +33,7 @@ export function BrowserTimelineBlock({ item }: Props) {
       </div>
       {item.exploreSummary && (
         <div className="mt-2 text-xs text-text-dim">
-          {item.exploreSummary.factsCount} facts collected
+          已补充 {item.exploreSummary.factsCount} 条事实
           {item.exploreSummary.summary && <span> · {item.exploreSummary.summary}</span>}
         </div>
       )}

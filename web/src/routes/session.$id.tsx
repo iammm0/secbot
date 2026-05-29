@@ -8,36 +8,34 @@ import { LoadingBar } from '@/components/LoadingBar'
 import { BlockRouter, ErrorBlock, ReportBlock } from '@/components/blocks/BlockRouter'
 import { UserMessageBlock } from '@/components/blocks/UserMessageBlock'
 
-type SessionSearch = { prompt?: string; mode?: 'ask' | 'agent' }
+type SessionSearch = { prompt?: string }
 
 export const Route = createFileRoute('/session/$id')({
   validateSearch: (search: Record<string, unknown>): SessionSearch => ({
     prompt: search.prompt as string | undefined,
-    mode: search.mode as 'ask' | 'agent' | undefined,
   }),
   component: SessionView,
 })
 
 function SessionView() {
   const { id } = Route.useParams()
-  const { prompt, mode: searchMode } = Route.useSearch()
-  const { addSession, updateLabel, getMode } = useSessionStore()
-  const mode = searchMode || getMode()
+  const { prompt } = Route.useSearch()
+  const { addSession, updateLabel } = useSessionStore()
   const { streaming, streamState, history, sendMessage } = useChat(id)
   const scrollRef = useRef<HTMLDivElement>(null)
   const sentInitial = useRef(false)
 
   useEffect(() => {
-    addSession(id, mode)
-  }, [id, mode, addSession])
+    addSession(id)
+  }, [id, addSession])
 
   useEffect(() => {
     if (prompt && !sentInitial.current) {
       sentInitial.current = true
       updateLabel(id, prompt)
-      sendMessage(prompt, mode)
+      sendMessage(prompt)
     }
-  }, [prompt, mode, sendMessage, id, updateLabel])
+  }, [prompt, sendMessage, id, updateLabel])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -47,7 +45,7 @@ function SessionView() {
 
   const handleSubmit = (msg: string) => {
     updateLabel(id, msg)
-    sendMessage(msg, mode)
+    sendMessage(msg)
   }
 
   return (
@@ -78,7 +76,7 @@ function SessionView() {
         )}
       </div>
       <div className="px-4 pb-4 pt-2">
-        <ChatInput onSubmit={handleSubmit} disabled={streaming} placeholder={streaming ? 'Thinking...' : 'Ask anything...'} />
+        <ChatInput onSubmit={handleSubmit} disabled={streaming} placeholder={streaming ? 'Thinking...' : 'Message SecBot...'} />
       </div>
       <StatusBar contextUsage={streamState?.contextUsage ?? null} phase={streamState?.phase} />
     </div>

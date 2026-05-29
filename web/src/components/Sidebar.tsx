@@ -2,17 +2,13 @@ import { useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { nanoid } from 'nanoid'
 import { useSessionStore } from '@/hooks/useSessionStore'
-import { ModeToggle } from './ModeToggle'
-import type { ChatMode } from '@/lib/types'
 
 interface Props {
-  mode: ChatMode
-  onModeChange: (mode: ChatMode) => void
   onClear?: () => void
   onOpenSettings?: () => void
 }
 
-export function Sidebar({ mode, onModeChange, onClear, onOpenSettings }: Props) {
+export function Sidebar({ onClear, onOpenSettings }: Props) {
   const [collapsed, setCollapsed] = useState(true)
   const navigate = useNavigate()
   const params = useParams({ strict: false }) as { id?: string }
@@ -20,13 +16,13 @@ export function Sidebar({ mode, onModeChange, onClear, onOpenSettings }: Props) 
 
   const newChat = () => {
     const id = nanoid(10)
-    addSession(id, mode)
-    navigate({ to: '/session/$id', params: { id }, search: { mode } })
+    addSession(id)
+    navigate({ to: '/session/$id', params: { id } })
     setCollapsed(true)
   }
 
-  const selectSession = (id: string, sessionMode: ChatMode) => {
-    navigate({ to: '/session/$id', params: { id }, search: { mode: sessionMode } })
+  const selectSession = (id: string) => {
+    navigate({ to: '/session/$id', params: { id } })
     setCollapsed(true)
   }
 
@@ -71,7 +67,7 @@ export function Sidebar({ mode, onModeChange, onClear, onOpenSettings }: Props) 
               className={`group flex items-center gap-1 px-2 py-1.5 rounded text-xs font-mono cursor-pointer transition-colors ${
                 s.id === params.id ? 'bg-primary/10 text-primary' : 'text-text-dim hover:text-text hover:bg-white/5'
               }`}
-              onClick={() => selectSession(s.id, s.mode)}
+              onClick={() => selectSession(s.id)}
             >
               {!collapsed && (
                 <>
@@ -94,7 +90,6 @@ export function Sidebar({ mode, onModeChange, onClear, onOpenSettings }: Props) 
               <button onClick={onOpenSettings} className="w-full px-2 py-1 rounded text-xs text-text-dim hover:text-text hover:bg-white/5 transition-colors flex items-center gap-2">
                 <span>⚙</span><span>Settings</span>
               </button>
-              <ModeToggle mode={mode} onChange={onModeChange} />
               {onClear && (
                 <button onClick={onClear} className="w-full px-2 py-1 rounded text-xs text-text-dim hover:text-text hover:bg-white/5 transition-colors">
                   Clear History
@@ -105,9 +100,6 @@ export function Sidebar({ mode, onModeChange, onClear, onOpenSettings }: Props) 
           {collapsed && (
             <div className="flex flex-col items-center gap-1">
               <button onClick={onOpenSettings} className="text-[10px] text-text-dim hover:text-primary" title="Settings">⚙</button>
-              <button onClick={() => onModeChange(mode === 'agent' ? 'ask' : 'agent')} className="text-[10px] text-text-dim hover:text-primary" title="Toggle mode">
-                {mode === 'agent' ? 'A' : 'Q'}
-              </button>
             </div>
           )}
         </div>

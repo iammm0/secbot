@@ -7,7 +7,7 @@ interface Props {
   autoFocus?: boolean
 }
 
-export function ChatInput({ onSubmit, placeholder = 'Ask anything...', disabled = false, autoFocus = false }: Props) {
+export function ChatInput({ onSubmit, placeholder = 'Message SecBot...', disabled = false, autoFocus = false }: Props) {
   const [value, setValue] = useState('')
   const ref = useRef<HTMLTextAreaElement>(null)
 
