@@ -1,0 +1,25 @@
+{
+  "adapter": "secbot",
+  "agent_id": "agent-1",
+  "session_id": "session-1",
+  "action_id": "task-graph-demo-1",
+  "action": {
+    "kind": "task_graph.submit",
+    "input": {
+      "tasks": [
+        {
+          "id": "graph-noop-1",
+          "type": "os",
+          "tool_name": "noop",
+          "input": {
+            "message": "hello from submitted task graph"
+          },
+          "timeout": 5000
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "source": "execgo-agent-bridge"
+  }
+}

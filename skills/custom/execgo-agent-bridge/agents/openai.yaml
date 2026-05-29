@@ -1,0 +1,6 @@
+interface:
+  display_name: "ExecGo Agent Bridge"
+  short_description: "Route coding-agent actions through ExecGo"
+  default_prompt: "Use the execgo-agent-bridge skill and route eligible actions through Secbot's ExecGo control tools."
+policy:
+  allow_implicit_invocation: true
