@@ -1,21 +1,32 @@
 import { useSyncExternalStore, useCallback } from 'react'
-import type { ChatMode } from '@/lib/types'
-
 export interface SessionEntry {
   id: string
   label: string
-  mode: ChatMode
+  mode: 'agent'
   createdAt: number
 }
 
 const STORAGE_KEY = 'secbot-sessions'
-const MODE_KEY = 'secbot-mode'
 
 let listeners: Array<() => void> = []
 function emit() { listeners.forEach((l) => l()) }
 
+function normalizeSessions(raw: unknown): SessionEntry[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Partial<SessionEntry> & { id: string } => Boolean(item && typeof item === 'object' && typeof item.id === 'string'))
+    .map((item) => ({
+      id: item.id,
+      label: typeof item.label === 'string' ? item.label : 'New Chat',
+      mode: 'agent',
+      createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+    }))
+}
+
 function load(): SessionEntry[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
+  try {
+    return normalizeSessions(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'))
+  } catch { return [] }
 }
 function save(sessions: SessionEntry[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
@@ -24,17 +35,25 @@ function save(sessions: SessionEntry[]) {
 
 function getSnapshot() { return localStorage.getItem(STORAGE_KEY) || '[]' }
 
+function sessionsFromSnapshot(raw: string): SessionEntry[] {
+  try {
+    return normalizeSessions(JSON.parse(raw))
+  } catch {
+    return []
+  }
+}
+
 export function useSessionStore() {
   const raw = useSyncExternalStore(
     (cb) => { listeners.push(cb); return () => { listeners = listeners.filter((l) => l !== cb) } },
     getSnapshot,
   )
-  const sessions: SessionEntry[] = JSON.parse(raw)
+  const sessions = sessionsFromSnapshot(raw)
 
-  const addSession = useCallback((id: string, mode: ChatMode) => {
+  const addSession = useCallback((id: string) => {
     const list = load()
     if (list.find((s) => s.id === id)) return
-    list.unshift({ id, label: 'New Chat', mode, createdAt: Date.now() })
+    list.unshift({ id, label: 'New Chat', mode: 'agent', createdAt: Date.now() })
     save(list)
   }, [])
 
@@ -48,14 +67,5 @@ export function useSessionStore() {
     if (s && s.label === 'New Chat') { s.label = label.slice(0, 30); save(list) }
   }, [])
 
-  const getMode = useCallback((): ChatMode => {
-    return (localStorage.getItem(MODE_KEY) as ChatMode) || 'agent'
-  }, [])
-
-  const setMode = useCallback((mode: ChatMode) => {
-    localStorage.setItem(MODE_KEY, mode)
-    emit()
-  }, [])
-
-  return { sessions, addSession, removeSession, updateLabel, getMode, setMode }
+  return { sessions, addSession, removeSession, updateLabel }
 }

@@ -15,7 +15,7 @@ export function ActionBlock({ item }: Props) {
         className="flex items-center gap-2 text-xs w-full text-left"
       >
         <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-warning animate-pulse' : ok ? 'bg-primary' : 'bg-error'}`} />
-        <span className="font-mono text-secondary">{item.tool}</span>
+        <span className="font-mono text-secondary">{item.title || item.tool}</span>
         {item.params && <span className="text-text-dim truncate max-w-[200px]">{JSON.stringify(item.params).slice(0, 60)}</span>}
         <span className="text-white/30 ml-auto">{expanded ? '▼' : '▶'}</span>
       </button>

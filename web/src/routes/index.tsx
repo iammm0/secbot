@@ -17,13 +17,12 @@ const LOGO = `
 
 function HomeView() {
   const navigate = useNavigate()
-  const { addSession, getMode } = useSessionStore()
+  const { addSession } = useSessionStore()
 
   const handleSubmit = (message: string) => {
     const id = nanoid(10)
-    const mode = getMode()
-    addSession(id, mode)
-    navigate({ to: '/session/$id', params: { id }, search: { prompt: message, mode } })
+    addSession(id)
+    navigate({ to: '/session/$id', params: { id }, search: { prompt: message } })
   }
 
   return (
@@ -34,7 +33,7 @@ function HomeView() {
       <h1 className="sm:hidden text-primary font-mono text-2xl font-bold mb-8 drop-shadow-[0_0_12px_rgba(0,255,136,0.4)]">SecBot</h1>
       <p className="text-text-dim text-sm mb-6">AI-powered security automation</p>
       <div className="w-full max-w-2xl">
-        <ChatInput onSubmit={handleSubmit} placeholder="Ask anything..." autoFocus />
+        <ChatInput onSubmit={handleSubmit} placeholder="Message SecBot..." autoFocus />
       </div>
     </div>
   )

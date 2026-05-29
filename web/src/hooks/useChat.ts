@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { connectSSE } from '@/lib/sse'
 import { TYPEWRITER_CHARS_PER_TICK, TYPEWRITER_INTERVAL_MS } from '@/lib/constants'
+import { TRANSIENT_TOOLS } from '@/lib/streamConstants'
+import { buildObservationBody } from '@/lib/toolObservation'
 import type { ChatMode, SSEEvent, StreamState, StreamTimelineItem, BrowserStep, HistoryItem } from '@/lib/types'
 
 const initialStreamState: StreamState = {
@@ -71,6 +73,13 @@ export function useChat(sessionId: string) {
     }, [],
   )
 
+  const appendContent = useCallback((text: string) => {
+    setStreamState((s) => ({
+      ...s,
+      content: s.content ? `${s.content}\n\n${text}` : text,
+    }))
+  }, [])
+
   const clearTypewriter = useCallback(() => {
     if (typewriterRef.current !== null) { clearInterval(typewriterRef.current); typewriterRef.current = null }
   }, [])
@@ -85,7 +94,7 @@ export function useChat(sessionId: string) {
         ...s,
         response: chunk,
         timeline: upsertTimelineItem(s.timeline, 'final-summary', (prev) =>
-          prev ? { ...prev, body: chunk } : { id: 'final-summary', type: 'final', title: 'Response', body: chunk, status: 'running' },
+          prev ? { ...prev, body: chunk } : { id: 'final-summary', type: 'final', title: '最终总结', body: chunk, status: 'running' },
         ),
       }))
       if (revealed >= fullText.length) {
@@ -94,7 +103,7 @@ export function useChat(sessionId: string) {
           ...s,
           response: fullText,
           timeline: upsertTimelineItem(s.timeline, 'final-summary', (prev) =>
-            prev ? { ...prev, body: fullText, status: 'done' } : { id: 'final-summary', type: 'final', title: 'Response', body: fullText, status: 'done' },
+            prev ? { ...prev, body: fullText, status: 'done' } : { id: 'final-summary', type: 'final', title: '最终总结', body: fullText, status: 'done' },
           ),
         }))
       }
@@ -133,34 +142,37 @@ export function useChat(sessionId: string) {
             const todos = todosRaw.map((t) => ({ content: t.content, status: t.status }))
             const scopeRaw = String(data.scope ?? 'master').toLowerCase()
             const planScope: 'master' | 'adaptive' = scopeRaw === 'adaptive' ? 'adaptive' : 'master'
+            const title = planScope === 'adaptive' ? '穿插规划' : '规划'
             const planId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
             setStreamState((s) => ({
               ...s,
               planning: { content: text, todos },
-              timeline: [...s.timeline, { id: planId, type: 'planning', title: planScope === 'adaptive' ? 'Adaptive Plan' : 'Plan', body: text, todos, planScope, status: 'done' }],
+              timeline: [...s.timeline, { id: planId, type: 'planning', title, body: text, todos, planScope, status: 'done' }],
             }))
             break
           }
 
           case 'thought_start': {
-            const stepKey = (data.step_key as string) ?? `iter-${data.iteration ?? thoughtSeqRef.current}`
-            const seq = thoughtSeqRef.current++
-            const id = `thought-${stepKey}-${seq}`
+            const iteration = Number(data.iteration ?? 1)
+            const stepKey = (data.step_key as string) || `iter-${iteration}`
+            thoughtSeqRef.current += 1
+            const id = `thought-${stepKey}-${thoughtSeqRef.current}`
             activeThoughtIdByStepRef.current.set(stepKey, id)
             setStreamState((s) => ({
               ...s,
-              thought: { iteration: (data.iteration as number) ?? seq, content: '' },
-              timeline: [...s.timeline, { id, type: 'thought', title: `Thinking #${seq + 1}`, body: '', iteration: seq + 1, status: 'running' }],
+              thought: { iteration, content: '' },
+              thoughtChunks: new Map(s.thoughtChunks).set(stepKey, ''),
+              timeline: [...s.timeline, { id, type: 'thought', title: '推理', body: '', iteration, status: 'running' }],
             }))
             break
           }
 
           case 'thought_chunk': {
-            const stepKey = (data.step_key as string) ?? ''
+            const iteration = Number(data.iteration ?? 1)
+            const stepKey = (data.step_key as string) || `iter-${iteration}`
             const chunk = (data.chunk as string) ?? (data.content as string) ?? ''
             if (!chunk) break
-            const id = activeThoughtIdByStepRef.current.get(stepKey)
-            if (!id) break
+            const id = activeThoughtIdByStepRef.current.get(stepKey) ?? `thought-${stepKey}`
             setStreamState((s) => {
               const newChunks = new Map(s.thoughtChunks)
               newChunks.set(stepKey, (newChunks.get(stepKey) ?? '') + chunk)
@@ -169,22 +181,23 @@ export function useChat(sessionId: string) {
                 ...s,
                 thoughtChunks: newChunks,
                 thought: s.thought ? { ...s.thought, content: body } : null,
-                timeline: upsertTimelineItem(s.timeline, id, (prev) => prev ? { ...prev, body } : { id, type: 'thought', title: 'Thinking', body, status: 'running' }),
+                timeline: upsertTimelineItem(s.timeline, id, (prev) => prev ? { ...prev, body, title: '推理', iteration, status: prev.status ?? 'running' } : { id, type: 'thought', title: '推理', body, iteration, status: 'running' }),
               }
             })
             break
           }
 
           case 'thought': {
-            const stepKey = (data.step_key as string) ?? ''
+            const iteration = Number(data.iteration ?? 1)
+            const stepKey = (data.step_key as string) || `iter-${iteration}`
             const content = (data.content as string) ?? ''
-            const id = activeThoughtIdByStepRef.current.get(stepKey)
-            if (!id) break
+            const id = activeThoughtIdByStepRef.current.get(stepKey) ?? `thought-${stepKey}`
             setStreamState((s) => ({
               ...s,
-              thought: { iteration: (data.iteration as number) ?? 0, content },
-              timeline: upsertTimelineItem(s.timeline, id, (prev) => prev ? { ...prev, body: content, status: 'done' } : { id, type: 'thought', title: 'Thinking', body: content, status: 'done' }),
+              thought: { iteration, content },
+              timeline: upsertTimelineItem(s.timeline, id, (prev) => prev ? { ...prev, title: '推理', body: content || prev.body, iteration, status: 'done' } : { id, type: 'thought', title: '推理', body: content, iteration, status: 'done' }),
             }))
+            activeThoughtIdByStepRef.current.delete(stepKey)
             break
           }
 
@@ -193,10 +206,15 @@ export function useChat(sessionId: string) {
             const params = (data.params as Record<string, unknown>) ?? {}
             const stepKey = (data.step_key as string) ?? `iter-${data.iteration ?? 0}`
             const actionId = `action-${stepKey}-${toolName}-${Date.now()}`
+            let body = '状态: 执行中'
+            if (toolName === 'execute_command') {
+              const command = String(params.command ?? '').trim()
+              if (command) body = `命令: ${command}\n${body}`
+            }
             setStreamState((s) => ({
               ...s,
-              actions: [...s.actions, { tool: toolName, params }],
-              timeline: [...s.timeline, { id: actionId, type: 'action', title: toolName, body: '', tool: toolName, params, status: 'running' }],
+              actions: [...s.actions, { tool: toolName, params, viewType: ((data.view_type as string) ?? 'raw') as 'raw' | 'summary' }],
+              timeline: [...s.timeline, { id: actionId, type: 'action', title: `工具调用 · ${toolName || 'unknown'}`, body, tool: toolName, params, status: 'running' }],
             }))
             break
           }
@@ -208,11 +226,42 @@ export function useChat(sessionId: string) {
             setStreamState((s) => {
               const actions = [...s.actions]
               const lastIdx = actions.findLastIndex((a: { tool: string }) => a.tool === toolName)
-              if (lastIdx >= 0) actions[lastIdx] = { ...actions[lastIdx], success: ok, result: data.result, error: data.error !== undefined ? String(data.error) : undefined }
+              if (lastIdx >= 0) {
+                actions[lastIdx] = {
+                  ...actions[lastIdx],
+                  success: ok,
+                  result: data.result,
+                  error: data.error !== undefined ? String(data.error) : undefined,
+                  viewType: ((data.view_type as string) ?? actions[lastIdx].viewType ?? 'raw') as 'raw' | 'summary',
+                }
+              }
               const timeline = [...s.timeline]
               const realIdx = timeline.findLastIndex((t: StreamTimelineItem) => t.type === 'action' && t.tool === toolName && t.status === 'running')
               if (realIdx >= 0) {
-                timeline[realIdx] = { ...timeline[realIdx], body: ok ? 'Done' : `Error: ${data.error ?? 'unknown'}`, success: ok, result: data.result, error: data.error !== undefined ? String(data.error) : undefined, status: 'done' }
+                const prev = timeline[realIdx]
+                const command = toolName === 'execute_command' ? String(prev.params?.command ?? '').trim() : ''
+                const prefix = command ? `命令: ${command}\n` : ''
+                timeline[realIdx] = {
+                  ...timeline[realIdx],
+                  body: `${prefix}状态: ${ok ? '完成' : '失败'}${data.error ? `\n错误: ${String(data.error)}` : ''}`,
+                  success: ok,
+                  result: data.result,
+                  error: data.error !== undefined ? String(data.error) : undefined,
+                  status: 'done',
+                }
+                if (!TRANSIENT_TOOLS.has(toolName)) {
+                  timeline.splice(realIdx + 1, 0, {
+                    id: `obs-${toolName}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+                    type: 'observation',
+                    title: `观察 · ${toolName}`,
+                    body: buildObservationBody(toolName, data.result, ok, data.error !== undefined ? String(data.error) : undefined),
+                    tool: toolName,
+                    status: 'done',
+                    success: ok,
+                    error: data.error !== undefined ? String(data.error) : undefined,
+                    result: data.result,
+                  })
+                }
               }
               return { ...s, actions, timeline }
             })
@@ -220,12 +269,15 @@ export function useChat(sessionId: string) {
           }
 
           case 'content': {
+            if (((data.view_type as string) ?? 'summary') === 'raw') break
             const obs = (data.content as string) ?? ''
             const obsTool = (data.tool as string) ?? ''
+            const obsIteration = Number(data.iteration ?? 0)
+            const obsTitle = obsTool ? `观察 · ${obsTool}${obsIteration ? ` #${obsIteration}` : ''}` : '总结观察'
+            appendContent(obs)
             setStreamState((s) => ({
               ...s,
-              content: s.content ? `${s.content}\n\n${obs}` : obs,
-              timeline: [...s.timeline, { id: `observation-${s.timeline.length}`, type: 'observation', title: obsTool ? `Observation · ${obsTool}` : 'Observation', body: obs, tool: obsTool || undefined, status: 'done' }],
+              timeline: [...s.timeline, { id: `observation-${s.timeline.length}`, type: 'observation', title: obsTitle, body: obs, tool: obsTool || undefined, iteration: obsIteration || undefined, status: 'done' }],
             }))
             break
           }
@@ -263,11 +315,10 @@ export function useChat(sessionId: string) {
             const traceId = `browser-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
             currentBrowserTraceIdRef.current = traceId
             browserStepCounterRef.current = 0
-            const startStep: BrowserStep = { index: 0, kind: 'start', detail: focus.join(', '), ts: Date.now() }
-            browserStepCounterRef.current = 1
+            const startStep: BrowserStep = { index: browserStepCounterRef.current++, kind: 'start', detail: focus.length > 0 ? `focus: ${focus.join(', ')}` : '', ts: Date.now() }
             setStreamState((s) => ({
               ...s,
-              timeline: [...s.timeline, { id: traceId, type: 'browser_event', title: 'Exploring', body: '', browserSteps: [startStep], focus, status: 'running' }],
+              timeline: [...s.timeline, { id: traceId, type: 'browser_event', title: 'ExploreAgent · 浏览路径', body: '', browserSteps: [startStep], focus, status: 'running' }],
             }))
             break
           }
@@ -275,19 +326,39 @@ export function useChat(sessionId: string) {
           case 'explore_step': {
             const traceId = currentBrowserTraceIdRef.current
             if (!traceId) break
+            const kindRaw = String(data.kind ?? 'thought')
+            const validKinds: BrowserStep['kind'][] = ['start', 'thought', 'action_start', 'action_result', 'action_error', 'sensitive_denied', 'end']
+            const kind = validKinds.includes(kindRaw as BrowserStep['kind']) ? (kindRaw as BrowserStep['kind']) : 'thought'
+            const tool = typeof data.tool === 'string' && data.tool ? data.tool : undefined
+            const params = (data.params ?? {}) as Record<string, unknown>
+            let target: string | undefined
+            if (tool === 'browser_session') {
+              if (typeof params.url === 'string') target = params.url
+              else if (typeof params.query === 'string') target = params.query
+              else if (typeof params.link_id === 'string') target = `link:${params.link_id}`
+              else if (typeof params.action === 'string') target = `action:${params.action}`
+            }
+            let detail = ''
+            if (typeof data.thought === 'string' && data.thought) {
+              const thought = data.thought.trim()
+              detail = thought.length > 200 ? `${thought.slice(0, 200)}...` : thought
+            } else if (typeof data.observation === 'string' && data.observation) {
+              const observation = data.observation.trim()
+              detail = observation.length > 200 ? `${observation.slice(0, 200)}...` : observation
+            }
             const step: BrowserStep = {
               index: browserStepCounterRef.current++,
-              kind: (data.kind as BrowserStep['kind']) ?? 'thought',
-              tool: (data.tool as string) ?? undefined,
-              target: (data.target as string) ?? undefined,
-              detail: (data.observation as string) ?? (data.thought as string) ?? '',
-              ok: data.ok !== false,
+              kind,
+              tool,
+              target,
+              detail,
+              ok: kind === 'action_error' || kind === 'sensitive_denied' ? false : undefined,
               ts: Date.now(),
             }
             setStreamState((s) => ({
               ...s,
               timeline: upsertTimelineItem(s.timeline, traceId, (prev) => ({
-                id: traceId, type: 'browser_event', title: prev?.title ?? 'Exploring', body: '',
+                id: traceId, type: 'browser_event', title: prev?.title ?? 'ExploreAgent · 浏览路径', body: prev?.body ?? '',
                 browserSteps: [...(prev?.browserSteps ?? []), step], focus: prev?.focus, status: 'running',
               })),
             }))
@@ -300,11 +371,11 @@ export function useChat(sessionId: string) {
             const factsCount = Number(data.facts_count ?? 0)
             const unresolved = Array.isArray(data.unresolved) ? (data.unresolved as unknown[]).filter((x): x is string => typeof x === 'string') : []
             const summary = typeof data.summary === 'string' ? data.summary : ''
-            const endStep: BrowserStep = { index: browserStepCounterRef.current++, kind: 'end', detail: summary || (factsCount > 0 ? `Found ${factsCount} facts` : ''), ts: Date.now() }
+            const endStep: BrowserStep = { index: browserStepCounterRef.current++, kind: 'end', detail: summary || (factsCount > 0 ? `补充 ${factsCount} 条事实` : ''), ts: Date.now() }
             setStreamState((s) => ({
               ...s,
               timeline: upsertTimelineItem(s.timeline, traceId, (prev) => ({
-                id: traceId, type: 'browser_event', title: prev?.title ?? 'Exploring', body: '',
+                id: traceId, type: 'browser_event', title: prev?.title ?? 'ExploreAgent · 浏览路径', body: prev?.body ?? '',
                 browserSteps: [...(prev?.browserSteps ?? []), endStep], focus: prev?.focus,
                 exploreSummary: { factsCount, unresolved, summary }, status: 'done',
               })),
@@ -321,10 +392,10 @@ export function useChat(sessionId: string) {
               const hasSteps = s.timeline.some((item) => item.type === 'thought' || item.type === 'action')
               const newResponse = (s.response ?? '') + chunk
               return {
-                ...s,
-                response: newResponse,
-                timeline: hasSteps
-                  ? upsertTimelineItem(s.timeline, 'final-summary', () => ({ id: 'final-summary', type: 'final', title: 'Response', body: newResponse, status: 'running' }))
+                  ...s,
+                  response: newResponse,
+                  timeline: hasSteps
+                  ? upsertTimelineItem(s.timeline, 'final-summary', () => ({ id: 'final-summary', type: 'final', title: '最终总结', body: newResponse, status: 'running' }))
                   : s.timeline,
               }
             })
@@ -339,7 +410,7 @@ export function useChat(sessionId: string) {
                   ...s,
                   response: fullText,
                   timeline: upsertTimelineItem(s.timeline, 'final-summary', (prev) =>
-                    prev ? { ...prev, body: fullText, status: 'done' } : { id: 'final-summary', type: 'final', title: 'Response', body: fullText, status: 'done' },
+                    prev ? { ...prev, body: fullText, status: 'done' } : { id: 'final-summary', type: 'final', title: '最终总结', body: fullText, status: 'done' },
                   ),
                 }))
               } else {
@@ -348,7 +419,7 @@ export function useChat(sessionId: string) {
                   return {
                     ...s,
                     timeline: hasSteps
-                      ? upsertTimelineItem(s.timeline, 'final-summary', () => ({ id: 'final-summary', type: 'final', title: 'Response', body: '', status: 'running' }))
+                      ? upsertTimelineItem(s.timeline, 'final-summary', () => ({ id: 'final-summary', type: 'final', title: '最终总结', body: '', status: 'running' }))
                       : s.timeline,
                   }
                 })
@@ -360,7 +431,14 @@ export function useChat(sessionId: string) {
 
           case 'error': {
             const base = (data.error as string)?.trim() || 'Unknown error'
-            setStreamState((s) => ({ ...s, error: base }))
+            const code = String((data as { code?: string }).code ?? '')
+            let message = base
+            if (code === 'LLM_AUTH_FAILED') {
+              message = `${base}\n\n可打开模型配置，检查 API Key 与厂商地址。`
+            } else if (code === 'LLM_NETWORK' || code === 'LLM_UNAVAILABLE') {
+              message = `${base}\n\n请确认后端已启动且本机网络正常。`
+            }
+            setStreamState((s) => ({ ...s, error: message }))
             break
           }
 
@@ -392,8 +470,8 @@ export function useChat(sessionId: string) {
         clearTypewriter()
         const raw = err.message || String(err)
         const lower = raw.toLowerCase()
-        const friendly = lower.includes('abort') ? 'Request cancelled.'
-          : lower.includes('failed to fetch') || lower.includes('econnrefused') ? 'Cannot connect to backend.'
+        const friendly = lower.includes('abort') ? '请求已取消。'
+          : lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('econnrefused') ? '无法连接服务端，请确认后端已启动且 SECBOT_API_URL 正确。'
           : raw
         setStreamState((s) => ({ ...s, error: friendly }))
         completedAtRef.current = Date.now()
@@ -402,7 +480,7 @@ export function useChat(sessionId: string) {
     })
 
     abortRef.current = controller
-  }, [sessionId, clearTypewriter, startTypewriter, upsertTimelineItem])
+  }, [appendContent, sessionId, clearTypewriter, startTypewriter, upsertTimelineItem])
 
   const stopStream = useCallback(() => { abortRef.current?.abort() }, [])
 

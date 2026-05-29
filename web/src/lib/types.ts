@@ -3,7 +3,7 @@ export interface SSEEvent {
   data: Record<string, unknown>
 }
 
-export type ChatMode = 'ask' | 'agent'
+export type ChatMode = 'agent'
 
 export interface ChatRequest {
   message: string
@@ -11,6 +11,12 @@ export interface ChatRequest {
   mode?: ChatMode
   agent?: string
   model?: string | null
+  client_shell?: {
+    platform?: string
+    shell?: string
+    comspec?: string
+    terminal_profile?: string
+  }
 }
 
 export type TimelineItemType =
@@ -45,6 +51,7 @@ export interface StreamTimelineItem {
   result?: unknown
   status?: 'running' | 'done'
   params?: Record<string, unknown>
+  viewType?: 'raw' | 'summary'
   browserSteps?: BrowserStep[]
   focus?: string[]
   exploreSummary?: { factsCount?: number; unresolved?: string[]; summary?: string }
@@ -68,7 +75,7 @@ export interface StreamState {
   planning: { content: string; todos: Array<{ content: string; status?: string }> } | null
   thought: { iteration: number; content: string } | null
   thoughtChunks: Map<string, string>
-  actions: Array<{ tool: string; params: Record<string, unknown>; result?: unknown; error?: string; success?: boolean }>
+  actions: Array<{ tool: string; params: Record<string, unknown>; result?: unknown; error?: string; success?: boolean; viewType?: 'raw' | 'summary' }>
   content: string
   report: string
   error: string | null
