@@ -33,8 +33,7 @@ function buildDefaultBody(name: string, description: string, triggers: string[])
 
 @Injectable()
 export class SkillsService {
-  private readonly workspaceRoot =
-    process.env.SECBOT_WORKSPACE_ROOT?.trim() || process.cwd();
+  private readonly workspaceRoot = process.env.SECBOT_WORKSPACE_ROOT?.trim() || process.cwd();
 
   async listSkills(): Promise<SkillSummaryDto[]> {
     const records = await this.loadAllSkills();
@@ -105,7 +104,10 @@ export class SkillsService {
     const raw = await fs.readFile(filePath, 'utf8');
     const { frontmatter, body } = this.splitFrontmatter(raw);
     const parsed = this.parseFrontmatter(frontmatter);
-    const relativeDir = path.relative(this.workspaceRoot, path.dirname(filePath)).split(path.sep).join('/');
+    const relativeDir = path
+      .relative(this.workspaceRoot, path.dirname(filePath))
+      .split(path.sep)
+      .join('/');
     const parts = relativeDir.split('/');
     const slug = this.slugify(parsed.name || parts[parts.length - 1] || 'skill');
     const scope = parts[1] || 'custom';
@@ -132,7 +134,7 @@ export class SkillsService {
     }
 
     const frontmatter = normalized.slice(FRONTMATTER_BOUNDARY.length + 1, end);
-    const body = normalized.slice(end + (`\n${FRONTMATTER_BOUNDARY}\n`).length);
+    const body = normalized.slice(end + `\n${FRONTMATTER_BOUNDARY}\n`.length);
     return { frontmatter, body };
   }
 

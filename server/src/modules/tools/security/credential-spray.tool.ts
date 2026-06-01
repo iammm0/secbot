@@ -18,7 +18,14 @@ export class CredentialSprayTool extends BaseTool {
     if (!target) return { success: false, result: null, error: '缺少必要参数: target' };
 
     const usernames = (params.usernames as string[]) ?? ['admin', 'root', 'test', 'user'];
-    const passwords = (params.passwords as string[]) ?? ['admin', '123456', 'password', 'root', 'test', ''];
+    const passwords = (params.passwords as string[]) ?? [
+      'admin',
+      '123456',
+      'password',
+      'root',
+      'test',
+      '',
+    ];
     const protocol = String(params.protocol ?? 'http').toLowerCase();
     const delay = Math.max(Number(params.delay_ms) || 500, 100);
     const timeoutMs = Math.min(Number(params.timeout) || 10, 30) * 1000;
@@ -52,7 +59,12 @@ export class CredentialSprayTool extends BaseTool {
   private parseTarget(target: string, protocol: string): Target {
     if (target.includes('://')) {
       const url = new URL(target);
-      return { protocol: url.protocol.replace(':', ''), host: url.hostname, port: Number(url.port) || (url.protocol === 'https:' ? 443 : 80), path: url.pathname };
+      return {
+        protocol: url.protocol.replace(':', ''),
+        host: url.hostname,
+        port: Number(url.port) || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname,
+      };
     }
     const [host, portStr] = target.split(':');
     const defaultPorts: Record<string, number> = { http: 80, https: 443, ftp: 21, ssh: 22 };
@@ -76,14 +88,19 @@ export class CredentialSprayTool extends BaseTool {
     }
   }
 
-  private async tryHttp(target: Target, username: string, password: string, timeoutMs: number): Promise<Record<string, unknown>> {
+  private async tryHttp(
+    target: Target,
+    username: string,
+    password: string,
+    timeoutMs: number,
+  ): Promise<Record<string, unknown>> {
     const base = `${target.protocol}://${target.host}:${target.port}`;
     const url = target.path ?? '/';
 
     try {
       const resp = await fetch(base + url, {
         headers: {
-          'Authorization': 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
+          Authorization: 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
           'User-Agent': 'secbot/1.0',
         },
         signal: AbortSignal.timeout(timeoutMs),
@@ -97,7 +114,12 @@ export class CredentialSprayTool extends BaseTool {
     }
   }
 
-  private tryFtp(target: Target, username: string, password: string, timeoutMs: number): Promise<Record<string, unknown>> {
+  private tryFtp(
+    target: Target,
+    username: string,
+    password: string,
+    timeoutMs: number,
+  ): Promise<Record<string, unknown>> {
     return new Promise((resolve) => {
       const socket = net.createConnection({ host: target.host, port: target.port });
       let phase = 0;
@@ -118,13 +140,23 @@ export class CredentialSprayTool extends BaseTool {
 
         for (const line of lines) {
           const code = parseInt(line.slice(0, 3), 10);
-          if (phase === 0 && code === 220) { phase = 1; socket.write(`USER ${username}\r\n`); }
-          else if (phase === 1 && (code === 331 || code === 230)) {
-            if (code === 230) { finish(true, 230); return; }
-            phase = 2; socket.write(`PASS ${password}\r\n`);
+          if (phase === 0 && code === 220) {
+            phase = 1;
+            socket.write(`USER ${username}\r\n`);
+          } else if (phase === 1 && (code === 331 || code === 230)) {
+            if (code === 230) {
+              finish(true, 230);
+              return;
+            }
+            phase = 2;
+            socket.write(`PASS ${password}\r\n`);
+          } else if (phase === 2) {
+            finish(code === 230, code);
+            return;
+          } else if (code >= 500) {
+            finish(false, code);
+            return;
           }
-          else if (phase === 2) { finish(code === 230, code); return; }
-          else if (code >= 500) { finish(false, code); return; }
         }
       });
 

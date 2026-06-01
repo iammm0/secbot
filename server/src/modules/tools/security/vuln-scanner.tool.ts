@@ -75,9 +75,7 @@ export class VulnScannerTool extends BaseTool {
     for (const svc of services) {
       if (!svc.product) continue;
 
-      const query = svc.version
-        ? `${svc.product} ${svc.version}`
-        : svc.product;
+      const query = svc.version ? `${svc.product} ${svc.version}` : svc.product;
 
       const vulns = await this.vulnDb.search_natural_language(query, limit);
 
@@ -116,7 +114,9 @@ export class VulnScannerTool extends BaseTool {
       let done = false;
 
       child.stdout.setEncoding('utf8');
-      child.stdout.on('data', (c) => { stdout += c; });
+      child.stdout.on('data', (c) => {
+        stdout += c;
+      });
 
       const timer = setTimeout(() => {
         if (done) return;

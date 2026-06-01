@@ -42,13 +42,22 @@ export class LdapEnumTool extends BaseTool {
       const chunks: Buffer[] = [];
 
       socket.setTimeout(timeoutMs);
-      socket.on('data', (c) => { chunks.push(c); socket.destroy(); });
+      socket.on('data', (c) => {
+        chunks.push(c);
+        socket.destroy();
+      });
       socket.on('connect', () => {
         // Send a minimal LDAP SearchRequest for RootDSE
         socket.write(this.buildRootDseRequest());
       });
-      socket.on('timeout', () => { socket.destroy(); resolve(Buffer.concat(chunks)); });
-      socket.on('error', (err) => { socket.destroy(); reject(err); });
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve(Buffer.concat(chunks));
+      });
+      socket.on('error', (err) => {
+        socket.destroy();
+        reject(err);
+      });
       socket.on('close', () => resolve(Buffer.concat(chunks)));
     });
   }
@@ -99,37 +108,79 @@ export class LdapEnumTool extends BaseTool {
         }
       });
 
-      socket.on('timeout', () => { socket.destroy(); resolve({ success: chunks.length > 0 }); });
-      socket.on('error', () => { socket.destroy(); resolve({ success: false }); });
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve({ success: chunks.length > 0 });
+      });
+      socket.on('error', () => {
+        socket.destroy();
+        resolve({ success: false });
+      });
     });
   }
 
   private buildBindRequest(): Buffer {
     // Minimal LDAP BindRequest: version=3, name="", simple auth=""
     return Buffer.from([
-      0x30, 0x0c, // SEQUENCE, length 12
-      0x02, 0x01, 0x01, // messageID = 1
-      0x60, 0x07, // BindRequest, length 7
-      0x02, 0x01, 0x03, // version = 3
-      0x04, 0x00, // name = ""
-      0x80, 0x00, // simple auth = ""
+      0x30,
+      0x0c, // SEQUENCE, length 12
+      0x02,
+      0x01,
+      0x01, // messageID = 1
+      0x60,
+      0x07, // BindRequest, length 7
+      0x02,
+      0x01,
+      0x03, // version = 3
+      0x04,
+      0x00, // name = ""
+      0x80,
+      0x00, // simple auth = ""
     ]);
   }
 
   private buildRootDseRequest(): Buffer {
     // SearchRequest: baseObject="", scope=base, filter=(objectClass=*), attrs=[namingContexts,defaultNamingContext,dnsHostName]
     return Buffer.from([
-      0x30, 0x25, // SEQUENCE
-      0x02, 0x01, 0x02, // messageID = 2
-      0x63, 0x20, // SearchRequest
-      0x04, 0x00, // baseObject = ""
-      0x0a, 0x01, 0x00, // scope = base
-      0x0a, 0x01, 0x00, // derefAliases = never
-      0x02, 0x01, 0x00, // sizeLimit = 0
-      0x02, 0x01, 0x00, // timeLimit = 0
-      0x01, 0x01, 0x00, // typesOnly = false
-      0x87, 0x0b, 0x6f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x43, 0x6c, 0x61, 0x73, 0x73, // filter: objectClass present
-      0x30, 0x00, // attributes: all
+      0x30,
+      0x25, // SEQUENCE
+      0x02,
+      0x01,
+      0x02, // messageID = 2
+      0x63,
+      0x20, // SearchRequest
+      0x04,
+      0x00, // baseObject = ""
+      0x0a,
+      0x01,
+      0x00, // scope = base
+      0x0a,
+      0x01,
+      0x00, // derefAliases = never
+      0x02,
+      0x01,
+      0x00, // sizeLimit = 0
+      0x02,
+      0x01,
+      0x00, // timeLimit = 0
+      0x01,
+      0x01,
+      0x00, // typesOnly = false
+      0x87,
+      0x0b,
+      0x6f,
+      0x62,
+      0x6a,
+      0x65,
+      0x63,
+      0x74,
+      0x43,
+      0x6c,
+      0x61,
+      0x73,
+      0x73, // filter: objectClass present
+      0x30,
+      0x00, // attributes: all
     ]);
   }
 
@@ -144,7 +195,10 @@ export class LdapEnumTool extends BaseTool {
     return data[rcIdx + 2] === 0x00;
   }
 
-  private parseSearchResponse(data: Buffer): { rootDse?: Record<string, string>; namingContexts?: string[] } {
+  private parseSearchResponse(data: Buffer): {
+    rootDse?: Record<string, string>;
+    namingContexts?: string[];
+  } {
     // Extract readable strings from the response
     const text = data.toString('utf8', 0, Math.min(data.length, 4000));
     const namingContexts: string[] = [];

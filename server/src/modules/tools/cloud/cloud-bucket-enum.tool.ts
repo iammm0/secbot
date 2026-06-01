@@ -10,22 +10,49 @@ const PROVIDER_URLS: Record<Provider, (name: string) => string> = {
 };
 
 const DEFAULT_SUFFIXES = [
-  '', '-backup', '-bak', '-dev', '-staging', '-prod', '-assets',
-  '-static', '-uploads', '-data', '-logs', '-private', '-public',
-  '-internal', '-test', '-config', '-db', '-files', '-www', '-api',
+  '',
+  '-backup',
+  '-bak',
+  '-dev',
+  '-staging',
+  '-prod',
+  '-assets',
+  '-static',
+  '-uploads',
+  '-data',
+  '-logs',
+  '-private',
+  '-public',
+  '-internal',
+  '-test',
+  '-config',
+  '-db',
+  '-files',
+  '-www',
+  '-api',
 ];
 
 export class CloudBucketEnumTool extends BaseTool {
   constructor() {
-    super('cloud_bucket_enum', '多云存储桶枚举 — 支持 AWS S3 / Azure Blob / GCP Storage / 阿里云 OSS');
+    super(
+      'cloud_bucket_enum',
+      '多云存储桶枚举 — 支持 AWS S3 / Azure Blob / GCP Storage / 阿里云 OSS',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
     const keyword = String(params.keyword ?? '').trim();
     if (!keyword) return { success: false, result: null, error: '缺少必要参数: keyword' };
 
-    const providers = (params.providers as Provider[] | undefined) ?? ['aws', 'azure', 'gcp', 'aliyun'];
-    const suffixes = Array.isArray(params.suffixes) ? params.suffixes.map(String) : DEFAULT_SUFFIXES;
+    const providers = (params.providers as Provider[] | undefined) ?? [
+      'aws',
+      'azure',
+      'gcp',
+      'aliyun',
+    ];
+    const suffixes = Array.isArray(params.suffixes)
+      ? params.suffixes.map(String)
+      : DEFAULT_SUFFIXES;
     const timeoutMs = Math.min(Number(params.timeout_ms) || 5000, 15000);
     const maxPerProvider = Math.min(Number(params.max) || 50, 200);
 
@@ -71,7 +98,13 @@ export class CloudBucketEnumTool extends BaseTool {
     url: string,
     timeoutMs: number,
   ): Promise<Record<string, unknown>> {
-    const result: Record<string, unknown> = { provider, bucket: name, url, exists: false, list_accessible: false };
+    const result: Record<string, unknown> = {
+      provider,
+      bucket: name,
+      url,
+      exists: false,
+      list_accessible: false,
+    };
 
     try {
       const resp = await fetch(url, {
@@ -96,17 +129,23 @@ export class CloudBucketEnumTool extends BaseTool {
       } else if (resp.status === 301 || resp.status === 302 || resp.status === 307) {
         result.exists = true;
       }
-    } catch { /* network error = inconclusive */ }
+    } catch {
+      /* network error = inconclusive */
+    }
 
     return result;
   }
 
   private isListable(provider: Provider, body: string): boolean {
     switch (provider) {
-      case 'aws': return body.includes('<ListBucketResult') || body.includes('<Contents>');
-      case 'azure': return body.includes('<EnumerationResults') || body.includes('<Blob>');
-      case 'gcp': return body.includes('<ListBucketResult') || body.includes('<Contents>');
-      case 'aliyun': return body.includes('<ListBucketResult') || body.includes('<Contents>');
+      case 'aws':
+        return body.includes('<ListBucketResult') || body.includes('<Contents>');
+      case 'azure':
+        return body.includes('<EnumerationResults') || body.includes('<Blob>');
+      case 'gcp':
+        return body.includes('<ListBucketResult') || body.includes('<Contents>');
+      case 'aliyun':
+        return body.includes('<ListBucketResult') || body.includes('<Contents>');
     }
   }
 

@@ -101,7 +101,11 @@ describe('ChatService QA routing', () => {
 
     Object.assign(service as object, { qaAgent, intentRouter });
 
-    const response = await service.chatSync({ message: '最新出的零日', mode: 'agent', agent: 'hackbot' });
+    const response = await service.chatSync({
+      message: '最新出的零日',
+      mode: 'agent',
+      agent: 'hackbot',
+    });
 
     expect(response).toEqual({ response: 'sync live qa answer', agent: 'qa' });
     expect(qaAgent.answerAdaptive).toHaveBeenCalledWith('最新出的零日', expect.any(Array));

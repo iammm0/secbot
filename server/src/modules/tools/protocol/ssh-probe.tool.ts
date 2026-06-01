@@ -42,9 +42,15 @@ export class SshProbeTool extends BaseTool {
         }
       });
 
-      socket.on('timeout', () => { socket.destroy(); reject(new Error('连接超时')); });
+      socket.on('timeout', () => {
+        socket.destroy();
+        reject(new Error('连接超时'));
+      });
       socket.on('error', (err) => reject(err));
-      socket.on('close', () => { if (data) resolve(data); else reject(new Error('连接关闭无数据')); });
+      socket.on('close', () => {
+        if (data) resolve(data);
+        else reject(new Error('连接关闭无数据'));
+      });
     });
   }
 

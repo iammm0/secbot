@@ -2,17 +2,90 @@ import * as dns from 'dns';
 import { BaseTool, ToolResult } from '../core/base-tool';
 
 const COMMON_SUBDOMAINS = [
-  'www', 'mail', 'ftp', 'admin', 'api', 'dev', 'staging', 'test', 'blog',
-  'shop', 'cdn', 'static', 'app', 'portal', 'secure', 'vpn', 'remote',
-  'ns1', 'ns2', 'mx', 'smtp', 'pop', 'imap', 'webmail', 'cpanel', 'whm',
-  'git', 'gitlab', 'jenkins', 'ci', 'jira', 'confluence', 'wiki', 'docs',
-  'status', 'monitor', 'grafana', 'kibana', 'elastic', 'db', 'mysql',
-  'redis', 'mongo', 'postgres', 'mq', 'rabbitmq', 'kafka', 'queue',
-  'auth', 'sso', 'login', 'oauth', 'id', 'accounts', 'signup',
-  'media', 'assets', 'images', 'img', 'video', 'files', 'upload', 'download',
-  'beta', 'alpha', 'sandbox', 'demo', 'preview', 'internal', 'intranet',
-  'backup', 'bak', 'old', 'legacy', 'archive', 'temp', 'tmp',
-  'm', 'mobile', 'wap', 'api-v2', 'api-v1', 'v1', 'v2',
+  'www',
+  'mail',
+  'ftp',
+  'admin',
+  'api',
+  'dev',
+  'staging',
+  'test',
+  'blog',
+  'shop',
+  'cdn',
+  'static',
+  'app',
+  'portal',
+  'secure',
+  'vpn',
+  'remote',
+  'ns1',
+  'ns2',
+  'mx',
+  'smtp',
+  'pop',
+  'imap',
+  'webmail',
+  'cpanel',
+  'whm',
+  'git',
+  'gitlab',
+  'jenkins',
+  'ci',
+  'jira',
+  'confluence',
+  'wiki',
+  'docs',
+  'status',
+  'monitor',
+  'grafana',
+  'kibana',
+  'elastic',
+  'db',
+  'mysql',
+  'redis',
+  'mongo',
+  'postgres',
+  'mq',
+  'rabbitmq',
+  'kafka',
+  'queue',
+  'auth',
+  'sso',
+  'login',
+  'oauth',
+  'id',
+  'accounts',
+  'signup',
+  'media',
+  'assets',
+  'images',
+  'img',
+  'video',
+  'files',
+  'upload',
+  'download',
+  'beta',
+  'alpha',
+  'sandbox',
+  'demo',
+  'preview',
+  'internal',
+  'intranet',
+  'backup',
+  'bak',
+  'old',
+  'legacy',
+  'archive',
+  'temp',
+  'tmp',
+  'm',
+  'mobile',
+  'wap',
+  'api-v2',
+  'api-v1',
+  'v1',
+  'v2',
 ];
 
 export class SubdomainEnumTool extends BaseTool {
@@ -70,7 +143,11 @@ export class SubdomainEnumTool extends BaseTool {
         success: true,
         result: {
           domain,
-          methods: ['brute_force', ...(useCrtSh ? ['crt_sh'] : []), ...(recursive ? ['recursive'] : [])],
+          methods: [
+            'brute_force',
+            ...(useCrtSh ? ['crt_sh'] : []),
+            ...(recursive ? ['recursive'] : []),
+          ],
           total_found: subdomains.length,
           subdomains,
         },
@@ -80,7 +157,10 @@ export class SubdomainEnumTool extends BaseTool {
     }
   }
 
-  private async bruteForce(domain: string, wordlist: string[]): Promise<Array<{ subdomain: string; ips: string[] }>> {
+  private async bruteForce(
+    domain: string,
+    wordlist: string[],
+  ): Promise<Array<{ subdomain: string; ips: string[] }>> {
     const results = await Promise.allSettled(
       wordlist.map(async (sub) => {
         const fqdn = `${sub}.${domain}`;
@@ -90,18 +170,21 @@ export class SubdomainEnumTool extends BaseTool {
     );
 
     return results
-      .filter((r): r is PromiseFulfilledResult<{ subdomain: string; ips: string[] }> => r.status === 'fulfilled')
+      .filter(
+        (r): r is PromiseFulfilledResult<{ subdomain: string; ips: string[] }> =>
+          r.status === 'fulfilled',
+      )
       .map((r) => r.value);
   }
 
   private async queryCrtSh(domain: string): Promise<string[]> {
     try {
-      const resp = await fetch(
-        `https://crt.sh/?q=%25.${encodeURIComponent(domain)}&output=json`,
-        { signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'secbot/1.0' } },
-      );
+      const resp = await fetch(`https://crt.sh/?q=%25.${encodeURIComponent(domain)}&output=json`, {
+        signal: AbortSignal.timeout(15000),
+        headers: { 'User-Agent': 'secbot/1.0' },
+      });
       if (!resp.ok) return [];
-      const data = await resp.json() as Array<{ name_value: string }>;
+      const data = (await resp.json()) as Array<{ name_value: string }>;
       const subs = new Set<string>();
       for (const entry of data) {
         for (const name of entry.name_value.split('\n')) {

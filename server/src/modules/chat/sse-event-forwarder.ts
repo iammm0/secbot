@@ -135,9 +135,7 @@ export function emitContextUsage(
   },
 ): void {
   const ratio =
-    debug.promptBudget > 0
-      ? Math.min(1, Math.max(0, debug.usedTokens / debug.promptBudget))
-      : 0;
+    debug.promptBudget > 0 ? Math.min(1, Math.max(0, debug.usedTokens / debug.promptBudget)) : 0;
   emit('context_usage', {
     model: debug.modelName ?? null,
     context_window: debug.contextWindow,

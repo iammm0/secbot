@@ -8,14 +8,16 @@ export class CidrScanTool extends BaseTool {
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
     const cidr = String(params.cidr ?? '').trim();
-    if (!cidr) return { success: false, result: null, error: '缺少必要参数: cidr (如 192.168.1.0/24)' };
+    if (!cidr)
+      return { success: false, result: null, error: '缺少必要参数: cidr (如 192.168.1.0/24)' };
 
     const ports = (params.ports as number[]) ?? [22, 80, 443, 3306, 8080];
     const timeoutMs = Math.min(Number(params.timeout_ms) || 1500, 5000);
     const concurrency = Math.min(Number(params.concurrency) || 50, 200);
 
     const ips = this.expandCidr(cidr);
-    if (!ips.length) return { success: false, result: null, error: '无效 CIDR 或范围过大 (最大 /20)' };
+    if (!ips.length)
+      return { success: false, result: null, error: '无效 CIDR 或范围过大 (最大 /20)' };
 
     const tasks: Array<{ ip: string; port: number }> = [];
     for (const ip of ips) {
@@ -95,14 +97,27 @@ export class CidrScanTool extends BaseTool {
     return results;
   }
 
-  private probePort(ip: string, port: number, timeoutMs: number): Promise<{ ip: string; port: number; open: boolean }> {
+  private probePort(
+    ip: string,
+    port: number,
+    timeoutMs: number,
+  ): Promise<{ ip: string; port: number; open: boolean }> {
     return new Promise((resolve) => {
       const socket = new net.Socket();
       socket.setTimeout(timeoutMs);
 
-      socket.on('connect', () => { socket.destroy(); resolve({ ip, port, open: true }); });
-      socket.on('timeout', () => { socket.destroy(); resolve({ ip, port, open: false }); });
-      socket.on('error', () => { socket.destroy(); resolve({ ip, port, open: false }); });
+      socket.on('connect', () => {
+        socket.destroy();
+        resolve({ ip, port, open: true });
+      });
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve({ ip, port, open: false });
+      });
+      socket.on('error', () => {
+        socket.destroy();
+        resolve({ ip, port, open: false });
+      });
 
       socket.connect(port, ip);
     });

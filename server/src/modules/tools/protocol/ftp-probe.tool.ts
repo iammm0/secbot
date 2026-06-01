@@ -43,12 +43,21 @@ export class FtpProbeTool extends BaseTool {
 
       socket.on('data', (chunk) => {
         data += chunk;
-        if (data.includes('\n')) { socket.destroy(); resolve(data); }
+        if (data.includes('\n')) {
+          socket.destroy();
+          resolve(data);
+        }
       });
 
-      socket.on('timeout', () => { socket.destroy(); reject(new Error('连接超时')); });
+      socket.on('timeout', () => {
+        socket.destroy();
+        reject(new Error('连接超时'));
+      });
       socket.on('error', (err) => reject(err));
-      socket.on('close', () => { if (data) resolve(data); else reject(new Error('无响应')); });
+      socket.on('close', () => {
+        if (data) resolve(data);
+        else reject(new Error('无响应'));
+      });
     });
   }
 
@@ -61,7 +70,9 @@ export class FtpProbeTool extends BaseTool {
       socket.setTimeout(timeoutMs);
       socket.setEncoding('utf8');
 
-      const cleanup = () => { socket.destroy(); };
+      const cleanup = () => {
+        socket.destroy();
+      };
 
       socket.on('data', (chunk) => {
         buf += chunk;
@@ -74,7 +85,11 @@ export class FtpProbeTool extends BaseTool {
             phase = 1;
             socket.write('USER anonymous\r\n');
           } else if (phase === 1 && (code === 331 || code === 230)) {
-            if (code === 230) { cleanup(); resolve(true); return; }
+            if (code === 230) {
+              cleanup();
+              resolve(true);
+              return;
+            }
             phase = 2;
             socket.write('PASS anonymous@\r\n');
           } else if (phase === 2) {
@@ -89,8 +104,14 @@ export class FtpProbeTool extends BaseTool {
         }
       });
 
-      socket.on('timeout', () => { cleanup(); resolve(false); });
-      socket.on('error', () => { cleanup(); resolve(false); });
+      socket.on('timeout', () => {
+        cleanup();
+        resolve(false);
+      });
+      socket.on('error', () => {
+        cleanup();
+        resolve(false);
+      });
     });
   }
 
@@ -98,9 +119,11 @@ export class FtpProbeTool extends BaseTool {
     const findings: string[] = [];
     const line = banner.split('\n')[0].trim();
 
-    if (/vsftpd\s*2\./i.test(line)) findings.push('vsftpd 2.x — 检查是否受后门漏洞影响 (CVE-2011-2523)');
+    if (/vsftpd\s*2\./i.test(line))
+      findings.push('vsftpd 2.x — 检查是否受后门漏洞影响 (CVE-2011-2523)');
     if (/ProFTPD\s*1\.[0-2]/i.test(line)) findings.push('ProFTPD 旧版本 — 可能存在已知 RCE');
-    if (/FileZilla Server/i.test(line)) findings.push('FileZilla Server — 检查版本是否有路径遍历漏洞');
+    if (/FileZilla Server/i.test(line))
+      findings.push('FileZilla Server — 检查版本是否有路径遍历漏洞');
     if (/Pure-FTPd/i.test(line)) findings.push('Pure-FTPd 检测到');
 
     return { software: line.replace(/^220[\s-]*/, ''), findings };

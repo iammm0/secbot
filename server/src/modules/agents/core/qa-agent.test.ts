@@ -31,7 +31,13 @@ describe('QAAgent.answerAdaptive', () => {
           query: '最新漏洞情况',
           total: 1,
           ai_summary: '检索到近期高危漏洞。',
-          results: [{ title: '安全公告', url: 'https://example.com/advisory', snippet: '近期披露高危漏洞。' }],
+          results: [
+            {
+              title: '安全公告',
+              url: 'https://example.com/advisory',
+              snippet: '近期披露高危漏洞。',
+            },
+          ],
         },
       }),
     };

@@ -117,7 +117,10 @@ export class SmartSearchTool extends BaseTool {
       }
     }
 
-    throw lastError ?? new SearchRequestError('SEARCH_UNAVAILABLE', 'Search is temporarily unavailable.', true);
+    throw (
+      lastError ??
+      new SearchRequestError('SEARCH_UNAVAILABLE', 'Search is temporarily unavailable.', true)
+    );
   }
 
   private async searchOnce(query: string, maxResults: number): Promise<SearchResult[]> {
@@ -217,7 +220,10 @@ export class SmartSearchTool extends BaseTool {
           signal: controller.signal,
         });
         if (response.status === 429 || response.status >= 500) {
-          if (attempt < maxRetries) { await sleep(1500 * (attempt + 1)); continue; }
+          if (attempt < maxRetries) {
+            await sleep(1500 * (attempt + 1));
+            continue;
+          }
           throw this.httpStatusError(response.status);
         }
         if (!response.ok) {
@@ -277,10 +283,12 @@ export class SmartSearchTool extends BaseTool {
 
     try {
       const llm = createLLM();
-      return (await llm.chat([
-        { role: 'system', content: '你是专业信息研究助手，擅长综合多源信息并输出简洁结论。' },
-        { role: 'user', content: prompt },
-      ])).trim();
+      return (
+        await llm.chat([
+          { role: 'system', content: '你是专业信息研究助手，擅长综合多源信息并输出简洁结论。' },
+          { role: 'user', content: prompt },
+        ])
+      ).trim();
     } catch {
       return '';
     }

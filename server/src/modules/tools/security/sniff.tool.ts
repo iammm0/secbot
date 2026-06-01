@@ -13,10 +13,34 @@ export class SniffTool extends BaseTool {
     const duration = Math.min(Number(params.duration) || 10, 60);
     const fields = params.fields ? String(params.fields).trim() : undefined;
 
-    const args = ['-c', String(count), '-a', `duration:${duration}`, '-T', 'fields',
-      '-e', 'frame.number', '-e', 'frame.time_relative', '-e', 'ip.src', '-e', 'ip.dst',
-      '-e', 'tcp.srcport', '-e', 'tcp.dstport', '-e', '_ws.col.Protocol', '-e', '_ws.col.Info',
-      '-E', 'header=y', '-E', 'separator=|'];
+    const args = [
+      '-c',
+      String(count),
+      '-a',
+      `duration:${duration}`,
+      '-T',
+      'fields',
+      '-e',
+      'frame.number',
+      '-e',
+      'frame.time_relative',
+      '-e',
+      'ip.src',
+      '-e',
+      'ip.dst',
+      '-e',
+      'tcp.srcport',
+      '-e',
+      'tcp.dstport',
+      '-e',
+      '_ws.col.Protocol',
+      '-e',
+      '_ws.col.Info',
+      '-E',
+      'header=y',
+      '-E',
+      'separator=|',
+    ];
 
     if (fields) {
       // Override default fields
@@ -56,7 +80,9 @@ export class SniffTool extends BaseTool {
     for (let i = 1; i < lines.length; i++) {
       const vals = lines[i].split('|');
       const pkt: Record<string, string> = {};
-      headers.forEach((h, idx) => { if (vals[idx]?.trim()) pkt[h] = vals[idx].trim(); });
+      headers.forEach((h, idx) => {
+        if (vals[idx]?.trim()) pkt[h] = vals[idx].trim();
+      });
       packets.push(pkt);
     }
     return packets;
@@ -71,12 +97,36 @@ export class SniffTool extends BaseTool {
 
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => { stdout += c; });
-      child.stderr.on('data', (c) => { stderr += c; });
+      child.stdout.on('data', (c) => {
+        stdout += c;
+      });
+      child.stderr.on('data', (c) => {
+        stderr += c;
+      });
 
-      const timer = setTimeout(() => { if (done) return; done = true; child.kill('SIGTERM'); resolve({ stdout }); }, timeoutSec * 1000);
-      child.on('error', (err) => { if (done) return; done = true; clearTimeout(timer); resolve({ stdout, error: /ENOENT/.test(err.message) ? 'tshark 未安装，请安装 Wireshark: brew install wireshark' : err.message }); });
-      child.on('close', () => { if (done) return; done = true; clearTimeout(timer); resolve({ stdout }); });
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        child.kill('SIGTERM');
+        resolve({ stdout });
+      }, timeoutSec * 1000);
+      child.on('error', (err) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve({
+          stdout,
+          error: /ENOENT/.test(err.message)
+            ? 'tshark 未安装，请安装 Wireshark: brew install wireshark'
+            : err.message,
+        });
+      });
+      child.on('close', () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve({ stdout });
+      });
     });
   }
 }

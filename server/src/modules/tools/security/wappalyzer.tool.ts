@@ -20,27 +20,81 @@ const RULES: TechRule[] = [
   { name: 'Caddy', category: 'web-server', headers: { server: /caddy/i } },
 
   // Languages / Runtimes
-  { name: 'PHP', category: 'language', headers: { 'x-powered-by': /php/i }, cookies: { PHPSESSID: /.*/ } },
-  { name: 'ASP.NET', category: 'language', headers: { 'x-powered-by': /asp\.net/i, 'x-aspnet-version': /.*/ }, cookies: { 'ASP.NET_SessionId': /.*/ } },
+  {
+    name: 'PHP',
+    category: 'language',
+    headers: { 'x-powered-by': /php/i },
+    cookies: { PHPSESSID: /.*/ },
+  },
+  {
+    name: 'ASP.NET',
+    category: 'language',
+    headers: { 'x-powered-by': /asp\.net/i, 'x-aspnet-version': /.*/ },
+    cookies: { 'ASP.NET_SessionId': /.*/ },
+  },
   { name: 'Express', category: 'framework', headers: { 'x-powered-by': /express/i } },
-  { name: 'Java', category: 'language', headers: { 'x-powered-by': /servlet|jsp|tomcat/i }, cookies: { JSESSIONID: /.*/ } },
-  { name: 'Python', category: 'language', headers: { server: /python|gunicorn|uvicorn|waitress/i } },
+  {
+    name: 'Java',
+    category: 'language',
+    headers: { 'x-powered-by': /servlet|jsp|tomcat/i },
+    cookies: { JSESSIONID: /.*/ },
+  },
+  {
+    name: 'Python',
+    category: 'language',
+    headers: { server: /python|gunicorn|uvicorn|waitress/i },
+  },
 
   // JS Frameworks
-  { name: 'React', category: 'js-framework', html: [/data-reactroot|_react|__NEXT_DATA__/], scripts: [/react(?:\.production|\.development)/] },
-  { name: 'Next.js', category: 'js-framework', html: [/__NEXT_DATA__|_next\/static/], headers: { 'x-powered-by': /next\.js/i } },
-  { name: 'Vue.js', category: 'js-framework', html: [/data-v-[a-f0-9]|__vue__|Vue\.config/], scripts: [/vue(?:\.runtime)?(?:\.min)?\.js/] },
+  {
+    name: 'React',
+    category: 'js-framework',
+    html: [/data-reactroot|_react|__NEXT_DATA__/],
+    scripts: [/react(?:\.production|\.development)/],
+  },
+  {
+    name: 'Next.js',
+    category: 'js-framework',
+    html: [/__NEXT_DATA__|_next\/static/],
+    headers: { 'x-powered-by': /next\.js/i },
+  },
+  {
+    name: 'Vue.js',
+    category: 'js-framework',
+    html: [/data-v-[a-f0-9]|__vue__|Vue\.config/],
+    scripts: [/vue(?:\.runtime)?(?:\.min)?\.js/],
+  },
   { name: 'Nuxt.js', category: 'js-framework', html: [/__NUXT__|_nuxt\//] },
   { name: 'Angular', category: 'js-framework', html: [/ng-version|ng-app|angular\.(?:min\.)?js/] },
   { name: 'Svelte', category: 'js-framework', html: [/svelte-[a-z0-9]|__svelte/] },
 
   // CMS
-  { name: 'WordPress', category: 'cms', html: [/wp-content|wp-includes|wp-json/], meta: { generator: /wordpress/i } },
-  { name: 'Drupal', category: 'cms', html: [/sites\/default\/files|drupal\.js/], headers: { 'x-drupal-cache': /.*/, 'x-generator': /drupal/i } },
-  { name: 'Joomla', category: 'cms', html: [/\/media\/jui\/|com_content/], meta: { generator: /joomla/i } },
+  {
+    name: 'WordPress',
+    category: 'cms',
+    html: [/wp-content|wp-includes|wp-json/],
+    meta: { generator: /wordpress/i },
+  },
+  {
+    name: 'Drupal',
+    category: 'cms',
+    html: [/sites\/default\/files|drupal\.js/],
+    headers: { 'x-drupal-cache': /.*/, 'x-generator': /drupal/i },
+  },
+  {
+    name: 'Joomla',
+    category: 'cms',
+    html: [/\/media\/jui\/|com_content/],
+    meta: { generator: /joomla/i },
+  },
   { name: 'Ghost', category: 'cms', html: [/ghost-(?:url|api)/], meta: { generator: /ghost/i } },
   { name: 'Shopify', category: 'ecommerce', html: [/cdn\.shopify\.com|Shopify\.theme/] },
-  { name: 'Magento', category: 'ecommerce', html: [/mage\/cookies|Magento_Ui/], cookies: { frontend: /.*/ } },
+  {
+    name: 'Magento',
+    category: 'ecommerce',
+    html: [/mage\/cookies|Magento_Ui/],
+    cookies: { frontend: /.*/ },
+  },
 
   // CDN / Proxy
   { name: 'Cloudflare', category: 'cdn', headers: { server: /cloudflare/i, 'cf-ray': /.*/ } },
@@ -54,7 +108,11 @@ const RULES: TechRule[] = [
   { name: 'AWS WAF', category: 'waf', headers: { 'x-amzn-waf': /.*/ } },
 
   // Analytics / Tag Managers
-  { name: 'Google Analytics', category: 'analytics', html: [/google-analytics\.com\/analytics|gtag\(|UA-\d{4,10}-\d{1,4}/] },
+  {
+    name: 'Google Analytics',
+    category: 'analytics',
+    html: [/google-analytics\.com\/analytics|gtag\(|UA-\d{4,10}-\d{1,4}/],
+  },
   { name: 'Google Tag Manager', category: 'analytics', html: [/googletagmanager\.com\/gtm/] },
 
   // Misc
@@ -82,7 +140,9 @@ export class WappalyzerTool extends BaseTool {
       });
 
       const headers: Record<string, string> = {};
-      resp.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
+      resp.headers.forEach((v, k) => {
+        headers[k.toLowerCase()] = v;
+      });
 
       const cookies: Record<string, string> = {};
       const setCookie = resp.headers.get('set-cookie') ?? '';
@@ -121,33 +181,51 @@ export class WappalyzerTool extends BaseTool {
 
       if (rule.headers) {
         for (const [h, re] of Object.entries(rule.headers)) {
-          if (headers[h] && re.test(headers[h])) { matched = true; break; }
+          if (headers[h] && re.test(headers[h])) {
+            matched = true;
+            break;
+          }
         }
       }
 
       if (!matched && rule.cookies) {
         for (const [c, re] of Object.entries(rule.cookies)) {
-          if (cookies[c] !== undefined && re.test(cookies[c])) { matched = true; break; }
+          if (cookies[c] !== undefined && re.test(cookies[c])) {
+            matched = true;
+            break;
+          }
         }
       }
 
       if (!matched && rule.html) {
         for (const re of rule.html) {
-          if (re.test(bodyLower)) { matched = true; break; }
+          if (re.test(bodyLower)) {
+            matched = true;
+            break;
+          }
         }
       }
 
       if (!matched && rule.scripts) {
         for (const re of rule.scripts) {
-          if (re.test(bodyLower)) { matched = true; break; }
+          if (re.test(bodyLower)) {
+            matched = true;
+            break;
+          }
         }
       }
 
       if (!matched && rule.meta) {
         for (const [name, re] of Object.entries(rule.meta)) {
-          const metaRe = new RegExp(`<meta[^>]*name=["']${name}["'][^>]*content=["']([^"']*)["']`, 'i');
+          const metaRe = new RegExp(
+            `<meta[^>]*name=["']${name}["'][^>]*content=["']([^"']*)["']`,
+            'i',
+          );
           const m = bodyLower.match(metaRe);
-          if (m && re.test(m[1])) { matched = true; break; }
+          if (m && re.test(m[1])) {
+            matched = true;
+            break;
+          }
         }
       }
 

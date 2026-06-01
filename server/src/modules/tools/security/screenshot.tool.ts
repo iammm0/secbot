@@ -83,7 +83,9 @@ export class ScreenshotTool extends BaseTool {
       try {
         const ok = await this.canExec(p);
         if (ok) return p;
-      } catch { /* next */ }
+      } catch {
+        /* next */
+      }
     }
     return null;
   }
@@ -111,8 +113,12 @@ export class ScreenshotTool extends BaseTool {
 
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => { stdout += c; });
-      child.stderr.on('data', (c) => { stderr += c; });
+      child.stdout.on('data', (c) => {
+        stdout += c;
+      });
+      child.stderr.on('data', (c) => {
+        stderr += c;
+      });
 
       const timer = setTimeout(() => {
         if (done) return;
@@ -133,7 +139,12 @@ export class ScreenshotTool extends BaseTool {
         done = true;
         clearTimeout(timer);
         if (code !== 0) {
-          resolve({ code: code ?? -1, stdout, stderr, error: stderr.trim() || `Chrome 退出码 ${code}` });
+          resolve({
+            code: code ?? -1,
+            stdout,
+            stderr,
+            error: stderr.trim() || `Chrome 退出码 ${code}`,
+          });
         } else {
           resolve({ code: 0, stdout, stderr });
         }

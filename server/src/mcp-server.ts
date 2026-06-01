@@ -38,26 +38,30 @@ async function bootstrap() {
       continue;
     }
 
-    registerTool(tool.name, {
-      title: tool.name,
-      description: tool.description,
-      inputSchema: toolInputSchema,
-      annotations: {
-        readOnlyHint: !tool.sensitive,
-        destructiveHint: tool.sensitive,
-        openWorldHint: true,
+    registerTool(
+      tool.name,
+      {
+        title: tool.name,
+        description: tool.description,
+        inputSchema: toolInputSchema,
+        annotations: {
+          readOnlyHint: !tool.sensitive,
+          destructiveHint: tool.sensitive,
+          openWorldHint: true,
+        },
       },
-    }, async ({ params }: { params?: unknown }) => {
-      const result = await tool.run(normalizeParams(params));
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    });
+      async ({ params }: { params?: unknown }) => {
+        const result = await tool.run(normalizeParams(params));
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      },
+    );
   }
 
   const transport = new StdioServerTransport();

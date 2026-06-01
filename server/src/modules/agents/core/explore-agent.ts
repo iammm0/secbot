@@ -2,12 +2,7 @@ import { BaseAgent } from './base-agent';
 import { BaseTool } from '../../tools/core/base-tool';
 import { BrowserSessionTool } from '../../tools/web-research/browser-session.tool';
 import { EventType, BusEvent } from '../../../common/event-bus';
-import {
-  ChatMessage,
-  ContextPatch,
-  ContextPatchFact,
-  IntentDecision,
-} from '../../../common/types';
+import { ChatMessage, ContextPatch, ContextPatchFact, IntentDecision } from '../../../common/types';
 import { LLMProvider, createLLM } from '../../../common/llm';
 import { validateToolInvocation } from './tool-action-validate';
 import { parseToolAction, type ParsedAction } from './parse-tool-action';
@@ -153,157 +148,157 @@ export class ExploreAgent extends BaseAgent {
     let patch: ContextPatch | null = null;
 
     try {
-    for (let iteration = 1; iteration <= maxIterations; iteration++) {
-      const thought = await this.llm.chat(messages);
-      lastThought = thought;
+      for (let iteration = 1; iteration <= maxIterations; iteration++) {
+        const thought = await this.llm.chat(messages);
+        lastThought = thought;
 
-      onEvent?.({
-        type: EventType.EXPLORE_STEP,
-        data: { agent: this.name, iteration, kind: 'thought', thought },
-        timestamp: new Date(),
-        iteration,
-      });
-
-      const inlinePatch = this.extractPatch(thought);
-      if (inlinePatch) {
-        patch = inlinePatch;
-        break;
-      }
-
-      const action = this.parseAction(thought);
-      if (!action) {
-        /** 没工具调用又没 Final Patch：要求模型补一份 patch */
-        messages.push({ role: 'assistant', content: thought });
-        messages.push({
-          role: 'user',
-          content:
-            '上一步既没有调用工具，也没有输出 Final Patch。请立即输出 Final Patch JSON。' +
-            '如果没有可补的事实，输出 facts:[]、unresolved 列出仍然缺的信息。',
+        onEvent?.({
+          type: EventType.EXPLORE_STEP,
+          data: { agent: this.name, iteration, kind: 'thought', thought },
+          timestamp: new Date(),
+          iteration,
         });
-        continue;
-      }
 
-      const paramErr = validateToolInvocation(action.tool, action.params);
-      if (paramErr) {
-        const observation = `[参数错误] ${paramErr}`;
+        const inlinePatch = this.extractPatch(thought);
+        if (inlinePatch) {
+          patch = inlinePatch;
+          break;
+        }
+
+        const action = this.parseAction(thought);
+        if (!action) {
+          /** 没工具调用又没 Final Patch：要求模型补一份 patch */
+          messages.push({ role: 'assistant', content: thought });
+          messages.push({
+            role: 'user',
+            content:
+              '上一步既没有调用工具，也没有输出 Final Patch。请立即输出 Final Patch JSON。' +
+              '如果没有可补的事实，输出 facts:[]、unresolved 列出仍然缺的信息。',
+          });
+          continue;
+        }
+
+        const paramErr = validateToolInvocation(action.tool, action.params);
+        if (paramErr) {
+          const observation = `[参数错误] ${paramErr}`;
+          onEvent?.({
+            type: EventType.EXPLORE_STEP,
+            data: {
+              agent: this.name,
+              iteration,
+              kind: 'action_error',
+              tool: action.tool,
+              observation,
+            },
+            timestamp: new Date(),
+            iteration,
+          });
+          messages.push({ role: 'assistant', content: thought });
+          messages.push({ role: 'user', content: `Observation: ${observation}` });
+          continue;
+        }
+
+        const tool = this.toolsDict.get(action.tool);
+        if (!tool) {
+          const observation = `[错误] 未知工具: ${action.tool}`;
+          messages.push({ role: 'assistant', content: thought });
+          messages.push({ role: 'user', content: `Observation: ${observation}` });
+          continue;
+        }
+
+        if (tool.sensitive) {
+          const observation = `[拒绝] 工具 ${action.tool} 标记为敏感，ExploreAgent 仅允许调用只读类工具。`;
+          onEvent?.({
+            type: EventType.EXPLORE_STEP,
+            data: {
+              agent: this.name,
+              iteration,
+              kind: 'sensitive_denied',
+              tool: action.tool,
+            },
+            timestamp: new Date(),
+            iteration,
+          });
+          messages.push({ role: 'assistant', content: thought });
+          messages.push({ role: 'user', content: `Observation: ${observation}` });
+          continue;
+        }
+
         onEvent?.({
           type: EventType.EXPLORE_STEP,
           data: {
             agent: this.name,
             iteration,
-            kind: 'action_error',
+            kind: 'action_start',
+            tool: action.tool,
+            params: action.params,
+          },
+          timestamp: new Date(),
+          iteration,
+        });
+
+        let observation: string;
+        try {
+          const result = await tool.run(action.params);
+          observation = result.success
+            ? this.formatObservation(result.result)
+            : `[错误] ${result.error ?? '未知错误'}`;
+        } catch (err) {
+          observation = `[异常] ${err instanceof Error ? err.message : String(err)}`;
+        }
+
+        onEvent?.({
+          type: EventType.EXPLORE_STEP,
+          data: {
+            agent: this.name,
+            iteration,
+            kind: 'action_result',
             tool: action.tool,
             observation,
           },
           timestamp: new Date(),
           iteration,
         });
+
         messages.push({ role: 'assistant', content: thought });
         messages.push({ role: 'user', content: `Observation: ${observation}` });
-        continue;
       }
 
-      const tool = this.toolsDict.get(action.tool);
-      if (!tool) {
-        const observation = `[错误] 未知工具: ${action.tool}`;
-        messages.push({ role: 'assistant', content: thought });
-        messages.push({ role: 'user', content: `Observation: ${observation}` });
-        continue;
-      }
-
-      if (tool.sensitive) {
-        const observation = `[拒绝] 工具 ${action.tool} 标记为敏感，ExploreAgent 仅允许调用只读类工具。`;
-        onEvent?.({
-          type: EventType.EXPLORE_STEP,
-          data: {
-            agent: this.name,
-            iteration,
-            kind: 'sensitive_denied',
-            tool: action.tool,
-          },
-          timestamp: new Date(),
-          iteration,
+      if (!patch) {
+        /** 兜底：再向模型要一次 Final Patch */
+        messages.push({
+          role: 'user',
+          content:
+            '已达到最大迭代次数。请立刻输出 Final Patch JSON；如果没有补充事实，' +
+            'facts:[] 并在 unresolved 中说明缺什么。',
         });
-        messages.push({ role: 'assistant', content: thought });
-        messages.push({ role: 'user', content: `Observation: ${observation}` });
-        continue;
+        try {
+          const lastTry = await this.llm.chat(messages);
+          patch = this.extractPatch(lastTry) ?? this.extractPatch(lastThought);
+        } catch {
+          patch = null;
+        }
       }
+
+      const finalPatch: ContextPatch = patch ?? {
+        facts: [],
+        unresolved: ['ExploreAgent 未能给出有效的 Patch'],
+        exploreSummary: 'explore failed',
+      };
 
       onEvent?.({
-        type: EventType.EXPLORE_STEP,
+        type: EventType.EXPLORE_END,
         data: {
           agent: this.name,
-          iteration,
-          kind: 'action_start',
-          tool: action.tool,
-          params: action.params,
+          factsCount: finalPatch.facts?.length ?? 0,
+          unresolved: finalPatch.unresolved ?? [],
+          summary: finalPatch.exploreSummary ?? '',
         },
         timestamp: new Date(),
-        iteration,
+        iteration: 0,
       });
 
-      let observation: string;
-      try {
-        const result = await tool.run(action.params);
-        observation = result.success
-          ? this.formatObservation(result.result)
-          : `[错误] ${result.error ?? '未知错误'}`;
-      } catch (err) {
-        observation = `[异常] ${err instanceof Error ? err.message : String(err)}`;
-      }
-
-      onEvent?.({
-        type: EventType.EXPLORE_STEP,
-        data: {
-          agent: this.name,
-          iteration,
-          kind: 'action_result',
-          tool: action.tool,
-          observation,
-        },
-        timestamp: new Date(),
-        iteration,
-      });
-
-      messages.push({ role: 'assistant', content: thought });
-      messages.push({ role: 'user', content: `Observation: ${observation}` });
-    }
-
-    if (!patch) {
-      /** 兜底：再向模型要一次 Final Patch */
-      messages.push({
-        role: 'user',
-        content:
-          '已达到最大迭代次数。请立刻输出 Final Patch JSON；如果没有补充事实，' +
-          'facts:[] 并在 unresolved 中说明缺什么。',
-      });
-      try {
-        const lastTry = await this.llm.chat(messages);
-        patch = this.extractPatch(lastTry) ?? this.extractPatch(lastThought);
-      } catch {
-        patch = null;
-      }
-    }
-
-    const finalPatch: ContextPatch = patch ?? {
-      facts: [],
-      unresolved: ['ExploreAgent 未能给出有效的 Patch'],
-      exploreSummary: 'explore failed',
-    };
-
-    onEvent?.({
-      type: EventType.EXPLORE_END,
-      data: {
-        agent: this.name,
-        factsCount: finalPatch.facts?.length ?? 0,
-        unresolved: finalPatch.unresolved ?? [],
-        summary: finalPatch.exploreSummary ?? '',
-      },
-      timestamp: new Date(),
-      iteration: 0,
-    });
-
-    return finalPatch;
+      return finalPatch;
     } finally {
       /** 释放本次 explore 的虚拟浏览器 session，避免内存泄漏 */
       try {
@@ -369,7 +364,9 @@ export class ExploreAgent extends BaseAgent {
       facts,
       pinned: stringArray(obj.pinned).filter(Boolean).slice(0, 16),
       unresolved: stringArray(obj.unresolved).filter(Boolean).slice(0, 16),
-      suggestedFocus: stringArray(obj.suggested_focus).map((s) => s.toLowerCase()).slice(0, 12),
+      suggestedFocus: stringArray(obj.suggested_focus)
+        .map((s) => s.toLowerCase())
+        .slice(0, 12),
       exploreSummary: typeof obj.explore_summary === 'string' ? obj.explore_summary.trim() : '',
     };
   }

@@ -74,8 +74,7 @@ const NEGATIVE_HINTS = [
   'nav',
 ];
 
-const CONTAINER_REGEX =
-  /<(article|main|section|div)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+const CONTAINER_REGEX = /<(article|main|section|div)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
 
 export function extractReaderView(html: string, fallbackTitle = ''): ReaderViewResult {
   const title = extractTitle(html) || fallbackTitle;
@@ -179,12 +178,7 @@ function collectCandidates(html: string): Candidate[] {
   return candidates;
 }
 
-function scoreCandidate(
-  tag: string,
-  attrs: string,
-  innerHtml: string,
-  innerText: string,
-): number {
+function scoreCandidate(tag: string, attrs: string, innerHtml: string, innerText: string): number {
   let score = 0;
   if (tag === 'article') score += 30;
   if (tag === 'main') score += 20;

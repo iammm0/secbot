@@ -1,12 +1,26 @@
 import { BaseTool, ToolResult } from '../core/base-tool';
 
 const COMMON_PATHS = [
-  '/swagger.json', '/swagger/v1/swagger.json', '/api-docs',
-  '/openapi.json', '/openapi.yaml', '/v2/api-docs', '/v3/api-docs',
-  '/docs', '/redoc', '/swagger-ui.html', '/swagger-ui/',
-  '/graphql', '/graphiql', '/altair', '/playground',
-  '/api/graphql', '/.well-known/openapi.json',
-  '/api/schema', '/api/v1/schema', '/api/docs',
+  '/swagger.json',
+  '/swagger/v1/swagger.json',
+  '/api-docs',
+  '/openapi.json',
+  '/openapi.yaml',
+  '/v2/api-docs',
+  '/v3/api-docs',
+  '/docs',
+  '/redoc',
+  '/swagger-ui.html',
+  '/swagger-ui/',
+  '/graphql',
+  '/graphiql',
+  '/altair',
+  '/playground',
+  '/api/graphql',
+  '/.well-known/openapi.json',
+  '/api/schema',
+  '/api/v1/schema',
+  '/api/docs',
 ];
 
 const GRAPHQL_INTROSPECTION = JSON.stringify({
@@ -29,9 +43,7 @@ export class ApiSchemaScanTool extends BaseTool {
     const paths = [...COMMON_PATHS, ...extraPaths];
     const found: Array<Record<string, unknown>> = [];
 
-    const results = await Promise.allSettled(
-      paths.map((p) => this.probe(baseUrl + p, timeoutMs)),
-    );
+    const results = await Promise.allSettled(paths.map((p) => this.probe(baseUrl + p, timeoutMs)));
 
     for (let i = 0; i < results.length; i++) {
       const r = results[i];
@@ -58,10 +70,7 @@ export class ApiSchemaScanTool extends BaseTool {
     };
   }
 
-  private async probe(
-    url: string,
-    timeoutMs: number,
-  ): Promise<Record<string, unknown> | null> {
+  private async probe(url: string, timeoutMs: number): Promise<Record<string, unknown> | null> {
     try {
       const resp = await fetch(url, {
         method: 'GET',
@@ -90,7 +99,9 @@ export class ApiSchemaScanTool extends BaseTool {
           if (json.data?.__schema || json.__schema) {
             return { type: 'graphql', note: 'GraphQL introspection 可用' };
           }
-        } catch { /* not valid JSON */ }
+        } catch {
+          /* not valid JSON */
+        }
       }
 
       if (/graphql|graphiql|playground/i.test(url) && resp.status === 200) {
