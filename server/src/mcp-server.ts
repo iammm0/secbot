@@ -10,6 +10,30 @@ const toolInputSchema = {
   params: z.any().optional(),
 };
 
+type RegisterToolConfig = {
+  title?: string;
+  description?: string;
+  inputSchema?: typeof toolInputSchema;
+  annotations?: {
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    openWorldHint?: boolean;
+  };
+};
+
+type RegisterToolResult = {
+  content: Array<{
+    type: 'text';
+    text: string;
+  }>;
+};
+
+type RegisterTool = (
+  name: string,
+  config: RegisterToolConfig,
+  callback: (args: { params?: unknown }) => Promise<RegisterToolResult>,
+) => unknown;
+
 function normalizeParams(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -31,12 +55,14 @@ async function bootstrap() {
     name: 'secbot-mcp',
     version: '1.0.0',
   });
+  const registerTool = (server.registerTool as unknown as RegisterTool).bind(server);
+
   for (const tool of toolsService.getAllTools()) {
     if (tool.sensitive && !allowSensitive) {
       continue;
     }
 
-    server.registerTool(
+    registerTool(
       tool.name,
       {
         title: tool.name,
