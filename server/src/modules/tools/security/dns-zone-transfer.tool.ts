@@ -20,7 +20,8 @@ export class DnsZoneTransferTool extends BaseTool {
         return { success: false, result: null, error: `无法获取 ${domain} 的 NS 记录` };
       }
 
-      const results: Array<{ ns: string; success: boolean; records?: string[]; error?: string }> = [];
+      const results: Array<{ ns: string; success: boolean; records?: string[]; error?: string }> =
+        [];
 
       for (const ns of nsServers) {
         const r = await this.tryAxfr(domain, ns, timeoutMs);
@@ -42,7 +43,11 @@ export class DnsZoneTransferTool extends BaseTool {
         },
       };
     } catch (error) {
-      return { success: false, result: null, error: `DNS 区域传送失败: ${(error as Error).message}` };
+      return {
+        success: false,
+        result: null,
+        error: `DNS 区域传送失败: ${(error as Error).message}`,
+      };
     }
   }
 

@@ -145,7 +145,8 @@ const RULES: Rule[] = [
     id: 'PATH-001',
     category: 'path_traversal',
     severity: 'high',
-    pattern: /(?:readFile|readFileSync|createReadStream|open)\s*\(.*?(?:req\.|params\.|query\.|input)/,
+    pattern:
+      /(?:readFile|readFileSync|createReadStream|open)\s*\(.*?(?:req\.|params\.|query\.|input)/,
     languages: ['js', 'ts'],
     description: 'User input in file path',
     remediation: 'Validate and resolve path against a base directory',
@@ -165,7 +166,8 @@ const RULES: Rule[] = [
     id: 'SSRF-001',
     category: 'ssrf',
     severity: 'high',
-    pattern: /(?:fetch|axios|got|request|http\.get|urllib)\s*\(\s*(?:req\.|params\.|query\.|request\.)/,
+    pattern:
+      /(?:fetch|axios|got|request|http\.get|urllib)\s*\(\s*(?:req\.|params\.|query\.|request\.)/,
     languages: ['js', 'ts', 'python'],
     description: 'User-controlled URL in HTTP request',
     remediation: 'Validate URL against allowlist, block internal IPs',
@@ -225,7 +227,8 @@ const RULES: Rule[] = [
     id: 'SECRET-001',
     category: 'hardcoded_secret',
     severity: 'high',
-    pattern: /(?:password|passwd|secret|api_key|apikey|token|private_key)\s*[:=]\s*['"][^'"]{8,}['"]/i,
+    pattern:
+      /(?:password|passwd|secret|api_key|apikey|token|private_key)\s*[:=]\s*['"][^'"]{8,}['"]/i,
     languages: ['js', 'ts', 'python', 'java', 'go', 'ruby', 'php'],
     description: 'Hardcoded credential or secret',
     remediation: 'Use environment variables or a secrets manager',
@@ -256,7 +259,8 @@ const RULES: Rule[] = [
     id: 'INFO-001',
     category: 'info_leak',
     severity: 'low',
-    pattern: /(?:console\.log|print|System\.out\.println|fmt\.Print)\s*\(.*(?:password|secret|token|key)/i,
+    pattern:
+      /(?:console\.log|print|System\.out\.println|fmt\.Print)\s*\(.*(?:password|secret|token|key)/i,
     languages: ['js', 'ts', 'python', 'java', 'go'],
     description: 'Sensitive data in log output',
     remediation: 'Remove or mask sensitive values before logging',
@@ -283,13 +287,29 @@ const LANG_EXTENSIONS: Record<string, string[]> = {
 };
 
 const IGNORE_DIRS = new Set([
-  'node_modules', '.git', '__pycache__', '.venv', 'venv', 'dist', 'build',
-  '.next', '.nuxt', 'vendor', 'target', 'bin', 'obj', '.idea', '.vscode',
+  'node_modules',
+  '.git',
+  '__pycache__',
+  '.venv',
+  'venv',
+  'dist',
+  'build',
+  '.next',
+  '.nuxt',
+  'vendor',
+  'target',
+  'bin',
+  'obj',
+  '.idea',
+  '.vscode',
 ]);
 
 export class CodeAuditTool extends BaseTool {
   constructor() {
-    super('code_audit', '静态代码安全审计 — 扫描源码中的安全漏洞模式（SQLi、XSS、命令注入、路径遍历、SSRF、反序列化等）');
+    super(
+      'code_audit',
+      '静态代码安全审计 — 扫描源码中的安全漏洞模式（SQLi、XSS、命令注入、路径遍历、SSRF、反序列化等）',
+    );
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
@@ -304,9 +324,7 @@ export class CodeAuditTool extends BaseTool {
 
     try {
       const stat = await fs.stat(target);
-      const files = stat.isFile()
-        ? [target]
-        : await this.walk(target, maxFiles, language);
+      const files = stat.isFile() ? [target] : await this.walk(target, maxFiles, language);
 
       const findings: Array<Record<string, unknown>> = [];
       for (const file of files) {

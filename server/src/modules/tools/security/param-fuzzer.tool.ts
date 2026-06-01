@@ -1,15 +1,45 @@
 import { BaseTool, ToolResult } from '../core/base-tool';
 
 const PAYLOAD_CATEGORIES: Record<string, string[]> = {
-  sqli: ["'", "' OR '1'='1", "' OR '1'='1' --", "1' AND SLEEP(3)--", "1; WAITFOR DELAY '0:0:3'--", "' UNION SELECT NULL--"],
-  xss: ['<script>alert(1)</script>', '<img src=x onerror=alert(1)>', '<svg/onload=alert(1)>', '"><img src=x onerror=alert(1)>'],
-  path_traversal: ['../../../etc/passwd', '..\\..\\..\\windows\\system32\\drivers\\etc\\hosts', '....//....//....//etc/passwd'],
+  sqli: [
+    "'",
+    "' OR '1'='1",
+    "' OR '1'='1' --",
+    "1' AND SLEEP(3)--",
+    "1; WAITFOR DELAY '0:0:3'--",
+    "' UNION SELECT NULL--",
+  ],
+  xss: [
+    '<script>alert(1)</script>',
+    '<img src=x onerror=alert(1)>',
+    '<svg/onload=alert(1)>',
+    '"><img src=x onerror=alert(1)>',
+  ],
+  path_traversal: [
+    '../../../etc/passwd',
+    '..\\..\\..\\windows\\system32\\drivers\\etc\\hosts',
+    '....//....//....//etc/passwd',
+  ],
   ssti: ['${7*7}', '{{7*7}}', '<%= 7*7 %>', '#{7*7}'],
   cmdi: ['`id`', '$(id)', '; id', '| id', '& id'],
   ssrf: ['http://127.0.0.1', 'http://169.254.169.254/latest/meta-data/', 'http://[::1]'],
 };
 
-const DEFAULT_PARAMS = ['id', 'q', 'search', 'page', 'callback', 'redirect', 'url', 'file', 'path', 'cmd', 'exec', 'template', 'lang'];
+const DEFAULT_PARAMS = [
+  'id',
+  'q',
+  'search',
+  'page',
+  'callback',
+  'redirect',
+  'url',
+  'file',
+  'path',
+  'cmd',
+  'exec',
+  'template',
+  'lang',
+];
 
 export class ParamFuzzerTool extends BaseTool {
   constructor() {
@@ -98,7 +128,11 @@ export class ParamFuzzerTool extends BaseTool {
         success: true,
         result: {
           url,
-          baseline: { status: baseline.status, content_length: baseline.length, elapsed_ms: baseline.elapsed },
+          baseline: {
+            status: baseline.status,
+            content_length: baseline.length,
+            elapsed_ms: baseline.elapsed,
+          },
           tested_cases: paramNames.length * payloads.length,
           suspicious_cases: findings.length,
           findings,

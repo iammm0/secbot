@@ -30,11 +30,12 @@ export class WifiScanTool extends BaseTool {
 
     if (result.error) return { success: false, result: null, error: result.error };
 
-    const networks = os === 'darwin'
-      ? this.parseMacOS(result.stdout)
-      : os === 'linux'
-        ? this.parseLinux(result.stdout)
-        : this.parseWindows(result.stdout);
+    const networks =
+      os === 'darwin'
+        ? this.parseMacOS(result.stdout)
+        : os === 'linux'
+          ? this.parseLinux(result.stdout)
+          : this.parseWindows(result.stdout);
 
     return {
       success: true,
@@ -69,7 +70,11 @@ export class WifiScanTool extends BaseTool {
       for (const line of output.split('\n').slice(1)) {
         const parts = line.trim().split(/\s{2,}/);
         if (parts.length >= 4) {
-          networks.push({ ssid: parts[1] ?? parts[0], signal: parts[parts.length - 2], security: parts[parts.length - 1] });
+          networks.push({
+            ssid: parts[1] ?? parts[0],
+            signal: parts[parts.length - 2],
+            security: parts[parts.length - 1],
+          });
         }
       }
     }
@@ -83,26 +88,49 @@ export class WifiScanTool extends BaseTool {
       const kv = line.match(/^\s*(.+?)\s*:\s*(.+)/);
       if (!kv) continue;
       const [, key, val] = kv;
-      if (/SSID(?!\s*\d)/i.test(key)) { if (current.ssid) networks.push(current); current = { ssid: val.trim() }; }
-      else if (/Authentication|认证/i.test(key)) current.security = val.trim();
+      if (/SSID(?!\s*\d)/i.test(key)) {
+        if (current.ssid) networks.push(current);
+        current = { ssid: val.trim() };
+      } else if (/Authentication|认证/i.test(key)) current.security = val.trim();
       else if (/Signal|信号/i.test(key)) current.signal = val.trim();
     }
     if (current.ssid) networks.push(current);
     return networks;
   }
 
-  private exec(cmd: string, args: string[], timeoutSec: number): Promise<{ stdout: string; error?: string }> {
+  private exec(
+    cmd: string,
+    args: string[],
+    timeoutSec: number,
+  ): Promise<{ stdout: string; error?: string }> {
     return new Promise((resolve) => {
       const child = spawn(cmd, args, { shell: false, windowsHide: true });
       let stdout = '';
       let done = false;
 
       child.stdout.setEncoding('utf8');
-      child.stdout.on('data', (c) => { stdout += c; });
+      child.stdout.on('data', (c) => {
+        stdout += c;
+      });
 
-      const timer = setTimeout(() => { if (done) return; done = true; child.kill('SIGTERM'); resolve({ stdout, error: `超时` }); }, timeoutSec * 1000);
-      child.on('error', (err) => { if (done) return; done = true; clearTimeout(timer); resolve({ stdout, error: /ENOENT/.test(err.message) ? `${cmd} 不可用` : err.message }); });
-      child.on('close', () => { if (done) return; done = true; clearTimeout(timer); resolve({ stdout }); });
+      const timer = setTimeout(() => {
+        if (done) return;
+        done = true;
+        child.kill('SIGTERM');
+        resolve({ stdout, error: `超时` });
+      }, timeoutSec * 1000);
+      child.on('error', (err) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve({ stdout, error: /ENOENT/.test(err.message) ? `${cmd} 不可用` : err.message });
+      });
+      child.on('close', () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve({ stdout });
+      });
     });
   }
 }

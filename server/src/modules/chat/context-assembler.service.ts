@@ -1,12 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MemoryService } from '../memory/memory.service';
 import { DatabaseService } from '../database/database.service';
-import {
-  ContextItem,
-  ContextPatch,
-  Session,
-  SessionContextState,
-} from '../../common/types';
+import { ContextItem, ContextPatch, Session, SessionContextState } from '../../common/types';
 import { ContextStoreService } from './context-store.service';
 import {
   ModelWindow,
@@ -135,7 +130,8 @@ export class ContextAssemblerService {
 
     // 4) Vector：focus 加权检索；query 与 focus 关键词组合检索后归并
     const focusKeywords = state.focus.map((f) => f.keyword);
-    const vectorQueryText = focusKeywords.length > 0 ? `${query} ${focusKeywords.join(' ')}` : query;
+    const vectorQueryText =
+      focusKeywords.length > 0 ? `${query} ${focusKeywords.join(' ')}` : query;
     const queryVector = this.textToVector(vectorQueryText);
     let vectorHits = 0;
     try {

@@ -56,7 +56,11 @@ export class TracerouteTool extends BaseTool {
     return hops;
   }
 
-  private exec(cmd: string, args: string[], timeoutSec: number): Promise<{ stdout: string; error?: string }> {
+  private exec(
+    cmd: string,
+    args: string[],
+    timeoutSec: number,
+  ): Promise<{ stdout: string; error?: string }> {
     return new Promise((resolve) => {
       const child = spawn(cmd, args, { shell: false, windowsHide: true });
       let stdout = '';
@@ -64,7 +68,9 @@ export class TracerouteTool extends BaseTool {
 
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => { stdout += c; });
+      child.stdout.on('data', (c) => {
+        stdout += c;
+      });
 
       const timer = setTimeout(() => {
         if (done) return;

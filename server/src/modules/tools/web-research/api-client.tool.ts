@@ -331,7 +331,10 @@ export class ApiClientTool extends BaseTool {
       try {
         const attemptResult = await this.requestAttempt(options, timeoutSec);
         // Retry on 429/5xx
-        if ((attemptResult.response.status === 429 || attemptResult.response.status >= 500) && attempt < maxRetries) {
+        if (
+          (attemptResult.response.status === 429 || attemptResult.response.status >= 500) &&
+          attempt < maxRetries
+        ) {
           await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
           continue;
         }
@@ -380,7 +383,8 @@ export class ApiClientTool extends BaseTool {
 
     let requestBody: string | undefined;
     const headers: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
       ...options.headers,
     };
     if (

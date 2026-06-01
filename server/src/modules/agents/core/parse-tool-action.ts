@@ -24,8 +24,7 @@ export interface ParsedAction {
 }
 
 /** 同时匹配中英文标签 + markdown 粗体修饰 */
-const ACTION_LABEL_REGEX =
-  /(^|\n)\s*\**\s*(?:action|行动|动作)\s*\**\s*[:：]\s*\**\s*/i;
+const ACTION_LABEL_REGEX = /(^|\n)\s*\**\s*(?:action|行动|动作)\s*\**\s*[:：]\s*\**\s*/i;
 
 const FINAL_ANSWER_REGEX = /(?:Final\s*Answer|最终(?:回答|答案|结论))\s*[:：]/i;
 
@@ -133,8 +132,6 @@ export function hasFinalAnswer(thought: string): boolean {
 }
 
 export function extractFinalAnswer(thought: string): string | null {
-  const match = thought.match(
-    /(?:Final\s*Answer|最终(?:回答|答案|结论))\s*[:：]\s*([\s\S]*)/i,
-  );
+  const match = thought.match(/(?:Final\s*Answer|最终(?:回答|答案|结论))\s*[:：]\s*([\s\S]*)/i);
   return match ? match[1].trim() : null;
 }

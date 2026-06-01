@@ -13,8 +13,9 @@ export class HttpRequestTool extends BaseTool {
 
     const method = ((params.method as string) || 'GET').toUpperCase();
     const headers: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-      ...(params.headers as Record<string, string> || {}),
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      ...((params.headers as Record<string, string>) || {}),
     };
     const body = params.body as string | undefined;
     const timeoutMs = Math.min(Math.max(Number(params.timeout ?? 30) * 1000, 5000), 60000);
@@ -39,7 +40,9 @@ export class HttpRequestTool extends BaseTool {
         }
 
         const responseHeaders: Record<string, string> = {};
-        response.headers.forEach((value, key) => { responseHeaders[key] = value; });
+        response.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
 
         const responseBody = await response.text();
         const maxLen = 8000;
@@ -50,9 +53,10 @@ export class HttpRequestTool extends BaseTool {
             status: response.status,
             statusText: response.statusText,
             headers: responseHeaders,
-            body: responseBody.length > maxLen
-              ? responseBody.slice(0, maxLen) + '...(truncated)'
-              : responseBody,
+            body:
+              responseBody.length > maxLen
+                ? responseBody.slice(0, maxLen) + '...(truncated)'
+                : responseBody,
           },
         };
       } catch (error) {
@@ -64,7 +68,9 @@ export class HttpRequestTool extends BaseTool {
         return {
           success: false,
           result: null,
-          error: msg.includes('abort') ? `HTTP请求超时 (${timeoutMs / 1000}s)` : `HTTP请求失败: ${msg}`,
+          error: msg.includes('abort')
+            ? `HTTP请求超时 (${timeoutMs / 1000}s)`
+            : `HTTP请求失败: ${msg}`,
         };
       }
     }

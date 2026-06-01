@@ -15,10 +15,7 @@ const SCAN_FLAGS: Record<ScanType, string[]> = {
 
 export class NmapScanTool extends BaseTool {
   constructor() {
-    super(
-      'nmap_scan',
-      'Nmap 扫描 — 调用 nmap 执行端口扫描、服务版本检测、OS 识别、NSE 脚本扫描等',
-    );
+    super('nmap_scan', 'Nmap 扫描 — 调用 nmap 执行端口扫描、服务版本检测、OS 识别、NSE 脚本扫描等');
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
@@ -27,7 +24,7 @@ export class NmapScanTool extends BaseTool {
       return { success: false, result: null, error: '缺少必要参数: target' };
     }
 
-    const scanType = (String(params.scan_type ?? 'tcp_connect').trim()) as ScanType;
+    const scanType = String(params.scan_type ?? 'tcp_connect').trim() as ScanType;
     const ports = params.ports ? String(params.ports).trim() : undefined;
     const scripts = params.scripts ? String(params.scripts).trim() : undefined;
     const timing = params.timing ? String(params.timing).trim() : 'T3';
@@ -77,8 +74,12 @@ export class NmapScanTool extends BaseTool {
 
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => { stdout += c; });
-      child.stderr.on('data', (c) => { stderr += c; });
+      child.stdout.on('data', (c) => {
+        stdout += c;
+      });
+      child.stderr.on('data', (c) => {
+        stderr += c;
+      });
 
       const timer = setTimeout(() => {
         if (done) return;
@@ -102,7 +103,12 @@ export class NmapScanTool extends BaseTool {
         done = true;
         clearTimeout(timer);
         if (code !== 0 && !stdout.includes('<nmaprun')) {
-          resolve({ code: code ?? -1, stdout, stderr, error: stderr.trim() || `nmap 退出码 ${code}` });
+          resolve({
+            code: code ?? -1,
+            stdout,
+            stderr,
+            error: stderr.trim() || `nmap 退出码 ${code}`,
+          });
         } else {
           resolve({ code: code ?? 0, stdout, stderr });
         }
@@ -144,7 +150,8 @@ export class NmapScanTool extends BaseTool {
 
       // Scripts
       const scripts: Array<{ id: string; output: string }> = [];
-      const scriptMatches = block.match(/<script\b[^>]*>[\s\S]*?<\/script>|<script\b[^/]*\/>/g) ?? [];
+      const scriptMatches =
+        block.match(/<script\b[^>]*>[\s\S]*?<\/script>|<script\b[^/]*\/>/g) ?? [];
       for (const sm of scriptMatches) {
         const id = sm.match(/id="([^"]*)"/)?.[1] ?? '';
         const output = sm.match(/output="([^"]*)"/)?.[1] ?? '';

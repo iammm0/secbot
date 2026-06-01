@@ -367,8 +367,10 @@ export class QAAgent extends BaseAgent {
         const vendor = String(entry.vendor ?? '').trim();
         const product = String(entry.product ?? '').trim();
         const versions = (entry.versions ?? []).map((item) => String(item)).filter(Boolean);
-        return [vendor, product].filter(Boolean).join(' / ') +
-          (versions.length > 0 ? `（版本: ${versions.join(', ')}）` : '');
+        return (
+          [vendor, product].filter(Boolean).join(' / ') +
+          (versions.length > 0 ? `（版本: ${versions.join(', ')}）` : '')
+        );
       })
       .filter(Boolean)
       .join('\n');

@@ -1,10 +1,5 @@
 import { BaseTool, ToolResult } from '../core/base-tool';
-import {
-  decodeHtmlEntities,
-  extractHeadings,
-  extractLinks,
-  extractTitle,
-} from './html-utils';
+import { decodeHtmlEntities, extractHeadings, extractLinks, extractTitle } from './html-utils';
 import { extractReaderView } from './readability';
 import { RESPECTFUL_USER_AGENT, isAllowedByRobots, rateLimitWait } from './robots';
 
@@ -313,9 +308,7 @@ export class BrowserSessionTool extends BaseTool {
         max_hops: MAX_HOPS_PER_SESSION,
         history_depth: state.history.length,
         notes_count: state.notes.length,
-        current: current
-          ? { url: current.url, title: current.title, kind: current.kind }
-          : null,
+        current: current ? { url: current.url, title: current.title, kind: current.kind } : null,
       },
     };
   }
@@ -564,14 +557,18 @@ async function searchAsPage(query: string, maxResults: number): Promise<BrowserP
     usedUrl = `${DDG_HTML_URL}?q=${encodeURIComponent(query)}`;
     const html = await fetchHtml(usedUrl, BROWSER_UA);
     items = parseDDGHtml(html, maxResults);
-  } catch { /* fallback below */ }
+  } catch {
+    /* fallback below */
+  }
 
   if (items.length === 0) {
     try {
       usedUrl = `${DDG_LITE_URL}?q=${encodeURIComponent(query)}`;
       const html = await fetchHtml(usedUrl, BROWSER_UA);
       items = parseDuckDuckGoLite(html, maxResults);
-    } catch { /* empty results */ }
+    } catch {
+      /* empty results */
+    }
   }
 
   const text =
@@ -618,13 +615,19 @@ function parseDDGHtml(html: string, maxResults: number): DuckDuckGoResult[] {
     const uddg = rawUrl.match(/[?&]uddg=([^&]+)/);
     if (uddg) rawUrl = decodeURIComponent(uddg[1]);
     if (!/^https?:\/\//i.test(rawUrl)) continue;
-    const title = decodeHtmlEntities(String(m[2]).replace(/<[^>]+>/g, '')).trim().slice(0, 280);
+    const title = decodeHtmlEntities(String(m[2]).replace(/<[^>]+>/g, ''))
+      .trim()
+      .slice(0, 280);
     links.push({ url: rawUrl, title });
   }
   const snippets: string[] = [];
   let sm: RegExpExecArray | null;
   while ((sm = snippetRegex.exec(html)) !== null && snippets.length < maxResults) {
-    snippets.push(decodeHtmlEntities(String(sm[1]).replace(/<[^>]+>/g, '')).trim().slice(0, 320));
+    snippets.push(
+      decodeHtmlEntities(String(sm[1]).replace(/<[^>]+>/g, ''))
+        .trim()
+        .slice(0, 320),
+    );
   }
   return links.map((entry, idx) => ({
     title: entry.title,
@@ -647,9 +650,7 @@ function parseDuckDuckGoLite(html: string, maxResults: number): DuckDuckGoResult
   while ((linkMatch = linkRegex.exec(html)) !== null && links.length < maxResults) {
     const rawUrl = String(linkMatch[1] ?? '').trim();
     if (!/^https?:\/\//i.test(rawUrl)) continue;
-    const title = decodeHtmlEntities(
-      String(linkMatch[2] ?? '').replace(/<[^>]+>/g, ''),
-    )
+    const title = decodeHtmlEntities(String(linkMatch[2] ?? '').replace(/<[^>]+>/g, ''))
       .trim()
       .slice(0, 280);
     links.push({ url: rawUrl, title });

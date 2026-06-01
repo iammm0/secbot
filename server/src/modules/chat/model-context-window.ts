@@ -29,7 +29,7 @@ const MODEL_WINDOW_TABLE: Record<string, ModelWindow> = {
   'gpt-4-turbo': { context: 128_000, reserveForOutput: 4_000, reserveForSystem: 2_000 },
   'gpt-4': { context: 8_192, reserveForOutput: 1_500, reserveForSystem: 1_500 },
   'gpt-3.5-turbo': { context: 16_385, reserveForOutput: 2_000, reserveForSystem: 1_500 },
-  'o1': { context: 128_000, reserveForOutput: 32_000, reserveForSystem: 2_000 },
+  o1: { context: 128_000, reserveForOutput: 32_000, reserveForSystem: 2_000 },
   'o1-mini': { context: 128_000, reserveForOutput: 16_000, reserveForSystem: 2_000 },
   'o3-mini': { context: 200_000, reserveForOutput: 32_000, reserveForSystem: 2_000 },
 
@@ -70,10 +70,10 @@ const MODEL_WINDOW_TABLE: Record<string, ModelWindow> = {
   // Llama / Ollama 常见
   'llama3.2': { context: 8_192, reserveForOutput: 1_500, reserveForSystem: 1_500 },
   'llama3.1': { context: 128_000, reserveForOutput: 4_000, reserveForSystem: 2_000 },
-  'llama3': { context: 8_192, reserveForOutput: 1_500, reserveForSystem: 1_500 },
-  'mistral': { context: 32_768, reserveForOutput: 2_000, reserveForSystem: 1_500 },
-  'mixtral': { context: 32_768, reserveForOutput: 2_000, reserveForSystem: 1_500 },
-  'qwen2': { context: 32_768, reserveForOutput: 2_000, reserveForSystem: 1_500 },
+  llama3: { context: 8_192, reserveForOutput: 1_500, reserveForSystem: 1_500 },
+  mistral: { context: 32_768, reserveForOutput: 2_000, reserveForSystem: 1_500 },
+  mixtral: { context: 32_768, reserveForOutput: 2_000, reserveForSystem: 1_500 },
+  qwen2: { context: 32_768, reserveForOutput: 2_000, reserveForSystem: 1_500 },
 
   // xAI Grok
   'grok-2': { context: 131_072, reserveForOutput: 4_000, reserveForSystem: 2_000 },

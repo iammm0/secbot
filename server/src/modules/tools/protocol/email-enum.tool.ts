@@ -14,10 +14,22 @@ export class EmailEnumTool extends BaseTool {
 
     if (!domain) return { success: false, result: null, error: '缺少必要参数: domain' };
 
-    const targetUsers = users?.length ? users : [
-      'admin', 'root', 'info', 'support', 'contact', 'webmaster',
-      'postmaster', 'sales', 'test', 'user', 'mail', 'office',
-    ];
+    const targetUsers = users?.length
+      ? users
+      : [
+          'admin',
+          'root',
+          'info',
+          'support',
+          'contact',
+          'webmaster',
+          'postmaster',
+          'sales',
+          'test',
+          'user',
+          'mail',
+          'office',
+        ];
 
     const timeoutMs = Math.min(Number(params.timeout) || 15, 60) * 1000;
 
@@ -73,10 +85,17 @@ export class EmailEnumTool extends BaseTool {
       socket.setTimeout(timeoutMs);
       socket.setEncoding('utf8');
 
-      const finish = () => { socket.write('QUIT\r\n'); socket.destroy(); resolve(results); };
+      const finish = () => {
+        socket.write('QUIT\r\n');
+        socket.destroy();
+        resolve(results);
+      };
 
       const sendNext = () => {
-        if (idx >= users.length) { finish(); return; }
+        if (idx >= users.length) {
+          finish();
+          return;
+        }
         const email = `${users[idx]}@${domain}`;
         if (method === 'vrfy') {
           socket.write(`VRFY ${email}\r\n`);
@@ -120,8 +139,14 @@ export class EmailEnumTool extends BaseTool {
         }
       });
 
-      socket.on('timeout', () => { socket.destroy(); resolve(results); });
-      socket.on('error', () => { socket.destroy(); resolve(results); });
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve(results);
+      });
+      socket.on('error', () => {
+        socket.destroy();
+        resolve(results);
+      });
     });
   }
 }

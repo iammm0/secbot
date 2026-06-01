@@ -71,7 +71,9 @@ export class NiktoScanTool extends BaseTool {
               });
             }
           }
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
       if (findings.length) return findings;
 
@@ -93,8 +95,12 @@ export class NiktoScanTool extends BaseTool {
 
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => { stdout += c; });
-      child.stderr.on('data', (c) => { stderr += c; });
+      child.stdout.on('data', (c) => {
+        stdout += c;
+      });
+      child.stderr.on('data', (c) => {
+        stderr += c;
+      });
 
       const timer = setTimeout(() => {
         if (done) return;

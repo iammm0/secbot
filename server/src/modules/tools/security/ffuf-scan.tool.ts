@@ -13,7 +13,9 @@ export class FfufScanTool extends BaseTool {
     const wordlist = params.wordlist ? String(params.wordlist).trim() : undefined;
     const filterStatus = params.filter_status ? String(params.filter_status).trim() : undefined;
     const filterSize = params.filter_size ? String(params.filter_size).trim() : undefined;
-    const matchStatus = params.match_status ? String(params.match_status).trim() : '200,204,301,302,307,401,403';
+    const matchStatus = params.match_status
+      ? String(params.match_status).trim()
+      : '200,204,301,302,307,401,403';
     const threads = Math.min(Number(params.threads) || 40, 200);
     const recursion = params.recursion === true;
     const recursionDepth = Math.min(Number(params.recursion_depth) || 2, 5);
@@ -72,7 +74,9 @@ export class FfufScanTool extends BaseTool {
             redirect_location: obj.redirectlocation ?? undefined,
           });
         }
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
     return findings;
   }
@@ -89,8 +93,12 @@ export class FfufScanTool extends BaseTool {
 
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => { stdout += c; });
-      child.stderr.on('data', (c) => { stderr += c; });
+      child.stdout.on('data', (c) => {
+        stdout += c;
+      });
+      child.stderr.on('data', (c) => {
+        stderr += c;
+      });
 
       const timer = setTimeout(() => {
         if (done) return;

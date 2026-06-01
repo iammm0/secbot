@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  extractFinalAnswer,
-  hasFinalAnswer,
-  parseToolAction,
-} from './parse-tool-action';
+import { extractFinalAnswer, hasFinalAnswer, parseToolAction } from './parse-tool-action';
 
 describe('parseToolAction', () => {
   it('解析标准单行 Action', () => {
@@ -24,9 +20,7 @@ describe('parseToolAction', () => {
   });
 
   it('嵌套对象参数也能解析（不会被 lazy regex 截断）', () => {
-    const out = parseToolAction(
-      'Action: {"tool":"complex","params":{"a":{"b":1},"c":[1,2,3]}}',
-    );
+    const out = parseToolAction('Action: {"tool":"complex","params":{"a":{"b":1},"c":[1,2,3]}}');
     expect(out?.tool).toBe('complex');
     expect(out?.params).toEqual({ a: { b: 1 }, c: [1, 2, 3] });
   });
@@ -61,11 +55,7 @@ describe('parseToolAction', () => {
   });
 
   it('Final Answer 出现时返回 null（让上层走最终回复）', () => {
-    expect(
-      parseToolAction(
-        'Thought: 已经够了\nFinal Answer: 所有端口都关闭',
-      ),
-    ).toBeNull();
+    expect(parseToolAction('Thought: 已经够了\nFinal Answer: 所有端口都关闭')).toBeNull();
   });
 
   it('既无 Action 也无 Final Answer 时返回 null', () => {
@@ -73,17 +63,13 @@ describe('parseToolAction', () => {
   });
 
   it('JSON 非法时返回 null（不要抛错）', () => {
-    expect(
-      parseToolAction('Action: {tool: bad_json, params: not-an-object'),
-    ).toBeNull();
+    expect(parseToolAction('Action: {tool: bad_json, params: not-an-object')).toBeNull();
   });
 
   it('hasFinalAnswer / extractFinalAnswer 支持中英文', () => {
     expect(hasFinalAnswer('Thought: ok\nFinal Answer: done')).toBe(true);
     expect(hasFinalAnswer('思考: 好\n最终回答: 完成')).toBe(true);
-    expect(extractFinalAnswer('Thought: ok\nFinal Answer: 全部完成')).toBe(
-      '全部完成',
-    );
+    expect(extractFinalAnswer('Thought: ok\nFinal Answer: 全部完成')).toBe('全部完成');
     expect(extractFinalAnswer('最终结论：业务正常')).toBe('业务正常');
   });
 });

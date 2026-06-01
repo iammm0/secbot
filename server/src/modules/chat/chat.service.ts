@@ -61,13 +61,7 @@ export class ChatService {
     body: ChatRequestDto,
     onSSEEvent?: (eventName: string, data: Record<string, unknown>) => void,
   ): Promise<string> {
-    const {
-      message,
-      mode,
-      agent: agentType,
-      client_shell: clientShell,
-      model: modelName,
-    } = body;
+    const { message, mode, agent: agentType, client_shell: clientShell, model: modelName } = body;
     const forceQA = message.trim().startsWith('/ask ');
     const forceAgent = mode === 'agent' || message.trim().startsWith('/agent ');
     const sessionId = (body.session_id ?? '').trim() || this.defaultSessionId;
@@ -83,7 +77,16 @@ export class ChatService {
 
     try {
       return await this._handleMessageCore({
-        message, mode, agentType, clientShell, modelName, sessionId, session, forceQA, forceAgent, emit,
+        message,
+        mode,
+        agentType,
+        clientShell,
+        modelName,
+        sessionId,
+        session,
+        forceQA,
+        forceAgent,
+        emit,
       });
     } catch (error) {
       const mapped = mapExceptionToClientBody(error);
@@ -105,7 +108,17 @@ export class ChatService {
     forceAgent: boolean;
     emit: (name: string, data: Record<string, unknown>) => void;
   }): Promise<string> {
-    const { message, agentType, clientShell, modelName, sessionId, session, forceQA, forceAgent, emit } = params;
+    const {
+      message,
+      agentType,
+      clientShell,
+      modelName,
+      sessionId,
+      session,
+      forceQA,
+      forceAgent,
+      emit,
+    } = params;
 
     /** 1) 启发式 focus 即时更新（IP/CVE/域名/URL/协议词） */
     this.contextAssembler.updateFocusFromInput(sessionId, message);
@@ -234,7 +247,12 @@ export class ChatService {
 
       if (planResult.todos.length > 1) {
         const executor = new TaskExecutor(planResult, selectedAgent, this.eventBus);
-        const firstRun = await executor.run(message, onAgentEvent, clientShell, context.contextBlock);
+        const firstRun = await executor.run(
+          message,
+          onAgentEvent,
+          clientShell,
+          context.contextBlock,
+        );
 
         /** 默认开启穿插规划；设置 SECBOT_ADAPTIVE_REPLAN=0 或 false 可关闭 */
         const adaptiveOff =
@@ -323,7 +341,9 @@ export class ChatService {
     if (intent.intent === 'small_talk' || intent.intent === 'meta') {
       const answer =
         intent.directResponse?.trim() ||
-        (intent.intent === 'small_talk' ? '收到～有需要执行的安全任务随时说。' : '我会尽量帮你查清楚。');
+        (intent.intent === 'small_talk'
+          ? '收到～有需要执行的安全任务随时说。'
+          : '我会尽量帮你查清楚。');
       return { response: answer, agent: intent.intent };
     }
 
@@ -378,7 +398,9 @@ export class ChatService {
     if (intent.intent === 'small_talk' || intent.intent === 'meta') {
       const answer =
         intent.directResponse?.trim() ||
-        (intent.intent === 'small_talk' ? '收到～有需要执行的安全任务随时说。' : '我会尽量帮你查清楚。');
+        (intent.intent === 'small_talk'
+          ? '收到～有需要执行的安全任务随时说。'
+          : '我会尽量帮你查清楚。');
       return { handled: true, result: finishWith(answer, intent.intent) };
     }
 
@@ -399,9 +421,14 @@ export class ChatService {
             role: m.role as 'system' | 'user' | 'assistant',
             content: m.content,
           }));
-          const answer = await this.qaAgent.answerAdaptive(message, history, ctx.contextBlock, (chunk) => {
-            emit('response_chunk', { chunk });
-          });
+          const answer = await this.qaAgent.answerAdaptive(
+            message,
+            history,
+            ctx.contextBlock,
+            (chunk) => {
+              emit('response_chunk', { chunk });
+            },
+          );
           return await finishWith(answer, 'qa');
         })(),
       };

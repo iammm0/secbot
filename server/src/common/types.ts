@@ -56,12 +56,7 @@ export interface IntentDecision {
 /** TTL 决定 ContextItem 何时清理；持久型只能由用户/系统手动移除 */
 export type ContextTtl = 'turn' | 'session' | 'persistent';
 
-export type ContextItemSource =
-  | 'recent'
-  | 'sqlite'
-  | 'vector'
-  | 'explore'
-  | 'user_pinned';
+export type ContextItemSource = 'recent' | 'sqlite' | 'vector' | 'explore' | 'user_pinned';
 
 export interface ContextItem {
   id: string;

@@ -61,9 +61,17 @@ export async function isAllowedByRobots(url: string): Promise<RobotsResult> {
   if (blockedBy !== null) {
     const allowedBy = matchRule(rules.allow, path);
     if (allowedBy !== null && allowedBy.length >= blockedBy.length) {
-      return { allowed: true, reason: `Allow 优先匹配: ${allowedBy}`, crawlDelaySec: rules.crawlDelaySec ?? 0 };
+      return {
+        allowed: true,
+        reason: `Allow 优先匹配: ${allowedBy}`,
+        crawlDelaySec: rules.crawlDelaySec ?? 0,
+      };
     }
-    return { allowed: false, reason: `Disallow 匹配: ${blockedBy}`, crawlDelaySec: rules.crawlDelaySec ?? 0 };
+    return {
+      allowed: false,
+      reason: `Disallow 匹配: ${blockedBy}`,
+      crawlDelaySec: rules.crawlDelaySec ?? 0,
+    };
   }
   return { allowed: true, reason: '未匹配 Disallow', crawlDelaySec: rules.crawlDelaySec ?? 0 };
 }
@@ -153,7 +161,10 @@ async function fetchRobots(origin: string): Promise<RobotsRules | null> {
 
 function parseRobotsTxt(text: string): RobotsRules {
   const lines = text.split(/\r?\n/);
-  const rulesByAgent = new Map<string, { disallow: string[]; allow: string[]; crawlDelay: number | null }>();
+  const rulesByAgent = new Map<
+    string,
+    { disallow: string[]; allow: string[]; crawlDelay: number | null }
+  >();
   const sitemaps: string[] = [];
   let currentAgents: string[] = [];
 
@@ -165,7 +176,10 @@ function parseRobotsTxt(text: string): RobotsRules {
     const key = line.slice(0, colon).trim().toLowerCase();
     const value = line.slice(colon + 1).trim();
     if (key === 'user-agent') {
-      currentAgents = value.split(/\s+/).filter(Boolean).map((s) => s.toLowerCase());
+      currentAgents = value
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((s) => s.toLowerCase());
       for (const ua of currentAgents) {
         if (!rulesByAgent.has(ua)) {
           rulesByAgent.set(ua, { disallow: [], allow: [], crawlDelay: null });
@@ -224,9 +238,7 @@ function matchRule(patterns: string[], path: string): string | null {
     /** Disallow: / 表示全站禁止 */
     if (pattern === '/') return pattern;
     /** 转成正则：转义后把 \* 替换回 .*，把结尾 $ 保留 */
-    const escaped = pattern
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/\\\*/g, '.*');
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
     const re = pattern.endsWith('$') ? new RegExp(`^${escaped}`) : new RegExp(`^${escaped}`);
     if (re.test(path)) return pattern;
   }

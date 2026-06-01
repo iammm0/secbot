@@ -107,9 +107,11 @@ describe('SmartSearchTool', () => {
   it('returns an empty-result success when the provider responds without parsable hits', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        makeResponse({ ok: true, text: '<html><body><p>no matching anchors</p></body></html>' }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          makeResponse({ ok: true, text: '<html><body><p>no matching anchors</p></body></html>' }),
+        ),
     );
 
     const tool = new SmartSearchTool();
@@ -144,7 +146,10 @@ describe('SmartSearchTool', () => {
 
     const tool = new SmartSearchTool();
     const summarizeSpy = vi
-      .spyOn(tool as unknown as { summarize: (query: string, contents: string[]) => Promise<string> }, 'summarize')
+      .spyOn(
+        tool as unknown as { summarize: (query: string, contents: string[]) => Promise<string> },
+        'summarize',
+      )
       .mockResolvedValue('');
 
     const result = await tool.run({ query: '最新漏洞情况', summarize: true });
