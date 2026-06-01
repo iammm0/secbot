@@ -87,10 +87,16 @@ class ToolCallingAgent(BaseAgent):
         self._model_override: Optional[str] = None
 
         self._sync_base_url_and_model()
-        self.llm = _create_llm(
-            provider=self._provider_override or settings.llm_provider,
-            model=self._model_override,
-        )
+        try:
+            self.llm = _create_llm(
+                provider=self._provider_override or settings.llm_provider,
+                model=self._model_override,
+            )
+        except Exception as e:
+            self.llm = None
+            logger.bind(agent=self.name, event="agent_error", attempt=1).warning(
+                f"LLM 初始化失败，保留 Agent 基础能力: {e}"
+            )
         logger.bind(agent=self.name, event="stage_start", attempt=1).info(
             f"推理后端: {self._provider_override or settings.llm_provider}, 模型: {self.model}"
         )
@@ -104,7 +110,7 @@ class ToolCallingAgent(BaseAgent):
         langchain_tools = [LangChainToolWrapper(tool) for tool in self.tools]
 
         # 使用 LangChain 1.1+ 的新 API
-        if langchain_tools:
+        if langchain_tools and self.llm is not None:
             self.tools_dict = {tool.name: tool for tool in langchain_tools}
             # 配置或运行时发现模型不支持 tools 时，不绑定工具
             supports_tools = getattr(settings, "llm_tools_supported", True)
@@ -136,7 +142,7 @@ class ToolCallingAgent(BaseAgent):
             self.llm_with_tools = self.llm
             self.tools_dict = {}
             self.use_bind_tools = False
-            logger.bind(agent=self.name, event="agent_error", attempt=1).warning("没有提供工具，工具调用智能体将无法使用工具调用功能")
+            logger.bind(agent=self.name, event="agent_error", attempt=1).warning("没有可用 LLM 或工具，工具调用智能体将仅保留基础会话能力")
 
     def _sync_base_url_and_model(self) -> None:
         """根据当前 provider/model 覆盖更新 base_url 和 model（用于显示）。"""

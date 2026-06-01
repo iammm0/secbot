@@ -257,7 +257,7 @@ class SessionManager:
             ans = (intent.direct_response or "").strip()
             if not ans:
                 ans = (
-                    "收到～有需要执行的安全任务随时说。"
+                    "收到～有需要执行的安全任务随时说!"
                     if intent.intent == "small_talk"
                     else "我会尽量帮你查清楚。"
                 )
@@ -375,20 +375,38 @@ class SessionManager:
         import os
 
         at = agent_type or self.get_current_agent_type()
+        sid = self.current_session.id if self.current_session else "default"
 
         # ---- 强制 Q&A（mode=ask）----
         if force_qa:
             await self.event_bus.emit_simple_async(
                 EventType.TASK_PHASE, phase="done", detail=""
             )
-            response = await self.qa_agent.answer(user_input)
+            if self.context_assembler and self.current_session:
+                ctx = await self.context_assembler.build(
+                    query=user_input,
+                    session=self.current_session,
+                    session_id=sid,
+                    agent_type="qa",
+                    model_name=model_name,
+                )
+                await self._emit_context_usage(ctx.debug)
+                hist = [
+                    {"role": m.role.value, "content": m.content}
+                    for m in self.current_session.messages
+                ]
+                response = await self.qa_agent.answer_with_context(
+                    user_input, hist, ctx.context_block
+                )
+            else:
+                response = await self.qa_agent.answer(user_input)
             if self.current_session:
                 self.current_session.add_message(MessageRole.ASSISTANT, response)
+            await self._persist_turn(user_input, response, "qa")
             return response
 
         # ---- IntentRouter + 可选 Explore + 预算上下文 ----
         _context_block = ""
-        sid = self.current_session.id if self.current_session else "default"
         focus_kw: List[str] = []
         unresolved_snap: List[str] = []
         if self.context_assembler:
@@ -532,6 +550,7 @@ class SessionManager:
                         skip_planning=True,
                         skip_report=True,
                         todos=[],
+                        context_block=_context_block,
                         get_root_password=getattr(self, "get_root_password", None),
                     )
             else:
@@ -541,6 +560,7 @@ class SessionManager:
                     skip_planning=True,
                     skip_report=True,
                     todos=[],
+                    context_block=_context_block,
                     get_root_password=getattr(self, "get_root_password", None),
                 )
 
@@ -678,6 +698,7 @@ class SessionManager:
                     planner=self.planner,
                     event_bus=self.event_bus,
                     get_root_password=getattr(self, "get_root_password", None),
+                    context_block=_context_block,
                 )
                 return await executor.run(user_input, on_event=event_bridge)
             else:
@@ -687,6 +708,7 @@ class SessionManager:
                     skip_planning=True,
                     skip_report=True,
                     todos=todos_snapshot,
+                    context_block=_context_block,
                     get_root_password=getattr(self, "get_root_password", None),
                 )
                 return resp
@@ -749,6 +771,7 @@ class SessionManager:
                     planner=self.planner,
                     event_bus=self.event_bus,
                     get_root_password=getattr(self, "get_root_password", None),
+                    context_block=_context_block,
                 )
                 if lock is not None:
                     async with lock:

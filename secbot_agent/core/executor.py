@@ -37,12 +37,14 @@ class TaskExecutor:
         planner,
         event_bus: EventBus,
         get_root_password: Optional[Callable] = None,
+        context_block: str = "",
     ):
         self.plan_result = plan_result
         self.agent = agent
         self.planner = planner
         self.event_bus = event_bus
         self.get_root_password = get_root_password
+        self.context_block = context_block
         self._layer_results: Dict[str, Any] = {}
 
     def _get_todo_by_id(self, todo_id: str) -> Optional[TodoItem]:
@@ -241,6 +243,7 @@ class TaskExecutor:
                 iteration=iteration,
                 get_root_password=self.get_root_password,
                 emit_events=emit_events,
+                context_block=self.context_block,
             )
             duration_ms = int((time.perf_counter() - started) * 1000)
             if result.get("success"):

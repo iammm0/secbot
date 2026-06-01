@@ -136,6 +136,7 @@ class CoordinatorAgent(BaseAgent):
         iteration: int = 1,
         get_root_password=None,
         emit_events: bool = True,
+        context_block: str = "",
     ) -> Dict[str, Any]:
         """
         单步执行入口：根据 Todo.agent_hint / resource 路由到专职子 Agent。
@@ -165,6 +166,7 @@ class CoordinatorAgent(BaseAgent):
             iteration=iteration,
             get_root_password=get_root_password,
             emit_events=emit_events,
+            context_block=context_block,
         )
 
         # 为结果打上 agent 标签，便于 Summary / 前端区分
@@ -332,4 +334,3 @@ class CoordinatorAgent(BaseAgent):
 
 
 __all__ = ["CoordinatorAgent"]
-

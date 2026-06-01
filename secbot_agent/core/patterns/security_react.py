@@ -611,6 +611,7 @@ class SecurityReActAgent(BaseAgent):
         self._skip_report = skip_report  # 供 handle_accept 使用
         # 当前计划步骤（由 SessionManager 传入），用于 prompt 中提示“未完成不输出 Final Answer”
         self._current_todos = kwargs.get("todos") or []
+        self._runtime_context_block = (kwargs.get("context_block") or "").strip()
         # 需要 root 时询问密码的回调（由交互层传入）
         self._get_root_password = kwargs.get("get_root_password")
 
@@ -1138,6 +1139,13 @@ class SecurityReActAgent(BaseAgent):
         """规划阶段：分析任务，制定执行计划"""
         tools_desc = self._get_tools_description()
         context_block = get_agent_context_block()
+        runtime_context = getattr(self, "_runtime_context_block", "")
+        if runtime_context:
+            context_block = (
+                f"{context_block}\n"
+                f"## 会话检索上下文（由 ContextAssembler 注入）\n"
+                f"{runtime_context}\n"
+            )
 
         planning_prompt = f"""你是一个安全测试专家。请分析用户请求，制定详细的执行计划。
 
@@ -1703,6 +1711,7 @@ Final Answer: <最终结论和报告>
         iteration: int = 1,
         get_root_password=None,
         emit_events: bool = True,
+        context_block: str = "",
     ) -> Dict[str, Any]:
         """
         单步执行：根据 todo 的 tool_hint 执行对应工具，供 TaskExecutor 分层调度使用。
@@ -1756,6 +1765,8 @@ Final Answer: <最终结论和报告>
 
         # 使用 LLM 提取参数
         context_str = ""
+        if context_block:
+            context_str += f"\n- request_context: {context_block[:1200]}"
         if context:
             for k, v in context.items():
                 if v is not None:
