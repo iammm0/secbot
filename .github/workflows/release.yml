@@ -1,14 +1,8 @@
-# 自动发布 npm 包 @opensec/secbot（以 2.0.3 / 标签 v2.0.3 为例）
+# 自动构建发布包并上传到 GitHub Release（以 2.0.3 / 标签 v2.0.3 为例）
 # 1. 确认根目录 package.json 的 version 与即将打的标签一致（如 2.0.3 对应标签 v2.0.3）。
-# 2. npmjs 发布采用 Trusted Publishing（GitHub Actions OIDC），无需 NPM_TOKEN：
-#    · 需在 npm 包页面 Settings -> Publishing access / Trusted publishers 中绑定 GitHub 仓库 iammm0/secbot。
-#    · workflow 文件名需与本文件一致（release.yml）。
-#    · package.json 的 repository.url 需与 GitHub 仓库匹配。
-#    · workflow permissions 需包含 id-token: write。
-# 3. git tag v2.0.3 && git push origin v2.0.3
-#    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz → npm trusted publish（npmjs）+
-#    GitHub Packages（仓库 Settings -> Packages 可见；包名为 @<仓库所有者>/secbot，与 @opensec/secbot 并存）。
-#    GitHub Packages 继续使用 GITHUB_TOKEN 认证 npm.pkg.github.com。
+# 2. git tag v2.0.3 && git push origin v2.0.3
+#    将触发：构建 → 校验版本 → 打 GitHub Release 并上传 tgz。
+# 3. 本 workflow 不再发布到 npmjs 或 GitHub Packages。
 
 name: Release
 
@@ -20,8 +14,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
-  id-token: write
 
 jobs:
   build:
@@ -83,69 +75,3 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-npm:
-    name: Publish to npm registry
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js for npm
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Publish to npm
-        run: |
-          PKG_VER="$(node -p "require('./package.json').version")"
-          if [[ "$PKG_VER" == *-* ]]; then
-            npm publish --access public --tag next
-          else
-            npm publish --access public
-          fi
-
-  publish-github-packages:
-    name: Publish to GitHub Packages
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/checkout@v4
-
-      # GitHub Packages 要求作用域小写，与 apply-github-packages-name.js 中 pkg.name 一致
-      - name: Normalize npm scope owner (lowercase)
-        run: echo "NPM_SCOPE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Set up Node.js for GitHub Packages
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '${{ env.NPM_SCOPE_OWNER }}'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Apply scoped name for GitHub Packages registry
-        run: node scripts/apply-github-packages-name.js
-        env:
-          GITHUB_REPOSITORY_OWNER: ${{ env.NPM_SCOPE_OWNER }}
-
-      - name: Publish to GitHub Packages
-        run: |
-          PKG_VER="$(node -p "require('./package.json').version")"
-          if [[ "$PKG_VER" == *-* ]]; then
-            npm publish --tag next
-          else
-            npm publish
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,6 @@
 # 发布指南
 
-本仓库当前发布的是 npm 包 `@opensec/secbot`。包内包含：
+本仓库当前发布的是 GitHub Release `.tgz` 构建包。包内 npm 元数据仍使用 `@opensec/secbot`，但 release workflow 不再发布到 npmjs 或 GitHub Packages。包内包含：
 
 - `server/dist`
 - `terminal-ui/dist`
@@ -14,7 +14,7 @@
 ## 用户安装
 
 ```bash
-npm install -g @opensec/secbot
+npm install -g ./opensec-secbot-<version>.tgz
 secbot
 ```
 
@@ -24,13 +24,13 @@ secbot
 secbot-server
 ```
 
-一次性运行：
+一次性运行本地包：
 
 ```bash
-npx @opensec/secbot
+npx ./opensec-secbot-<version>.tgz
 ```
 
-也可以从 GitHub Releases 下载 `.tgz` 包。
+从 GitHub Releases 下载对应版本的 `.tgz` 包后替换 `<version>`。
 
 ## 本地发布前检查
 
@@ -69,10 +69,10 @@ npm pack
 | `npm run build` | 构建 NestJS 后端 |
 | `npm run build:terminal-ui` | 构建 Ink TUI |
 | `npm run release:build` | 清理并构建后端 |
-| `npm run release:pack` | 构建后端并执行 `npm pack` |
+| `npm run release:pack` | 构建后端并执行 `npm pack` 生成 `.tgz` |
 | `npm run release:verify` | 在临时目录安装 tarball 并验证二进制入口 |
 
-注意：根包的 `prepack` 会执行 `npm run build && npm run build:terminal-ui`，因此直接 `npm pack` 也会构建两个产物。
+注意：根包的 `prepack` 会执行后端构建、TUI 构建、`web` 依赖安装和 Web 构建，因此直接 `npm pack` 也会生成完整产物。
 
 ## GitHub Actions 发布
 
@@ -106,40 +106,16 @@ CI 会执行：
 5. `npm test`
 6. `npm run release:pack`
 7. 上传 `.tgz` 到 GitHub Release
-8. 发布到 npm registry
-9. 发布到 GitHub Packages
 
-预发布版本（版本号包含 `-`）会发布到 npm 的 `next` tag。
+预发布版本（版本号包含 `-`）会在 GitHub Release 中标记为 prerelease。
 
-## npm Trusted Publishing
+## 不发布到 npm
 
-`release.yml` 使用 npm Trusted Publishing，也就是 GitHub Actions OIDC，不需要 `NPM_TOKEN`。需要在 npm 包页面配置 trusted publisher：
+`release.yml` 不再包含 npmjs Trusted Publishing，也不会发布到 GitHub Packages。发布产物只作为 `.tgz` 上传到 GitHub Release。
 
-- 仓库：`iammm0/secbot`
-- Workflow 文件：`release.yml`
-- Package：`@opensec/secbot`
+## 不可覆盖已发布资产
 
-如果 trusted publisher 未配置，npm 发布步骤会失败。
-
-## GitHub Packages
-
-GitHub Packages 发布前会运行：
-
-```bash
-node scripts/apply-github-packages-name.js
-```
-
-它会把包名改为仓库所有者 scope 下的包，例如：
-
-```text
-@iammm0/secbot
-```
-
-这与 npmjs 上的 `@opensec/secbot` 并存。
-
-## 不可覆盖已发布版本
-
-npm 与 GitHub Packages 都不允许覆盖同一版本。若 CI 报类似 `Cannot publish over previously published version`，需要提升 `package.json` 版本并重新打标签。
+同一 tag 的 GitHub Release 会被 workflow 更新并重新上传 `.tgz`。正式发布时仍建议提升 `package.json` 版本并打新标签，避免用户拿到不同内容但版本号相同的包。
 
 ## 版本文档
 
