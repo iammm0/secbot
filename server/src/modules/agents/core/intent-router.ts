@@ -141,7 +141,7 @@ export class IntentRouter {
     } catch {
       /* LLM 不可用 / 解析失败：走启发式 */
     }
-    return this.fallback(args.userInput, heuristic, args);
+    return this.fallback(heuristic);
   }
 
   private parse(raw: string): IntentDecision | null {
@@ -191,11 +191,7 @@ export class IntentRouter {
     };
   }
 
-  private fallback(
-    userInput: string,
-    heuristic: ReturnType<IntentRouter['heuristic']>,
-    args: IntentRouteArgs,
-  ): IntentDecision {
+  private fallback(heuristic: ReturnType<IntentRouter['heuristic']>): IntentDecision {
     let intent: Intent = 'qa';
     if (heuristic.isSmallTalk) intent = 'small_talk';
     else if (heuristic.isMeta) intent = 'meta';

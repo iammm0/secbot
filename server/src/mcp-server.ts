@@ -31,14 +31,12 @@ async function bootstrap() {
     name: 'secbot-mcp',
     version: '1.0.0',
   });
-  const registerTool = (server as any).registerTool.bind(server) as any;
-
   for (const tool of toolsService.getAllTools()) {
     if (tool.sensitive && !allowSensitive) {
       continue;
     }
 
-    registerTool(
+    server.registerTool(
       tool.name,
       {
         title: tool.name,
