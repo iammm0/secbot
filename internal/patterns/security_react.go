@@ -51,10 +51,20 @@ func NewSecurityReActAgent(llm llms.Model, toolList []tools.Tool, maxIter int) *
 
 // Run 使用安全上下文执行 ReAct 循环
 func (a *SecurityReActAgent) Run(ctx context.Context, input string) (string, error) {
+	return a.RunWithContext(ctx, input, "")
+}
+
+// RunWithContext 使用安全上下文与会话检索上下文执行 ReAct 循环。
+func (a *SecurityReActAgent) RunWithContext(ctx context.Context, input, contextBlock string) (string, error) {
 	toolDescs := a.toolDescriptions()
+	contextSection := ""
+	if strings.TrimSpace(contextBlock) != "" {
+		contextSection = "\n会话检索上下文:\n" + contextBlock + "\n"
+	}
 	prompt := fmt.Sprintf(`%s
 
 可用工具:
+%s
 %s
 
 用户请求: %s
@@ -64,7 +74,7 @@ func (a *SecurityReActAgent) Run(ctx context.Context, input string) (string, err
 2. 行动（Action）：选择工具和参数
 3. 观察（Observation）：分析工具返回结果
 
-最终给出完整的分析报告。`, a.SystemPrompt, toolDescs, input)
+最终给出完整的分析报告。`, a.SystemPrompt, toolDescs, contextSection, input)
 
 	messages := []llms.MessageContent{
 		llms.TextParts(llms.ChatMessageTypeSystem, a.SystemPrompt),

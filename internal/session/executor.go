@@ -14,23 +14,25 @@ import (
 )
 
 type TaskExecutor struct {
-	coordinator *agent.CoordinatorAgent
-	planner     *agent.PlannerAgent
-	bus         *event.Bus
+	coordinator  *agent.CoordinatorAgent
+	planner      *agent.PlannerAgent
+	bus          *event.Bus
+	contextBlock string
 }
 
-func NewTaskExecutor(coordinator *agent.CoordinatorAgent, planner *agent.PlannerAgent, bus *event.Bus) *TaskExecutor {
+func NewTaskExecutor(coordinator *agent.CoordinatorAgent, planner *agent.PlannerAgent, bus *event.Bus, contextBlock string) *TaskExecutor {
 	return &TaskExecutor{
-		coordinator: coordinator,
-		planner:     planner,
-		bus:         bus,
+		coordinator:  coordinator,
+		planner:      planner,
+		bus:          bus,
+		contextBlock: contextBlock,
 	}
 }
 
-func (e *TaskExecutor) Run(ctx context.Context, userInput string, planResult *models.PlanResult, onEvent models.EventCallback) (string, error) {
+func (e *TaskExecutor) Run(ctx context.Context, userInput string, planResult *models.PlanResult, onEvent models.EventCallback) (*models.ExecutionResult, error) {
 	layers := e.planner.GetExecutionOrder()
 	if len(layers) == 0 {
-		return "", fmt.Errorf("无可执行步骤")
+		return &models.ExecutionResult{}, fmt.Errorf("无可执行步骤")
 	}
 
 	logger.Infof("[TaskExecutor] 开始分层执行, %d 层", len(layers))
@@ -42,6 +44,7 @@ func (e *TaskExecutor) Run(ctx context.Context, userInput string, planResult *mo
 
 	execContext := make(map[string]any)
 	var allResults []string
+	cancelledCount := 0
 
 	for layerIdx, layer := range layers {
 		logger.Infof("[TaskExecutor] 执行第 %d 层, %d 个任务", layerIdx+1, len(layer))
@@ -55,13 +58,15 @@ func (e *TaskExecutor) Run(ctx context.Context, userInput string, planResult *mo
 
 			result, err := e.executeSingleTodo(ctx, *todo, execContext, onEvent)
 			if err != nil {
+				cancelledCount++
 				logger.Warnf("[TaskExecutor] todo %s 失败: %v", todoID, err)
 			} else {
 				execContext[todoID] = result
 				allResults = append(allResults, result)
 			}
 		} else {
-			results := e.executeLayerParallel(ctx, layer, todoMap, execContext, onEvent)
+			results, failed := e.executeLayerParallel(ctx, layer, todoMap, execContext, onEvent)
+			cancelledCount += failed
 			for todoID, result := range results {
 				execContext[todoID] = result
 				allResults = append(allResults, result)
@@ -73,7 +78,7 @@ func (e *TaskExecutor) Run(ctx context.Context, userInput string, planResult *mo
 	for _, r := range allResults {
 		response += r + "\n\n"
 	}
-	return response, nil
+	return &models.ExecutionResult{Summary: response, CancelledCount: cancelledCount}, nil
 }
 
 func (e *TaskExecutor) executeSingleTodo(ctx context.Context, todo models.TodoItem, execCtx map[string]any, onEvent models.EventCallback) (string, error) {
@@ -89,7 +94,7 @@ func (e *TaskExecutor) executeSingleTodo(ctx context.Context, todo models.TodoIt
 		"todo_id": todo.ID, "status": "in_progress",
 	})
 
-	opts := &models.ProcessOptions{OnEvent: onEvent}
+	opts := &models.ProcessOptions{OnEvent: onEvent, ContextBlock: e.contextBlock}
 	result, err := e.coordinator.ExecuteTodo(ctx, todo, execCtx, opts)
 
 	if err != nil {
@@ -128,7 +133,7 @@ func (e *TaskExecutor) executeLayerParallel(
 	todoMap map[string]*models.TodoItem,
 	execCtx map[string]any,
 	onEvent models.EventCallback,
-) map[string]string {
+) (map[string]string, int) {
 	type todoResult struct {
 		ID     string
 		Result string
@@ -137,6 +142,7 @@ func (e *TaskExecutor) executeLayerParallel(
 
 	var mu sync.Mutex
 	results := make(map[string]string)
+	failedCount := 0
 	var bufferedEvents []struct {
 		id     string
 		events []struct {
@@ -171,11 +177,12 @@ func (e *TaskExecutor) executeLayerParallel(
 				mu.Unlock()
 			}
 
-			opts := &models.ProcessOptions{OnEvent: localOnEvent}
+			opts := &models.ProcessOptions{OnEvent: localOnEvent, ContextBlock: e.contextBlock}
 			result, err := e.coordinator.ExecuteTodo(gCtx, todoCopy, execCtx, opts)
 
 			mu.Lock()
 			if err != nil {
+				failedCount++
 				e.planner.UpdateTodo(todoID, models.TodoFailed, err.Error())
 			} else {
 				results[todoID] = result
@@ -204,5 +211,5 @@ func (e *TaskExecutor) executeLayerParallel(
 		}
 	}
 
-	return results
+	return results, failedCount
 }

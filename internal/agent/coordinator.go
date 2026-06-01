@@ -18,14 +18,14 @@ import (
 
 type CoordinatorAgent struct {
 	BaseAgent
-	llm            llms.Model
-	bus            *event.Bus
-	defaultAgent   *HackbotAgent
-	specialists    map[string]*SpecialistAgent
-	agentResults   map[string][]map[string]any
-	mu             sync.Mutex
-	concurrencyMu  sync.Mutex
-	allToolNames   []string
+	llm           llms.Model
+	bus           *event.Bus
+	defaultAgent  *HackbotAgent
+	specialists   map[string]*SpecialistAgent
+	agentResults  map[string][]map[string]any
+	mu            sync.Mutex
+	concurrencyMu sync.Mutex
+	allToolNames  []string
 }
 
 func NewCoordinatorAgent(
@@ -188,8 +188,12 @@ func (s *SpecialistAgent) Process(ctx context.Context, input string, opts *model
 	if s.SystemPrompt != "" {
 		agent.SystemPrompt = s.SystemPrompt
 	}
+	contextBlock := ""
+	if opts != nil {
+		contextBlock = opts.ContextBlock
+	}
 
-	result, err := agent.Run(ctx, input)
+	result, err := agent.RunWithContext(ctx, input, contextBlock)
 	if err != nil {
 		return "", fmt.Errorf("[%s] 执行失败: %w", s.AgentTypeName, err)
 	}

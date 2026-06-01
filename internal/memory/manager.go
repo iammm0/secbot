@@ -2,7 +2,11 @@ package memory
 
 import (
 	"fmt"
+	"math"
+	"sort"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/tmc/langchaingo/llms"
 )
@@ -12,6 +16,13 @@ type Manager struct {
 	context      *Store          // 长期上下文
 	episodic     *EpisodicMemory // 情景记忆
 	longTerm     *LongTermMemory // 长期记忆
+}
+
+type ScoredMemory struct {
+	Key        string
+	Content    string
+	Similarity float64
+	Timestamp  time.Time
 }
 
 func NewManager() *Manager {
@@ -88,6 +99,49 @@ func (m *Manager) Recall(key string) (string, bool) {
 	return m.episodic.Recall(key)
 }
 
+func (m *Manager) SearchEpisodic(query string, limit int) []ScoredMemory {
+	if m == nil || m.episodic == nil {
+		return nil
+	}
+	queryTerms := termSet(query)
+	if len(queryTerms) == 0 {
+		return nil
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+
+	results := make([]ScoredMemory, 0)
+	for key, entry := range m.episodic.GetAll() {
+		content := strings.TrimSpace(entry.Content)
+		if content == "" {
+			continue
+		}
+		score := cosineLike(queryTerms, termSet(content))
+		if score <= 0 {
+			continue
+		}
+		score = math.Min(1, score*(0.75+entry.Importance*0.25))
+		results = append(results, ScoredMemory{
+			Key:        key,
+			Content:    content,
+			Similarity: score,
+			Timestamp:  entry.Timestamp,
+		})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Similarity == results[j].Similarity {
+			return results[i].Timestamp.After(results[j].Timestamp)
+		}
+		return results[i].Similarity > results[j].Similarity
+	})
+	if len(results) > limit {
+		results = results[:limit]
+	}
+	return results
+}
+
 func (m *Manager) StoreLongTerm(category, content string) {
 	m.longTerm.Store(category, content)
 }
@@ -114,4 +168,35 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+func termSet(text string) map[string]struct{} {
+	terms := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+		return !(unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '_' || r == '.')
+	})
+	out := make(map[string]struct{}, len(terms))
+	for _, term := range terms {
+		term = strings.Trim(term, "-_.")
+		if len([]rune(term)) < 2 {
+			continue
+		}
+		out[term] = struct{}{}
+	}
+	return out
+}
+
+func cosineLike(a, b map[string]struct{}) float64 {
+	if len(a) == 0 || len(b) == 0 {
+		return 0
+	}
+	overlap := 0
+	for term := range a {
+		if _, ok := b[term]; ok {
+			overlap++
+		}
+	}
+	if overlap == 0 {
+		return 0
+	}
+	return float64(overlap) / math.Sqrt(float64(len(a)*len(b)))
 }

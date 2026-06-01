@@ -33,6 +33,15 @@ const (
 	// 任务阶段
 	TaskPhase Type = "task_phase"
 
+	// 编排上下文
+	IntentDecision Type = "intent_decision"
+	ExploreStart   Type = "explore_start"
+	ExploreStep    Type = "explore_step"
+	ExploreEnd     Type = "explore_end"
+	ContextUsage   Type = "context_usage"
+	ContextPatch   Type = "context_patch"
+	Clarify        Type = "clarify"
+
 	// 交互控制
 	ConfirmRequired Type = "confirm_required"
 	RootRequired    Type = "root_required"
@@ -59,39 +68,59 @@ type Event struct {
 
 type Handler func(Event)
 
+type handlerEntry struct {
+	id      uint64
+	handler Handler
+}
+
 type Bus struct {
 	mu             sync.RWMutex
-	handlers       map[Type][]Handler
-	globalHandlers []Handler
+	nextID         uint64
+	handlers       map[Type][]handlerEntry
+	globalHandlers []handlerEntry
 }
 
 func NewBus() *Bus {
-	return &Bus{handlers: make(map[Type][]Handler)}
+	return &Bus{handlers: make(map[Type][]handlerEntry)}
 }
 
 func (b *Bus) On(t Type, h Handler) {
+	_ = b.Subscribe(t, h)
+}
+
+func (b *Bus) Subscribe(t Type, h Handler) func() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.handlers[t] = append(b.handlers[t], h)
+	b.nextID++
+	id := b.nextID
+	b.handlers[t] = append(b.handlers[t], handlerEntry{id: id, handler: h})
+	return func() { b.unsubscribe(t, id, false) }
 }
 
 func (b *Bus) OnAll(h Handler) {
+	_ = b.SubscribeAll(h)
+}
+
+func (b *Bus) SubscribeAll(h Handler) func() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.globalHandlers = append(b.globalHandlers, h)
+	b.nextID++
+	id := b.nextID
+	b.globalHandlers = append(b.globalHandlers, handlerEntry{id: id, handler: h})
+	return func() { b.unsubscribe("", id, true) }
 }
 
 func (b *Bus) Emit(e Event) {
 	b.mu.RLock()
-	globals := b.globalHandlers
-	typed := b.handlers[e.Type]
+	globals := append([]handlerEntry(nil), b.globalHandlers...)
+	typed := append([]handlerEntry(nil), b.handlers[e.Type]...)
 	b.mu.RUnlock()
 
-	for _, h := range globals {
-		h(e)
+	for _, entry := range globals {
+		entry.handler(e)
 	}
-	for _, h := range typed {
-		h(e)
+	for _, entry := range typed {
+		entry.handler(e)
 	}
 }
 
@@ -105,4 +134,23 @@ func (b *Bus) EmitData(t Type, data map[string]any) {
 
 func (b *Bus) EmitWithIteration(t Type, iteration int, data map[string]any) {
 	b.Emit(Event{Type: t, Payload: data, Iteration: iteration})
+}
+
+func (b *Bus) unsubscribe(t Type, id uint64, global bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if global {
+		b.globalHandlers = removeHandlerEntry(b.globalHandlers, id)
+		return
+	}
+	b.handlers[t] = removeHandlerEntry(b.handlers[t], id)
+}
+
+func removeHandlerEntry(items []handlerEntry, id uint64) []handlerEntry {
+	for i, item := range items {
+		if item.id == id {
+			return append(items[:i], items[i+1:]...)
+		}
+	}
+	return items
 }

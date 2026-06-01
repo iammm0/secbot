@@ -45,8 +45,12 @@ func (h *HackbotAgent) Process(ctx context.Context, input string, opts *models.P
 
 	h.Memory.AddUserMessage(input)
 
+	contextBlock := ""
+	if opts != nil {
+		contextBlock = opts.ContextBlock
+	}
 	agent := patterns.NewSecurityReActAgent(h.llm, h.tools, 10)
-	result, err := agent.Run(ctx, input)
+	result, err := agent.RunWithContext(ctx, input, contextBlock)
 	if err != nil {
 		logger.Errorf("[HackbotAgent] 执行失败: %v", err)
 		return "", fmt.Errorf("安全分析执行失败: %w", err)
