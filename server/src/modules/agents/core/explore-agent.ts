@@ -66,7 +66,7 @@ export interface ExploreArgs {
   intent?: IntentDecision;
   contextBlock?: string;
   onEvent?: OnEventCallback;
-  /** 默认 3 */
+  /** 默认 12，可用 SECBOT_EXPLORE_MAX_ITERS 覆盖 */
   maxIterations?: number;
 }
 
@@ -101,7 +101,7 @@ export class ExploreAgent extends BaseAgent {
   async explore(args: ExploreArgs): Promise<ContextPatch> {
     const { userInput, intent, contextBlock, onEvent } = args;
     const defaultMax = resolveDefaultMaxIterations();
-    const maxIterations = args.maxIterations ?? Infinity;
+    const maxIterations = args.maxIterations ?? defaultMax;
 
     /** 为本次 explore 生成独立的虚拟浏览器 session_id，结束时主动关闭 */
     const browserSessionId = `expl-${Date.now().toString(36)}-${Math.random()

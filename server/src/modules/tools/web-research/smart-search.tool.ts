@@ -132,24 +132,28 @@ export class SmartSearchTool extends BaseTool {
 
   private async searchDDGHtml(query: string, maxResults: number): Promise<SearchResult[]> {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    try {
-      const html = await this.fetchWithRetry(url, { headers: { 'User-Agent': BROWSER_UA } });
-      if (!html) return [];
-      return this.parseDDGHtml(html, maxResults);
-    } catch {
-      return [];
-    }
+    const html = await this.fetchWithRetry(
+      url,
+      { headers: { 'User-Agent': BROWSER_UA } },
+      0,
+      SEARCH_TIMEOUT_MS,
+    );
+    if (!html) return [];
+    const htmlResults = this.parseDDGHtml(html, maxResults);
+    if (htmlResults.length > 0) return htmlResults;
+    return this.parseDuckDuckGoLite(html, maxResults);
   }
 
   private async searchDDGLite(query: string, maxResults: number): Promise<SearchResult[]> {
     const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-    try {
-      const html = await this.fetchWithRetry(url, { headers: { 'User-Agent': BROWSER_UA } });
-      if (!html) return [];
-      return this.parseDuckDuckGoLite(html, maxResults);
-    } catch {
-      return [];
-    }
+    const html = await this.fetchWithRetry(
+      url,
+      { headers: { 'User-Agent': BROWSER_UA } },
+      0,
+      SEARCH_TIMEOUT_MS,
+    );
+    if (!html) return [];
+    return this.parseDuckDuckGoLite(html, maxResults);
   }
 
   private parseDDGHtml(html: string, maxResults: number): SearchResult[] {

@@ -5,7 +5,6 @@ import { CreateSkillRequestDto, SkillDetailDto, SkillSummaryDto } from './dto/sk
 import { SkillFrontmatter, SkillRecord } from './skills.types';
 
 const FRONTMATTER_BOUNDARY = '---';
-const DEFAULT_BODY = '# Overview\n\nDescribe what this skill does and when to use it.\n';
 const DEFAULT_DESCRIPTION = 'Custom Secbot skill.';
 const DEFAULT_AUTHOR = 'Secbot';
 const DEFAULT_VERSION = '1.0.0';

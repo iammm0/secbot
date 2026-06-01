@@ -121,10 +121,14 @@ export class SniffTool extends BaseTool {
             : err.message,
         });
       });
-      child.on('close', () => {
+      child.on('close', (code) => {
         if (done) return;
         done = true;
         clearTimeout(timer);
+        if (code && code !== 0) {
+          resolve({ stdout, error: stderr.trim() || `tshark 退出码 ${code}` });
+          return;
+        }
         resolve({ stdout });
       });
     });

@@ -61,9 +61,7 @@ export class ChatService {
     body: ChatRequestDto,
     onSSEEvent?: (eventName: string, data: Record<string, unknown>) => void,
   ): Promise<string> {
-    const { message, mode, agent: agentType, client_shell: clientShell, model: modelName } = body;
-    const forceQA = message.trim().startsWith('/ask ');
-    const forceAgent = mode === 'agent' || message.trim().startsWith('/agent ');
+    const { message, agent: agentType, client_shell: clientShell, model: modelName } = body;
     const sessionId = (body.session_id ?? '').trim() || this.defaultSessionId;
     this.getOrCreateSession(sessionId, agentType);
     this.appendSessionMessage(sessionId, MessageRole.USER, message);
@@ -78,14 +76,11 @@ export class ChatService {
     try {
       return await this._handleMessageCore({
         message,
-        mode,
         agentType,
         clientShell,
         modelName,
         sessionId,
         session,
-        forceQA,
-        forceAgent,
         emit,
       });
     } catch (error) {
@@ -98,27 +93,14 @@ export class ChatService {
 
   private async _handleMessageCore(params: {
     message: string;
-    mode?: string;
     agentType?: string;
     clientShell?: ChatRequestDto['client_shell'];
     modelName?: string;
     sessionId: string;
     session: Session;
-    forceQA: boolean;
-    forceAgent: boolean;
     emit: (name: string, data: Record<string, unknown>) => void;
   }): Promise<string> {
-    const {
-      message,
-      agentType,
-      clientShell,
-      modelName,
-      sessionId,
-      session,
-      forceQA,
-      forceAgent,
-      emit,
-    } = params;
+    const { message, agentType, clientShell, modelName, sessionId, session, emit } = params;
 
     /** 1) 启发式 focus 即时更新（IP/CVE/域名/URL/协议词） */
     this.contextAssembler.updateFocusFromInput(sessionId, message);
@@ -193,7 +175,7 @@ export class ChatService {
 
     /** 5) 组装最终上下文（按当前模型预算 + focus 加权 + pinned 优先级） */
     const selectedAgent = this.agents[agentType ?? 'hackbot'] ?? this.agents['hackbot'];
-    const effectiveModelName = modelName || (selectedAgent as any).llm?.model || undefined;
+    const effectiveModelName = modelName || resolveAgentModelName(selectedAgent);
     const context = await this.contextAssembler.build({
       query: message,
       session,
@@ -408,7 +390,7 @@ export class ChatService {
       return {
         handled: true,
         result: (async () => {
-          const qaModelName = modelName || (this.qaAgent as any).llm?.model || undefined;
+          const qaModelName = modelName || resolveAgentModelName(this.qaAgent);
           const ctx = await this.contextAssembler.build({
             query: message,
             session,
@@ -496,5 +478,22 @@ export class ChatService {
     } catch (error) {
       console.error('Failed to save conversation:', error);
     }
+  }
+}
+
+function resolveAgentModelName(agent: unknown): string | undefined {
+  if (!agent || typeof agent !== 'object' || !('llm' in agent)) {
+    return undefined;
+  }
+
+  try {
+    const llm = (agent as { llm?: unknown }).llm;
+    if (!llm || typeof llm !== 'object' || !('model' in llm)) {
+      return undefined;
+    }
+    const model = (llm as { model?: unknown }).model;
+    return typeof model === 'string' && model.trim() ? model : undefined;
+  } catch {
+    return undefined;
   }
 }

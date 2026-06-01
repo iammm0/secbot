@@ -23,6 +23,7 @@ export class LdapEnumTool extends BaseTool {
         result: {
           host,
           port,
+          base_dn: baseDn || undefined,
           reachable: true,
           banner_bytes: banner.length,
           anonymous_bind: anonBind.success,
