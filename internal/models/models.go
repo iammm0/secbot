@@ -12,6 +12,28 @@ const (
 	RequestOther     RequestType = "other"
 )
 
+type Intent string
+
+const (
+	IntentSmallTalk     Intent = "small_talk"
+	IntentMeta          Intent = "meta"
+	IntentQA            Intent = "qa"
+	IntentClarifyNeeded Intent = "clarify_needed"
+	IntentTaskSimple    Intent = "task_simple"
+	IntentTaskComplex   Intent = "task_complex"
+)
+
+type IntentDecision struct {
+	Intent          Intent   `json:"intent"`
+	Confidence      float64  `json:"confidence"`
+	NeedsExplore    bool     `json:"needs_explore"`
+	NeedsReport     bool     `json:"needs_report"`
+	Focus           []string `json:"focus"`
+	DirectResponse  string   `json:"direct_response,omitempty"`
+	ClarifyQuestion string   `json:"clarify_question,omitempty"`
+	Rationale       string   `json:"rationale,omitempty"`
+}
+
 type TodoStatus string
 
 const (
@@ -96,15 +118,21 @@ type ToolResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
+type ExecutionResult struct {
+	Summary        string `json:"summary"`
+	CancelledCount int    `json:"cancelled_count"`
+}
+
 type EventCallback func(eventType string, data map[string]any)
 
 type ProcessOptions struct {
-	OnEvent          EventCallback
-	SkipPlanning     bool
-	SkipReport       bool
-	Todos            []map[string]any
-	GetRootPassword  func(command string) (map[string]any, error)
-	ForceQA          bool
-	ForceAgentFlow   bool
-	AgentType        string
+	OnEvent         EventCallback
+	SkipPlanning    bool
+	SkipReport      bool
+	Todos           []map[string]any
+	GetRootPassword func(command string) (map[string]any, error)
+	ForceQA         bool
+	ForceAgentFlow  bool
+	AgentType       string
+	ContextBlock    string
 }

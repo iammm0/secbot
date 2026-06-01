@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"secbot/internal/models"
 	"secbot/internal/session"
 	"secbot/internal/tools"
+	"secbot/pkg/event"
 	"secbot/pkg/logger"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -104,6 +107,32 @@ var (
 	statusReadyStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("70"))
 )
+
+type serverSession struct {
+	mu      sync.Mutex
+	session *session.Session
+}
+
+type serverState struct {
+	cfg      *config.Config
+	mu       sync.Mutex
+	sessions map[string]*serverSession
+}
+
+type chatRequest struct {
+	Message     string         `json:"message"`
+	SessionID   string         `json:"session_id"`
+	Mode        string         `json:"mode"`
+	Agent       string         `json:"agent"`
+	Prompt      string         `json:"prompt"`
+	Model       string         `json:"model"`
+	ClientShell map[string]any `json:"client_shell"`
+}
+
+type chatResponse struct {
+	Response string `json:"response"`
+	Agent    string `json:"agent"`
+}
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -806,12 +835,258 @@ func serverCmd() *cobra.Command {
 		Use:   "server",
 		Short: "启动 HTTP API 服务",
 		Run: func(cmd *cobra.Command, args []string) {
-			color.Yellow("HTTP API 服务即将实现")
+			host, _ := cmd.Flags().GetString("host")
+			port, _ := cmd.Flags().GetInt("port")
+			runHTTPServer(host, port)
 		},
 	}
 	cmd.Flags().StringP("host", "H", "0.0.0.0", "监听地址")
 	cmd.Flags().IntP("port", "p", 8000, "监听端口")
 	return cmd
+}
+
+func runHTTPServer(host string, port int) {
+	_ = godotenv.Load()
+	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		color.Yellow("配置提示: %v", err)
+		color.Yellow("未检测到可用 API Key，已自动切换到 ollama 本地模式。")
+		cfg.LLMProvider = "ollama"
+		if cfg.ModelName == "" || strings.Contains(strings.ToLower(cfg.ModelName), "deepseek") {
+			cfg.ModelName = "qwen2.5:7b"
+		}
+		cfg.APIKey = ""
+		cfg.BaseURL = ""
+	}
+	if err := logger.Init(cfg.LogLevel, cfg.LogFile); err != nil {
+		fmt.Fprintf(os.Stderr, "日志初始化失败: %v\n", err)
+	}
+	defer logger.Close()
+
+	state := &serverState{cfg: cfg, sessions: make(map[string]*serverSession)}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/api/chat", state.handleChatStream)
+	mux.HandleFunc("/api/chat/sync", state.handleChatSync)
+	mux.HandleFunc("/api/chat/root-response", handleRootResponse)
+
+	addr := fmt.Sprintf("%s:%d", host, port)
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           withCORS(mux),
+		ReadHeaderTimeout: 15 * time.Second,
+	}
+
+	color.Green("SecBot Go HTTP API listening on http://%s", addr)
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		color.Red("HTTP API 服务失败: %v", err)
+		os.Exit(1)
+	}
+}
+
+func (s *serverState) getSession(sessionID, agentType string) (*serverSession, error) {
+	if strings.TrimSpace(sessionID) == "" {
+		sessionID = "default"
+	}
+	if strings.TrimSpace(agentType) == "" {
+		agentType = "secbot-cli"
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if existing := s.sessions[sessionID]; existing != nil {
+		existing.session.SetSessionID(sessionID, agentType)
+		return existing, nil
+	}
+
+	sess, err := session.NewSession(s.cfg)
+	if err != nil {
+		return nil, err
+	}
+	sess.SetSessionID(sessionID, agentType)
+	wrapped := &serverSession{session: sess}
+	s.sessions[sessionID] = wrapped
+	return wrapped, nil
+}
+
+func (s *serverState) handleChatStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req chatRequest
+	if err := decodeJSONBody(w, r, &req); err != nil {
+		writeSSE(w, nil, "error", map[string]any{"error": err.Error(), "statusCode": http.StatusBadRequest})
+		writeSSE(w, nil, "done", map[string]any{})
+		return
+	}
+	if strings.TrimSpace(req.Message) == "" {
+		writeSSE(w, nil, "error", map[string]any{"error": "message is required", "statusCode": http.StatusBadRequest})
+		writeSSE(w, nil, "done", map[string]any{})
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	agentType := emptyDefault(req.Agent, "secbot-cli")
+	wrapped, err := s.getSession(req.SessionID, agentType)
+	if err != nil {
+		writeSSE(w, flusher, "error", map[string]any{"error": err.Error(), "statusCode": http.StatusInternalServerError})
+		writeSSE(w, flusher, "done", map[string]any{})
+		return
+	}
+
+	wrapped.mu.Lock()
+	defer wrapped.mu.Unlock()
+
+	unsubscribe := wrapped.session.SubscribeEvents(func(e event.Event) {
+		writeSSE(w, flusher, mapServerEventName(e.Type), e.Payload)
+	})
+	defer unsubscribe()
+
+	response, err := wrapped.session.HandleWithOptions(r.Context(), req.Message, &models.ProcessOptions{
+		ForceQA:        strings.EqualFold(req.Mode, "ask"),
+		AgentType:      agentType,
+		ForceAgentFlow: strings.EqualFold(req.Mode, "force_agent"),
+	})
+	if err != nil {
+		writeSSE(w, flusher, "error", map[string]any{"error": err.Error(), "statusCode": http.StatusInternalServerError})
+		writeSSE(w, flusher, "done", map[string]any{})
+		return
+	}
+	writeSSE(w, flusher, "response", map[string]any{"content": response, "agent": agentType})
+	writeSSE(w, flusher, "done", map[string]any{})
+}
+
+func (s *serverState) handleChatSync(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req chatRequest
+	if err := decodeJSONBody(w, r, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(req.Message) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "message is required"})
+		return
+	}
+
+	agentType := emptyDefault(req.Agent, "secbot-cli")
+	wrapped, err := s.getSession(req.SessionID, agentType)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+
+	wrapped.mu.Lock()
+	defer wrapped.mu.Unlock()
+	response, err := wrapped.session.HandleWithOptions(r.Context(), req.Message, &models.ProcessOptions{
+		ForceQA:        strings.EqualFold(req.Mode, "ask"),
+		AgentType:      agentType,
+		ForceAgentFlow: strings.EqualFold(req.Mode, "force_agent"),
+	})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, chatResponse{Response: response, Agent: agentType})
+}
+
+func handleHealth(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "secbot-go", "version": version})
+}
+
+func handleRootResponse(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{})
+}
+
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+	return nil
+}
+
+func writeSSE(w http.ResponseWriter, flusher http.Flusher, name string, data map[string]any) {
+	if data == nil {
+		data = map[string]any{}
+	}
+	payload, err := json.Marshal(data)
+	if err != nil {
+		payload = []byte(`{"error":"failed to encode event"}`)
+	}
+	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", name, payload)
+	if flusher != nil {
+		flusher.Flush()
+	}
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func mapServerEventName(t event.Type) string {
+	switch t {
+	case event.TaskPhase:
+		return "phase"
+	case event.PlanStart:
+		return "planning"
+	case event.ReportEnd:
+		return "report"
+	case event.ErrorOccurred:
+		return "error"
+	default:
+		return string(t)
+	}
+}
+
+func emptyDefault(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return strings.TrimSpace(value)
 }
 
 func versionCmd() *cobra.Command {
