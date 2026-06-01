@@ -103,6 +103,9 @@ class BaseAgent(ABC):
     def clear_memory(self):
         """清空记忆"""
         self._conversation.clear()
+        self.messages = [
+            AgentMessage(role="system", content=self.system_prompt)
+        ] if self.system_prompt else []
         if hasattr(self.memory, "clear_all") and callable(self.memory.clear_all):
             # MemoryManager.clear_all 为 async，此处仅清空对话列表；持久记忆由调用方按需清空
             pass
@@ -121,4 +124,3 @@ class BaseAgent(ABC):
             self.messages.insert(0, AgentMessage(role="system", content=new_prompt))
 
         self.log.bind(event="stage_end").info(f"智能体 {self.name} 的系统提示词已更新")
-
