@@ -434,6 +434,206 @@ func (s *Session) HandleWithOptions(ctx context.Context, input string, opts *mod
 	return response, nil
 }
 
+func (s *Session) PreparePlan(ctx context.Context, input string, opts *models.ProcessOptions) (*models.PreparedPlan, error) {
+	if opts == nil {
+		opts = &models.ProcessOptions{}
+	}
+
+	s.toolResults = nil
+	s.currentSession.AddMessage(models.RoleUser, input)
+	sessionID := s.currentSession.ID
+	if strings.TrimSpace(sessionID) == "" {
+		sessionID = "default"
+	}
+
+	intent := s.router.ClassifyDecision(
+		ctx,
+		input,
+		s.contextAsm.Focus(sessionID),
+		s.contextAsm.Unresolved(sessionID),
+	)
+	if opts.ForceAgentFlow && intent.Intent == models.IntentSmallTalk {
+		intent.Intent = models.IntentQA
+		intent.NeedsReport = false
+		intent.Rationale = strings.TrimSpace(intent.Rationale + " (forceAgent)")
+	}
+	s.contextAsm.MergeIntentFocus(sessionID, intent.Focus)
+	s.bus.EmitData(event.IntentDecision, map[string]any{
+		"intent":        string(intent.Intent),
+		"confidence":    intent.Confidence,
+		"needs_explore": intent.NeedsExplore,
+		"needs_report":  intent.NeedsReport,
+		"focus":         intent.Focus,
+		"rationale":     intent.Rationale,
+	})
+
+	if intent.NeedsExplore {
+		s.bus.EmitData(event.TaskPhase, map[string]any{"phase": "exploring", "detail": "正在收集上下文…"})
+		s.bus.EmitData(event.ExploreStart, map[string]any{
+			"focus":     intent.Focus,
+			"userInput": input,
+		})
+		exploreResult := s.explore.Explore(ctx, input, intent, "")
+		for _, step := range exploreResult.Steps {
+			s.bus.EmitData(event.ExploreStep, map[string]any{
+				"iteration":   step.Iteration,
+				"kind":        step.Kind,
+				"tool":        step.Tool,
+				"observation": step.Observation,
+				"thought":     step.Thought,
+				"agent":       "explore",
+			})
+		}
+		s.contextAsm.ApplyPatch(sessionID, exploreResult.Patch)
+		s.bus.EmitData(event.ExploreEnd, map[string]any{
+			"facts_count": len(exploreResult.Patch.Facts),
+			"unresolved":  exploreResult.Patch.Unresolved,
+			"summary":     exploreResult.Patch.ExploreSummary,
+		})
+		s.bus.EmitData(event.ContextPatch, map[string]any{
+			"facts_count": len(exploreResult.Patch.Facts),
+			"pinned":      len(exploreResult.Patch.Pinned),
+			"unresolved":  exploreResult.Patch.Unresolved,
+			"summary":     exploreResult.Patch.ExploreSummary,
+		})
+	}
+
+	agentType := opts.AgentType
+	if agentType == "" {
+		agentType = "secbot-cli"
+	}
+	assembledContext := s.contextAsm.Build(input, s.currentSession, sessionID, agentType, s.cfg.ModelName)
+	s.emitContextUsage(assembledContext.Debug)
+
+	s.bus.EmitData(event.TaskPhase, map[string]any{"phase": "planning", "detail": ""})
+	planResult, err := s.planner.Plan(ctx, input, s.getToolNames())
+	if err != nil {
+		return nil, err
+	}
+	if planResult.RequestType == models.RequestTechnical {
+		s.emitPlanning(planResult, "prepared")
+	}
+	s.bus.EmitData(event.TaskPhase, map[string]any{"phase": "done"})
+
+	return &models.PreparedPlan{
+		Input:        input,
+		PlanResult:   planResult,
+		AgentType:    agentType,
+		ContextBlock: assembledContext.ContextBlock,
+		NeedsReport:  intent.NeedsReport,
+		CreatedAt:    time.Now(),
+	}, nil
+}
+
+func (s *Session) ExecutePreparedPlan(ctx context.Context, prepared *models.PreparedPlan, opts *models.ProcessOptions) (string, error) {
+	if prepared == nil || prepared.PlanResult == nil {
+		return "", fmt.Errorf("没有可执行计划")
+	}
+	if opts == nil {
+		opts = &models.ProcessOptions{}
+	}
+	planResult := prepared.PlanResult
+	if len(planResult.Todos) == 0 {
+		if strings.TrimSpace(planResult.DirectResponse) != "" {
+			return planResult.DirectResponse, nil
+		}
+		return "", fmt.Errorf("计划中没有可执行步骤")
+	}
+
+	s.toolResults = nil
+	s.planner.SetCurrentPlan(planResult)
+	agentType := opts.AgentType
+	if agentType == "" {
+		agentType = prepared.AgentType
+	}
+	if agentType == "" {
+		agentType = "secbot-cli"
+	}
+
+	eventBridge := func(eventType string, data map[string]any) {
+		if _, ok := data["agent"]; !ok {
+			data["agent"] = agentType
+		}
+		s.bridgeAgentEvent(eventType, data, planResult)
+	}
+	agentOpts := &models.ProcessOptions{
+		OnEvent:      eventBridge,
+		SkipPlanning: true,
+		SkipReport:   true,
+		AgentType:    agentType,
+		ContextBlock: prepared.ContextBlock,
+	}
+
+	s.bus.EmitData(event.TaskPhase, map[string]any{"phase": "executing", "detail": "执行缓存计划…"})
+	var response string
+	cancelledCount := 0
+	if len(planResult.Todos) > 1 {
+		executor := NewTaskExecutor(s.coordinator, s.planner, s.bus, prepared.ContextBlock)
+		execResult, err := executor.Run(ctx, prepared.Input, planResult, eventBridge)
+		if err != nil {
+			s.bus.EmitData(event.ErrorOccurred, map[string]any{"error": err.Error()})
+			return "", err
+		}
+		response = execResult.Summary
+		cancelledCount = execResult.CancelledCount
+	} else {
+		var err error
+		response, err = s.coordinator.Process(ctx, prepared.Input, agentOpts)
+		if err != nil {
+			s.bus.EmitData(event.ErrorOccurred, map[string]any{"error": err.Error()})
+			return "", err
+		}
+	}
+
+	if !adaptiveReplanOff() && cancelledCount > 0 {
+		s.bus.EmitData(event.TaskPhase, map[string]any{"phase": "planning", "detail": "穿插规划：根据未成功子任务补充方案…"})
+		adaptivePrompt := fmt.Sprintf("%s\n\n【穿插规划】上一阶段有 %d 个子任务未成功。请仅输出需要补充执行的新子任务 JSON 数组（新 id 建议 followup-1、followup-2）；若无须补充则输出 []。\n\n阶段摘要（节选）：\n%s", prepared.Input, cancelledCount, truncateText(response, 4000))
+		subPlan, err := s.planner.Plan(ctx, adaptivePrompt, s.getToolNames())
+		if err == nil && subPlan != nil && len(subPlan.Todos) > 0 && subPlan.DirectResponse == "" {
+			s.emitPlanning(subPlan, "adaptive")
+			s.bus.EmitData(event.TaskPhase, map[string]any{"phase": "executing", "detail": "执行穿插任务…"})
+			followUpExecutor := NewTaskExecutor(s.coordinator, s.planner, s.bus, prepared.ContextBlock)
+			followUpResult, runErr := followUpExecutor.Run(ctx, prepared.Input, subPlan, eventBridge)
+			if runErr == nil && strings.TrimSpace(followUpResult.Summary) != "" {
+				if strings.TrimSpace(response) != "" {
+					response += "\n"
+				}
+				response += followUpResult.Summary
+			}
+			planResult.Todos = append(planResult.Todos, subPlan.Todos...)
+		}
+	}
+
+	if prepared.NeedsReport {
+		s.bus.EmitData(event.TaskPhase, map[string]any{"phase": "report", "detail": "报告生成"})
+		summaryResult, err := s.summary.SummarizeInteraction(ctx, prepared.Input, planResult.Todos, s.toolResults, response)
+		if err != nil {
+			logger.Warnf("[Session] 摘要失败: %v", err)
+		} else if summaryResult != nil {
+			s.bus.EmitData(event.ReportEnd, map[string]any{
+				"report": summaryResult.RawReport,
+				"summary": map[string]any{
+					"task_summary":    summaryResult.TaskSummary,
+					"key_findings":    summaryResult.KeyFindings,
+					"recommendations": summaryResult.Recommendations,
+				},
+			})
+			if strings.TrimSpace(summaryResult.OverallConclusion) != "" {
+				response = summaryResult.OverallConclusion
+			}
+		}
+	}
+
+	sessionID := s.currentSession.ID
+	if strings.TrimSpace(sessionID) == "" {
+		sessionID = "default"
+	}
+	s.bus.EmitData(event.TaskPhase, map[string]any{"phase": "done"})
+	s.currentSession.AddMessage(models.RoleAssistant, response)
+	s.contextAsm.RememberTurn(sessionID, agentType, prepared.Input, response)
+	return response, nil
+}
+
 func (s *Session) emitContextUsage(debug contextmgr.DebugMeta) {
 	ratio := 0.0
 	if debug.PromptBudget > 0 {

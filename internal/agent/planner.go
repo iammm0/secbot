@@ -169,6 +169,12 @@ func (p *PlannerAgent) UpdateTodo(todoID string, status models.TodoStatus, resul
 	}
 }
 
+func (p *PlannerAgent) SetCurrentPlan(plan *models.PlanResult) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.currentPlan = plan
+}
+
 func (p *PlannerAgent) FindTodoForTool(toolName string) *models.TodoItem {
 	p.mu.Lock()
 	defer p.mu.Unlock()

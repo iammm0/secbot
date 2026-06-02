@@ -63,6 +63,15 @@ type PlanResult struct {
 	ToolsRequired  []string    `json:"tools_required,omitempty"`
 }
 
+type PreparedPlan struct {
+	Input        string
+	PlanResult   *PlanResult
+	AgentType    string
+	ContextBlock string
+	NeedsReport  bool
+	CreatedAt    time.Time
+}
+
 type InteractionSummary struct {
 	RawReport         string   `json:"raw_report"`
 	TaskSummary       string   `json:"task_summary"`
