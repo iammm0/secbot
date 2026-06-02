@@ -55,13 +55,13 @@ var (
 
 	slashCommandSpecs = []slashCommandSpec{
 		{Command: "/help", Description: "显示命令列表", Local: true},
-		{Command: "/model", Description: "切换推理后端/模型（待实现）", Local: true},
-		{Command: "/agent", Description: "切换智能体（default / super）", Local: false},
-		{Command: "/ask", Description: "仅问答不执行工具（Ask 模式）", Local: false},
-		{Command: "/plan", Description: "仅生成计划（不执行）", Local: false},
-		{Command: "/start", Description: "执行计划", Local: false},
-		{Command: "/accept", Description: "确认敏感操作（superhackbot）", Local: false},
-		{Command: "/reject", Description: "拒绝敏感操作（superhackbot）", Local: false},
+		{Command: "/model", Description: "切换推理后端/模型", Local: true},
+		{Command: "/agent", Description: "切换智能体（default / super）", Local: true},
+		{Command: "/ask", Description: "仅问答不执行工具（Ask 模式）", Local: true},
+		{Command: "/plan", Description: "仅生成计划（不执行）", Local: true},
+		{Command: "/start", Description: "执行计划", Local: true},
+		{Command: "/accept", Description: "确认敏感操作（superhackbot）", Local: true},
+		{Command: "/reject", Description: "拒绝敏感操作（superhackbot）", Local: true},
 		{Command: "/tools", Description: "列出可用安全工具", Local: true},
 		{Command: "/skill", Description: "新增/查看自定义技能", Local: true},
 		{Command: "/doctor", Description: "检查环境变量与模型配置", Local: true},
@@ -235,25 +235,20 @@ func runMain(cmd *cobra.Command, args []string) {
 	}
 
 	if len(args) > 0 {
-		runOnce(ctx, sess, args[0], mode)
+		runOnce(ctx, sess, args[0], newCLIState(mode, agentFlag, nil))
 	} else {
-		runInteractive(ctx, sess, mode)
+		runInteractive(ctx, sess, newCLIState(mode, agentFlag, nil))
 	}
 }
 
-func runOnce(ctx context.Context, sess *session.Session, message, mode string) {
+func runOnce(ctx context.Context, sess *session.Session, message string, state *cliRuntimeState) {
 	if skills, err := loadSkills(); err == nil && len(skills) > 0 {
 		message = enrichInputWithSkills(message, skills)
 	} else if err != nil {
 		color.Yellow("读取 skills 失败，已跳过 skills 注入: %v", err)
 	}
 
-	opts := &models.ProcessOptions{
-		ForceQA:        mode == "ask",
-		ForceAgentFlow: mode == "agent",
-		AgentType:      agentFlag,
-	}
-	resp, err := sess.HandleWithOptions(ctx, message, opts)
+	resp, err := sess.HandleWithOptions(ctx, message, state.processOptions())
 	if err != nil {
 		color.Red("处理出错: %v", err)
 		os.Exit(1)
@@ -262,14 +257,15 @@ func runOnce(ctx context.Context, sess *session.Session, message, mode string) {
 	fmt.Println(resp)
 }
 
-func runInteractive(ctx context.Context, sess *session.Session, mode string) {
+func runInteractive(ctx context.Context, sess *session.Session, state *cliRuntimeState) {
 	skills, err := loadSkills()
 	if err != nil {
 		color.Yellow("读取 skills 失败: %v", err)
 		skills = []skillEntry{}
 	}
+	state.skills = skills
 
-	printStartupScreen(sess, mode, skills)
+	printStartupScreen(sess, state)
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -290,30 +286,25 @@ func runInteractive(ctx context.Context, sess *session.Session, mode string) {
 			return
 		}
 
-		if lines, handled, clear := handleLineSlashCommand(input, sess, &skills); handled {
+		if lines, handled, clear := handleLineSlashCommand(ctx, input, &sess, state, reader); handled {
 			if clear {
 				clearTerminal()
-				printStartupScreen(sess, mode, skills)
+				printStartupScreen(sess, state)
 				continue
 			}
 			printLines(lines)
 			continue
 		}
 
-		requestInput := enrichInputWithSkills(input, skills)
-		opts := &models.ProcessOptions{
-			ForceQA:        mode == "ask",
-			ForceAgentFlow: mode == "agent",
-			AgentType:      agentFlag,
-		}
-		if _, err := sess.HandleWithOptions(ctx, requestInput, opts); err != nil {
+		requestInput := enrichInputWithSkills(input, state.skills)
+		if _, err := sess.HandleWithOptions(ctx, requestInput, state.processOptions()); err != nil {
 			color.Red("处理出错: %v", err)
 		}
 		fmt.Println()
 	}
 }
 
-func printStartupScreen(sess *session.Session, mode string, skills []skillEntry) {
+func printStartupScreen(sess *session.Session, state *cliRuntimeState) {
 	fmt.Println()
 	fmt.Println(brandStyle.Render("SECBOT"))
 	fmt.Println(accentStyle.Render("Security Testing Agent"))
@@ -321,11 +312,11 @@ func printStartupScreen(sess *session.Session, mode string, skills []skillEntry)
 	fmt.Printf(
 		"%s  %s  %s  %s  %s  %s\n",
 		badgeBlueStyle.Render("secbot"),
-		badgeGreenStyle.Render(displayModeLabel(mode)),
-		badgeGrayStyle.Render(displayAgentLabel(agentFlag)),
+		badgeGreenStyle.Render(displayModeLabel(state.mode)),
+		badgeGrayStyle.Render(displayAgentLabel(state.agentType)),
 		hintStyle.Render(fmt.Sprintf("%d tools", len(sess.ToolNames()))),
 		hintStyle.Render(fmt.Sprintf("模型: %s", sess.ModelInfo())),
-		hintStyle.Render(fmt.Sprintf("skills: %d", len(skills))),
+		hintStyle.Render(fmt.Sprintf("skills: %d", len(state.skills))),
 	)
 	fmt.Println()
 	fmt.Println(accentStyle.Render("Quick Start"))
@@ -339,14 +330,14 @@ func printStartupScreen(sess *session.Session, mode string, skills []skillEntry)
 	fmt.Println()
 }
 
-func handleLineSlashCommand(input string, sess *session.Session, skills *[]skillEntry) ([]string, bool, bool) {
+func handleLineSlashCommand(ctx context.Context, input string, sess **session.Session, state *cliRuntimeState, reader *bufio.Reader) ([]string, bool, bool) {
 	switch {
 	case input == "/":
 		return buildSlashSuggestionLines(""), true, false
 	case input == "/help" || input == "/h":
 		return buildHelpLines(), true, false
 	case input == "/tools":
-		names := append([]string(nil), sess.ToolNames()...)
+		names := append([]string(nil), (*sess).ToolNames()...)
 		sort.Strings(names)
 		lines := []string{"可用工具:"}
 		for _, name := range names {
@@ -355,23 +346,179 @@ func handleLineSlashCommand(input string, sess *session.Session, skills *[]skill
 		lines = append(lines, "")
 		return lines, true, false
 	case input == "/skill" || strings.HasPrefix(input, "/skill "):
-		return handleLineSkillCommand(input, skills), true, false
+		return handleLineSkillCommand(input, &state.skills), true, false
 	case input == "/doctor" || input == "/env":
-		return buildDoctorLines(sess), true, false
+		return buildDoctorLines(*sess), true, false
 	case input == "/clear":
 		return nil, true, true
 	case input == "/model" || input == "model":
-		return []string{"模型切换功能即将实现", ""}, true, false
+		result, err := runModelSelector(config.Load(), reader, os.Stdout)
+		if err != nil {
+			return []string{fmt.Sprintf("模型切换失败: %v", err), ""}, true, false
+		}
+		if result == nil || !result.Saved {
+			return []string{""}, true, false
+		}
+		newSess, err := rebuildSessionAfterModelSwitch(*sess)
+		if err != nil {
+			return []string{fmt.Sprintf("模型已保存，但重建 Session 失败: %v", err), "请重启 secbot 后继续。", ""}, true, false
+		}
+		*sess = newSess
+		state.pendingPlan = nil
+		return []string{"已使用新模型配置重建当前会话。", ""}, true, false
+	case input == "/agent" || strings.HasPrefix(input, "/agent "):
+		return handleAgentCommand(input, state), true, false
+	case input == "/ask" || strings.HasPrefix(input, "/ask "):
+		return handleAskCommand(ctx, input, *sess, state), true, false
+	case input == "/plan" || strings.HasPrefix(input, "/plan "):
+		return handlePlanCommand(ctx, input, *sess, state), true, false
+	case input == "/start" || strings.HasPrefix(input, "/start "):
+		return handleStartCommand(ctx, input, *sess, state), true, false
+	case input == "/accept" || input == "/reject":
+		return []string{"当前没有待确认操作。", ""}, true, false
 	case input == "/version":
 		return []string{fmt.Sprintf("SecBot v%s (Go)", version), ""}, true, false
 	case strings.HasPrefix(input, "/"):
-		if isPassthroughSlashCommand(input) {
-			return nil, false, false
-		}
 		return buildSlashSuggestionLines(input), true, false
 	default:
 		return nil, false, false
 	}
+}
+
+func rebuildSessionAfterModelSwitch(old *session.Session) (*session.Session, error) {
+	if old != nil {
+		_ = old.Close()
+	}
+	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	newSess, err := session.NewSession(cfg)
+	if err != nil {
+		return nil, err
+	}
+	printer := cli.NewEventPrinter()
+	newSess.Bus().OnAll(printer.Handle)
+	return newSess, nil
+}
+
+func handleAgentCommand(input string, state *cliRuntimeState) []string {
+	parts := strings.Fields(input)
+	if len(parts) == 1 {
+		return []string{
+			fmt.Sprintf("当前智能体: %s", state.agentType),
+			"可选: default / auto / secbot-cli / hackbot / super / superhackbot",
+			"",
+		}
+	}
+	if len(parts) > 2 {
+		return []string{"用法: /agent [default|super]", ""}
+	}
+	agent := normalizeAgentType(parts[1])
+	switch agent {
+	case "secbot-cli", "superhackbot":
+		state.agentType = agent
+		state.mode = "agent"
+		agentFlag = agent
+		return []string{fmt.Sprintf("已切换智能体: %s", displayAgentLabel(agent)), "当前模式: default", ""}
+	default:
+		return []string{"不支持的智能体。可选: default / auto / secbot-cli / hackbot / super / superhackbot", ""}
+	}
+}
+
+func handleAskCommand(ctx context.Context, input string, sess *session.Session, state *cliRuntimeState) []string {
+	body := strings.TrimSpace(strings.TrimPrefix(input, "/ask"))
+	switch strings.ToLower(body) {
+	case "":
+		state.mode = "ask"
+		return []string{"已切换到 Ask 模式：后续输入仅问答，不执行工具。", ""}
+	case "off", "agent":
+		state.mode = "agent"
+		return []string{"已切换到 default 模式：后续输入按任务自动规划/执行。", ""}
+	}
+
+	state.mode = "ask"
+	requestInput := enrichInputWithSkills(body, state.skills)
+	resp, err := sess.HandleWithOptions(ctx, requestInput, &models.ProcessOptions{
+		ForceQA:   true,
+		AgentType: state.agentType,
+	})
+	if err != nil {
+		return []string{fmt.Sprintf("Ask 处理出错: %v", err), ""}
+	}
+	return append(strings.Split(strings.TrimSpace(resp), "\n"), "")
+}
+
+func handlePlanCommand(ctx context.Context, input string, sess *session.Session, state *cliRuntimeState) []string {
+	body := strings.TrimSpace(strings.TrimPrefix(input, "/plan"))
+	if body == "" {
+		lines := []string{"用法: /plan <任务>", "生成计划后输入 /start 执行。"}
+		if state.pendingPlan != nil && state.pendingPlan.PlanResult != nil {
+			lines = append(lines, "", "当前缓存计划:")
+			lines = append(lines, formatPreparedPlan(state.pendingPlan)...)
+		}
+		lines = append(lines, "")
+		return lines
+	}
+
+	requestInput := enrichInputWithSkills(body, state.skills)
+	prepared, err := sess.PreparePlan(ctx, requestInput, &models.ProcessOptions{
+		ForceAgentFlow: true,
+		AgentType:      state.agentType,
+	})
+	if err != nil {
+		return []string{fmt.Sprintf("生成计划失败: %v", err), ""}
+	}
+	if prepared.PlanResult == nil || len(prepared.PlanResult.Todos) == 0 {
+		state.pendingPlan = nil
+		if prepared.PlanResult != nil && strings.TrimSpace(prepared.PlanResult.DirectResponse) != "" {
+			return []string{prepared.PlanResult.DirectResponse, ""}
+		}
+		return []string{"未生成可执行计划。", ""}
+	}
+	state.pendingPlan = prepared
+	return append([]string{"已生成计划（未执行）。", ""}, append(formatPreparedPlan(prepared), "")...)
+}
+
+func handleStartCommand(ctx context.Context, input string, sess *session.Session, state *cliRuntimeState) []string {
+	body := strings.TrimSpace(strings.TrimPrefix(input, "/start"))
+	if body != "" {
+		return []string{"/start 只执行最近一次 /plan 生成的缓存计划；新的任务请先使用 /plan <任务>。", ""}
+	}
+	if state.pendingPlan == nil {
+		return []string{"当前没有缓存计划。请先输入 /plan <任务>。", ""}
+	}
+
+	resp, err := sess.ExecutePreparedPlan(ctx, state.pendingPlan, &models.ProcessOptions{
+		AgentType: state.agentType,
+	})
+	if err != nil {
+		return []string{fmt.Sprintf("执行计划失败: %v", err), "缓存计划已保留，可修正环境后再次 /start。", ""}
+	}
+	state.pendingPlan = nil
+	if strings.TrimSpace(resp) == "" {
+		return []string{"计划执行完成。", ""}
+	}
+	return append([]string{"计划执行完成。", ""}, append(strings.Split(strings.TrimSpace(resp), "\n"), "")...)
+}
+
+func formatPreparedPlan(prepared *models.PreparedPlan) []string {
+	if prepared == nil || prepared.PlanResult == nil {
+		return []string{"  - 无计划"}
+	}
+	plan := prepared.PlanResult
+	lines := []string{}
+	if strings.TrimSpace(plan.PlanSummary) != "" {
+		lines = append(lines, "摘要: "+plan.PlanSummary)
+	}
+	for _, todo := range plan.Todos {
+		tool := todo.ToolHint
+		if tool == "" {
+			tool = "未指定工具"
+		}
+		lines = append(lines, fmt.Sprintf("  - [%s] %s (%s)", todo.ID, todo.Content, tool))
+	}
+	return lines
 }
 
 func handleLineSkillCommand(input string, skills *[]skillEntry) []string {
@@ -447,6 +594,57 @@ type processResultMsg struct {
 	err      error
 }
 
+type planPreparedMsg struct {
+	prepared *models.PreparedPlan
+	err      error
+}
+
+type planExecutedMsg struct {
+	response string
+	err      error
+}
+
+type cliRuntimeState struct {
+	mode        string
+	agentType   string
+	pendingPlan *models.PreparedPlan
+	skills      []skillEntry
+}
+
+func newCLIState(mode, agent string, skills []skillEntry) *cliRuntimeState {
+	if strings.TrimSpace(mode) == "" {
+		mode = "agent"
+	}
+	state := &cliRuntimeState{
+		mode:      mode,
+		agentType: normalizeAgentType(agent),
+		skills:    skills,
+	}
+	if state.agentType == "" {
+		state.agentType = "secbot-cli"
+	}
+	return state
+}
+
+func (s *cliRuntimeState) processOptions() *models.ProcessOptions {
+	return &models.ProcessOptions{
+		ForceQA:        s.mode == "ask",
+		ForceAgentFlow: s.mode == "agent",
+		AgentType:      s.agentType,
+	}
+}
+
+func normalizeAgentType(agent string) string {
+	switch strings.ToLower(strings.TrimSpace(agent)) {
+	case "", "default", "auto", "hackbot", "secbot", "secbot-cli":
+		return "secbot-cli"
+	case "super", "superhackbot":
+		return "superhackbot"
+	default:
+		return strings.TrimSpace(agent)
+	}
+}
+
 type skillEntry struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -456,10 +654,8 @@ type skillEntry struct {
 type tuiModel struct {
 	ctx context.Context
 
-	sess *session.Session
-	mode string
-
-	skills []skillEntry
+	sess  *session.Session
+	state *cliRuntimeState
 
 	input       textinput.Model
 	history     []string
@@ -490,8 +686,7 @@ func newTUIModel(ctx context.Context, sess *session.Session, mode string) tuiMod
 	m := tuiModel{
 		ctx:      ctx,
 		sess:     sess,
-		mode:     mode,
-		skills:   skills,
+		state:    newCLIState(mode, agentFlag, skills),
 		input:    input,
 		history:  nil,
 		width:    0,
@@ -502,8 +697,8 @@ func newTUIModel(ctx context.Context, sess *session.Session, mode string) tuiMod
 	if len(initialHistory) > 0 {
 		m.appendLines(initialHistory...)
 	}
-	if len(m.skills) > 0 {
-		m.appendLines(fmt.Sprintf("已加载 %d 个 skills，输入 /skill list 查看。", len(m.skills)), "")
+	if len(m.state.skills) > 0 {
+		m.appendLines(fmt.Sprintf("已加载 %d 个 skills，输入 /skill list 查看。", len(m.state.skills)), "")
 	}
 	m.refreshSlashSuggestions()
 	return m
@@ -535,6 +730,36 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.appendLines(strings.Split(response, "\n")...)
 		m.appendLines("")
 		return m, nil
+	case planPreparedMsg:
+		m.processing = false
+		if msg.err != nil {
+			m.appendLines(fmt.Sprintf("生成计划失败: %v", msg.err), "")
+			return m, nil
+		}
+		if msg.prepared == nil || msg.prepared.PlanResult == nil || len(msg.prepared.PlanResult.Todos) == 0 {
+			m.state.pendingPlan = nil
+			m.appendLines("未生成可执行计划。", "")
+			return m, nil
+		}
+		m.state.pendingPlan = msg.prepared
+		m.appendLines("已生成计划（未执行）。", "")
+		m.appendLines(formatPreparedPlan(msg.prepared)...)
+		m.appendLines("")
+		return m, nil
+	case planExecutedMsg:
+		m.processing = false
+		if msg.err != nil {
+			m.appendLines(fmt.Sprintf("执行计划失败: %v", msg.err), "缓存计划已保留，可修正环境后再次 /start。", "")
+			return m, nil
+		}
+		m.state.pendingPlan = nil
+		m.appendLines("计划执行完成。", "")
+		response := strings.TrimSpace(msg.response)
+		if response != "" {
+			m.appendLines(strings.Split(response, "\n")...)
+			m.appendLines("")
+		}
+		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
@@ -561,6 +786,19 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 
+			if strings.HasPrefix(input, "/plan ") {
+				m.processing = true
+				return m, preparePlanCmd(m.ctx, m.sess, m.state, input)
+			}
+			if input == "/start" {
+				if m.state.pendingPlan == nil {
+					m.appendLines("当前没有缓存计划。请先输入 /plan <任务>。", "")
+					return m, nil
+				}
+				m.processing = true
+				return m, executePlanCmd(m.ctx, m.sess, m.state)
+			}
+
 			if lines, handled, clear := m.handleSlashCommand(input); handled {
 				if clear {
 					m.history = m.initialHistory()
@@ -571,8 +809,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			m.processing = true
-			requestInput := enrichInputWithSkills(input, m.skills)
-			return m, processInputCmd(m.ctx, m.sess, m.mode, requestInput)
+			requestInput := enrichInputWithSkills(input, m.state.skills)
+			return m, processInputCmd(m.ctx, m.sess, m.state, requestInput)
 		}
 	}
 
@@ -637,15 +875,15 @@ func (m tuiModel) renderStartupScreen(containerWidth int) string {
 		lipgloss.Left,
 		badgeBlueStyle.Render("secbot"),
 		" ",
-		badgeGreenStyle.Render(displayModeLabel(m.mode)),
+		badgeGreenStyle.Render(displayModeLabel(m.state.mode)),
 		" ",
-		badgeGrayStyle.Render(displayAgentLabel(agentFlag)),
+		badgeGrayStyle.Render(displayAgentLabel(m.state.agentType)),
 		"  ",
 		hintStyle.Render(fmt.Sprintf("%d tools", len(m.sess.ToolNames()))),
 		"  ",
 		hintStyle.Render(fmt.Sprintf("模型: %s", m.sess.ModelInfo())),
 		"  ",
-		hintStyle.Render(fmt.Sprintf("skills: %d", len(m.skills))),
+		hintStyle.Render(fmt.Sprintf("skills: %d", len(m.state.skills))),
 	)
 
 	body := lipgloss.JoinVertical(
@@ -717,13 +955,36 @@ func (m *tuiModel) handleSlashCommand(input string) ([]string, bool, bool) {
 	case input == "/clear":
 		return nil, true, true
 	case input == "/model" || input == "model":
-		return []string{"模型切换功能即将实现", ""}, true, false
+		return []string{"TUI 模式下请使用普通终端输入 /model，或运行 secbot model。", ""}, true, false
+	case input == "/agent" || strings.HasPrefix(input, "/agent "):
+		return handleAgentCommand(input, m.state), true, false
+	case input == "/ask" || strings.HasPrefix(input, "/ask "):
+		body := strings.TrimSpace(strings.TrimPrefix(input, "/ask"))
+		if body == "" {
+			m.state.mode = "ask"
+			return []string{"已切换到 Ask 模式：后续输入仅问答，不执行工具。", ""}, true, false
+		}
+		if strings.EqualFold(body, "off") || strings.EqualFold(body, "agent") {
+			m.state.mode = "agent"
+			return []string{"已切换到 default 模式：后续输入按任务自动规划/执行。", ""}, true, false
+		}
+		return nil, false, false
+	case input == "/plan" || strings.HasPrefix(input, "/plan ") || input == "/start" || strings.HasPrefix(input, "/start "):
+		if input == "/plan" {
+			lines := []string{"用法: /plan <任务>", "生成计划后输入 /start 执行。"}
+			if m.state.pendingPlan != nil && m.state.pendingPlan.PlanResult != nil {
+				lines = append(lines, "", "当前缓存计划:")
+				lines = append(lines, formatPreparedPlan(m.state.pendingPlan)...)
+			}
+			lines = append(lines, "")
+			return lines, true, false
+		}
+		return []string{"/start 只执行最近一次 /plan 生成的缓存计划；新的任务请先使用 /plan <任务>。", ""}, true, false
+	case input == "/accept" || input == "/reject":
+		return []string{"当前没有待确认操作。", ""}, true, false
 	case input == "/version":
 		return []string{fmt.Sprintf("SecBot v%s (Go)", version), ""}, true, false
 	case strings.HasPrefix(input, "/"):
-		if isPassthroughSlashCommand(input) {
-			return nil, false, false
-		}
 		return buildSlashSuggestionLines(input), true, false
 	default:
 		return nil, false, false
@@ -770,15 +1031,31 @@ func (m tuiModel) renderStatus() string {
 	return statusReadyStyle.Render("普通终端模式 | Enter 发送  |  Ctrl+C 退出")
 }
 
-func processInputCmd(ctx context.Context, sess *session.Session, mode, input string) tea.Cmd {
+func processInputCmd(ctx context.Context, sess *session.Session, state *cliRuntimeState, input string) tea.Cmd {
 	return func() tea.Msg {
-		opts := &models.ProcessOptions{
-			ForceQA:        mode == "ask",
-			ForceAgentFlow: mode == "agent",
-			AgentType:      agentFlag,
-		}
-		resp, err := sess.HandleWithOptions(ctx, input, opts)
+		resp, err := sess.HandleWithOptions(ctx, input, state.processOptions())
 		return processResultMsg{response: resp, err: err}
+	}
+}
+
+func preparePlanCmd(ctx context.Context, sess *session.Session, state *cliRuntimeState, input string) tea.Cmd {
+	return func() tea.Msg {
+		body := strings.TrimSpace(strings.TrimPrefix(input, "/plan"))
+		requestInput := enrichInputWithSkills(body, state.skills)
+		prepared, err := sess.PreparePlan(ctx, requestInput, &models.ProcessOptions{
+			ForceAgentFlow: true,
+			AgentType:      state.agentType,
+		})
+		return planPreparedMsg{prepared: prepared, err: err}
+	}
+}
+
+func executePlanCmd(ctx context.Context, sess *session.Session, state *cliRuntimeState) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := sess.ExecutePreparedPlan(ctx, state.pendingPlan, &models.ProcessOptions{
+			AgentType: state.agentType,
+		})
+		return planExecutedMsg{response: resp, err: err}
 	}
 }
 
@@ -812,7 +1089,7 @@ func (m *tuiModel) handleSkillCommand(input string) []string {
 	}
 
 	if trimmed == "/skill list" {
-		return buildSkillListLines(m.skills)
+		return buildSkillListLines(m.state.skills)
 	}
 
 	if strings.HasPrefix(trimmed, "/skill add ") {
@@ -820,7 +1097,7 @@ func (m *tuiModel) handleSkillCommand(input string) []string {
 		if err != nil {
 			return []string{fmt.Sprintf("新增 skill 失败: %v", err), "输入 /skill help 查看用法", ""}
 		}
-		for _, skill := range m.skills {
+		for _, skill := range m.state.skills {
 			if strings.EqualFold(skill.Name, name) {
 				return []string{
 					fmt.Sprintf("新增 skill 失败: 名称 %q 已存在", name),
@@ -830,15 +1107,15 @@ func (m *tuiModel) handleSkillCommand(input string) []string {
 			}
 		}
 
-		m.skills = append(m.skills, skillEntry{
+		m.state.skills = append(m.state.skills, skillEntry{
 			Name:        name,
 			Description: description,
 			CreatedAt:   time.Now().Format(time.RFC3339),
 		})
-		sort.Slice(m.skills, func(i, j int) bool {
-			return strings.ToLower(m.skills[i].Name) < strings.ToLower(m.skills[j].Name)
+		sort.Slice(m.state.skills, func(i, j int) bool {
+			return strings.ToLower(m.state.skills[i].Name) < strings.ToLower(m.state.skills[j].Name)
 		})
-		if err := saveSkills(m.skills); err != nil {
+		if err := saveSkills(m.state.skills); err != nil {
 			return []string{
 				fmt.Sprintf("新增 skill 失败: %v", err),
 				"skill 已添加到当前会话，但写入文件失败。",
@@ -1094,9 +1371,13 @@ func max(a, b int) int {
 func modelCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "model",
-		Short: "切换推理后端与模型（待实现）",
+		Short: "切换推理后端与模型",
 		Run: func(cmd *cobra.Command, args []string) {
-			color.Yellow("模型切换功能即将实现")
+			_ = godotenv.Load()
+			if _, err := runModelSelector(config.Load(), os.Stdin, os.Stdout); err != nil {
+				color.Red("模型切换失败: %v", err)
+				os.Exit(1)
+			}
 		},
 	}
 }
