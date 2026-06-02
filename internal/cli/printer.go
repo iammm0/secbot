@@ -17,7 +17,6 @@ var (
 	yellow  = color.New(color.FgYellow, color.Bold)
 	magenta = color.New(color.FgMagenta, color.Bold)
 	dim     = color.New(color.Faint)
-	bold    = color.New(color.Bold)
 )
 
 type EventPrinter struct {
@@ -93,28 +92,22 @@ func (p *EventPrinter) handlePlanStart(e event.Event) {
 
 func (p *EventPrinter) handleThinkStart(e event.Event) {
 	p.currentThought = nil
-	iteration, _ := e.Payload["iteration"].(int)
-	if iteration == 0 {
-		iteration = 1
-	}
-	fmt.Println()
-	dim.Printf("── 推理 (迭代 %d) ──\n", iteration)
 }
 
 func (p *EventPrinter) handleThinkChunk(e event.Event) {
 	chunk, _ := e.Payload["chunk"].(string)
 	if chunk != "" {
 		p.currentThought = append(p.currentThought, chunk)
-		fmt.Print(chunk)
 	}
 }
 
 func (p *EventPrinter) handleThinkEnd(e event.Event) {
 	thought, _ := e.Payload["thought"].(string)
-	if thought != "" && len(p.currentThought) == 0 {
-		dim.Println(thought)
-	} else if len(p.currentThought) > 0 {
-		fmt.Println()
+	if thought == "" && len(p.currentThought) > 0 {
+		thought = strings.Join(p.currentThought, "")
+	}
+	if strings.TrimSpace(thought) != "" {
+		printPanel("推理", yellow, thought)
 	}
 	p.currentThought = nil
 }
@@ -124,15 +117,7 @@ func (p *EventPrinter) handleExecStart(e event.Event) {
 	params, _ := e.Payload["params"].(map[string]any)
 	script, _ := e.Payload["script"].(string)
 
-	display := tool
-	if script != "" {
-		display += "\n" + script
-	} else if len(params) > 0 {
-		if b, err := json.MarshalIndent(params, "", "  "); err == nil {
-			display += "\n" + string(b)
-		}
-	}
-	printPanel("执行", cyan, display)
+	printPanel("工具执行", cyan, strings.Join(buildActionLines(tool, "执行中", params, script, nil, ""), "\n\n"))
 }
 
 func (p *EventPrinter) handleExecResult(e event.Event) {
@@ -140,35 +125,44 @@ func (p *EventPrinter) handleExecResult(e event.Event) {
 	success, _ := e.Payload["success"].(bool)
 
 	if success {
-		result, _ := e.Payload["result"].(string)
-		if result == "" {
-			if r, ok := e.Payload["result"].(map[string]any); ok {
-				if b, err := json.MarshalIndent(r, "", "  "); err == nil {
-					result = string(b)
-				}
-			}
-		}
+		result := stringifyValue(e.Payload["result"])
 		if result != "" {
 			if len(result) > 2000 {
 				result = result[:2000] + "\n... (已截断)"
 			}
-			printPanel("✓ "+tool, green, result)
+			printPanel("工具执行结果", green, strings.Join(buildActionLines(tool, "完成", nil, "", result, ""), "\n\n"))
 		} else {
-			green.Printf("✓ %s 完成\n", tool)
+			printPanel("工具执行结果", green, strings.Join(buildActionLines(tool, "完成", nil, "", nil, ""), "\n\n"))
 		}
 	} else {
 		errMsg, _ := e.Payload["error"].(string)
 		if errMsg == "" {
 			errMsg = "未知错误"
 		}
-		printPanel("✗ "+tool, red, errMsg)
+		printPanel("工具执行结果", red, strings.Join(buildActionLines(tool, "失败", nil, "", nil, errMsg), "\n\n"))
 	}
 }
 
 func (p *EventPrinter) handleContent(e event.Event) {
 	content, _ := e.Payload["content"].(string)
 	if content != "" {
-		fmt.Println(content)
+		viewType, _ := e.Payload["view_type"].(string)
+		tool, _ := e.Payload["tool"].(string)
+		title, _ := e.Payload["title"].(string)
+		c := green
+		if tool != "" {
+			title = "观察 · " + tool
+			c = cyan
+		} else if strings.Contains(title, "观察") {
+			c = cyan
+		} else if title == "" {
+			if viewType == "" || viewType == "summary" {
+				title = "总结"
+			} else {
+				title = "内容"
+			}
+		}
+		printPanel(title, c, content)
 	}
 }
 
@@ -225,17 +219,66 @@ func (p *EventPrinter) handlePlanTodo(e event.Event) {
 
 func (p *EventPrinter) handleError(e event.Event) {
 	errMsg, _ := e.Payload["error"].(string)
-	red.Printf("错误: %s\n", errMsg)
+	printPanel("错误", red, errMsg)
 }
 
 func printPanel(title string, c *color.Color, body string) {
-	width := 60
+	width := 72
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = "内容"
+	}
+	body = strings.TrimSpace(body)
+	if body == "" {
+		body = " "
+	}
 	border := strings.Repeat("─", width)
-	c.Printf("┌─ %s %s┐\n", title, border[:max(0, width-len(title)-3)])
+	titleWidth := len([]rune(title))
+	c.Printf("╭─ %s %s╮\n", title, strings.Repeat("─", max(0, width-titleWidth-4)))
 	for _, line := range strings.Split(body, "\n") {
 		fmt.Printf("│ %s\n", line)
 	}
-	c.Printf("└%s┘\n", border)
+	c.Printf("╰%s╯\n", border)
+}
+
+func buildActionLines(tool, status string, params map[string]any, script string, result any, errMsg string) []string {
+	lines := []string{}
+	if tool != "" {
+		lines = append(lines, fmt.Sprintf("**工具**: `%s`", tool))
+	}
+	if status != "" {
+		lines = append(lines, fmt.Sprintf("**状态**: %s", status))
+	}
+	if script != "" {
+		lines = append(lines, "**命令**:", fmt.Sprintf("```bash\n%s\n```", script))
+	} else if len(params) > 0 {
+		lines = append(lines, "**参数**:", fmt.Sprintf("```json\n%s\n```", stringifyValue(params)))
+	}
+	if errMsg != "" {
+		lines = append(lines, fmt.Sprintf("**错误**: %s", errMsg))
+	}
+	resultText := stringifyValue(result)
+	if resultText != "" {
+		lines = append(lines, "**输出**:", fmt.Sprintf("```text\n%s\n```", resultText))
+	}
+	if len(lines) == 0 {
+		return []string{" "}
+	}
+	return lines
+}
+
+func stringifyValue(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		if b, err := json.MarshalIndent(v, "", "  "); err == nil {
+			return string(b)
+		}
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
 }
 
 func max(a, b int) int {

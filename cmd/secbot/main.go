@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,7 +20,6 @@ import (
 	"secbot/internal/cli"
 	"secbot/internal/models"
 	"secbot/internal/session"
-	"secbot/internal/tools"
 	"secbot/pkg/event"
 	"secbot/pkg/logger"
 
@@ -34,47 +34,56 @@ import (
 const version = "2.0.0"
 const skillsFilePath = "data/skills.json"
 
-const banner = `
- ____            ____        _
-/ ___|  ___  ___| __ )  ___ | |_
-\___ \ / _ \/ __|  _ \ / _ \| __|
- ___) |  __/ (__| |_) | (_) | |_
-|____/ \___|\___|____/ \___/ \__|
-
-SecBot - AI 安全测试机器人 (Go)
+const cliBanner = `
+███████╗███████╗ ██████╗██████╗  ██████╗ ████████╗
+██╔════╝██╔════╝██╔════╝██╔══██╗██╔═══██╗╚══██╔══╝
+███████╗█████╗  ██║     ██████╔╝██║   ██║   ██║
+╚════██║██╔══╝  ██║     ██╔══██╗██║   ██║   ██║
+███████║███████╗╚██████╗██████╔╝╚██████╔╝   ██║
+╚══════╝╚══════╝ ╚═════╝╚═════╝  ╚═════╝    ╚═╝
 `
+
+type slashCommandSpec struct {
+	Command     string
+	Description string
+	Local       bool
+}
 
 var (
 	agentFlag string
 	askFlag   bool
 
-	slashCommands = []string{
-		"/help",
-		"/h",
-		"/tools",
-		"/skill",
-		"/doctor",
-		"/env",
-		"/model",
-		"/clear",
-		"/version",
-		"/exit",
-		"/quit",
+	slashCommandSpecs = []slashCommandSpec{
+		{Command: "/help", Description: "显示命令列表", Local: true},
+		{Command: "/model", Description: "切换推理后端/模型（待实现）", Local: true},
+		{Command: "/agent", Description: "切换智能体（default / super）", Local: false},
+		{Command: "/ask", Description: "仅问答不执行工具（Ask 模式）", Local: false},
+		{Command: "/plan", Description: "仅生成计划（不执行）", Local: false},
+		{Command: "/start", Description: "执行计划", Local: false},
+		{Command: "/accept", Description: "确认敏感操作（superhackbot）", Local: false},
+		{Command: "/reject", Description: "拒绝敏感操作（superhackbot）", Local: false},
+		{Command: "/tools", Description: "列出可用安全工具", Local: true},
+		{Command: "/skill", Description: "新增/查看自定义技能", Local: true},
+		{Command: "/doctor", Description: "检查环境变量与模型配置", Local: true},
+		{Command: "/env", Description: "检查环境变量与模型配置", Local: true},
+		{Command: "/clear", Description: "清空会话输出", Local: true},
+		{Command: "/version", Description: "显示版本信息", Local: true},
+		{Command: "/exit", Description: "退出（也可用 exit/quit）", Local: true},
 	}
 
 	pageStyle = lipgloss.NewStyle().Padding(0, 1)
 
 	headerBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("40")).
+			BorderForeground(lipgloss.Color("33")).
 			Padding(0, 1)
 	historyBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("34")).
+			BorderForeground(lipgloss.Color("33")).
 			Padding(0, 1)
 	suggestionBoxStyle = lipgloss.NewStyle().
 				Border(lipgloss.NormalBorder()).
-				BorderForeground(lipgloss.Color("28")).
+				BorderForeground(lipgloss.Color("39")).
 				Padding(0, 1)
 	inputBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -82,10 +91,10 @@ var (
 			Padding(0, 1)
 
 	brandStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("46")).
+			Foreground(lipgloss.Color("51")).
 			Bold(true)
 	accentStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("84")).
+			Foreground(lipgloss.Color("45")).
 			Bold(true)
 	promptStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("46")).
@@ -106,6 +115,21 @@ var (
 			Bold(true)
 	statusReadyStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("70"))
+	badgeBlueStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("231")).
+			Background(lipgloss.Color("33")).
+			Bold(true).
+			Padding(0, 1)
+	badgeGreenStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("231")).
+			Background(lipgloss.Color("34")).
+			Bold(true).
+			Padding(0, 1)
+	badgeGrayStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("231")).
+			Background(lipgloss.Color("59")).
+			Bold(true).
+			Padding(0, 1)
 )
 
 type serverSession struct {
@@ -239,11 +263,183 @@ func runOnce(ctx context.Context, sess *session.Session, message, mode string) {
 }
 
 func runInteractive(ctx context.Context, sess *session.Session, mode string) {
-	program := tea.NewProgram(newTUIModel(ctx, sess, mode))
-	if _, err := program.Run(); err != nil {
-		color.Red("终端界面启动失败: %v", err)
-		os.Exit(1)
+	skills, err := loadSkills()
+	if err != nil {
+		color.Yellow("读取 skills 失败: %v", err)
+		skills = []skillEntry{}
 	}
+
+	printStartupScreen(sess, mode, skills)
+
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print(promptStyle.Render(">>> "))
+		input, err := reader.ReadString('\n')
+		if err != nil && strings.TrimSpace(input) == "" {
+			fmt.Println()
+			dimExit()
+			return
+		}
+
+		input = strings.TrimSpace(input)
+		if input == "" {
+			continue
+		}
+		if input == "exit" || input == "quit" || input == "/exit" || input == "/quit" {
+			dimExit()
+			return
+		}
+
+		if lines, handled, clear := handleLineSlashCommand(input, sess, &skills); handled {
+			if clear {
+				clearTerminal()
+				printStartupScreen(sess, mode, skills)
+				continue
+			}
+			printLines(lines)
+			continue
+		}
+
+		requestInput := enrichInputWithSkills(input, skills)
+		opts := &models.ProcessOptions{
+			ForceQA:        mode == "ask",
+			ForceAgentFlow: mode == "agent",
+			AgentType:      agentFlag,
+		}
+		if _, err := sess.HandleWithOptions(ctx, requestInput, opts); err != nil {
+			color.Red("处理出错: %v", err)
+		}
+		fmt.Println()
+	}
+}
+
+func printStartupScreen(sess *session.Session, mode string, skills []skillEntry) {
+	fmt.Println()
+	fmt.Println(brandStyle.Render("SECBOT"))
+	fmt.Println(accentStyle.Render("Security Testing Agent"))
+	fmt.Println()
+	fmt.Printf(
+		"%s  %s  %s  %s  %s  %s\n",
+		badgeBlueStyle.Render("secbot"),
+		badgeGreenStyle.Render(displayModeLabel(mode)),
+		badgeGrayStyle.Render(displayAgentLabel(agentFlag)),
+		hintStyle.Render(fmt.Sprintf("%d tools", len(sess.ToolNames()))),
+		hintStyle.Render(fmt.Sprintf("模型: %s", sess.ModelInfo())),
+		hintStyle.Render(fmt.Sprintf("skills: %d", len(skills))),
+	)
+	fmt.Println()
+	fmt.Println(accentStyle.Render("Quick Start"))
+	fmt.Printf("  %s  %s\n", suggestionStyle.Render("• 扫描当前主机所在内网环境"), hintStyle.Render("推荐首条，发现内网主机与端口"))
+	fmt.Printf("  %s  %s\n", suggestionStyle.Render("• 你好 / 你能做什么"), hintStyle.Render("问候或了解能力（走问答）"))
+	fmt.Printf("  %s  %s\n", suggestionStyle.Render("• Scan localhost for open ports"), hintStyle.Render("扫描本机开放端口"))
+	fmt.Printf("  %s  %s\n", suggestionStyle.Render("• /plan 编写测试计划，/start 执行计划"), hintStyle.Render("命令一览：规划/执行/问答"))
+	fmt.Println()
+	fmt.Println(hintStyle.Render("模式 default（自动） | super（专家）；启动时 -a secbot-cli | -a superhackbot。"))
+	fmt.Println(hintStyle.Render("输入 / 后回车可列出所有命令。exit 退出"))
+	fmt.Println()
+}
+
+func handleLineSlashCommand(input string, sess *session.Session, skills *[]skillEntry) ([]string, bool, bool) {
+	switch {
+	case input == "/":
+		return buildSlashSuggestionLines(""), true, false
+	case input == "/help" || input == "/h":
+		return buildHelpLines(), true, false
+	case input == "/tools":
+		names := append([]string(nil), sess.ToolNames()...)
+		sort.Strings(names)
+		lines := []string{"可用工具:"}
+		for _, name := range names {
+			lines = append(lines, "  - "+name)
+		}
+		lines = append(lines, "")
+		return lines, true, false
+	case input == "/skill" || strings.HasPrefix(input, "/skill "):
+		return handleLineSkillCommand(input, skills), true, false
+	case input == "/doctor" || input == "/env":
+		return buildDoctorLines(sess), true, false
+	case input == "/clear":
+		return nil, true, true
+	case input == "/model" || input == "model":
+		return []string{"模型切换功能即将实现", ""}, true, false
+	case input == "/version":
+		return []string{fmt.Sprintf("SecBot v%s (Go)", version), ""}, true, false
+	case strings.HasPrefix(input, "/"):
+		if isPassthroughSlashCommand(input) {
+			return nil, false, false
+		}
+		return buildSlashSuggestionLines(input), true, false
+	default:
+		return nil, false, false
+	}
+}
+
+func handleLineSkillCommand(input string, skills *[]skillEntry) []string {
+	trimmed := strings.TrimSpace(input)
+
+	if trimmed == "/skill" || trimmed == "/skill help" {
+		return buildSkillHelpLines()
+	}
+	if trimmed == "/skill list" {
+		return buildSkillListLines(*skills)
+	}
+	if strings.HasPrefix(trimmed, "/skill add ") {
+		name, description, err := parseSkillAddCommand(trimmed)
+		if err != nil {
+			return []string{fmt.Sprintf("新增 skill 失败: %v", err), "输入 /skill help 查看用法", ""}
+		}
+		for _, skill := range *skills {
+			if strings.EqualFold(skill.Name, name) {
+				return []string{
+					fmt.Sprintf("新增 skill 失败: 名称 %q 已存在", name),
+					"可改用其他名称，或先编辑 data/skills.json。",
+					"",
+				}
+			}
+		}
+
+		*skills = append(*skills, skillEntry{
+			Name:        name,
+			Description: description,
+			CreatedAt:   time.Now().Format(time.RFC3339),
+		})
+		sort.Slice(*skills, func(i, j int) bool {
+			return strings.ToLower((*skills)[i].Name) < strings.ToLower((*skills)[j].Name)
+		})
+		if err := saveSkills(*skills); err != nil {
+			return []string{
+				fmt.Sprintf("新增 skill 失败: %v", err),
+				"skill 已添加到当前会话，但写入文件失败。",
+				"",
+			}
+		}
+		return []string{
+			fmt.Sprintf("已新增 skill: %s", name),
+			fmt.Sprintf("描述: %s", description),
+			"该 skill 已持久化并会自动注入后续请求上下文。",
+			"",
+		}
+	}
+
+	return []string{
+		fmt.Sprintf("不支持的命令: %s", trimmed),
+		"输入 /skill help 查看用法。",
+		"",
+	}
+}
+
+func printLines(lines []string) {
+	for _, line := range lines {
+		fmt.Println(line)
+	}
+}
+
+func dimExit() {
+	color.New(color.Faint).Println("再见！")
+}
+
+func clearTerminal() {
+	fmt.Print("\033[2J\033[H")
 }
 
 type processResultMsg struct {
@@ -267,7 +463,7 @@ type tuiModel struct {
 
 	input       textinput.Model
 	history     []string
-	suggestions []string
+	suggestions []slashCommandSpec
 	processing  bool
 	quitting    bool
 
@@ -400,20 +596,13 @@ func (m tuiModel) View() string {
 	}
 	containerWidth := max(width-2, 30)
 
-	header := headerBoxStyle.Width(containerWidth).Render(
-		strings.Join([]string{
-			brandStyle.Render("SECBOT") + " " + accentStyle.Render("绿色终端模式"),
-			hintStyle.Render(fmt.Sprintf("模型: %s", m.sess.ModelInfo())),
-			hintStyle.Render(fmt.Sprintf("skills: %d  (使用 /skill 管理)", len(m.skills))),
-		}, "\n"),
-	)
-
+	header := m.renderStartupScreen(containerWidth)
 	suggestionBlock := m.renderSuggestions(containerWidth)
 	statusLine := m.renderStatus()
 	inputBlock := inputBoxStyle.Width(containerWidth).Render(m.input.View())
 
 	// 普通终端模式下保持紧凑，不占满整屏。
-	historyLines := lastLines(m.history, 14)
+	historyLines := lastLines(m.history, 10)
 	historyBlock := historyBoxStyle.Width(containerWidth).Render(strings.Join(historyLines, "\n"))
 
 	return pageStyle.Width(width).Render(
@@ -426,6 +615,64 @@ func (m tuiModel) View() string {
 			inputBlock,
 		),
 	)
+}
+
+func (m tuiModel) renderStartupScreen(containerWidth int) string {
+	innerWidth := max(containerWidth-4, 30)
+	bannerText := strings.Trim(cliBanner, "\n")
+	if innerWidth < 62 {
+		bannerText = "SECBOT"
+	}
+
+	bannerBlock := lipgloss.NewStyle().
+		Width(innerWidth).
+		Align(lipgloss.Center).
+		Render(brandStyle.Render(bannerText))
+	subtitle := lipgloss.NewStyle().
+		Width(innerWidth).
+		Align(lipgloss.Center).
+		Render(accentStyle.Render("Security Testing Agent"))
+
+	badges := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		badgeBlueStyle.Render("secbot"),
+		" ",
+		badgeGreenStyle.Render(displayModeLabel(m.mode)),
+		" ",
+		badgeGrayStyle.Render(displayAgentLabel(agentFlag)),
+		"  ",
+		hintStyle.Render(fmt.Sprintf("%d tools", len(m.sess.ToolNames()))),
+		"  ",
+		hintStyle.Render(fmt.Sprintf("模型: %s", m.sess.ModelInfo())),
+		"  ",
+		hintStyle.Render(fmt.Sprintf("skills: %d", len(m.skills))),
+	)
+
+	body := lipgloss.JoinVertical(
+		lipgloss.Left,
+		bannerBlock,
+		subtitle,
+		"",
+		badges,
+		"",
+		renderQuickStart(),
+		"",
+		hintStyle.Render("模式 default（自动） | super（专家）；启动时 -a secbot-cli | -a superhackbot。"),
+		hintStyle.Render("输入 / 后回车可列出所有命令。exit 退出"),
+	)
+	return headerBoxStyle.Width(containerWidth).Render(body)
+}
+
+func renderQuickStart() string {
+	rows := []string{
+		accentStyle.Render("Quick Start"),
+		"",
+		fmt.Sprintf("%s  %s", suggestionStyle.Render("• 扫描当前主机所在内网环境"), hintStyle.Render("推荐首条，发现内网主机与端口")),
+		fmt.Sprintf("%s  %s", suggestionStyle.Render("• 你好 / 你能做什么"), hintStyle.Render("问候或了解能力（走问答）")),
+		fmt.Sprintf("%s  %s", suggestionStyle.Render("• Scan localhost for open ports"), hintStyle.Render("扫描本机开放端口")),
+		fmt.Sprintf("%s  %s", suggestionStyle.Render("• /plan 编写测试计划，/start 执行计划"), hintStyle.Render("命令一览：规划/执行/问答")),
+	}
+	return strings.Join(rows, "\n")
 }
 
 func (m *tuiModel) appendLines(lines ...string) {
@@ -442,8 +689,7 @@ func (m *tuiModel) resizeInput() {
 
 func (m tuiModel) initialHistory() []string {
 	return []string{
-		"SecBot - AI 安全测试机器人 (Go)",
-		"输入你的问题或任务，输入 / 查看命令，输入 /exit 退出。",
+		"不知道做什么？试试 Quick Start，或输入 / 查看命令。",
 		"输入 /skill add <名称> <描述> 可新增 skills。",
 		"",
 	}
@@ -475,6 +721,9 @@ func (m *tuiModel) handleSlashCommand(input string) ([]string, bool, bool) {
 	case input == "/version":
 		return []string{fmt.Sprintf("SecBot v%s (Go)", version), ""}, true, false
 	case strings.HasPrefix(input, "/"):
+		if isPassthroughSlashCommand(input) {
+			return nil, false, false
+		}
 		return buildSlashSuggestionLines(input), true, false
 	default:
 		return nil, false, false
@@ -504,8 +753,8 @@ func (m tuiModel) renderSuggestions(containerWidth int) string {
 		if limit > 8 {
 			limit = 8
 		}
-		for _, cmd := range m.suggestions[:limit] {
-			lines = append(lines, suggestionStyle.Render("  "+cmd))
+		for _, spec := range m.suggestions[:limit] {
+			lines = append(lines, fmt.Sprintf("  %s  %s", suggestionStyle.Render(spec.Command), hintStyle.Render(spec.Description)))
 		}
 		if len(m.suggestions) > limit {
 			lines = append(lines, hintStyle.Render(fmt.Sprintf("  ... 还有 %d 个命令", len(m.suggestions)-limit)))
@@ -534,36 +783,24 @@ func processInputCmd(ctx context.Context, sess *session.Session, mode, input str
 }
 
 func buildHelpLines() []string {
-	registry := tools.SecurityRegistry()
-	names := append([]string(nil), registry.Names()...)
-	sort.Strings(names)
-
 	lines := []string{
-		"SecBot 帮助",
-		"===========",
+		"命令列表",
 		"",
-		"命令:",
-		"  /help, /h     显示此帮助",
-		"  /tools        列出可用安全工具",
-		"  /skill        新增/查看自定义技能（/skill help）",
-		"  /doctor, /env 检查当前环境变量与模型配置",
-		"  /model        切换推理后端/模型",
-		"  /clear        清空会话输出",
-		"  /version      版本信息",
-		"  exit, quit    退出",
-		"",
-		"使用示例:",
-		"  扫描 example.com 的开放端口",
-		"  检查 example.com 的 SSL 证书",
-		"  分析 example.com 的 HTTP 安全头",
-		"  查询 8.8.8.8 的地理位置",
-		"",
-		fmt.Sprintf("可用工具 (%d):", len(names)),
 	}
-	for _, name := range names {
-		lines = append(lines, "  - "+name)
+	for _, spec := range slashCommandSpecs {
+		lines = append(lines, fmt.Sprintf("  %-10s %s", spec.Command, spec.Description))
 	}
-	lines = append(lines, "")
+	lines = append(lines,
+		"",
+		"Quick Start:",
+		"  扫描当前主机所在内网环境",
+		"  你好 / 你能做什么",
+		"  Scan localhost for open ports",
+		"  /plan 编写测试计划，/start 执行计划，/ask 仅提问不执行",
+		"",
+		"提示: /tools 查看完整工具列表；/skill help 管理自定义技能。",
+		"",
+	)
 	return lines
 }
 
@@ -780,8 +1017,8 @@ func buildSlashSuggestionLines(input string) []string {
 	matches := matchSlashCommands(input)
 
 	hasMatch := false
-	for _, cmd := range matches {
-		lines = append(lines, "  - "+cmd)
+	for _, spec := range matches {
+		lines = append(lines, fmt.Sprintf("  - %-10s %s", spec.Command, spec.Description))
 		hasMatch = true
 	}
 
@@ -795,15 +1032,49 @@ func buildSlashSuggestionLines(input string) []string {
 	return lines
 }
 
-func matchSlashCommands(input string) []string {
+func matchSlashCommands(input string) []slashCommandSpec {
 	prefix := strings.TrimSpace(input)
-	matches := make([]string, 0, len(slashCommands))
-	for _, cmd := range slashCommands {
-		if prefix == "" || prefix == "/" || strings.HasPrefix(cmd, prefix) {
-			matches = append(matches, cmd)
+	matches := make([]slashCommandSpec, 0, len(slashCommandSpecs))
+	for _, spec := range slashCommandSpecs {
+		if prefix == "" || prefix == "/" || strings.HasPrefix(spec.Command, prefix) {
+			matches = append(matches, spec)
 		}
 	}
 	return matches
+}
+
+func isPassthroughSlashCommand(input string) bool {
+	token := slashCommandToken(input)
+	for _, spec := range slashCommandSpecs {
+		if spec.Command == token {
+			return !spec.Local
+		}
+	}
+	return false
+}
+
+func slashCommandToken(input string) string {
+	parts := strings.Fields(strings.TrimSpace(input))
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.ToLower(parts[0])
+}
+
+func displayModeLabel(mode string) string {
+	if mode == "ask" {
+		return "ask"
+	}
+	return "default"
+}
+
+func displayAgentLabel(agent string) string {
+	switch strings.ToLower(strings.TrimSpace(agent)) {
+	case "superhackbot", "super":
+		return "super"
+	default:
+		return "auto"
+	}
 }
 
 func lastLines(lines []string, limit int) []string {
@@ -823,7 +1094,7 @@ func max(a, b int) int {
 func modelCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "model",
-		Short: "交互式选择推理后端与模型",
+		Short: "切换推理后端与模型（待实现）",
 		Run: func(cmd *cobra.Command, args []string) {
 			color.Yellow("模型切换功能即将实现")
 		},
