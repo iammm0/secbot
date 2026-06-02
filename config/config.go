@@ -25,6 +25,35 @@ type Config struct {
 	DatabaseURL string
 }
 
+var providerDefaultBaseURLs = map[string]string{
+	"deepseek":   "https://api.deepseek.com/v1",
+	"openai":     "https://api.openai.com/v1",
+	"groq":       "https://api.groq.com/openai/v1",
+	"openrouter": "https://openrouter.ai/api/v1",
+	"zhipu":      "https://open.bigmodel.cn/api/paas/v4",
+	"qwen":       "https://dashscope.aliyuncs.com/compatible-mode/v1",
+	"moonshot":   "https://api.moonshot.cn/v1",
+	"together":   "https://api.together.xyz/v1",
+	"fireworks":  "https://api.fireworks.ai/inference/v1",
+	"mistral":    "https://api.mistral.ai/v1",
+	"cohere":     "https://api.cohere.ai/compatibility/v1",
+	"hunyuan":    "https://api.hunyuan.cloud.tencent.com/v1",
+	"doubao":     "https://ark.cn-beijing.volces.com/api/v3",
+	"spark":      "https://spark-api-open.xf-yun.com/v1",
+	"wenxin":     "https://qianfan.baidubce.com/v2",
+	"stepfun":    "https://api.stepfun.com/v1",
+	"minimax":    "https://api.minimax.io/v1",
+	"scnet":      "https://api.scnet.cn/api/llm/v1",
+}
+
+var providersRequiringBaseURL = map[string]bool{
+	"custom":       true,
+	"langboat":     true,
+	"mianbi":       true,
+	"xai":          true,
+	"azure_openai": true,
+}
+
 func Load() *Config {
 	persisted := loadPersistedConfigs()
 	llmProvider := envOrDefault("LLM_PROVIDER", "deepseek")
@@ -37,7 +66,7 @@ func Load() *Config {
 		ModelName:   envOrDefault("MODEL_NAME", "deepseek-chat"),
 		APIKey:      os.Getenv("DEEPSEEK_API_KEY"),
 		BaseURL:     os.Getenv("DEEPSEEK_BASE_URL"),
-		OllamaURL:   envOrDefault("OLLAMA_URL", "http://localhost:11434"),
+		OllamaURL:   envFirstOrDefault([]string{"OLLAMA_URL", "OLLAMA_BASE_URL"}, "http://localhost:11434"),
 		Temperature: envFloatOrDefault("TEMPERATURE", 0.7),
 		MaxTokens:   envIntOrDefault("MAX_TOKENS", 4096),
 		Verbose:     envBoolOrDefault("VERBOSE", false),
@@ -48,43 +77,7 @@ func Load() *Config {
 
 	provider := strings.ToLower(cfg.LLMProvider)
 
-	switch provider {
-	case "deepseek":
-		if cfg.BaseURL == "" {
-			cfg.BaseURL = "https://api.deepseek.com/v1"
-		}
-		if key := os.Getenv("DEEPSEEK_API_KEY"); key != "" {
-			cfg.APIKey = normalizeAPIKey(key)
-		}
-		if model := os.Getenv("DEEPSEEK_MODEL"); model != "" {
-			cfg.ModelName = model
-		}
-	case "openai":
-		if key := os.Getenv("OPENAI_API_KEY"); key != "" {
-			cfg.APIKey = normalizeAPIKey(key)
-		}
-		if url := os.Getenv("OPENAI_BASE_URL"); url != "" {
-			cfg.BaseURL = url
-		}
-	case "ollama":
-		if model := os.Getenv("OLLAMA_MODEL"); model != "" {
-			cfg.ModelName = model
-		}
-	default:
-		envKey := strings.ToUpper(provider) + "_API_KEY"
-		if key := os.Getenv(envKey); key != "" {
-			cfg.APIKey = normalizeAPIKey(key)
-		}
-		envURL := strings.ToUpper(provider) + "_BASE_URL"
-		if url := os.Getenv(envURL); url != "" {
-			cfg.BaseURL = url
-		}
-		envModel := strings.ToUpper(provider) + "_MODEL"
-		if model := os.Getenv(envModel); model != "" {
-			cfg.ModelName = model
-		}
-	}
-
+	applyEnvProviderConfig(cfg, provider)
 	applyPersistedProviderConfig(cfg, persisted)
 	return cfg
 }
@@ -93,6 +86,9 @@ func (c *Config) Validate() error {
 	provider := strings.ToLower(c.LLMProvider)
 	if provider != "ollama" && c.APIKey == "" {
 		return fmt.Errorf("provider %q 需要配置 API Key (设置 %s_API_KEY 环境变量)", c.LLMProvider, strings.ToUpper(c.LLMProvider))
+	}
+	if provider != "ollama" && c.BaseURL == "" && providersRequiringBaseURL[provider] {
+		return fmt.Errorf("provider %q 需要配置 Base URL (设置 %s_BASE_URL 或通过 /model 保存)", c.LLMProvider, strings.ToUpper(c.LLMProvider))
 	}
 	return nil
 }
@@ -111,6 +107,15 @@ func (c *Config) String() string {
 func envOrDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+func envFirstOrDefault(keys []string, def string) string {
+	for _, key := range keys {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
 	}
 	return def
 }
@@ -142,12 +147,51 @@ func envBoolOrDefault(key string, def bool) bool {
 	return def
 }
 
+func applyEnvProviderConfig(cfg *Config, provider string) {
+	envPrefix := strings.ToUpper(provider)
+	switch provider {
+	case "ollama":
+		if url := envFirstOrDefault([]string{"OLLAMA_URL", "OLLAMA_BASE_URL"}, ""); url != "" {
+			cfg.OllamaURL = strings.TrimRight(url, "/")
+		}
+		if model := os.Getenv("OLLAMA_MODEL"); model != "" {
+			cfg.ModelName = model
+		}
+		return
+	case "deepseek":
+		if cfg.BaseURL == "" {
+			cfg.BaseURL = providerDefaultBaseURLs[provider]
+		}
+	}
+
+	if key := os.Getenv(envPrefix + "_API_KEY"); key != "" {
+		cfg.APIKey = normalizeAPIKey(key)
+	}
+	if url := os.Getenv(envPrefix + "_BASE_URL"); url != "" {
+		cfg.BaseURL = strings.TrimRight(url, "/")
+	} else if cfg.BaseURL == "" {
+		cfg.BaseURL = providerDefaultBaseURLs[provider]
+	}
+	if model := os.Getenv(envPrefix + "_MODEL"); model != "" {
+		cfg.ModelName = model
+	}
+}
+
 func applyPersistedProviderConfig(cfg *Config, persisted map[string]string) {
 	if len(persisted) == 0 {
 		return
 	}
 	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
 	if provider == "" {
+		return
+	}
+	if provider == "ollama" {
+		if baseURL := persistedConfigValue(persisted, "ollama_base_url"); baseURL != "" {
+			cfg.OllamaURL = strings.TrimRight(baseURL, "/")
+		}
+		if model := persistedConfigValue(persisted, "ollama_model"); model != "" {
+			cfg.ModelName = model
+		}
 		return
 	}
 	if key := persistedConfigValue(persisted, provider+"_api_key"); key != "" {
