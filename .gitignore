@@ -1,5 +1,6 @@
 # Go
 bin/
+/secbot
 *.exe
 *.exe~
 *.dll
