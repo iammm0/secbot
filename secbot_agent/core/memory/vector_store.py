@@ -59,7 +59,7 @@ class SQLiteVectorStore:
         """)
 
         if self._has_function("vec_ann"):
-            cursor.execute("""
+            cursor.execute(f"""
                 CREATE VIRTUAL TABLE IF NOT EXISTS vector_items_ann
                 USING vec0(id, vector float[{self.dimension}])
             """)
@@ -141,37 +141,44 @@ class SQLiteVectorStore:
                    ORDER BY distance""",
                 (limit,),
             )
-        else:
-            query_vec = np.array(query_vector, dtype=np.float32)
-            cursor.execute(
-                "SELECT id, content, vector, metadata, created_at FROM vector_items"
-            )
-
             results = []
             for row in cursor.fetchall():
-                stored_vec = self._blob_to_vector(row["vector"])
-                similarity = np.dot(query_vec, stored_vec) / (
-                    np.linalg.norm(query_vec) * np.linalg.norm(stored_vec) + 1e-8
+                item = VectorItem(
+                    id=row["id"],
+                    content=row["content"],
+                    vector=self._blob_to_vector(row["vector"]),
+                    metadata=json.loads(row["metadata"] or "{}"),
+                    created_at=row["created_at"],
                 )
-                if similarity >= threshold:
-                    results.append((row, similarity))
+                distance = row["distance"] if "distance" in row.keys() else 0.0
+                similarity = 1.0 - distance if distance else 0.0
+                results.append((item, similarity))
+            return results[:limit]
 
-            results.sort(key=lambda x: x[1], reverse=True)
-            cursor.execute("SELECT 1")  # 空操作
+        query_vec = np.array(query_vector, dtype=np.float32)
+        cursor.execute(
+            "SELECT id, content, vector, metadata, created_at FROM vector_items"
+        )
 
         results = []
         for row in cursor.fetchall():
-            item = VectorItem(
-                id=row["id"],
-                content=row["content"],
-                vector=self._blob_to_vector(row["vector"]),
-                metadata=json.loads(row["metadata"] or "{}"),
-                created_at=row["created_at"],
+            stored_vec = self._blob_to_vector(row["vector"])
+            if len(stored_vec) != len(query_vec):
+                continue
+            similarity = np.dot(query_vec, stored_vec) / (
+                np.linalg.norm(query_vec) * np.linalg.norm(stored_vec) + 1e-8
             )
-            distance = row.get("distance", 0.0)
-            similarity = 1.0 - distance if distance else row.get("similarity", 0.0)
-            results.append((item, similarity))
+            if similarity >= threshold:
+                item = VectorItem(
+                    id=row["id"],
+                    content=row["content"],
+                    vector=stored_vec,
+                    metadata=json.loads(row["metadata"] or "{}"),
+                    created_at=row["created_at"],
+                )
+                results.append((item, float(similarity)))
 
+        results.sort(key=lambda x: x[1], reverse=True)
         return results[:limit]
 
     def get(self, item_id: str) -> Optional[VectorItem]:

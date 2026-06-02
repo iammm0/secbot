@@ -465,13 +465,13 @@ def _render_startup_screen(
         "• 扫描当前主机所在内网环境",
         "• 你好 / 你能做什么",
         "• Scan localhost for open ports",
-        "• /plan 编写测试计划，/start 执行计划，/ask 仅提问不执行",
+        "• /plan 编写测试计划，/start 执行计划",
     ]
     right = [
         "推荐首条，发现内网主机与端口",
         "问候或了解能力（走问答）",
         "扫描本机开放端口",
-        "命令一览：规划/执行/问答",
+        "命令一览：规划/执行",
     ]
 
     grid = Table.grid(padding=(0, 3))
@@ -523,7 +523,7 @@ def _slash_command_specs() -> list[tuple[str, str]]:
         ("/help", "显示命令列表"),
         ("/model", "选择/配置推理后端与模型"),
         ("/agent", "切换智能体（hackbot / superhackbot）"),
-        ("/ask", "仅问答不执行工具（Ask 模式）"),
+        ("/ask", "仅问答不执行工具（兼容旧命令）"),
         ("/plan", "仅生成计划（不执行）"),
         ("/start", "执行计划"),
         ("/accept", "确认敏感操作（superhackbot）"),

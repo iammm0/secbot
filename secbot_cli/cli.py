@@ -46,7 +46,7 @@ def main(
     ctx: typer.Context,
     message: Optional[str] = typer.Argument(None, help="直接发送一条消息（省略则进入交互模式）"),
     agent: str = typer.Option("secbot-cli", "--agent", "-a", help="智能体类型: secbot-cli / superhackbot"),
-    ask: bool = typer.Option(False, "--ask", help="使用 Ask 模式（仅问答，不执行工具）"),
+    ask: bool = typer.Option(False, "--ask", help="仅问答，不执行工具（兼容旧参数）"),
 ):
     """
     Secbot CLI — 自动化安全测试助手。
@@ -57,7 +57,7 @@ def main(
     示例:
       secbot                              # 进入交互模式
       secbot "扫描 192.168.1.1 的开放端口"  # 单次任务
-      secbot --ask "什么是 XSS 攻击？"      # 问答模式
+      secbot --ask "什么是 XSS 攻击？"      # 仅问答（兼容旧参数）
       secbot --agent superhackbot          # 使用专家模式
     """
     if ctx.invoked_subcommand is not None:

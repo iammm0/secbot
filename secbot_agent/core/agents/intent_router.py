@@ -217,8 +217,6 @@ class IntentRouter:
             intent = "task_complex"
         else:
             intent = "qa"
-        if force_agent and intent == "small_talk":
-            intent = "qa"
         return IntentDecision(
             intent=intent,
             confidence=0.4,
@@ -249,7 +247,7 @@ class IntentRouter:
                 focus=h["focus"],
                 direct_response=None,
                 clarify_question=None,
-                rationale="forceQA mode",
+                rationale="forced qa",
             )
 
         parts = [f"本轮用户输入：\n{user_input}\n"]
@@ -286,24 +284,6 @@ class IntentRouter:
                 decision = self._merge_heuristic(
                     parsed, h, session_focus
                 )
-                if force_agent and decision.intent == "small_talk":
-                    new_intent = (
-                        "qa" if decision.direct_response else "task_complex"
-                    )
-                    decision = IntentDecision(
-                        intent=new_intent,
-                        confidence=decision.confidence,
-                        needs_explore=decision.needs_explore
-                        or (
-                            new_intent == "task_complex"
-                            and h["has_unknown_entity"]
-                        ),
-                        needs_report=(new_intent == "task_complex"),
-                        focus=decision.focus,
-                        direct_response=decision.direct_response,
-                        clarify_question=decision.clarify_question,
-                        rationale=(decision.rationale or "") + " (forceAgent)",
-                    )
                 return decision
         except Exception as e:
             logger.warning(f"IntentRouter LLM 失败，启发式回退: {e}")

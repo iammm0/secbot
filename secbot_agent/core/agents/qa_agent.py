@@ -2,7 +2,7 @@
 QAAgent：专门处理简单问候与项目/上下文问答
 - 所有回复均通过 LLM 生成，不设规则快捷回复
 - 问候、闲聊、项目能力、帮助等均走 LLM
-- Ask 模式：带上下文的 LLM 问答，可选用通用工具（搜索、系统信息、CVE、文件分析）以更准确回答
+- 问答：带上下文的 LLM 问答，可选用通用工具（搜索、系统信息、CVE、文件分析）以更准确回答
 """
 
 import asyncio
@@ -12,8 +12,26 @@ from secbot_agent.core.agents.base import BaseAgent
 from utils.logger import logger
 
 
-# Ask 模式系统提示词（无工具）
-ASK_SYSTEM_PROMPT = """你是 Hackbot 的 Ask 模式助手。你的任务是**仅根据当前对话上下文**来回答用户的问题。
+_AUTH_ERROR_REPLY = "当前推理后端 API Key 无效或已过期，请使用 /model 重新配置后再试。"
+
+
+def _is_auth_error(error: Exception) -> bool:
+    text = f"{type(error).__name__} {error}".lower()
+    return any(
+        marker in text
+        for marker in (
+            "401",
+            "unauthorized",
+            "authentication",
+            "invalid api key",
+            "api key is invalid",
+            "invalid_request_error",
+        )
+    )
+
+
+# 问答系统提示词（无工具）
+ASK_SYSTEM_PROMPT = """你是 Hackbot 的问答助手。你的任务是**仅根据当前对话上下文**来回答用户的问题。
 
 规则：
 - 仅根据对话上下文中已有的信息来回答
@@ -24,8 +42,8 @@ ASK_SYSTEM_PROMPT = """你是 Hackbot 的 Ask 模式助手。你的任务是**�
 - 如果涉及扫描结果、漏洞发现等安全数据，引用上下文中的具体内容
 - 使用 Markdown 格式化输出以提高可读性"""
 
-# Ask 模式系统提示词（带工具：用于更确切回答）
-ASK_SYSTEM_PROMPT_WITH_TOOLS = """你是 Hackbot 的 Ask 模式助手。你的任务是根据当前对话上下文**并结合可选工具**来准确回答用户问题。
+# 问答系统提示词（带工具：用于更确切回答）
+ASK_SYSTEM_PROMPT_WITH_TOOLS = """你是 Hackbot 的问答助手。你的任务是根据当前对话上下文**并结合可选工具**来准确回答用户问题。
 
 规则：
 - 优先根据对话上下文中已有信息回答；若信息不足或用户问题涉及实时/外部数据，可调用工具获取后再回答
@@ -37,7 +55,7 @@ ASK_SYSTEM_PROMPT_WITH_TOOLS = """你是 Hackbot 的 Ask 模式助手。你的�
 
 
 def get_ask_tools() -> List[Any]:
-    """返回 Ask 模式可用的通用工具列表（只读/低敏感：搜索、系统信息、CVE、文件分析）。"""
+    """返回问答可用的通用工具列表（只读/低敏感：搜索、系统信息、CVE、文件分析）。"""
     from tools.base import BaseTool
 
     tools: List[BaseTool] = []
@@ -45,22 +63,22 @@ def get_ask_tools() -> List[Any]:
         from tools.web_search import WebSearchTool
         tools.append(WebSearchTool())
     except Exception as e:
-        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"Ask 工具 web_search 未加载: {e}")
+        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"问答工具 web_search 未加载: {e}")
     try:
         from tools.defense.system_info_tool import SystemInfoTool
         tools.append(SystemInfoTool())
     except Exception as e:
-        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"Ask 工具 system_info 未加载: {e}")
+        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"问答工具 system_info 未加载: {e}")
     try:
         from tools.utility.cve_lookup_tool import CveLookupTool
         tools.append(CveLookupTool())
     except Exception as e:
-        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"Ask 工具 cve_lookup 未加载: {e}")
+        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"问答工具 cve_lookup 未加载: {e}")
     try:
         from tools.utility.file_analyze_tool import FileAnalyzeTool
         tools.append(FileAnalyzeTool())
     except Exception as e:
-        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"Ask 工具 file_analyze 未加载: {e}")
+        logger.bind(agent="qa", event="agent_error", attempt=1).debug(f"问答工具 file_analyze 未加载: {e}")
     return tools
 
 
@@ -69,7 +87,7 @@ class QAAgent(BaseAgent):
     问答 Agent：仅做简短回复，不调用工具、不生成执行计划。
     用于：问候、闲聊、了解项目能力、了解对话上下文等。
 
-    Ask 模式：带上下文的 LLM 问答；可选接入通用工具以更确切回答。
+    问答：带上下文的 LLM 问答；可选接入通用工具以更确切回答。
     """
 
     def __init__(self, name: str = "QAAgent"):
@@ -81,23 +99,23 @@ class QAAgent(BaseAgent):
 回复应简洁，不要展开长篇说明，不要调用任何工具。"""
         super().__init__(name=name, system_prompt=system_prompt)
         self._llm = None  # 延迟初始化
-        self._ask_tools: Optional[List[Any]] = None  # Ask 模式通用工具，延迟加载
+        self._ask_tools: Optional[List[Any]] = None  # 问答通用工具，延迟加载
         logger.bind(agent=self.name, event="stage_start", attempt=1).info("初始化 QAAgent")
 
     def _ensure_llm(self):
-        """延迟创建 LLM 实例（仅 ask 模式需要）"""
+        """延迟创建 LLM 实例（仅问答需要）"""
         if self._llm is None:
             try:
                 from secbot_agent.core.patterns.security_react import _create_llm
 
                 self._llm = _create_llm()
-                logger.bind(agent=self.name, event="stage_start", attempt=1).info("QAAgent: LLM 实例已创建（用于 Ask 模式）")
+                logger.bind(agent=self.name, event="stage_start", attempt=1).info("QAAgent: LLM 实例已创建（用于问答）")
             except Exception as e:
                 logger.bind(agent=self.name, event="llm_error", attempt=1).error(f"QAAgent: 创建 LLM 实例失败: {e}")
                 raise
 
     def _get_ask_tools_langchain(self):
-        """返回 Ask 工具经 LangChain 包装后的列表，用于 bind_tools。"""
+        """返回问答工具经 LangChain 包装后的列表，用于 bind_tools。"""
         from secbot_agent.core.agents.tool_calling_agent import LangChainToolWrapper
 
         if self._ask_tools is None:
@@ -144,21 +162,21 @@ class QAAgent(BaseAgent):
         self,
         user_input: str,
         conversation_history: List[dict],
+        context_block: str = "",
     ) -> str:
         """
-        Ask 模式：带对话上下文的 LLM 问答。
+        问答：带对话上下文的 LLM 问答。
         仅根据上下文回答问题，不执行任何动作。
 
         Args:
             user_input: 用户当前的问题
             conversation_history: 对话历史，格式 [{"role": "user"|"assistant", "content": "..."}]
+            context_block: ContextAssembler 组装的预算上下文
 
         Returns:
             LLM 根据上下文生成的回答
         """
         from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-
-        self._ensure_llm()
 
         # 构建消息列表
         messages = [SystemMessage(content=ASK_SYSTEM_PROMPT)]
@@ -176,18 +194,30 @@ class QAAgent(BaseAgent):
                     content = content[:2000] + "\n... (已截断)"
                 context_lines.append(f"[{role_label}]: {content}")
 
-            context_block = "\n\n".join(context_lines)
+            conversation_block = "\n\n".join(context_lines)
             messages.append(
-                HumanMessage(content=f"以下是当前对话的上下文记录：\n\n{context_block}")
+                HumanMessage(content=f"以下是当前对话的上下文记录：\n\n{conversation_block}")
             )
             messages.append(
                 AIMessage(content="好的，我已了解当前对话上下文。请问你想了解什么？")
+            )
+
+        context_block = (context_block or "").strip()
+        if context_block:
+            if len(context_block) > 6000:
+                context_block = context_block[:6000] + "\n... (已截断)"
+            messages.append(
+                HumanMessage(content=f"以下是当前请求可用的补充上下文：\n\n{context_block}")
+            )
+            messages.append(
+                AIMessage(content="好的，我会结合这些补充上下文回答，并避免编造不存在的信息。")
             )
 
         # 用户的实际问题
         messages.append(HumanMessage(content=user_input))
 
         try:
+            self._ensure_llm()
             response = await asyncio.wait_for(self._llm.ainvoke(messages), timeout=30.0)
             if isinstance(response, str):
                 return response.strip()
@@ -195,10 +225,10 @@ class QAAgent(BaseAgent):
                 return str(response.content)
             return str(response)
         except asyncio.TimeoutError:
-            return "Ask 模式回答超时，请稍后重试。"
+            return "问答回复超时，请稍后重试。"
         except (AttributeError, TypeError) as e:
             if "model_dump" in str(e) or "model_dump" in type(e).__name__:
-                logger.warning(f"QAAgent ask_with_context 解析触发 model_dump 异常，改用 HTTP 直连回退: {e}")
+                logger.warning(f"QAAgent answer_with_context 解析触发 model_dump 异常，改用 HTTP 直连回退: {e}")
                 fallback_payload = []
                 for m in messages:
                     role = getattr(m, "type", None) or "user"
@@ -209,11 +239,17 @@ class QAAgent(BaseAgent):
                     else:
                         fallback_payload.append({"role": "user", "content": getattr(m, "content", "") or ""})
                 return await self._answer_via_http_fallback(fallback_payload)
-            logger.error(f"QAAgent ask_with_context 错误: {e}")
-            return f"Ask 模式回答出错: {e}"
+            if _is_auth_error(e):
+                logger.warning(f"QAAgent answer_with_context 鉴权失败: {e}")
+                return _AUTH_ERROR_REPLY
+            logger.error(f"QAAgent answer_with_context 错误: {e}")
+            return f"问答回复出错: {e}"
         except Exception as e:
-            logger.error(f"QAAgent ask_with_context 错误: {e}")
-            return f"Ask 模式回答出错: {e}"
+            if _is_auth_error(e):
+                logger.warning(f"QAAgent answer_with_context 鉴权失败: {e}")
+                return _AUTH_ERROR_REPLY
+            logger.error(f"QAAgent answer_with_context 错误: {e}")
+            return f"问答回复出错: {e}"
 
     async def answer_with_context_and_tools(
         self,
@@ -222,21 +258,27 @@ class QAAgent(BaseAgent):
         max_tool_rounds: int = 5,
     ) -> str:
         """
-        Ask 模式：带对话上下文，并可调用通用工具（搜索、系统信息、CVE、文件分析）以更准确回答。
+        问答：带对话上下文，并可调用通用工具（搜索、系统信息、CVE、文件分析）以更准确回答。
         若模型不支持 bind_tools 或无可用工具，则回退到纯 answer_with_context。
         """
         from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 
-        self._ensure_llm()
-        langchain_tools = self._get_ask_tools_langchain()
+        try:
+            self._ensure_llm()
+            langchain_tools = self._get_ask_tools_langchain()
+        except Exception as e:
+            if _is_auth_error(e):
+                logger.warning(f"QAAgent answer_with_context_and_tools 鉴权失败: {e}")
+                return _AUTH_ERROR_REPLY
+            raise
         if not langchain_tools:
-            logger.info("Ask 模式无可用工具，回退到纯上下文问答")
+            logger.info("问答无可用工具，回退到纯上下文问答")
             return await self.answer_with_context(user_input, conversation_history)
 
         try:
             llm_with_tools = self._llm.bind_tools(langchain_tools)
         except (NotImplementedError, AttributeError, Exception) as e:
-            logger.info("Ask 模式 bind_tools 不可用，回退到纯上下文问答: %s", e)
+            logger.info("问答 bind_tools 不可用，回退到纯上下文问答: %s", e)
             return await self.answer_with_context(user_input, conversation_history)
 
         tools_dict: Dict[str, Any] = {t.name: t for t in langchain_tools}
@@ -297,13 +339,13 @@ class QAAgent(BaseAgent):
                         result = await tools_dict[tool_name]._arun(**(tool_args or {}))
                         tool_results.append(f"工具 {tool_name} 执行结果: {result}")
                     except Exception as e:
-                        logger.warning("Ask 工具 %s 执行失败: %s", tool_name, e)
+                        logger.warning("问答工具 %s 执行失败: %s", tool_name, e)
                         tool_results.append(f"工具 {tool_name} 执行失败: {str(e)}")
                 for i, res in enumerate(tool_results):
                     messages.append(ToolMessage(content=res, tool_call_id=tool_calls[i].get("id", f"call_{i}")))
             return (content or "").strip() or "抱歉，已达到工具调用轮数上限，未能生成最终回复。"
         except asyncio.TimeoutError:
-            return "Ask 模式回答超时，请稍后重试。"
+            return "问答回复超时，请稍后重试。"
         except (AttributeError, TypeError) as e:
             if "model_dump" in str(e).lower():
                 fallback_payload = [{"role": "system", "content": ASK_SYSTEM_PROMPT_WITH_TOOLS}]
@@ -314,11 +356,17 @@ class QAAgent(BaseAgent):
                         role = "user"
                     fallback_payload.append({"role": role, "content": getattr(m, "content", "") or ""})
                 return await self._answer_via_http_fallback(fallback_payload)
+            if _is_auth_error(e):
+                logger.warning("QAAgent answer_with_context_and_tools 鉴权失败: %s", e)
+                return _AUTH_ERROR_REPLY
             logger.error("QAAgent answer_with_context_and_tools 错误: %s", e)
-            return f"Ask 模式回答出错: {e}"
+            return f"问答回复出错: {e}"
         except Exception as e:
+            if _is_auth_error(e):
+                logger.warning("QAAgent answer_with_context_and_tools 鉴权失败: %s", e)
+                return _AUTH_ERROR_REPLY
             logger.error("QAAgent answer_with_context_and_tools 错误: %s", e)
-            return f"Ask 模式回答出错: {e}"
+            return f"问答回复出错: {e}"
 
     @staticmethod
     def _extract_ask_response_content(response: Any) -> str:
@@ -348,8 +396,6 @@ class QAAgent(BaseAgent):
         """通过 LLM 生成回复，不设规则快捷回复"""
         from langchain_core.messages import SystemMessage, HumanMessage
 
-        self._ensure_llm()
-
         user_content = user_input.strip()
         if context and isinstance(context, list):
             recent = context[-10:]
@@ -369,6 +415,7 @@ class QAAgent(BaseAgent):
         ]
 
         try:
+            self._ensure_llm()
             response = await asyncio.wait_for(
                 self._llm.ainvoke(messages), timeout=30.0
             )
@@ -385,8 +432,14 @@ class QAAgent(BaseAgent):
                 return await self._answer_via_http_fallback(
                     [{"role": "system", "content": self.system_prompt or ""}, {"role": "user", "content": user_content}]
                 )
+            if _is_auth_error(e):
+                logger.warning(f"QAAgent answer 鉴权失败: {e}")
+                return _AUTH_ERROR_REPLY
             logger.error(f"QAAgent answer LLM 错误: {e}")
             return f"回复出错: {e}"
         except Exception as e:
+            if _is_auth_error(e):
+                logger.warning(f"QAAgent answer 鉴权失败: {e}")
+                return _AUTH_ERROR_REPLY
             logger.error(f"QAAgent answer LLM 错误: {e}")
             return f"回复出错: {e}"

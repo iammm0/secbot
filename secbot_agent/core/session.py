@@ -377,7 +377,7 @@ class SessionManager:
         at = agent_type or self.get_current_agent_type()
         sid = self.current_session.id if self.current_session else "default"
 
-        # ---- 强制 Q&A（mode=ask）----
+        # ---- 强制 Q&A（兼容旧 ask 参数）----
         if force_qa:
             await self.event_bus.emit_simple_async(
                 EventType.TASK_PHASE, phase="done", detail=""
@@ -1266,7 +1266,7 @@ class SessionManager:
 
     async def handle_ask_message(self, user_input: str) -> str:
         """
-        Ask 模式：仅根据当前会话上下文回答问题，不执行任何推理/动作。
+        问答：仅根据当前会话上下文回答问题，不执行任何推理/动作。
 
         流程：
         1. 从当前会话提取对话历史
@@ -1274,7 +1274,7 @@ class SessionManager:
         3. 记录消息并返回回复
 
         Args:
-            user_input: 用户在 Ask 模式下的提问
+            user_input: 用户在问答路径下的提问
 
         Returns:
             QAAgent 基于上下文的回答

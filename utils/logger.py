@@ -69,6 +69,7 @@ def _inject_default_context(record: dict) -> dict:
     return record
 
 
+base_logger.configure(extra=_LOG_CONTEXT_DEFAULTS.copy())
 logger = base_logger.patch(_inject_default_context)
 logger.remove()
 
