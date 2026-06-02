@@ -1,10 +1,14 @@
 package config
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	_ "modernc.org/sqlite"
 )
 
 type Config struct {
@@ -22,8 +26,14 @@ type Config struct {
 }
 
 func Load() *Config {
+	persisted := loadPersistedConfigs()
+	llmProvider := envOrDefault("LLM_PROVIDER", "deepseek")
+	if v := persistedConfigValue(persisted, "llm_provider"); v != "" {
+		llmProvider = v
+	}
+
 	cfg := &Config{
-		LLMProvider: envOrDefault("LLM_PROVIDER", "deepseek"),
+		LLMProvider: llmProvider,
 		ModelName:   envOrDefault("MODEL_NAME", "deepseek-chat"),
 		APIKey:      os.Getenv("DEEPSEEK_API_KEY"),
 		BaseURL:     os.Getenv("DEEPSEEK_BASE_URL"),
@@ -44,11 +54,14 @@ func Load() *Config {
 			cfg.BaseURL = "https://api.deepseek.com/v1"
 		}
 		if key := os.Getenv("DEEPSEEK_API_KEY"); key != "" {
-			cfg.APIKey = key
+			cfg.APIKey = normalizeAPIKey(key)
+		}
+		if model := os.Getenv("DEEPSEEK_MODEL"); model != "" {
+			cfg.ModelName = model
 		}
 	case "openai":
 		if key := os.Getenv("OPENAI_API_KEY"); key != "" {
-			cfg.APIKey = key
+			cfg.APIKey = normalizeAPIKey(key)
 		}
 		if url := os.Getenv("OPENAI_BASE_URL"); url != "" {
 			cfg.BaseURL = url
@@ -60,7 +73,7 @@ func Load() *Config {
 	default:
 		envKey := strings.ToUpper(provider) + "_API_KEY"
 		if key := os.Getenv(envKey); key != "" {
-			cfg.APIKey = key
+			cfg.APIKey = normalizeAPIKey(key)
 		}
 		envURL := strings.ToUpper(provider) + "_BASE_URL"
 		if url := os.Getenv(envURL); url != "" {
@@ -72,6 +85,7 @@ func Load() *Config {
 		}
 	}
 
+	applyPersistedProviderConfig(cfg, persisted)
 	return cfg
 }
 
@@ -126,4 +140,125 @@ func envBoolOrDefault(key string, def bool) bool {
 		}
 	}
 	return def
+}
+
+func applyPersistedProviderConfig(cfg *Config, persisted map[string]string) {
+	if len(persisted) == 0 {
+		return
+	}
+	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	if provider == "" {
+		return
+	}
+	if key := persistedConfigValue(persisted, provider+"_api_key"); key != "" {
+		cfg.APIKey = normalizeAPIKey(key)
+	}
+	if baseURL := persistedConfigValue(persisted, provider+"_base_url"); baseURL != "" {
+		cfg.BaseURL = strings.TrimRight(baseURL, "/")
+	}
+	if model := persistedConfigValue(persisted, provider+"_model"); model != "" {
+		cfg.ModelName = model
+	}
+}
+
+func persistedConfigValue(configs map[string]string, key string) string {
+	if len(configs) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(configs[strings.ToLower(key)])
+}
+
+func loadPersistedConfigs() map[string]string {
+	for _, dbPath := range candidateConfigDBPaths() {
+		configs := readUserConfigs(dbPath)
+		if len(configs) > 0 {
+			return configs
+		}
+	}
+	return nil
+}
+
+func readUserConfigs(dbPath string) map[string]string {
+	if dbPath == "" {
+		return nil
+	}
+	if _, err := os.Stat(dbPath); err != nil {
+		return nil
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil
+	}
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT key, value FROM user_configs`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	configs := make(map[string]string)
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			continue
+		}
+		key = strings.ToLower(strings.TrimSpace(key))
+		value = strings.TrimSpace(value)
+		if key != "" && value != "" {
+			configs[key] = value
+		}
+	}
+	return configs
+}
+
+func candidateConfigDBPaths() []string {
+	raw := []string{
+		os.Getenv("SECBOT_RELEASE_CONFIG_DB"),
+		sqlitePathFromDatabaseURL(os.Getenv("DATABASE_URL")),
+		"data/secbot.db",
+		"hackbot_config/data/secbot.db",
+		"../secbot-pypi-release/hackbot_config/data/secbot.db",
+		"../secbot-pypi-release/data/secbot.db",
+	}
+
+	seen := make(map[string]bool)
+	paths := make([]string, 0, len(raw))
+	for _, p := range raw {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		clean := filepath.Clean(p)
+		if seen[clean] {
+			continue
+		}
+		seen[clean] = true
+		paths = append(paths, clean)
+	}
+	return paths
+}
+
+func sqlitePathFromDatabaseURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	switch {
+	case strings.HasPrefix(raw, "sqlite:///"):
+		return strings.TrimPrefix(raw, "sqlite:///")
+	case strings.HasPrefix(raw, "sqlite://"):
+		return strings.TrimPrefix(raw, "sqlite://")
+	default:
+		return raw
+	}
+}
+
+func normalizeAPIKey(key string) string {
+	key = strings.TrimSpace(key)
+	if strings.HasPrefix(strings.ToLower(key), "bearer ") {
+		return strings.TrimSpace(key[7:])
+	}
+	return key
 }
