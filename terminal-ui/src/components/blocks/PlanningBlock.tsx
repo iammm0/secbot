@@ -29,9 +29,9 @@ export function PlanningBlock({ block, noMargin }: PlanningBlockProps) {
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
-      {/* 标题行：◈ 规划 — secondary/cyan，bold */}
+      {/* 标题行：plan — secondary/cyan，bold */}
       <Text color={theme.secondary} bold>
-        {"◈ "}
+        {"> "}
         {title}
       </Text>
 
