@@ -68,11 +68,13 @@ export interface StreamTimelineItem {
   /** master=首轮总规划；adaptive=执行过程中穿插的补充规划 */
   planScope?: "master" | "adaptive";
   iteration?: number;
+  stepKey?: string;
   tool?: string;
   success?: boolean;
   error?: string;
   result?: unknown;
   status?: "running" | "done";
+  progress?: ToolProgressSnapshot;
   /** 工具调用块：与 action_start 同源，便于结束时仍显示 execute_command 等参数 */
   params?: Record<string, unknown>;
   /** browser_event 块：ExploreAgent 虚拟浏览器的步骤集合（合并后的整体时间线） */
@@ -85,6 +87,25 @@ export interface StreamTimelineItem {
     unresolved?: string[];
     summary?: string;
   };
+}
+
+/** 工具执行中的进度快照（当前主要由 nmap_scan 上报） */
+export interface ToolProgressSnapshot {
+  status:
+    | "running"
+    | "quiet"
+    | "possibly_stuck"
+    | "done"
+    | "failed"
+    | "timed_out";
+  phase?: string;
+  progress?: number;
+  elapsedMs?: number;
+  lastOutputAgeMs?: number;
+  message?: string;
+  hint?: string;
+  command?: string;
+  raw?: string;
 }
 
 /** 当前上下文用量快照（每次后端 build context 后由 SSE 推送） */

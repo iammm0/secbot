@@ -8,7 +8,7 @@ import type {
   TodoItemData,
 } from "../types.js";
 
-type PanelStatus = "pending" | "success" | "error" | "info";
+type PanelStatus = "pending" | "success" | "error" | "warning" | "info";
 
 interface TaskPanelTodo {
   content: string;
@@ -75,12 +75,14 @@ function mapTodo(todo: TodoItemData): TaskPanelTodo {
 
 function toolFromTimeline(item: StreamTimelineItem): TaskPanelTool | null {
   if (item.type === "action") {
-    const status =
-      item.status === "done"
-        ? item.success === false
-          ? "error"
-          : "success"
-        : "pending";
+    let status: PanelStatus = "pending";
+    if (item.status === "done") {
+      status = item.success === false ? "error" : "success";
+    } else if (item.progress?.status === "possibly_stuck") {
+      status = "warning";
+    } else if (item.progress?.status === "quiet") {
+      status = "info";
+    }
     return {
       label: item.tool || item.title || "tool",
       status,
@@ -147,6 +149,7 @@ export function buildTaskPanelSnapshot(streamState: StreamState): TaskPanelSnaps
 function statusIcon(status: PanelStatus): string {
   if (status === "success") return "✓";
   if (status === "error") return "x";
+  if (status === "warning") return "!";
   if (status === "info") return "-";
   return "~";
 }
@@ -154,6 +157,7 @@ function statusIcon(status: PanelStatus): string {
 function statusColor(status: PanelStatus, theme: ReturnType<typeof useTheme>) {
   if (status === "success") return theme.success;
   if (status === "error") return theme.error;
+  if (status === "warning") return theme.warning;
   if (status === "info") return theme.secondary;
   return theme.textMuted;
 }

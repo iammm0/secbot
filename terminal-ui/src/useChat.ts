@@ -23,6 +23,7 @@ import type {
   StreamState,
   SSEEvent,
   StreamTimelineItem,
+  ToolProgressSnapshot,
 } from "./types.js";
 
 // ─── 初始状态 ──────────────────────────────────────────────────────────────────
@@ -147,6 +148,90 @@ export interface HistoryItem {
 
 /** 每 16ms（≈60fps）揭示的字符数；越大打字越快 */
 const TYPEWRITER_CHARS_PER_TICK = 50;
+
+function formatDuration(ms?: number): string {
+  if (!Number.isFinite(ms ?? NaN)) return "--";
+  const totalSeconds = Math.max(0, Math.floor((ms ?? 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes <= 0) return `${seconds}s`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours <= 0) return `${minutes}m ${seconds}s`;
+  return `${hours}h ${mins}m`;
+}
+
+function formatPercent(value?: number): string | null {
+  if (!Number.isFinite(value ?? NaN)) return null;
+  const pct = Math.max(0, Math.min(100, Number(value)));
+  return `${pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1)}%`;
+}
+
+function normalizeToolProgress(data: Record<string, unknown>): ToolProgressSnapshot {
+  const progress = Number(data.progress);
+  const elapsedMs = Number(data.elapsed_ms);
+  const lastOutputAgeMs = Number(data.last_output_age_ms);
+  const statusRaw = String(data.status ?? "running");
+  const allowedStatuses: ToolProgressSnapshot["status"][] = [
+    "running",
+    "quiet",
+    "possibly_stuck",
+    "done",
+    "failed",
+    "timed_out",
+  ];
+  const status = allowedStatuses.includes(statusRaw as ToolProgressSnapshot["status"])
+    ? (statusRaw as ToolProgressSnapshot["status"])
+    : "running";
+
+  return {
+    status,
+    phase: typeof data.phase === "string" && data.phase ? data.phase : undefined,
+    progress: Number.isFinite(progress) ? progress : undefined,
+    elapsedMs: Number.isFinite(elapsedMs) ? elapsedMs : undefined,
+    lastOutputAgeMs: Number.isFinite(lastOutputAgeMs)
+      ? lastOutputAgeMs
+      : undefined,
+    message:
+      typeof data.message === "string" && data.message ? data.message : undefined,
+    hint: typeof data.hint === "string" && data.hint ? data.hint : undefined,
+    command:
+      typeof data.command === "string" && data.command ? data.command : undefined,
+    raw: typeof data.raw === "string" && data.raw ? data.raw : undefined,
+  };
+}
+
+function progressStatusLabel(status: ToolProgressSnapshot["status"]): string {
+  if (status === "quiet") return "静默运行";
+  if (status === "possibly_stuck") return "疑似卡住";
+  if (status === "timed_out") return "超时";
+  if (status === "failed") return "失败";
+  if (status === "done") return "完成";
+  return "运行中";
+}
+
+function buildActionProgressBody(
+  tool: string,
+  progress: ToolProgressSnapshot,
+  params?: Record<string, unknown>,
+): string {
+  const lines: string[] = [];
+  const command =
+    progress.command ||
+    (tool === "execute_command" ? String(params?.command ?? "").trim() : "");
+  if (command) lines.push(`命令: ${command}`);
+  lines.push(`状态: ${progressStatusLabel(progress.status)}`);
+  if (progress.phase) lines.push(`阶段: ${progress.phase}`);
+  const pct = formatPercent(progress.progress);
+  if (pct) lines.push(`进度: ${pct}`);
+  lines.push(`已用时: ${formatDuration(progress.elapsedMs)}`);
+  if (progress.lastOutputAgeMs !== undefined) {
+    lines.push(`最后输出: ${formatDuration(progress.lastOutputAgeMs)} 前`);
+  }
+  if (progress.message) lines.push(`消息: ${progress.message}`);
+  if (progress.hint) lines.push(`提示: ${progress.hint}`);
+  return lines.join("\n");
+}
 
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
@@ -632,6 +717,10 @@ export function useChat() {
                 const tool = (data.tool as string) ?? "";
                 const params =
                   (data.params as Record<string, unknown>) ?? {};
+                const stepKey =
+                  typeof data.step_key === "string" && data.step_key
+                    ? data.step_key
+                    : undefined;
                 let body = "状态: 执行中";
                 if (tool === "execute_command") {
                   const cmd = String(params.command ?? "").trim();
@@ -652,11 +741,12 @@ export function useChat() {
                   timeline: [
                     ...s.timeline,
                     {
-                      id: `action-${s.actions.length}-${tool || "tool"}`,
+                      id: `action-${stepKey ?? s.actions.length}-${tool || "tool"}`,
                       type: "action",
                       title: `工具调用 · ${tool || "unknown"}`,
                       body,
                       tool,
+                      stepKey,
                       params,
                       status: "running",
                     },
@@ -665,8 +755,42 @@ export function useChat() {
                 break;
               }
 
+              case "action_progress": {
+                const toolName = (data.tool as string) ?? "";
+                const stepKey =
+                  typeof data.step_key === "string" && data.step_key
+                    ? data.step_key
+                    : undefined;
+                const progress = normalizeToolProgress(data);
+                setStreamState((s) => {
+                  const timeline = [...s.timeline];
+                  const timelineIdx = [...timeline].reverse().findIndex((item) => {
+                    if (item.type !== "action" || item.status === "done") return false;
+                    if (stepKey && item.stepKey === stepKey) return true;
+                    return item.tool === toolName;
+                  });
+                  if (timelineIdx < 0) return s;
+                  const realIdx = timeline.length - 1 - timelineIdx;
+                  const prev = timeline[realIdx];
+                  timeline[realIdx] = {
+                    ...prev,
+                    body: buildActionProgressBody(toolName, progress, prev.params),
+                    progress,
+                    status: "running",
+                    success: prev.success,
+                    error: prev.error,
+                  };
+                  return { ...s, timeline };
+                });
+                break;
+              }
+
               case "action_result": {
                 const toolName = (data.tool as string) ?? "";
+                const stepKey =
+                  typeof data.step_key === "string" && data.step_key
+                    ? data.step_key
+                    : undefined;
                 setStreamState((s) => {
                   const actions = [...s.actions];
                   const idx = actions.findIndex(
@@ -700,7 +824,7 @@ export function useChat() {
                     .findIndex(
                       (item) =>
                         item.type === "action" &&
-                        item.tool === toolName &&
+                        (stepKey ? item.stepKey === stepKey : item.tool === toolName) &&
                         item.status !== "done",
                     );
                   if (timelineIdx >= 0) {
