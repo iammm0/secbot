@@ -188,6 +188,136 @@ export class DatabaseService implements OnModuleInit {
     return rows.map((r) => this.mapConversation(r));
   }
 
+  listConversationSessions(opts: { limit?: number; offset?: number } = {}): {
+    sessions: Array<{
+      sessionId: string;
+      title: string;
+      agentType: string;
+      turnCount: number;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  } {
+    const limit = Math.min(Math.max(Number(opts.limit ?? 50), 1), 100);
+    const offset = Math.max(Number(opts.offset ?? 0), 0);
+    const totalRow = this.db
+      .prepare('SELECT COUNT(*) as c FROM (SELECT session_id FROM conversations GROUP BY session_id)')
+      .get() as { c: number };
+    const rows = this.db
+      .prepare(
+        `
+        SELECT
+          c.session_id as session_id,
+          COUNT(*) as turn_count,
+          MIN(c.timestamp) as created_at,
+          MAX(c.timestamp) as updated_at,
+          MAX(c.id) as last_id,
+          (
+            SELECT c2.user_message
+            FROM conversations c2
+            WHERE c2.session_id = c.session_id
+            ORDER BY c2.id ASC
+            LIMIT 1
+          ) as title,
+          (
+            SELECT c3.agent_type
+            FROM conversations c3
+            WHERE c3.session_id = c.session_id
+            ORDER BY c3.id DESC
+            LIMIT 1
+          ) as agent_type
+        FROM conversations c
+        GROUP BY c.session_id
+        ORDER BY last_id DESC
+        LIMIT ? OFFSET ?
+      `,
+      )
+      .all(limit, offset) as Array<Record<string, unknown>>;
+
+    return {
+      sessions: rows.map((r) => {
+        const sessionId = String(r['session_id'] ?? '').trim() || 'default';
+        const title = String(r['title'] ?? '').trim() || sessionId;
+        return {
+          sessionId,
+          title,
+          agentType: String(r['agent_type'] ?? ''),
+          turnCount: Number(r['turn_count'] ?? 0),
+          createdAt: String(r['created_at'] ?? ''),
+          updatedAt: String(r['updated_at'] ?? ''),
+        };
+      }),
+      total: Number(totalRow.c ?? 0),
+      limit,
+      offset,
+      hasMore: offset + rows.length < Number(totalRow.c ?? 0),
+    };
+  }
+
+  getConversationHistoryPage(
+    sessionId: string,
+    opts: { limit?: number; offset?: number } = {},
+  ): {
+    sessionId: string;
+    conversations: Array<{
+      id: number;
+      timestamp: string;
+      agentType: string;
+      userMessage: string;
+      assistantMessage: string;
+      sessionId: string;
+    }>;
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  } {
+    const normalizedSessionId = sessionId.trim() || 'default';
+    const limit = Math.min(Math.max(Number(opts.limit ?? 100), 1), 200);
+    const offset = Math.max(Number(opts.offset ?? 0), 0);
+    const includeEmptyDefault = normalizedSessionId === 'default';
+    const where = includeEmptyDefault ? '(session_id = ? OR session_id = ?)' : 'session_id = ?';
+    const params = includeEmptyDefault ? [normalizedSessionId, ''] : [normalizedSessionId];
+    const totalRow = this.db
+      .prepare(`SELECT COUNT(*) as c FROM conversations WHERE ${where}`)
+      .get(...params) as { c: number };
+    const rows = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM conversations
+        WHERE ${where}
+        ORDER BY id DESC
+        LIMIT ? OFFSET ?
+      `,
+      )
+      .all(...params, limit, offset) as Array<Record<string, unknown>>;
+    const conversations = rows
+      .map((r) => this.mapConversation(r))
+      .reverse()
+      .map((c) => ({
+        id: Number(c.id ?? 0),
+        timestamp: c.timestamp,
+        agentType: c.agentType,
+        userMessage: c.userMessage,
+        assistantMessage: c.assistantMessage,
+        sessionId: c.sessionId || 'default',
+      }));
+
+    return {
+      sessionId: normalizedSessionId,
+      conversations,
+      total: Number(totalRow.c ?? 0),
+      limit,
+      offset,
+      hasMore: offset + rows.length < Number(totalRow.c ?? 0),
+    };
+  }
+
   deleteConversations(
     opts: {
       agentType?: string;

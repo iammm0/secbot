@@ -13,6 +13,7 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { buildClientShellPayload } from "./clientShell.js";
+import { api } from "./api.js";
 import { connectSSE } from "./sse.js";
 import { TRANSIENT_TOOLS } from "./streamConstants.js";
 import { buildObservationBody } from "./toolObservation.js";
@@ -117,6 +118,52 @@ function takeSnapshot(
   };
 }
 
+function createPersistedHistoryItem(
+  record: PersistedConversationRecord,
+): HistoryItem {
+  const timestamp = Date.parse(record.timestamp);
+  const completedAt = Number.isFinite(timestamp) ? timestamp : 0;
+  const sentAt = completedAt;
+  return {
+    userMessage: record.userMessage,
+    sentAt,
+    completedAt,
+    chatMode: "agent",
+    streamState: {
+      ...initialStreamState,
+      response: record.assistantMessage,
+      timeline: record.assistantMessage
+        ? [
+            {
+              id: `persisted-final-${Math.random().toString(36).slice(2, 10)}`,
+              type: "final",
+              title: "最终总结",
+              body: record.assistantMessage,
+              status: "done",
+            },
+          ]
+        : [],
+    },
+  };
+}
+
+function createPersistedSessionSnapshot(
+  records: PersistedConversationRecord[],
+): ChatSessionSnapshot {
+  const sortedRecords = [...records].sort(
+    (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
+  );
+  return takeSnapshot(
+    sortedRecords.map(createPersistedHistoryItem),
+    resetStreamState(),
+    "",
+    0,
+    0,
+    null,
+    "agent",
+  );
+}
+
 export interface SessionListEntry {
   id: string;
   label: string;
@@ -128,6 +175,41 @@ export interface SessionListEntry {
 export interface PendingRootRequest {
   requestId: string;
   command: string;
+}
+
+interface PersistedConversationRecord {
+  id?: number;
+  timestamp: string;
+  agentType: string;
+  userMessage: string;
+  assistantMessage: string;
+  sessionId: string;
+}
+
+interface PersistedChatSessionRecord {
+  sessionId: string;
+  title: string;
+  agentType: string;
+  turnCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PersistedChatSessionsResponse {
+  sessions: PersistedChatSessionRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+interface PersistedChatSessionHistoryResponse {
+  sessionId: string;
+  conversations: PersistedConversationRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 /** 已完成的一轮对话（用户消息 + 完整 Secbot 响应） */
@@ -281,6 +363,9 @@ export function useChat() {
   const sessionLabelsRef = useRef<Map<string, string>>(
     new Map([["default", "默认会话"]]),
   );
+  const persistedSessionIdsRef = useRef<Set<string>>(new Set());
+  const loadingPersistedHistoryRef = useRef<Set<string>>(new Set());
+  const loadedPersistedHistoryRef = useRef<Set<string>>(new Set());
   const historyRef = useRef<HistoryItem[]>([]);
   const currentUserSnapRef = useRef<string>("");
   const currentCompletedAtSnapRef = useRef<number>(0);
@@ -400,6 +485,67 @@ export function useChat() {
     [clearTypewriter, upsertTimelineItem],
   );
 
+  const restoreSessionSnapshot = useCallback((snapshot: ChatSessionSnapshot) => {
+    setHistory(snapshot.history);
+    setStreamState(snapshot.streamState);
+    setCurrentUserMessage(snapshot.currentUserMessage);
+    setCurrentSentAt(snapshot.currentSentAt);
+    setCurrentCompletedAt(snapshot.currentCompletedAt);
+    setApiOutput(snapshot.apiOutput);
+    setCurrentRoundChatMode(snapshot.currentRoundChatMode ?? "agent");
+
+    historyRef.current = snapshot.history;
+    streamStateRef.current = snapshot.streamState;
+    currentUserSnapRef.current = snapshot.currentUserMessage;
+    currentUserMessageRef.current = snapshot.currentUserMessage;
+    currentSentAtRef.current = snapshot.currentSentAt;
+    currentCompletedAtSnapRef.current = snapshot.currentCompletedAt;
+    completedAtRef.current = snapshot.currentCompletedAt;
+    apiOutputSnapRef.current = snapshot.apiOutput;
+    currentRoundChatModeRef.current = snapshot.currentRoundChatMode ?? "agent";
+  }, []);
+
+  const emptySessionSnapshot = useCallback(
+    (): ChatSessionSnapshot =>
+      takeSnapshot([], resetStreamState(), "", 0, 0, null, "agent"),
+    [],
+  );
+
+  const loadPersistedSessionHistory = useCallback(
+    async (sessionId: string) => {
+      if (!persistedSessionIdsRef.current.has(sessionId)) return;
+      if (loadedPersistedHistoryRef.current.has(sessionId)) return;
+      if (loadingPersistedHistoryRef.current.has(sessionId)) return;
+
+      loadingPersistedHistoryRef.current.add(sessionId);
+      try {
+        const encoded = encodeURIComponent(sessionId);
+        const payload = await api.get<PersistedChatSessionHistoryResponse>(
+          `/api/chat/sessions/${encoded}/history?limit=100&offset=0`,
+        );
+        if (!Array.isArray(payload.conversations)) return;
+        const snapshot = createPersistedSessionSnapshot(payload.conversations);
+        bucketsRef.current.set(sessionId, snapshot);
+        loadedPersistedHistoryRef.current.add(sessionId);
+
+        if (
+          sessionId === activeSessionIdRef.current &&
+          historyRef.current.length === 0 &&
+          !hasContent(streamStateRef.current) &&
+          !currentUserSnapRef.current
+        ) {
+          restoreSessionSnapshot(snapshot);
+        }
+        setSessionListVersion((v) => v + 1);
+      } catch {
+        // ignore history load failures; the user can keep using runtime sessions
+      } finally {
+        loadingPersistedHistoryRef.current.delete(sessionId);
+      }
+    },
+    [hasContent, restoreSessionSnapshot],
+  );
+
   const switchSession = useCallback(
     (sessionId: string) => {
       if (sessionId === activeSessionIdRef.current) return;
@@ -423,31 +569,13 @@ export function useChat() {
       activeSessionIdRef.current = sessionId;
       setActiveSessionId(sessionId);
 
-      const next = bucketsRef.current.get(sessionId);
-      if (next) {
-        setHistory(next.history);
-        setStreamState(next.streamState);
-        setCurrentUserMessage(next.currentUserMessage);
-        setCurrentSentAt(next.currentSentAt);
-        setCurrentCompletedAt(next.currentCompletedAt);
-        setApiOutput(next.apiOutput);
-        setCurrentRoundChatMode(next.currentRoundChatMode ?? "agent");
-      } else {
-        setHistory([]);
-        setStreamState(resetStreamState());
-        setCurrentUserMessage("");
-        setCurrentSentAt(0);
-        setCurrentCompletedAt(0);
-        setApiOutput(null);
-        setCurrentRoundChatMode("agent");
-      }
+      const next = bucketsRef.current.get(sessionId) ?? emptySessionSnapshot();
+      restoreSessionSnapshot(next);
       thoughtSeqRef.current = 0;
       activeThoughtIdByStepRef.current = new Map();
-      currentUserMessageRef.current = "";
-      currentSentAtRef.current = 0;
-      completedAtRef.current = 0;
+      void loadPersistedSessionHistory(sessionId);
     },
-    [clearTypewriter],
+    [clearTypewriter, emptySessionSnapshot, loadPersistedSessionHistory, restoreSessionSnapshot],
   );
 
   const newSession = useCallback(() => {
@@ -474,20 +602,11 @@ export function useChat() {
     activeSessionIdRef.current = id;
     setActiveSessionId(id);
 
-    setHistory([]);
-    setStreamState(resetStreamState());
-    setCurrentUserMessage("");
-    setCurrentSentAt(0);
-    setCurrentCompletedAt(0);
-    setApiOutput(null);
-    setCurrentRoundChatMode("agent");
+    restoreSessionSnapshot(emptySessionSnapshot());
     thoughtSeqRef.current = 0;
     activeThoughtIdByStepRef.current = new Map();
-    currentUserMessageRef.current = "";
-    currentSentAtRef.current = 0;
-    completedAtRef.current = 0;
     setSessionListVersion((v) => v + 1);
-  }, [clearTypewriter]);
+  }, [clearTypewriter, emptySessionSnapshot, restoreSessionSnapshot]);
 
   const sessionList = useMemo((): SessionListEntry[] => {
     void sessionListVersion;
@@ -497,6 +616,52 @@ export function useChat() {
       isActive: id === activeSessionId,
     }));
   }, [activeSessionId, sessionListVersion]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPersistedSessions = async () => {
+      try {
+        const payload = await api.get<PersistedChatSessionsResponse>(
+          "/api/chat/sessions?limit=50&offset=0",
+        );
+        if (cancelled || !Array.isArray(payload.sessions) || payload.sessions.length === 0) {
+          return;
+        }
+
+        const nextSessionOrder = [...sessionOrderRef.current];
+        const nextLabels = new Map(sessionLabelsRef.current);
+        const nextBuckets = new Map(bucketsRef.current);
+        const nextPersisted = new Set(persistedSessionIdsRef.current);
+
+        for (const session of payload.sessions) {
+          const sessionId = session.sessionId.trim() || "default";
+          nextPersisted.add(sessionId);
+          nextLabels.set(sessionId, session.title.trim().slice(0, 48) || sessionId);
+          if (!nextBuckets.has(sessionId)) {
+            nextBuckets.set(sessionId, emptySessionSnapshot());
+          }
+          if (!nextSessionOrder.includes(sessionId)) {
+            nextSessionOrder.push(sessionId);
+          }
+        }
+
+        sessionOrderRef.current = nextSessionOrder;
+        sessionLabelsRef.current = nextLabels;
+        bucketsRef.current = nextBuckets;
+        persistedSessionIdsRef.current = nextPersisted;
+        setSessionListVersion((v) => v + 1);
+        void loadPersistedSessionHistory(activeSessionIdRef.current);
+      } catch {
+        // ignore persisted-session bootstrap failures; runtime sessions still work
+      }
+    };
+
+    void loadPersistedSessions();
+    return () => {
+      cancelled = true;
+    };
+  }, [emptySessionSnapshot, loadPersistedSessionHistory]);
 
   // ── 发送消息 ──────────────────────────────────────────────────────────────────
 
