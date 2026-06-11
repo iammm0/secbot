@@ -1,7 +1,6 @@
-# @opensec/secbot (TypeScript) - v2.0.0-b2
+# @opensec/secbot (TypeScript) — v2.0.0-b2
 
-[![npm version](https://img.shields.io/npm/v/@opensec/secbot.svg)](https://www.npmjs.com/package/@opensec/secbot)
-[![npm downloads](https://img.shields.io/npm/dm/@opensec/secbot.svg)](https://www.npmjs.com/package/@opensec/secbot)
+[![GitHub Release](https://img.shields.io/github/v/release/iammm0/secbot?include_prereleases&label=release)](https://github.com/iammm0/secbot/releases)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D24-339933.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -9,7 +8,15 @@ Secbot is an AI-powered TypeScript security automation workspace with a NestJS b
 
 > Security notice: this package is for authorized security testing, research, and education only. Do not run scans or exploitation tasks against targets without explicit permission.
 
-![Secbot main UI](https://raw.githubusercontent.com/iammm0/secbot/main-ts-version/assets/secbot-main.png)
+![Secbot main UI](assets/secbot-main.png)
+
+## Product Lines
+
+| Line | Branch | Releases | Notes |
+| --- | --- | --- | --- |
+| **v2 TypeScript product** | [`release`](https://github.com/iammm0/secbot/tree/release) | [GitHub Releases](https://github.com/iammm0/secbot/releases) (`.tgz`) | Current product line — NestJS + Ink TUI |
+| **v1 Python stack** | [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) | [v1.10.0+](https://github.com/iammm0/secbot/releases/tag/v1.10.0) | Legacy Python edition; maintained on `pypi-release` |
+| **Go experiment** | [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) | — | Demo / proof-of-concept only |
 
 ## Why This Package
 
@@ -33,16 +40,19 @@ From the repository checkout, `ChatService` routes each turn through **`IntentRo
 
 ## Install
 
+Download the latest `.tgz` from [GitHub Releases](https://github.com/iammm0/secbot/releases) (currently **v2.0.0-b2**), then:
+
 ### Global install (recommended)
 
 ```bash
-npm install -g @opensec/secbot
+npm install -g ./opensec-secbot-2.0.0-b2.tgz
+secbot
 ```
 
-### One-off run with npx
+### One-off run
 
 ```bash
-npx @opensec/secbot
+npx ./opensec-secbot-2.0.0-b2.tgz
 ```
 
 ## Quick Start
@@ -190,19 +200,19 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 ## Documentation
 
 - **[CLAUDE.md](CLAUDE.md)** — contributor / AI coding agent guide (orchestration, SSE, env vars)
-- [Quickstart](https://github.com/iammm0/secbot/blob/main-ts-version/docs/QUICKSTART.md)
-- [API Reference](https://github.com/iammm0/secbot/blob/main-ts-version/docs/API.md)
-- [LLM Providers](https://github.com/iammm0/secbot/blob/main-ts-version/docs/LLM_PROVIDERS.md)
-- [Ollama Setup](https://github.com/iammm0/secbot/blob/main-ts-version/docs/OLLAMA_SETUP.md)
-- [UI Interaction Design](https://github.com/iammm0/secbot/blob/main-ts-version/docs/UI-DESIGN-AND-INTERACTION.md)
-- [Tool Extension](https://github.com/iammm0/secbot/blob/main-ts-version/docs/TOOL_EXTENSION.md)
-- [Release Guide](https://github.com/iammm0/secbot/blob/main-ts-version/docs/RELEASE.md)
-- [Security Warning](https://github.com/iammm0/secbot/blob/main-ts-version/docs/SECURITY_WARNING.md)
+- [Quickstart](docs/QUICKSTART.md)
+- [API Reference](docs/API.md)
+- [LLM Providers](docs/LLM_PROVIDERS.md)
+- [Ollama Setup](docs/OLLAMA_SETUP.md)
+- [UI Interaction Design](docs/UI-DESIGN-AND-INTERACTION.md)
+- [Tool Extension](docs/TOOL_EXTENSION.md)
+- [Release Guide](docs/RELEASE.md)
+- [Security Warning](docs/SECURITY_WARNING.md)
 
-## Registry Links
+## Links
 
-- npm: [https://www.npmjs.com/package/@opensec/secbot](https://www.npmjs.com/package/@opensec/secbot)
-- GitHub Packages: [https://github.com/iammm0/secbot/packages](https://github.com/iammm0/secbot/packages)
+- Releases: [https://github.com/iammm0/secbot/releases](https://github.com/iammm0/secbot/releases)
+- Python v1 line: [pypi-release branch](https://github.com/iammm0/secbot/tree/pypi-release)
 - Repository: [https://github.com/iammm0/secbot](https://github.com/iammm0/secbot)
 - Issues: [https://github.com/iammm0/secbot/issues](https://github.com/iammm0/secbot/issues)
 
