@@ -199,6 +199,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 
 ## Documentation
 
+- **Wiki**: [GitHub Wiki](https://github.com/iammm0/secbot/wiki) · [源文件 `docs/wiki/`](docs/wiki/)
 - **[CLAUDE.md](CLAUDE.md)** — contributor / AI coding agent guide (orchestration, SSE, env vars)
 - [Quickstart](docs/QUICKSTART.md)
 - [API Reference](docs/API.md)

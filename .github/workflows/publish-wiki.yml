@@ -29,13 +29,18 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git"
+          if ! git ls-remote "$wiki_url" HEAD >/dev/null 2>&1; then
+            echo "::error::GitHub Wiki 尚未初始化。请先在 https://github.com/${REPOSITORY}/wiki/_new 创建并保存 Home 页，然后重新运行本 workflow。"
+            exit 1
+          fi
+
           workdir="$(mktemp -d)"
           cd "$workdir"
           git init
           cp -R "$GITHUB_WORKSPACE/docs/wiki/." .
+          rm -f README.md
           git add -A
           git commit -m "docs: sync wiki from docs/wiki"
 
-          git push -f \
-            "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git" \
-            HEAD:master
+          git push -f "$wiki_url" HEAD:master
