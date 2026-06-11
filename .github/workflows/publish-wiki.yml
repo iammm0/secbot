@@ -1,0 +1,41 @@
+# 将 docs/wiki/ 同步到 GitHub Wiki（.wiki.git）
+# 首次运行会通过 force push 初始化 wiki 仓库。
+
+name: Publish Wiki
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release]
+    paths:
+      - 'docs/wiki/**'
+      - '.github/workflows/publish-wiki.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync docs/wiki to GitHub Wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          workdir="$(mktemp -d)"
+          cd "$workdir"
+          git init
+          cp -R "$GITHUB_WORKSPACE/docs/wiki/." .
+          git add -A
+          git commit -m "docs: sync wiki from docs/wiki"
+
+          git push -f \
+            "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git" \
+            HEAD:master
