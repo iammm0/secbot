@@ -8,7 +8,7 @@ Secbot is an AI-powered TypeScript security automation workspace with a NestJS b
 
 > Security notice: this package is for authorized security testing, research, and education only. Do not run scans or exploitation tasks against targets without explicit permission.
 
-![Secbot main UI](assets/secbot-main.png)
+![Secbot demo](assets/secbot-demo.gif)
 
 ## Product Lines
 
