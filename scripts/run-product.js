@@ -127,7 +127,7 @@ async function stopProcess(proc) {
 
 async function spawnBackendForCli() {
   if (!fs.existsSync(SERVER_ENTRY)) {
-    throw new Error('Missing server build. Reinstall @opensec/secbot.');
+    throw new Error('Missing server build. Reinstall from GitHub Releases (.tgz).');
   }
 
   const port = await resolveSpawnPort();
@@ -247,7 +247,7 @@ async function start() {
   }
 
   if (!fs.existsSync(TUI_CLI)) {
-    console.error('[secbot] Missing TUI build. Reinstall @opensec/secbot.');
+    console.error('[secbot] Missing TUI build. Reinstall from GitHub Releases (.tgz).');
     process.exit(1);
   }
 
