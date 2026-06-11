@@ -100,19 +100,19 @@ npm install
 npm run tui
 ```
 
-## 6. 全局安装或 npx
+## 6. 从 GitHub Releases 安装
 
-发布包名是 `@opensec/secbot`：
+从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载 `.tgz`（当前 **v2.0.0-b2**）。包内元数据名称为 `@opensec/secbot`，但**不会发布到 npmjs**。
 
 ```bash
-npm install -g @opensec/secbot
+npm install -g ./opensec-secbot-2.0.0-b2.tgz
 secbot
 ```
 
 或一次性运行：
 
 ```bash
-npx @opensec/secbot
+npx ./opensec-secbot-2.0.0-b2.tgz
 ```
 
 后端专用入口：

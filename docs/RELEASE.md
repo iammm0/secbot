@@ -1,6 +1,6 @@
 # 发布指南
 
-本仓库当前发布的是 GitHub Release `.tgz` 构建包。包内 npm 元数据仍使用 `@opensec/secbot`，但 release workflow 不再发布到 npmjs 或 GitHub Packages。包内包含：
+本仓库当前发布的是 GitHub Release `.tgz` 构建包。包内 npm 元数据名称仍为 `@opensec/secbot`（仅用于 tarball 安装），**不会发布到 npmjs 或 GitHub Packages**。包内包含：
 
 - `server/dist`
 - `terminal-ui/dist`

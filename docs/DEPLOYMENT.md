@@ -6,7 +6,7 @@
 
 - 本地完整使用：`npm run start:stack`，进入 TUI，并由 TUI 自动拉起本地后端。
 - 长期运行 API：构建后执行 `node server/dist/main.js`，用 systemd、pm2、supervisor 或平台进程管理器托管。
-- npm 分发：使用 `@opensec/secbot` 的 `secbot` 和 `secbot-server` 二进制入口。
+- 发布包分发：从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载 `.tgz`，安装后使用 `secbot` 和 `secbot-server` 二进制入口（**不发布到 npmjs**）。
 
 ## 1. 从源码部署后端
 
@@ -90,10 +90,12 @@ PORT=9000 node server/dist/main.js
 SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-## 3. npm 包入口
+## 3. GitHub Release 包入口
+
+从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载 `opensec-secbot-<version>.tgz`，然后：
 
 ```bash
-npm install -g @opensec/secbot
+npm install -g ./opensec-secbot-2.0.0-b2.tgz
 ```
 
 完整 TUI：
@@ -111,7 +113,7 @@ secbot-server
 一次性运行：
 
 ```bash
-npx @opensec/secbot
+npx ./opensec-secbot-2.0.0-b2.tgz
 ```
 
 ## 4. 环境变量

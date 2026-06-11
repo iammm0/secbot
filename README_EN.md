@@ -111,12 +111,22 @@ flowchart LR
 
 ## Installation
 
-### Option A: Install from npm
+### Option A: Install from GitHub Releases
+
+Download the latest `.tgz` from [Releases](https://github.com/iammm0/secbot/releases) (currently **v2.0.0-b2**), then:
 
 ```bash
-npm install -g @opensec/secbot
+npm install -g ./opensec-secbot-2.0.0-b2.tgz
 secbot
 ```
+
+One-off run:
+
+```bash
+npx ./opensec-secbot-2.0.0-b2.tgz
+```
+
+> **Note:** This project is **not published to npmjs**. The tarball uses `@opensec/secbot` as internal package metadata only.
 
 ### Option B: Build from Source
 
@@ -144,10 +154,6 @@ DEEPSEEK_MODEL=deepseek-chat
 # SECBOT_ADAPTIVE_REPLAN=false
 # NVD_API_KEY=your-nvd-key
 ```
-
-### Option C: Download from GitHub Releases
-
-Download the npm package (`.tgz`) from [Releases](https://github.com/iammm0/secbot/releases).
 
 ---
 
