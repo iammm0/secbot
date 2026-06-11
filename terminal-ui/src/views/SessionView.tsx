@@ -110,6 +110,10 @@ export function SessionView({
   const taskPanelAvailable = columns >= TASK_PANEL_MIN_COLUMNS;
   const taskPanelWidth = columns >= TASK_PANEL_WIDE_COLUMNS ? 34 : 30;
   const taskPanelVisible = taskPanelAvailable && (taskPanelOverride ?? true);
+  const transcriptWidth = Math.max(
+    24,
+    columns - 6 - (taskPanelVisible ? taskPanelWidth + 1 : 0),
+  );
 
   const activeSessionLabel = useMemo(() => {
     const hit = sessionList.find((s) => s.isActive);
@@ -673,6 +677,7 @@ export function SessionView({
             streaming={streaming}
             apiOutput={apiOutput}
             contentHeight={contentHeight}
+            contentWidth={transcriptWidth}
             scrollOffset={scrollOffset}
             setScrollOffset={setScrollOffset}
             onLinesChange={setTotalLines}
