@@ -351,6 +351,17 @@ export class ChatService {
     return {};
   }
 
+  listPersistedSessions(query: { limit?: number; offset?: number }) {
+    return this.databaseService.listConversationSessions(query);
+  }
+
+  getPersistedSessionHistory(
+    sessionId: string,
+    query: { limit?: number; offset?: number },
+  ) {
+    return this.databaseService.getConversationHistoryPage(sessionId, query);
+  }
+
   // ------ helpers ------
 
   private handleConversationalIntent(args: {

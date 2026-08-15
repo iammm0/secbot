@@ -65,6 +65,94 @@ function sliceBlockForVisibleRange(
   };
 }
 
+function stripAnsi(text: string): string {
+  return text.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
+}
+
+function charWidth(char: string): number {
+  const code = char.codePointAt(0) ?? 0;
+  if (code === 0) return 0;
+  if (code < 32 || (code >= 0x7f && code < 0xa0)) return 0;
+  if (
+    (code >= 0x1100 && code <= 0x115f) ||
+    code === 0x2329 ||
+    code === 0x232a ||
+    (code >= 0x2e80 && code <= 0xa4cf) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe10 && code <= 0xfe19) ||
+    (code >= 0xfe30 && code <= 0xfe6f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6)
+  ) {
+    return 2;
+  }
+  return 1;
+}
+
+function displayWidth(text: string): number {
+  let width = 0;
+  for (const char of stripAnsi(text)) {
+    width += charWidth(char);
+  }
+  return width;
+}
+
+function wrappedRows(text: string, width: number): number {
+  const available = Math.max(1, width);
+  const lines = (text || " ").split("\n");
+  return lines.reduce((sum, line) => {
+    const w = displayWidth(line || " ");
+    return sum + Math.max(1, Math.ceil(w / available));
+  }, 0);
+}
+
+function estimateBlockRows(block: ContentBlockType, contentWidth: number): number {
+  const baseRows = Math.max(1, block.lineEnd - block.lineStart);
+  const titleRows = block.title ? 1 : 0;
+  const body = block.body || " ";
+
+  let estimated = titleRows + wrappedRows(body, contentWidth);
+  if (block.type === "user_message") {
+    estimated = 2 + wrappedRows(body, Math.max(1, contentWidth - 2));
+  } else if (block.type === "response") {
+    estimated =
+      titleRows +
+      wrappedRows(body, Math.max(1, contentWidth - 2)) +
+      (block.completedAt ? 1 : 0);
+  } else if (block.type === "planning") {
+    estimated =
+      titleRows +
+      wrappedRows(body, contentWidth) +
+      Math.max(0, block.todos?.length ?? 0);
+  } else if (block.type === "actions") {
+    estimated = titleRows + wrappedRows(body, Math.max(1, contentWidth - 2));
+  } else if (block.type === "browser") {
+    estimated =
+      titleRows +
+      Math.max(1, block.browserSteps?.length ?? wrappedRows(body, contentWidth));
+  }
+
+  return Math.max(baseRows, estimated);
+}
+
+function relayoutBlocksForWidth(
+  blocks: ContentBlockType[],
+  contentWidth: number,
+): ContentBlockType[] {
+  let lineStart = 0;
+  return blocks.map((block) => {
+    const lineCount = estimateBlockRows(block, contentWidth);
+    const next = {
+      ...block,
+      lineStart,
+      lineEnd: lineStart + lineCount,
+    };
+    lineStart = next.lineEnd;
+    return next;
+  });
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface MainContentProps {
@@ -73,6 +161,8 @@ interface MainContentProps {
   streaming: boolean;
   apiOutput: string | null;
   contentHeight: number;
+  /** 当前 transcript 可用列宽，用于稳定滚动条 gutter 与估算中文换行高度 */
+  contentWidth?: number;
   scrollOffset: number;
   setScrollOffset: (updater: (prev: number) => number) => void;
   onLinesChange: (totalLines: number) => void;
@@ -98,6 +188,7 @@ export function MainContent({
   streaming,
   apiOutput,
   contentHeight,
+  contentWidth,
   scrollOffset,
   setScrollOffset,
   onLinesChange,
@@ -132,7 +223,7 @@ export function MainContent({
 
   // ── 构建全量块列表 ────────────────────────────────────────────────────────────
 
-  const blocks = useMemo(() => {
+  const rawBlocks = useMemo(() => {
     let lineOffset = 0;
     const allBlocks: ContentBlockType[] = [];
 
@@ -222,6 +313,17 @@ export function MainContent({
     currentCompletedAt,
     currentRoundChatMode,
   ]);
+
+  const reserveScrollbarGutter = showScrollbar;
+  const contentColumnWidth = Math.max(
+    16,
+    (contentWidth ?? 80) - (reserveScrollbarGutter ? 1 : 0) - 2,
+  );
+
+  const blocks = useMemo(
+    () => relayoutBlocksForWidth(rawBlocks, contentColumnWidth),
+    [rawBlocks, contentColumnWidth],
+  );
 
   // ── 滚动计算 ──────────────────────────────────────────────────────────────────
 
@@ -322,16 +424,22 @@ export function MainContent({
       paddingX={1}
       overflow="hidden"
       height={contentHeight}
+      width={contentWidth}
     >
-      <Box flexDirection="row" height={scrollableHeight} overflow="hidden">
+      <Box
+        flexDirection="row"
+        height={scrollableHeight}
+        overflow="hidden"
+        width={contentWidth}
+      >
         {/* 内容列 */}
         <Box
           flexDirection="column"
-          flexGrow={1}
-          minWidth={0}
+          width={contentColumnWidth}
+          minWidth={contentColumnWidth}
+          flexShrink={1}
           overflow="hidden"
           height={scrollableHeight}
-          paddingRight={shouldShowScrollbar ? 1 : 0}
         >
           {blocks.length === 0 ? (
             <Text color="dim">暂无输出，输入消息或斜杠命令开始</Text>
@@ -377,17 +485,19 @@ export function MainContent({
         </Box>
 
         {/* 滚动条 */}
-        {shouldShowScrollbar && (
+        {reserveScrollbarGutter && (
           <Box
             flexDirection="column"
             width={1}
+            minWidth={1}
+            flexShrink={0}
             height={scrollableHeight}
             justifyContent="flex-start"
             overflow="hidden"
           >
             {scrollbarLines.map((char, i) => (
               <Text key={i} dimColor={char === "|"}>
-                {char}
+                {shouldShowScrollbar ? char : " "}
               </Text>
             ))}
           </Box>
