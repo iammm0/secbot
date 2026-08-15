@@ -135,7 +135,7 @@ export function BrowserTimelineBlock({ block, noMargin }: BrowserTimelineBlockPr
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
       <Text color={theme.secondary} bold>
-        {"◉ "}
+        {"@ "}
         {title}
       </Text>
 

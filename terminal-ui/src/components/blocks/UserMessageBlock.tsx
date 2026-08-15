@@ -51,10 +51,10 @@ export function UserMessageBlock({
         {"─".repeat(40)}
       </Text>
 
-      {/* 标题行：▶ 用户  ·  HH:MM:SS */}
+      {/* 标题行：› 用户  ·  HH:MM:SS */}
       <Box flexDirection="row">
         <Text color={theme.secondary} bold>
-          {"▶ "}
+          {"› "}
           {title}
         </Text>
         {timeLabel ? (

@@ -12,6 +12,7 @@ import { useRoute } from '../contexts/RouteContext.js';
 import { useCommand, useExit } from '../contexts/index.js';
 import { SlashSuggestions } from '../components/SlashSuggestions.js';
 import { APP_VERSION } from '../version.js';
+import { getBaseUrl } from '../config.js';
 
 /** 标题式 ASCII 艺术字 — 纯绿色粗体 Logo */
 const TITLE_ASCII = (() => {
@@ -27,6 +28,14 @@ const TITLE_ASCII = (() => {
 })();
 const TITLE_LINES = TITLE_ASCII.split('\n');
 
+function formatBackend(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return baseUrl.replace(/^https?:\/\//i, '') || 'backend?';
+  }
+}
+
 export function HomeView() {
   const theme = useTheme();
   const keybind = useKeybind();
@@ -35,6 +44,7 @@ export function HomeView() {
   const exit = useExit();
   const [inputValue, setInputValue] = useState('');
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+  const backendLabel = useMemo(() => formatBackend(getBaseUrl()), []);
   /** 刚从斜杠列表中选中的完整命令（如 '/agent'）；若下一次 handleSubmit 收到的是不完整斜杠（如 '/ag'）则忽略，避免 TextInput 的 Enter 覆盖跳转 */
   const justSubmittedSlashRef = useRef<string | null>(null);
 
@@ -120,7 +130,7 @@ export function HomeView() {
       <Box flexShrink={0} alignItems="center" justifyContent="center" width="100%">
         <Box width={64}>
           <Box flexDirection="row" alignItems="center">
-            <Text color={theme.textMuted}>› </Text>
+            <Text color={theme.secondary} bold>› </Text>
             <TextInput
               value={inputValue}
               onChange={(next) => setInputValue(sanitizeInputValue(next))}
@@ -164,7 +174,8 @@ export function HomeView() {
       {/* 建议行 */}
       <Box flexShrink={0} alignItems="center" justifyContent="center" width="100%" marginTop={1}>
         <Box flexDirection="row" gap={1}>
-          <Text color={theme.primary}>Agent</Text>
+          <Text color={theme.secondary}>agent</Text>
+          <Text color={theme.textMuted}>· / commands · {backendLabel}</Text>
         </Box>
       </Box>
 
@@ -190,7 +201,7 @@ export function HomeView() {
         paddingTop={1}
         paddingBottom={1}
       >
-        <Text color={theme.textMuted}>~: HEAD</Text>
+        <Text color={theme.textMuted} wrap="truncate">SECBOT · local workspace</Text>
         <Text color={theme.textMuted}>{APP_VERSION}</Text>
       </Box>
     </Box>

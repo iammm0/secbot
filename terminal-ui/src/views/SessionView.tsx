@@ -9,7 +9,6 @@ import React, {
   useRef,
 } from "react";
 import { Box, Text, useInput } from "ink";
-import TextInput from "ink-text-input";
 import { MainContent } from "../MainContent.js";
 import { SlashSuggestions } from "../components/SlashSuggestions.js";
 import { useMouseScroll } from "../hooks/useMouseScroll.js";
@@ -25,7 +24,6 @@ import {
   useToast,
   useExit,
 } from "../contexts/index.js";
-import type { ThemeColors } from "../contexts/index.js";
 import { inkKeyToParsedKey, isInkEscape } from "../contexts/KeybindContext.js";
 import { streamStateToBlocks } from "../contentBlocks.js";
 import { ModelConfigDialog } from "../components/ModelConfigDialog.js";
@@ -34,90 +32,20 @@ import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
 import { SessionSelectDialog } from "../components/SessionSelectDialog.js";
 import { useRoute } from "../contexts/RouteContext.js";
+import {
+  BottomStatusLine,
+  ComposerRow,
+  TopStatusBar,
+} from "../components/SessionChrome.js";
+import {
+  buildTaskPanelSnapshot,
+  TaskPanel,
+} from "../components/TaskPanel.js";
+import { getBaseUrl } from "../config.js";
+import { APP_VERSION } from "../version.js";
 
-/** 把 token 数字压成 1.2k / 12k / 1.2M 这种紧凑形式 */
-function formatTokenCount(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0";
-  if (n < 1_000) return String(Math.floor(n));
-  if (n < 10_000) return `${(n / 1_000).toFixed(1)}k`;
-  if (n < 1_000_000) return `${Math.floor(n / 1_000)}k`;
-  return `${(n / 1_000_000).toFixed(1)}M`;
-}
-
-/** 上下文存量条：右下角 widget，显示 `model · used/budget · NN%` */
-function ContextUsageWidget({
-  usage,
-  theme,
-}: {
-  usage: import("../types.js").ContextUsageSnapshot | null;
-  theme: Pick<ThemeColors, "textMuted" | "success" | "warning" | "error">;
-}) {
-  if (!usage) {
-    return (
-      <Text color={theme.textMuted} dimColor>
-        ctx —
-      </Text>
-    );
-  }
-  const ratio = Math.min(1, Math.max(0, usage.ratio));
-  const pct = Math.round(ratio * 100);
-  const color =
-    ratio >= 0.9 ? theme.error : ratio >= 0.7 ? theme.warning : theme.success;
-  const used = formatTokenCount(usage.usedTokens);
-  const budget = formatTokenCount(usage.promptBudget);
-  const window = formatTokenCount(usage.contextWindow);
-  const modelLabel = usage.model ?? "model?";
-  return (
-    <Text>
-      <Text color={theme.textMuted}>ctx </Text>
-      <Text color={color} bold>
-        {pct}%
-      </Text>
-      <Text color={theme.textMuted}>
-        {" "}
-        · {used}/{budget} of {window} · {modelLabel}
-      </Text>
-    </Text>
-  );
-}
-
-/** 底部状态栏：SECBOT 固定绿色，无定时器，避免全屏下周期性重绘底部区域 */
-function SessionStatusBar({
-  mode,
-  agent,
-  sessionLabel,
-  theme,
-  usage,
-}: {
-  mode: string;
-  agent: string;
-  sessionLabel: string;
-  theme: Pick<ThemeColors, "textMuted" | "success" | "warning" | "error">;
-  usage: import("../types.js").ContextUsageSnapshot | null;
-}) {
-  return (
-    <Box
-      flexShrink={0}
-      flexDirection="row"
-      justifyContent="space-between"
-      paddingTop={1}
-      paddingBottom={0}
-      paddingLeft={2}
-      paddingRight={2}
-    >
-      <Text>
-        <Text color={theme.success} bold>
-          SECBOT
-        </Text>
-        <Text color={theme.textMuted}>
-          {" "}
-          · {sessionLabel} · {mode} · {agent}
-        </Text>
-      </Text>
-      <ContextUsageWidget usage={usage} theme={theme} />
-    </Box>
-  );
-}
+const TASK_PANEL_MIN_COLUMNS = 112;
+const TASK_PANEL_WIDE_COLUMNS = 132;
 
 interface SessionViewProps {
   columns: number;
@@ -136,6 +64,9 @@ export function SessionView({
   const [inputValue, setInputValue] = useState("");
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [showScrollbar, setShowScrollbar] = useState(true);
+  const [taskPanelOverride, setTaskPanelOverride] = useState<boolean | null>(
+    null,
+  );
   const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
   const scrollableHeightRef = useRef(1);
@@ -148,6 +79,7 @@ export function SessionView({
   const [historyIndex, setHistoryIndex] = useState(-1);
   // 暂存用户正在编辑但尚未提交的输入，以便从历史导航返回时恢复
   const draftInputRef = useRef("");
+  const inputValueRef = useRef("");
 
   const theme = useTheme();
   const sync = useSync();
@@ -174,6 +106,14 @@ export function SessionView({
     currentRoundChatMode,
   } = sync;
   const { agent, setAgent } = local;
+  const backendUrl = useMemo(() => getBaseUrl(), []);
+  const taskPanelAvailable = columns >= TASK_PANEL_MIN_COLUMNS;
+  const taskPanelWidth = columns >= TASK_PANEL_WIDE_COLUMNS ? 34 : 30;
+  const taskPanelVisible = taskPanelAvailable && (taskPanelOverride ?? true);
+  const transcriptWidth = Math.max(
+    24,
+    columns - 6 - (taskPanelVisible ? taskPanelWidth + 1 : 0),
+  );
 
   const activeSessionLabel = useMemo(() => {
     const hit = sessionList.find((s) => s.isActive);
@@ -201,6 +141,11 @@ export function SessionView({
     ],
   );
 
+  const taskPanelSnapshot = useMemo(
+    () => buildTaskPanelSnapshot(streamState),
+    [streamState],
+  );
+
   const actionProgress = useMemo(() => {
     const total = streamState.actions.length;
     const completed = streamState.actions.filter((a) => a.result !== undefined).length;
@@ -216,8 +161,9 @@ export function SessionView({
   }, [commands, inputValue]);
 
   const contentHeight = useMemo(() => {
-    // 固定区：分隔线/加载状态条(执行中)/输入行/状态栏/统计栏，再按斜杠建议条目动态预留高度，避免内容区和交互区重叠。
-    const baseReserved = streaming ? 11 : 10;
+    // 固定区：顶部状态、分隔线、加载条、输入分隔线、输入行、底部状态。
+    // 再按斜杠建议条目动态预留高度，避免内容区和交互区重叠。
+    const baseReserved = streaming ? 9 : 8;
     const slashReserved = inputValue.startsWith("/")
       ? Math.min(12, slashSuggestions.length) + 2
       : 0;
@@ -259,6 +205,10 @@ export function SessionView({
 
   useEffect(() => {
     setSlashSelectedIndex(0);
+  }, [inputValue]);
+
+  useEffect(() => {
+    inputValueRef.current = inputValue;
   }, [inputValue]);
 
   useEffect(() => {
@@ -314,6 +264,23 @@ export function SessionView({
     }, 50);
   }, []);
 
+  const toggleTaskPanel = useCallback(() => {
+    if (!taskPanelAvailable) {
+      toast.show({
+        message: `终端宽度不足，至少 ${TASK_PANEL_MIN_COLUMNS} 列才显示任务面板`,
+        variant: "info",
+      });
+      return;
+    }
+    setTaskPanelOverride((current) => !(current ?? true));
+  }, [taskPanelAvailable, toast]);
+
+  const removeCtrlTTextInputEcho = useCallback((before: string) => {
+    setTimeout(() => {
+      setInputValue((current) => (current === `${before}t` ? before : current));
+    }, 0);
+  }, []);
+
   useEffect(() => {
     const unregs = [
       register({
@@ -322,6 +289,17 @@ export function SessionView({
         category: "会话",
         onSelect: ({ close }) => {
           setShowScrollbar((v) => !v);
+          close();
+        },
+      }),
+      register({
+        title: "切换任务面板",
+        value: "session.toggle.task_panel",
+        category: "会话",
+        slash: "/tasks",
+        keybind: "task_panel_toggle",
+        onSelect: ({ close }) => {
+          toggleTaskPanel();
           close();
         },
       }),
@@ -425,6 +403,7 @@ export function SessionView({
     maxScroll,
     scrollableHeight,
     scrollToNextBlock,
+    toggleTaskPanel,
     newSession,
     switchSession,
     sessionList,
@@ -434,6 +413,11 @@ export function SessionView({
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
+    if (keybind.match("task_panel_toggle", evt)) {
+      removeCtrlTTextInputEcho(inputValueRef.current);
+      toggleTaskPanel();
+      return;
+    }
     if (keybind.match("agent_switch", evt)) {
       trigger("/agent");
       return;
@@ -629,6 +613,21 @@ export function SessionView({
     ],
   );
 
+  const handleComposerSubmit = useCallback(() => {
+    if (slashSuggestions.length > 0) {
+      const sel =
+        slashSuggestions[
+          Math.min(slashSelectedIndex, slashSuggestions.length - 1)
+        ];
+      if (sel) {
+        setInputValue(sel.slash ?? sel.value);
+        handleSubmit(sel.value);
+        return;
+      }
+    }
+    handleSubmit();
+  }, [handleSubmit, slashSelectedIndex, slashSuggestions]);
+
   // 进入会话时若有初始消息，立即发送，无需用户再回车
   useEffect(() => {
     if (initialPrompt?.trim() && !hasAppliedInitialPromptRef.current) {
@@ -641,34 +640,57 @@ export function SessionView({
 
   return (
     <Box flexDirection="column" flexGrow={1} minHeight={0}>
-      {/* 主对话区 — 单栏、无边框、块间距 */}
-      <Box
-        flexDirection="column"
-        flexGrow={1}
-        minWidth={0}
-        paddingLeft={2}
-        paddingRight={2}
-      >
-        <MainContent
-          history={history}
-          streamState={streamState}
-          streaming={streaming}
-          apiOutput={apiOutput}
-          contentHeight={contentHeight}
-          scrollOffset={scrollOffset}
-          setScrollOffset={setScrollOffset}
-          onLinesChange={setTotalLines}
-          showScrollbar={showScrollbar}
-          currentUserMessage={currentUserMessage}
-          currentSentAt={currentSentAt}
-          currentCompletedAt={currentCompletedAt}
-          currentRoundChatMode={currentRoundChatMode}
-        />
+      <TopStatusBar
+        sessionLabel={activeSessionLabel}
+        mode="agent"
+        agent={agent}
+        backendUrl={backendUrl}
+        usage={streamState.contextUsage}
+        streaming={streaming}
+        phase={streamState.phase}
+        detail={streamState.detail}
+      />
+
+      <Box flexShrink={0} paddingLeft={2} paddingRight={2}>
+        <Text color={theme.border} dimColor>
+          {"─".repeat(Math.max(0, columns - 6))}
+        </Text>
       </Box>
 
-      {/* 交互区与内容区之间的可视分隔线 */}
-      <Box flexShrink={0} paddingLeft={2} paddingRight={2} paddingTop={1}>
-        <Text color={theme.border}>{"━".repeat(Math.max(0, columns - 6))}</Text>
+      {/* 主对话区 — transcript + 可切换任务面板 */}
+      <Box
+        flexDirection="row"
+        flexGrow={1}
+        minHeight={0}
+        minWidth={0}
+      >
+        <Box
+          flexDirection="column"
+          flexGrow={1}
+          minWidth={0}
+          paddingLeft={2}
+          paddingRight={taskPanelVisible ? 1 : 2}
+        >
+          <MainContent
+            history={history}
+            streamState={streamState}
+            streaming={streaming}
+            apiOutput={apiOutput}
+            contentHeight={contentHeight}
+            contentWidth={transcriptWidth}
+            scrollOffset={scrollOffset}
+            setScrollOffset={setScrollOffset}
+            onLinesChange={setTotalLines}
+            showScrollbar={showScrollbar}
+            currentUserMessage={currentUserMessage}
+            currentSentAt={currentSentAt}
+            currentCompletedAt={currentCompletedAt}
+            currentRoundChatMode={currentRoundChatMode}
+          />
+        </Box>
+        {taskPanelVisible ? (
+          <TaskPanel snapshot={taskPanelSnapshot} width={taskPanelWidth} />
+        ) : null}
       </Box>
 
       {/* 执行状态条：实时显示当前阶段与工具执行进度 */}
@@ -691,65 +713,35 @@ export function SessionView({
         </Box>
       ) : null}
 
-      {/* 输入行 */}
-      <Box
-        flexShrink={0}
-        paddingLeft={2}
-        paddingRight={2}
-        paddingTop={0}
-        paddingBottom={0}
-      >
-        <Text color={theme.success}>{"> "}</Text>
-        <TextInput
-          value={inputValue}
-          onChange={(next) => setInputValue(sanitizeInputValue(next))}
-          onSubmit={() => {
-            if (slashSuggestions.length > 0) {
-              const sel =
-                slashSuggestions[
-                  Math.min(slashSelectedIndex, slashSuggestions.length - 1)
-                ];
-              if (sel) {
-                setInputValue(sel.slash ?? sel.value);
-                handleSubmit(sel.value);
-                return;
-              }
-            }
-            handleSubmit();
-          }}
-          placeholder="Ask anything..."
-        />
-      </Box>
-
-      {/* 底部状态栏 — 左：SECBOT · session · agent；右：上下文存量 */}
-      <SessionStatusBar
-        mode="agent"
-        agent={agent}
-        sessionLabel={activeSessionLabel}
-        theme={theme}
-        usage={streamState.contextUsage}
-      />
-
-      {/* 统计与快捷键 — 置于最底部 */}
-      <Box
-        flexShrink={0}
-        paddingLeft={2}
-        paddingRight={2}
-        paddingTop={0}
-        paddingBottom={1}
-      >
-        <Text color={theme.textMuted}>
-          {totalLines > 0
-            ? ` ${Math.min(scrollOffset + 1, totalLines)}-${Math.min(scrollOffset + scrollableHeight, totalLines)}/${totalLines} 行 `
-            : " "}
-          {" \u2191/\u2193\u5386\u53f2 \u6eda\u8f6e\u6eda\u52a8 "}{keybind.print("page_up")}/{keybind.print("page_down")}{"\u7ffb\u9875"}
-          {scrollOffset <= 0 ? "" : " ↑"}
-          {totalLines <= scrollableHeight ||
-          scrollOffset >= totalLines - scrollableHeight
-            ? ""
-            : " ↓"}
+      <Box flexShrink={0} paddingLeft={2} paddingRight={2}>
+        <Text color={theme.border} dimColor>
+          {"─".repeat(Math.max(0, columns - 6))}
         </Text>
       </Box>
+
+      <ComposerRow
+        value={inputValue}
+        onChange={(next) => setInputValue(sanitizeInputValue(next))}
+        onSubmit={handleComposerSubmit}
+        placeholder="Ask anything..."
+      />
+
+      <BottomStatusLine
+        totalLines={totalLines}
+        scrollOffset={scrollOffset}
+        scrollableHeight={scrollableHeight}
+        pageUpLabel={keybind.print("page_up")}
+        pageDownLabel={keybind.print("page_down")}
+        taskPanelLabel={keybind.print("task_panel_toggle")}
+        taskPanelVisible={taskPanelVisible}
+        taskPanelAvailable={taskPanelAvailable}
+        showUpIndicator={scrollOffset > 0}
+        showDownIndicator={
+          totalLines > scrollableHeight &&
+          scrollOffset < totalLines - scrollableHeight
+        }
+        version={APP_VERSION}
+      />
     </Box>
   );
 }

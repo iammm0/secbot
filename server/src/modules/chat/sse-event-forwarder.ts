@@ -90,6 +90,22 @@ export function forwardAgentEvent(event: BusEvent, emit: SSEEmit): void {
       iteration,
       step_key: sseStepKey(d, iteration),
     });
+  } else if (t === EventType.EXEC_PROGRESS) {
+    const iteration = Number(d['iteration'] ?? 1);
+    emit('action_progress', {
+      tool: d['tool'] ?? '',
+      status: d['status'] ?? 'running',
+      phase: d['phase'] ?? '',
+      progress: d['progress'],
+      elapsed_ms: d['elapsed_ms'],
+      last_output_age_ms: d['last_output_age_ms'],
+      message: d['message'] ?? '',
+      hint: d['hint'] ?? '',
+      command: d['command'] ?? '',
+      raw: d['raw'] ?? '',
+      iteration,
+      step_key: sseStepKey(d, iteration),
+    });
   } else if (t === EventType.EXEC_RESULT) {
     const iteration = Number(d['iteration'] ?? 1);
     emit('action_result', {

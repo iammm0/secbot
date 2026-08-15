@@ -26,9 +26,9 @@ export function ActionsBlock({ block, noMargin }: ActionsBlockProps) {
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
-      {/* 标题行：⚙ 执行 — primary/green，bold */}
+      {/* 标题行：tool — muted，compact */}
       <Text color={theme.textMuted} dimColor>
-        {"⚙ "}
+        {"$ "}
         {title}
       </Text>
 

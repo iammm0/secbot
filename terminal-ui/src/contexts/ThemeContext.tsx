@@ -22,9 +22,9 @@ export interface ThemeColors {
 }
 
 const defaultTheme: ThemeColors = {
-  primary: 'green',
+  primary: 'greenBright',
   secondary: 'cyan',
-  accent: 'magenta',
+  accent: 'cyanBright',
   error: 'red',
   warning: 'yellow',
   success: 'greenBright',

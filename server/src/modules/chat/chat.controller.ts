@@ -1,14 +1,32 @@
-import { Body, Controller, HttpException, Logger, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, Logger, Param, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { mapExceptionToClientBody } from '../../common/errors/map-exception-to-client';
 import { ChatService } from './chat.service';
-import { ChatRequestDto, RootResponseRequestDto } from './dto/chat.dto';
+import {
+  ChatRequestDto,
+  ChatSessionHistoryQueryDto,
+  ChatSessionsQueryDto,
+  RootResponseRequestDto,
+} from './dto/chat.dto';
 
 @Controller('api/chat')
 export class ChatController {
   private readonly logger = new Logger(ChatController.name);
 
   constructor(private readonly chatService: ChatService) {}
+
+  @Get('sessions')
+  sessions(@Query() query: ChatSessionsQueryDto) {
+    return this.chatService.listPersistedSessions(query);
+  }
+
+  @Get('sessions/:sessionId/history')
+  sessionHistory(
+    @Param('sessionId') sessionId: string,
+    @Query() query: ChatSessionHistoryQueryDto,
+  ) {
+    return this.chatService.getPersistedSessionHistory(sessionId, query);
+  }
 
   @Post()
   async chatStream(@Body() body: ChatRequestDto, @Res() res: Response) {

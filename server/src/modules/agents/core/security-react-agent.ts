@@ -1,5 +1,5 @@
 import { BaseAgent, AgentMessage } from './base-agent';
-import { BaseTool, ToolResult } from '../../tools/core/base-tool';
+import { BaseTool, ToolProgressCallback, ToolResult } from '../../tools/core/base-tool';
 import { EventType, BusEvent } from '../../../common/event-bus';
 import { ChatMessage } from '../../../common/types';
 import { LLMProvider, createLLM } from '../../../common/llm';
@@ -179,7 +179,20 @@ export class SecurityReActAgent extends BaseAgent {
         continue;
       }
 
-      const result = await this.executeTool(action.tool, action.params);
+      const result = await this.executeTool(action.tool, action.params, (progress) => {
+        onEvent?.({
+          type: EventType.EXEC_PROGRESS,
+          data: {
+            agent: this.name,
+            iteration,
+            tool: action.tool,
+            params: action.params,
+            ...progress,
+          },
+          timestamp: new Date(),
+          iteration,
+        });
+      });
       const observation = this.formatObservation(result, action.tool);
 
       this._reactHistory.push({
@@ -223,7 +236,11 @@ export class SecurityReActAgent extends BaseAgent {
     return parseToolAction(thought);
   }
 
-  async executeTool(toolName: string, params: Record<string, unknown>): Promise<ToolResult> {
+  async executeTool(
+    toolName: string,
+    params: Record<string, unknown>,
+    onProgress?: ToolProgressCallback,
+  ): Promise<ToolResult> {
     const tool = this.toolsDict.get(toolName);
     if (!tool) {
       return {
@@ -234,7 +251,7 @@ export class SecurityReActAgent extends BaseAgent {
     }
 
     try {
-      return await tool.run(params);
+      return await tool.run(params, onProgress);
     } catch (err) {
       return {
         success: false,
@@ -349,7 +366,20 @@ export class SecurityReActAgent extends BaseAgent {
       return { todoId: todo.id, success: false, error: paramErr };
     }
 
-    const result = await this.executeTool(action.tool, action.params);
+    const result = await this.executeTool(action.tool, action.params, (progress) => {
+      onEvent?.({
+        type: EventType.EXEC_PROGRESS,
+        data: {
+          agent: this.name,
+          todoId: todo.id,
+          tool: action.tool,
+          params: action.params,
+          ...progress,
+        },
+        timestamp: new Date(),
+        iteration: 0,
+      });
+    });
 
     onEvent?.({
       type: EventType.EXEC_RESULT,
