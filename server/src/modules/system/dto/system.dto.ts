@@ -112,6 +112,14 @@ export class ProviderApiKeyStatusDto {
 
   @IsBoolean()
   hasBaseUrl: boolean = false;
+
+  @IsOptional()
+  @IsString()
+  group?: string;
+
+  @IsOptional()
+  @IsString()
+  compatHint?: string;
 }
 
 export class ProviderListResponseDto {
