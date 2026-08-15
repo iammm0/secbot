@@ -1047,8 +1047,20 @@ export function useChat() {
               case "content": {
                 if (((data.view_type as string) ?? "summary") !== "raw") {
                   const obs = (data.content as string) ?? "";
+                  if (!obs.trim()) break;
                   const obsTool = (data.tool as string) ?? "";
                   const obsIteration = (data.iteration as number) ?? 0;
+                  // 无工具名的 content 仅在已有任务链路时展示为「总结观察」；闲聊/纯问答只走 response。
+                  if (!obsTool) {
+                    const hasTaskChain = streamStateRef.current.timeline.some(
+                      (item) =>
+                        item.type === "thought" ||
+                        item.type === "action" ||
+                        item.type === "planning" ||
+                        item.type === "browser_event",
+                    );
+                    if (!hasTaskChain) break;
+                  }
                   const obsTitle = obsTool
                     ? `观察 · ${obsTool}${obsIteration ? ` #${obsIteration}` : ""}`
                     : "总结观察";
