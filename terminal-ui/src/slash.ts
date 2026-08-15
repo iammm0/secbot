@@ -72,7 +72,7 @@ export function parseSlash(
   const parts = raw.split(/\s+/);
   const cmd = parts[0].toLowerCase();
 
-  // 兼容旧命令：/ask 与 /task 不再切换模式，只把后续文本按 agent 模式发送。
+  // 兼容旧命令：/ask 与 /task 均由 Agent 自动识别问答或任务。
   if (cmd === '/ask') {
     return {
       handled: true,

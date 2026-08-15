@@ -76,7 +76,11 @@ function SessionView() {
         )}
       </div>
       <div className="px-4 pb-4 pt-2">
-        <ChatInput onSubmit={handleSubmit} disabled={streaming} placeholder={streaming ? 'Thinking...' : 'Message SecBot...'} />
+        <ChatInput
+          onSubmit={handleSubmit}
+          disabled={streaming}
+          placeholder={streaming ? 'Thinking...' : 'Message SecBot...'}
+        />
       </div>
       <StatusBar contextUsage={streamState?.contextUsage ?? null} phase={streamState?.phase} />
     </div>
