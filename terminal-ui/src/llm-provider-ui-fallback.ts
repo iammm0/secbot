@@ -39,6 +39,7 @@ const FALLBACK: FallbackEntry[] = [
   { id: 'fireworks', name: 'Fireworks AI', needs_api_key: true, needs_base_url: false, group: 'relay', compat_hint: 'OpenAI 兼容' },
   { id: 'azure_openai', name: 'Azure OpenAI', needs_api_key: true, needs_base_url: true, group: 'relay', compat_hint: 'OpenAI 兼容' },
   { id: 'custom', name: 'OpenAI 兼容中转', needs_api_key: true, needs_base_url: true, group: 'relay', compat_hint: 'OpenAI 兼容' },
+  { id: 'codex', name: 'Codex Responses 中转', needs_api_key: true, needs_base_url: true, group: 'relay', compat_hint: 'OpenAI Responses API' },
 ];
 
 const FALLBACK_IDS = new Set(FALLBACK.map((p) => p.id));
