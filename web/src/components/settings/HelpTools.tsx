@@ -31,11 +31,7 @@ export function HelpTools() {
         <div className="space-y-2 text-xs text-text font-mono">
           <div className="flex gap-2">
             <span className="text-primary font-semibold w-16">Agent</span>
-            <span className="text-text-dim">完整 ReAct 循环 — 自动执行工具、规划复杂任务</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-primary font-semibold w-16">Ask</span>
-            <span className="text-text-dim">仅问答 — 不执行工具，快速获取答案</span>
+            <span className="text-text-dim">自动识别问答或任务；仅在任务需要时规划并执行工具</span>
           </div>
         </div>
       </div>

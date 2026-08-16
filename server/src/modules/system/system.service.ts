@@ -14,6 +14,7 @@ import {
 import { DatabaseService } from '../database/database.service';
 import {
   LLM_PROVIDER_REGISTRY,
+  getEnvBackedApiKey,
   getDefaultOpenAICompatBaseUrl,
   getLlmProviderMeta,
 } from './llm-provider-registry';
@@ -31,6 +32,79 @@ export class SystemService {
 
   private modelEnvKey(providerId: string): string {
     return `${providerId.toUpperCase().replace(/-/g, '_')}_MODEL`;
+  }
+
+  private resolveProviderApiKey(providerId: string): string {
+    return (
+      this.db.getConfig(`${providerId}_api_key`)?.value.trim() ||
+      (this.configService.get<string>('LLM_API_KEY') ?? process.env.LLM_API_KEY ?? '').trim() ||
+      getEnvBackedApiKey(providerId)
+    );
+  }
+
+  private resolveProviderBaseUrl(providerId: string): string | null {
+    const meta = getLlmProviderMeta(providerId);
+    if (!meta) return null;
+    return this.resolveConfigSource(
+      `${providerId}_base_url`,
+      meta.baseUrlEnv,
+      getDefaultOpenAICompatBaseUrl(providerId) ?? null,
+    );
+  }
+
+  async listProviderModels(providerId: string): Promise<{
+    models: string[];
+    base_url: string | null;
+    error?: string;
+  }> {
+    const id = providerId.trim().toLowerCase();
+    const meta = getLlmProviderMeta(id);
+    if (!meta) throw new NotFoundException(`Unknown provider: ${providerId}`);
+
+    if (id === 'ollama') {
+      return this.listOllamaModels().then((result) => ({
+        models: result.models.map((model) => model.name),
+        base_url: result.baseUrl,
+        ...(result.error ? { error: result.error } : {}),
+      }));
+    }
+
+    const baseUrl = this.resolveProviderBaseUrl(id);
+    const apiKey = this.resolveProviderApiKey(id);
+    if (!baseUrl) {
+      return { models: [], base_url: null, error: '请先配置接口地址' };
+    }
+    if (!apiKey) {
+      return { models: [], base_url: baseUrl, error: '请先配置 API Key' };
+    }
+
+    const normalized = baseUrl.replace(/\/+$/, '');
+    const candidateRoots = normalized.endsWith('/v1')
+      ? [normalized]
+      : [normalized, `${normalized}/v1`];
+
+    try {
+      let lastStatus = 0;
+      for (const root of candidateRoots) {
+        const res = await fetch(`${root}/models`, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        lastStatus = res.status;
+        if (!res.ok) continue;
+        const payload = (await res.json()) as { data?: Array<{ id?: string }> };
+        const models = [
+          ...new Set((payload.data ?? []).map((model) => model.id?.trim() ?? '').filter(Boolean)),
+        ].sort((a, b) => a.localeCompare(b));
+        return { models, base_url: baseUrl };
+      }
+      return {
+        models: [],
+        base_url: baseUrl,
+        error: `模型探测失败：HTTP ${lastStatus || '未知'}`,
+      };
+    } catch {
+      return { models: [], base_url: baseUrl, error: '模型探测失败：无法连接接口地址' };
+    }
   }
 
   private resolveConfigSource(
@@ -169,14 +243,48 @@ export class SystemService {
   }
 
   async listOllamaModels(): Promise<OllamaModelsResponseDto> {
-    // 占位：仅回显配置，不真正访问 Ollama
-    const baseUrl = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
-    return {
-      models: [],
-      baseUrl,
-      error: 'TS 占位实现尚未连接 Ollama，领域逻辑迁移时会接入真实查询。',
-      pullingModel: null,
-    };
+    const baseUrl =
+      this.resolveConfigSource('ollama_base_url', 'OLLAMA_BASE_URL', null) ??
+      'http://localhost:11434';
+    try {
+      const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/tags`);
+      if (!res.ok) {
+        return {
+          models: [],
+          baseUrl,
+          error: `无法连接 Ollama：HTTP ${res.status}`,
+          pullingModel: null,
+        };
+      }
+      const payload = (await res.json()) as {
+        models?: Array<{
+          name?: string;
+          size?: number;
+          modified_at?: string;
+          details?: { parameter_size?: string; family?: string };
+        }>;
+      };
+      return {
+        models: (payload.models ?? [])
+          .map((model) => ({
+            name: model.name ?? '',
+            size: model.size ?? null,
+            modifiedAt: model.modified_at ?? null,
+            parameterSize: model.details?.parameter_size ?? null,
+            family: model.details?.family ?? null,
+          }))
+          .filter((model) => model.name),
+        baseUrl,
+        pullingModel: null,
+      };
+    } catch {
+      return {
+        models: [],
+        baseUrl,
+        error: `无法连接 Ollama（${baseUrl}）。请确认本机已启动 ollama serve。`,
+        pullingModel: null,
+      };
+    }
   }
 
   async listProviders(): Promise<ProviderListResponseDto> {
@@ -221,39 +329,40 @@ export class SystemService {
         message: 'provider 不能为空',
       };
     }
-    const hasBaseUrlField = body.baseUrl !== undefined;
     const keyName = `${provider}_api_key`;
     const baseName = `${provider}_base_url`;
+    const hasBaseUrlField = body.baseUrl !== undefined;
+    const key = body.apiKey.trim();
 
     let msg = '';
 
-    if (!hasBaseUrlField) {
-      const key = body.apiKey.trim();
-      if (!key) {
-        const deleted = this.db.deleteConfig(keyName);
-        this.deleteSqliteFromYaml(keyName);
-        msg = deleted ? `已删除 ${provider} 的 API Key` : `${provider} 的 API Key 已为空`;
-      } else {
-        this.db.saveConfig(keyName, key, 'api_keys', `${provider} API Key`);
-        this.syncSqliteToYaml(keyName, key);
-        msg = `已保存 ${provider} API Key`;
-      }
-    } else {
+    // 仅更新 Base URL 时（TUI 第二步会传空 apiKey），不要误删已有 Key
+    if (key) {
+      this.db.saveConfig(keyName, key, 'api_keys', `${provider} API Key`);
+      this.syncSqliteToYaml(keyName, key);
+      msg = `已保存 ${provider} API Key`;
+    } else if (!hasBaseUrlField) {
+      const deleted = this.db.deleteConfig(keyName);
+      this.deleteSqliteFromYaml(keyName);
+      msg = deleted ? `已删除 ${provider} 的 API Key` : `${provider} 的 API Key 已为空`;
+    }
+
+    if (hasBaseUrlField) {
       const base = (body.baseUrl ?? '').trim();
       if (base) {
         this.db.saveConfig(baseName, base, 'api_keys', `${provider} Base URL`);
         this.syncSqliteToYaml(baseName, base);
-        msg = `已更新 ${provider} Base URL`;
+        msg = msg ? `${msg}，已更新接口地址` : `已更新 ${provider} Base URL`;
       } else {
         this.db.deleteConfig(baseName);
         this.deleteSqliteFromYaml(baseName);
-        msg = `已清除 ${provider} Base URL`;
+        msg = msg ? `${msg}，已清除接口地址` : `已清除 ${provider} Base URL`;
       }
     }
 
     return {
       success: true,
-      message: msg,
+      message: msg || '未做更改',
     };
   }
 

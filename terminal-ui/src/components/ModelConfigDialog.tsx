@@ -65,7 +65,7 @@ export function ModelConfigDialog() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [view, setView] = useState<'list' | 'detail' | 'api_key_list' | 'api_key_input' | 'provider_switch_list' | 'confirm_switch' | 'configured_list'>('list');
+  const [view, setView] = useState<'list' | 'detail' | 'model_select' | 'api_key_list' | 'api_key_input' | 'provider_switch_list' | 'confirm_switch' | 'configured_list'>('list');
   const [detailProvider, setDetailProvider] = useState<ProviderId | string | null>(null);
   const [apiKeyProviders, setApiKeyProviders] = useState<ProviderApiKeyStatus[]>([]);
   const [apiKeyListIndex, setApiKeyListIndex] = useState(0);
@@ -86,11 +86,64 @@ export function ModelConfigDialog() {
   const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; size?: number; parameter_size?: string }>>([]);
   const [ollamaModelsError, setOllamaModelsError] = useState<string | null>(null);
   const [ollamaPullingModel, setOllamaPullingModel] = useState<string | null>(null);
+  const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
+  const [discoveredModelsError, setDiscoveredModelsError] = useState<string | null>(null);
+  const [modelSelectIndex, setModelSelectIndex] = useState(0);
+  const [modelSelectMessage, setModelSelectMessage] = useState<string | null>(null);
 
   const configuredProviders = useMemo(
     () => allProvidersForList.filter((p) => p.configured),
     [allProvidersForList]
   );
+
+  const preferredModel = (models: string[]): string | undefined => {
+    const preferred = [
+      'gpt-5.6-sol',
+      'gpt-5.6',
+      'gpt-5.4',
+      'gpt-5.2',
+      'gpt-5',
+      'gpt-5-mini',
+      'deepseek-chat',
+      'gpt-4o-mini',
+      'llama3.2',
+    ];
+    return preferred.find((name) => models.includes(name)) ?? models[0];
+  };
+
+  const discoverAndApplyModel = async (
+    providerId: string,
+    options?: { autoSave?: boolean; currentModel?: string | null },
+  ): Promise<{ models: string[]; selected?: string; error?: string }> => {
+    try {
+      const result = await api.get<{ models?: string[]; error?: string }>(
+        `/api/system/config/provider/${providerId}/models`,
+      );
+      const models = result.models ?? [];
+      setDiscoveredModels(models);
+      setDiscoveredModelsError(result.error ?? (models.length === 0 ? '未探测到可用模型' : null));
+      if (models.length === 0) {
+        return { models, error: result.error ?? '未探测到可用模型' };
+      }
+      const selected =
+        (options?.currentModel && models.includes(options.currentModel)
+          ? options.currentModel
+          : preferredModel(models)) ?? undefined;
+      if (options?.autoSave && selected) {
+        await api.post<{ success: boolean; message: string }>('/api/system/config/provider-settings', {
+          provider: providerId,
+          model: selected,
+        });
+        api.get<Config>('/api/system/config').then(setConfig).catch(() => {});
+      }
+      return { models, selected };
+    } catch (e) {
+      const message = String((e as Error).message);
+      setDiscoveredModels([]);
+      setDiscoveredModelsError(message);
+      return { models: [], error: message };
+    }
+  };
 
   useEffect(() => {
     api
@@ -146,7 +199,22 @@ export function ModelConfigDialog() {
   }, [view, detailProvider]);
 
   useEffect(() => {
-    if (view === 'detail' && (detailProvider === 'ollama' || (detailProvider === 'current' && config?.llm_provider === 'ollama'))) {
+    if (view !== 'detail' || !detailProvider) {
+      setDiscoveredModels([]);
+      setDiscoveredModelsError(null);
+      return;
+    }
+    const providerId =
+      detailProvider === 'current'
+        ? config?.llm_provider
+        : detailProvider === 'ollama' || detailProvider === 'deepseek'
+          ? detailProvider
+          : typeof detailProvider === 'string'
+            ? detailProvider
+            : null;
+    if (!providerId) return;
+
+    if (providerId === 'ollama') {
       setOllamaModelsError(null);
       const formatOllamaError = (msg: string) => {
         if (/404|Not Found/i.test(msg)) {
@@ -172,8 +240,16 @@ export function ModelConfigDialog() {
           setOllamaModels([]);
           setOllamaPullingModel(null);
         });
+      return;
     }
-  }, [view, detailProvider, config?.llm_provider]);
+
+    void discoverAndApplyModel(providerId, {
+      currentModel:
+        providerId === config?.llm_provider
+          ? config?.current_provider_model
+          : detailProviderConfig?.model,
+    });
+  }, [view, detailProvider, config?.llm_provider, config?.current_provider_model, detailProviderConfig?.model]);
 
   useInput((input, key) => {
     if (isInkEscape(input, key)) {
@@ -193,6 +269,9 @@ export function ModelConfigDialog() {
       } else if (view === 'confirm_switch') {
         setConfirmSwitchProvider(null);
         setView('provider_switch_list');
+      } else if (view === 'model_select') {
+        setView('detail');
+        setModelSelectMessage(null);
       } else if (view === 'detail') {
         if (detailEditMode) {
           setDetailEditMode(null);
@@ -245,6 +324,48 @@ export function ModelConfigDialog() {
       return;
     }
     if (view === 'api_key_input') return;
+    if (view === 'model_select') {
+      const selectableModels =
+        detailProvider === 'ollama' ||
+        (detailProvider === 'current' && config?.llm_provider === 'ollama')
+          ? ollamaModels.map((model) => model.name)
+          : discoveredModels;
+      if (key.upArrow) {
+        setModelSelectIndex((index) => Math.max(0, index - 1));
+      } else if (key.downArrow) {
+        setModelSelectIndex((index) => Math.min(selectableModels.length - 1, index + 1));
+      } else if (key.return && selectableModels[modelSelectIndex]) {
+        const providerId =
+          detailProvider === 'current'
+            ? config?.llm_provider
+            : typeof detailProvider === 'string'
+              ? detailProvider
+              : null;
+        const selectedModel = selectableModels[modelSelectIndex];
+        if (providerId) {
+          setModelSelectMessage('保存中…');
+          api
+            .post<{ success: boolean; message: string }>('/api/system/config/provider-settings', {
+              provider: providerId,
+              model: selectedModel,
+            })
+            .then((result) => {
+              setModelSelectMessage(result.message);
+              if (!result.success) return;
+              setDetailProviderConfig((current) =>
+                current ? { ...current, model: selectedModel } : current,
+              );
+              api.get<Record<string, unknown>>('/api/system/config')
+                .then((raw) => setConfig(normalizeSystemConfig(raw)))
+                .catch(() => {});
+              setView('detail');
+              setDetailEditMessage(`已切换模型为 ${selectedModel}`);
+            })
+            .catch((e) => setModelSelectMessage(String((e as Error).message)));
+        }
+      }
+      return;
+    }
     if (view === 'configured_list') {
       const list = configuredProviders;
       if (key.upArrow) setConfiguredListIndex((i) => Math.max(0, i - 1));
@@ -342,9 +463,22 @@ export function ModelConfigDialog() {
       const c = input.toLowerCase();
       if (pidForInput && (c === 'm' || c === 'b')) {
         if (c === 'm') {
-          setDetailEditMode('model');
-          setDetailEditValue(currentModel ?? '');
-          setDetailEditMessage(null);
+          const selectableModels =
+            pidForInput === 'ollama'
+              ? ollamaModels.map((model) => model.name)
+              : discoveredModels;
+          if (selectableModels.length > 0) {
+            const currentIndex = selectableModels.indexOf(currentModel ?? '');
+            setModelSelectIndex(currentIndex >= 0 ? currentIndex : 0);
+            setModelSelectMessage(null);
+            setView('model_select');
+          } else {
+            setDetailEditMessage(
+              pidForInput === 'ollama'
+                ? (ollamaModelsError ?? '未发现可选模型')
+                : (discoveredModelsError ?? '未探测到可选模型'),
+            );
+          }
         } else {
           setDetailEditMode('base_url');
           setDetailEditValue(currentBaseUrl ?? '');
@@ -362,7 +496,7 @@ export function ModelConfigDialog() {
         <Text bold color={theme.primary}>模型配置向导</Text>
         <Text color={theme.textMuted}>加载配置中…</Text>
         <Box marginTop={1} flexDirection="column">
-          <Text color={theme.textMuted}>进入后流程：① 切换后端② 配 API Key ③ 当前页按 M/B 编辑</Text>
+          <Text color={theme.textMuted}>进入后流程：① 切换后端 ② 配 API Key ③ 按 M 从探测列表选择模型</Text>
         </Box>
       </Box>
     );
@@ -384,25 +518,42 @@ export function ModelConfigDialog() {
 
     const handleSubmit = (value: string) => {
       const trimmed = value.trim();
+      const providerId = apiKeyEditingProvider.id;
       if (!isBaseUrlStep) {
         // 第一步：保存 API Key
         api
           .post<{ success: boolean; message: string }>('/api/system/config/api-key', {
-            provider: apiKeyEditingProvider.id,
+            provider: providerId,
             apiKey: trimmed,
           })
-          .then((r) => {
+          .then(async (r) => {
             setApiKeyMessage(r.message);
-            if (r.success) {
-              setApiKeyInputValue('');
-              if (needsBaseUrl) {
-                // 该厂商需配置 Base URL（custom / 澜舟 / 面壁 / xAI / Azure OpenAI 等）：第二步输入 Base URL
-                setApiKeyStep('base_url');
-                setApiKeyMessage('API Key 已保存，请继续输入 Base URL（如 https://xxx.openai.azure.com/openai/v1）。');
-              } else {
-                setApiKeyEditingProvider(null);
-                setView('api_key_list');
-              }
+            if (!r.success) return;
+            setApiKeyInputValue('');
+            if (needsBaseUrl) {
+              // 该厂商需配置 Base URL（custom / 澜舟 / 面壁 / xAI / Azure OpenAI 等）：第二步输入 Base URL
+              setApiKeyStep('base_url');
+              setApiKeyMessage('API Key 已保存，请继续输入 Base URL（如 https://codexapi.space/v1）。');
+              return;
+            }
+            const discovered = await discoverAndApplyModel(providerId, { autoSave: true });
+            setApiKeyMessage(
+              discovered.selected
+                ? `${r.message}；已自动探测并选用模型 ${discovered.selected}`
+                : discovered.error
+                  ? `${r.message}；${discovered.error}`
+                  : r.message,
+            );
+            setApiKeyEditingProvider(null);
+            if (discovered.models.length > 0) {
+              setDetailProvider(providerId);
+              setModelSelectIndex(
+                discovered.selected ? Math.max(0, discovered.models.indexOf(discovered.selected)) : 0,
+              );
+              setModelSelectMessage(null);
+              setView('model_select');
+            } else {
+              setView('api_key_list');
             }
           })
           .catch((e) => setApiKeyMessage(String((e as Error).message)));
@@ -410,17 +561,33 @@ export function ModelConfigDialog() {
         // 第二步：保存 Base URL（needs_base_url 的厂商）
         api
           .post<{ success: boolean; message: string }>('/api/system/config/api-key', {
-            provider: apiKeyEditingProvider.id,
+            provider: providerId,
             apiKey: '',
             baseUrl: trimmed,
           })
-          .then((r) => {
+          .then(async (r) => {
             setApiKeyMessage(r.message);
-            if (r.success) {
-              setApiKeyInputValue('');
-              setApiKeyEditingProvider(null);
+            if (!r.success) return;
+            setApiKeyInputValue('');
+            const discovered = await discoverAndApplyModel(providerId, { autoSave: true });
+            setApiKeyMessage(
+              discovered.selected
+                ? `${r.message}；已自动探测并选用模型 ${discovered.selected}`
+                : discovered.error
+                  ? `${r.message}；${discovered.error}`
+                  : r.message,
+            );
+            setApiKeyEditingProvider(null);
+            setApiKeyStep('key');
+            if (discovered.models.length > 0) {
+              setDetailProvider(providerId);
+              setModelSelectIndex(
+                discovered.selected ? Math.max(0, discovered.models.indexOf(discovered.selected)) : 0,
+              );
+              setModelSelectMessage(null);
+              setView('model_select');
+            } else {
               setView('api_key_list');
-              setApiKeyStep('key');
             }
           })
           .catch((e) => setApiKeyMessage(String((e as Error).message)));
@@ -617,6 +784,49 @@ export function ModelConfigDialog() {
     );
   }
 
+  if (view === 'model_select' && detailProvider) {
+    const selectableModels =
+      detailProvider === 'ollama' ||
+      (detailProvider === 'current' && config?.llm_provider === 'ollama')
+        ? ollamaModels.map((model) => model.name)
+        : discoveredModels;
+    const safeIndex = Math.min(modelSelectIndex, Math.max(0, selectableModels.length - 1));
+    const windowSize = 12;
+    const start = Math.max(
+      0,
+      Math.min(safeIndex - Math.floor(windowSize / 2), selectableModels.length - windowSize),
+    );
+    const visibleModels = selectableModels.slice(start, start + windowSize);
+
+    return (
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
+        <Text bold color={theme.primary}>选择模型</Text>
+        <Text color={theme.textMuted}>
+          ↑↓ 选择 · Enter 保存 · Esc 返回 · 共 {selectableModels.length} 个
+        </Text>
+        <Box flexDirection="column" marginTop={1}>
+          {visibleModels.map((modelName, offset) => {
+            const index = start + offset;
+            return (
+              <Text
+                key={modelName}
+                color={index === safeIndex ? theme.primary : theme.text}
+              >
+                {index === safeIndex ? '> ' : '  '}
+                {modelName}
+              </Text>
+            );
+          })}
+        </Box>
+        {modelSelectMessage && (
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>{modelSelectMessage}</Text>
+          </Box>
+        )}
+      </Box>
+    );
+  }
+
   if (view === 'detail' && detailProvider && detailProvider !== 'api_key') {
     const pid: string | null =
       detailProvider === 'current'
@@ -725,6 +935,21 @@ export function ModelConfigDialog() {
         lines.push(`  模型: ${config.current_provider_model ?? '-'}`);
         lines.push(`  地址: ${config.current_provider_base_url ?? '-'}`);
       }
+      if (config.llm_provider !== 'ollama') {
+        if (discoveredModelsError) {
+          lines.push('');
+          lines.push(`  可用模型: ${discoveredModelsError}`);
+        } else if (discoveredModels.length > 0) {
+          lines.push('');
+          lines.push('  可用模型（自动探测）:');
+          discoveredModels.slice(0, 20).forEach((name) => {
+            lines.push(`    - ${name}${name === config.current_provider_model ? '  ✓ 当前' : ''}`);
+          });
+          if (discoveredModels.length > 20) {
+            lines.push(`    … 另有 ${discoveredModels.length - 20} 个`);
+          }
+        }
+      }
     } else if (detailProvider === 'ollama') {
       lines.push('Ollama 配置');
       lines.push(`  默认模型 (OLLAMA_MODEL): ${config.ollama_model}`);
@@ -752,6 +977,16 @@ export function ModelConfigDialog() {
       lines.push(`  默认模型 (DEEPSEEK_MODEL): ${config.deepseek_model ?? '-'}`);
       lines.push(`  API 地址 (DEEPSEEK_BASE_URL): ${config.deepseek_base_url ?? '-'}`);
       lines.push('  API Key: 在弹窗首页选「配置 API Key」可设置或删除');
+      if (discoveredModelsError) {
+        lines.push('');
+        lines.push(`  可用模型: ${discoveredModelsError}`);
+      } else if (discoveredModels.length > 0) {
+        lines.push('');
+        lines.push('  可用模型（自动探测）:');
+        discoveredModels.slice(0, 20).forEach((name) => {
+          lines.push(`    - ${name}${name === (config.deepseek_model ?? '') ? '  ✓ 当前' : ''}`);
+        });
+      }
     } else if (typeof detailProvider === 'string') {
       const name = allProvidersForList.find((pr) => pr.id === detailProvider)?.name ?? detailProvider;
       const model =
@@ -764,6 +999,19 @@ export function ModelConfigDialog() {
       lines.push(`  默认模型: ${model ?? '-'}`);
       lines.push(`  API 地址: ${baseUrl ?? '-'}`);
       lines.push('  API Key: 在弹窗首页选「配置 API Key」可设置或删除');
+      if (discoveredModelsError) {
+        lines.push('');
+        lines.push(`  可用模型: ${discoveredModelsError}`);
+      } else if (discoveredModels.length > 0) {
+        lines.push('');
+        lines.push('  可用模型（自动探测）:');
+        discoveredModels.slice(0, 20).forEach((item) => {
+          lines.push(`    - ${item}${item === (model ?? '') ? '  ✓ 当前' : ''}`);
+        });
+        if (discoveredModels.length > 20) {
+          lines.push(`    … 另有 ${discoveredModels.length - 20} 个`);
+        }
+      }
     }
     const label =
       typeof detailProvider === 'string'
@@ -784,7 +1032,7 @@ export function ModelConfigDialog() {
         </Box>
         {pid && (
           <Box marginTop={1}>
-            <Text color={theme.textMuted}>M 修改默认模型 · B 修改 API 地址 · Esc 返回</Text>
+            <Text color={theme.textMuted}>M 从探测列表选择模型 · B 修改 API 地址 · Esc 返回</Text>
           </Box>
         )}
         {!pid && (
@@ -829,8 +1077,8 @@ export function ModelConfigDialog() {
       <Box flexDirection="column" marginTop={1}>
         <Text bold color={theme.text}>上手 3 步</Text>
         <Text color={theme.textMuted}>  ① 用「切换推理后端」选定 Ollama 或云端厂商</Text>
-        <Text color={theme.textMuted}>  ② 云端厂商到「配置 API Key」（部分会在 Key 后再要 Base URL）</Text>
-        <Text color={theme.textMuted}>  ③ 在「当前推理后端」里查看；详情页按 M 改模型、B 改 API 地址</Text>
+        <Text color={theme.textMuted}>  ② 云端厂商到「配置 API Key」（保存后会自动探测可用模型；部分还会再要 Base URL）</Text>
+        <Text color={theme.textMuted}>  ③ 在「当前推理后端」按 M 从探测列表选择模型，按 B 修改地址</Text>
       </Box>
 
       <Box flexDirection="column" marginTop={1}>

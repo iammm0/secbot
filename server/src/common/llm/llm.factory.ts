@@ -1,6 +1,7 @@
 import { LLMProvider } from './llm.interface';
 import { OllamaProvider } from './ollama.provider';
 import { OpenAICompatProvider } from './openai-compat.provider';
+import { CodexResponsesProvider } from './codex-responses.provider';
 import {
   getDefaultOpenAICompatBaseUrl,
   getEnvBackedApiKey,
@@ -59,7 +60,13 @@ function resolveProvider(explicit?: string): string {
 function resolveModel(provider: string, explicit?: string): string {
   const sqliteKey = `${provider}_model`;
   const defaultModel =
-    provider === 'ollama' ? 'llama3.2' : provider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini';
+    provider === 'ollama'
+      ? 'llama3.2'
+      : provider === 'deepseek'
+        ? 'deepseek-chat'
+        : provider === 'codex'
+          ? 'gpt-5.6-sol'
+          : 'gpt-4o-mini';
   return resolveFirstConfigValue([
     { value: getPersistedConfig(sqliteKey), source: 'sqlite', sqliteKey },
     { value: explicit, source: 'explicit' },
@@ -138,15 +145,19 @@ export function createLLM(config: LLMConfig = {}): LLMProvider {
       (provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.openai.com');
     const apiKey = resolveOpenAICompatApiKey(provider, config.apiKey);
 
-    instance = new OpenAICompatProvider(baseUrl, apiKey.value, model, {
-      onInvalidPersistedApiKey:
-        apiKey.source === 'sqlite' && apiKey.sqliteKey
-          ? () => {
-              deletePersistedConfig(apiKey.sqliteKey!);
-              _cachedLLM = null; // invalidate cache on bad key
-            }
-          : undefined,
-    });
+    if (provider === 'codex') {
+      instance = new CodexResponsesProvider(baseUrl, apiKey.value, model);
+    } else {
+      instance = new OpenAICompatProvider(baseUrl, apiKey.value, model, {
+        onInvalidPersistedApiKey:
+          apiKey.source === 'sqlite' && apiKey.sqliteKey
+            ? () => {
+                deletePersistedConfig(apiKey.sqliteKey!);
+                _cachedLLM = null; // invalidate cache on bad key
+              }
+            : undefined,
+      });
+    }
   }
 
   _cachedLLM = { instance, key: cacheKey, ts: Date.now() };

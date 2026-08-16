@@ -36,7 +36,13 @@ export class SystemController {
     _baseUrl?: string,
   ) {
     return this.systemService.listOllamaModels().then((r) => ({
-      models: r.models,
+      models: r.models.map((model) => ({
+        name: model.name,
+        size: model.size ?? null,
+        modified_at: model.modifiedAt ?? null,
+        parameter_size: model.parameterSize ?? null,
+        family: model.family ?? null,
+      })),
       base_url: r.baseUrl,
       error: r.error,
       pulling_model: r.pullingModel,
@@ -53,6 +59,8 @@ export class SystemController {
         configured: p.configured,
         needs_base_url: p.needsBaseUrl,
         has_base_url: p.hasBaseUrl,
+        group: p.group,
+        compat_hint: p.compatHint,
       })),
     }));
   }
@@ -60,6 +68,11 @@ export class SystemController {
   @Get('config/provider/:providerId')
   getProviderConfig(@Param('providerId') providerId: string) {
     return this.systemService.getProviderDetail(providerId);
+  }
+
+  @Get('config/provider/:providerId/models')
+  listProviderModels(@Param('providerId') providerId: string) {
+    return this.systemService.listProviderModels(providerId);
   }
 
   @Post('config/provider')

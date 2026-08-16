@@ -314,6 +314,17 @@ export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
     baseUrlEnv: 'CUSTOM_BASE_URL',
     defaultOpenAICompatBaseUrl: undefined,
   },
+  {
+    id: 'codex',
+    name: 'Codex Responses 中转',
+    needsApiKey: true,
+    needsBaseUrl: true,
+    group: 'relay',
+    compatHint: 'OpenAI Responses API',
+    apiKeyEnv: 'CODEX_API_KEY',
+    baseUrlEnv: 'CODEX_BASE_URL',
+    defaultOpenAICompatBaseUrl: undefined,
+  },
 ];
 
 const REGISTRY_BY_ID = new Map(LLM_PROVIDER_REGISTRY.map((e) => [e.id, e]));

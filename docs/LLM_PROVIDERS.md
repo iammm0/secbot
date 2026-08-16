@@ -1,13 +1,18 @@
 # 推理后端与 API 兼容说明
 
-Secbot 当前的 LLM 调用层只有两条真实执行路径：
+Secbot 当前的 LLM 调用层有三条真实执行路径：
 
 - `ollama`：调用 Ollama `/api/chat`。
-- 其它 provider：走 OpenAI-compatible `/v1/chat/completions`。
+- `codex`：调用 OpenAI Responses API `/responses`。
+- 其它 provider：调用 OpenAI-compatible `/v1/chat/completions`。
 
-`server/src/modules/system/llm-provider-registry.ts` 维护 provider 清单、环境变量名、默认 Base URL 和配置状态。TUI 的 `/model` 对话框和 `/api/system/config/*` 接口都使用这套注册表。
+`server/src/modules/system/llm-provider-registry.ts` 维护 provider 清单、环境变量名、默认 Base URL 和配置状态。Web 设置页、TUI 的 `/model` 对话框和 `/api/system/config/*` 接口都使用这套注册表。
 
-仓库当前没有移动端或桌面端工程，模型配置只面向后端 API 与 `terminal-ui`。
+Web 与 TUI 使用一致的配置步骤：
+
+1. 切换推理后端。
+2. 保存 API Key / Base URL，并自动探测可用模型。
+3. 从探测列表选择模型并保存；不再要求手工输入模型名。
 
 ## 配置优先级
 
@@ -24,6 +29,7 @@ Secbot 当前的 LLM 调用层只有两条真实执行路径：
 ## 切换方式
 
 - TUI：输入 `/model`。
+- Web：打开“设置 → 模型配置”。
 - API：调用 `/api/system/config/provider`、`/api/system/config/api-key`、`/api/system/config/provider-settings`。
 - 环境变量：设置 `LLM_PROVIDER` 与对应 provider 的变量。
 - npm CLI：运行 `secbot` 后在 TUI 中配置。
@@ -73,6 +79,25 @@ CUSTOM_BASE_URL=https://your-gateway.example.com
 
 因此 Base URL 通常填写网关根地址，不要重复写到 `/v1/chat/completions`。
 
+### Codex Responses 中转
+
+本机 Codex 若使用 Responses 协议中转（例如 `wire_api = "responses"`），请选择 `codex`：
+
+```env
+LLM_PROVIDER=codex
+CODEX_API_KEY=your-api-key
+CODEX_BASE_URL=https://codexapi.space/v1
+CODEX_MODEL=gpt-5.6-sol
+```
+
+`CodexResponsesProvider` 请求：
+
+```text
+<BASE_URL>/responses
+```
+
+保存 API Key / Base URL 后，可通过 `GET /api/system/config/provider/:id/models` 自动探测可用模型。Web 使用下拉列表选择；TUI 使用方向键选择并按 Enter 保存。
+
 ## Provider 清单
 
 | ID | 名称 | API Key 环境变量 | Base URL 环境变量 | 默认 Base URL |
@@ -105,6 +130,7 @@ CUSTOM_BASE_URL=https://your-gateway.example.com
 | `xai` | xAI (Grok) | `XAI_API_KEY` | `XAI_BASE_URL` | 无 |
 | `azure_openai` | Azure OpenAI | `AZURE_OPENAI_API_KEY` | `AZURE_OPENAI_BASE_URL` | 无 |
 | `custom` | OpenAI 兼容中转 | `CUSTOM_API_KEY` | `CUSTOM_BASE_URL` | 无 |
+| `codex` | Codex Responses 中转 | `CODEX_API_KEY` | `CODEX_BASE_URL` | 无（需填写，如 `https://codexapi.space/v1`） |
 
 对于默认 Base URL 为“无”的 provider，当前代码仍会使用 OpenAI-compatible 调用方式。你需要提供一个兼容 `/v1/chat/completions` 的网关地址，否则很可能无法直接调用该厂商原生 API。
 
@@ -113,12 +139,13 @@ CUSTOM_BASE_URL=https://your-gateway.example.com
 - `GET /api/system/config`
 - `GET /api/system/config/providers`
 - `GET /api/system/config/provider/:providerId`
+- `GET /api/system/config/provider/:providerId/models`
 - `POST /api/system/config/provider`
 - `POST /api/system/config/provider-settings`
 - `POST /api/system/config/api-key`
 - `GET /api/system/ollama-models`
 
-`/api/system/ollama-models` 当前是兼容占位实现：它不会实际访问 Ollama，也不会后台拉取模型。请用 `ollama list` 验证本地模型列表，用实际聊天验证模型可用性。
+`/api/system/ollama-models` 会访问 Ollama 的 `/api/tags`，返回本地已安装模型；它不会自动拉取模型。
 
 ## 注意事项
 

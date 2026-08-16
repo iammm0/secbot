@@ -271,13 +271,51 @@ export function useChat(sessionId: string) {
           case 'content': {
             if (((data.view_type as string) ?? 'summary') === 'raw') break
             const obs = (data.content as string) ?? ''
+            if (!obs.trim()) break
             const obsTool = (data.tool as string) ?? ''
             const obsIteration = Number(data.iteration ?? 0)
-            const obsTitle = obsTool ? `观察 · ${obsTool}${obsIteration ? ` #${obsIteration}` : ''}` : '总结观察'
+            // 无工具名的 content 仅在已有任务链路时展示为「总结观察」；闲聊/纯问答只走 response。
+            if (!obsTool) {
+              const hasTaskChain = streamStateRef.current.timeline.some(
+                (item) =>
+                  item.type === 'thought' ||
+                  item.type === 'action' ||
+                  item.type === 'planning' ||
+                  item.type === 'browser_event',
+              )
+              if (!hasTaskChain) break
+              appendContent(obs)
+              setStreamState((s) => ({
+                ...s,
+                timeline: [
+                  ...s.timeline,
+                  {
+                    id: `observation-${s.timeline.length}`,
+                    type: 'observation',
+                    title: '总结观察',
+                    body: obs,
+                    status: 'done',
+                  },
+                ],
+              }))
+              break
+            }
+            const obsTitle = `观察 · ${obsTool}${obsIteration ? ` #${obsIteration}` : ''}`
             appendContent(obs)
             setStreamState((s) => ({
               ...s,
-              timeline: [...s.timeline, { id: `observation-${s.timeline.length}`, type: 'observation', title: obsTitle, body: obs, tool: obsTool || undefined, iteration: obsIteration || undefined, status: 'done' }],
+              timeline: [
+                ...s.timeline,
+                {
+                  id: `observation-${s.timeline.length}`,
+                  type: 'observation',
+                  title: obsTitle,
+                  body: obs,
+                  tool: obsTool,
+                  iteration: obsIteration || undefined,
+                  status: 'done',
+                },
+              ],
             }))
             break
           }
