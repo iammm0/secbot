@@ -66,11 +66,12 @@ function assembleBackend() {
   // 用 npm install 而非 npm ci：CI 发布时 set-release-version 会先改 package.json
   // 版本号，而 package-lock.json 未同步，npm ci 会因“不一致”硬失败。install 仍会
   // 依据 lock 解析已锁定版本，同时容忍版本号字段差异，并触发原生模块编译。
+  // shell:true —— Windows 下 Node 20+ 直接 spawn npm.cmd 会 EINVAL，须经 shell。
   log('安装生产依赖（npm install --omit=dev，含平台原生模块）');
   execFileSync(
-    process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    'npm',
     ['install', '--omit=dev', '--no-audit', '--no-fund'],
-    { cwd: backendDir, stdio: 'inherit' },
+    { cwd: backendDir, stdio: 'inherit', shell: true },
   );
 }
 
