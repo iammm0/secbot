@@ -1,0 +1,17 @@
+{
+  "name": "secbot-desktop",
+  "version": "2.0.0-b2",
+  "private": true,
+  "description": "Secbot 桌面端（Tauri v2，复用 web 前端 + 本地 secbot-server sidecar）",
+  "scripts": {
+    "build:deps": "npm --prefix .. run build && npm --prefix .. run build:web",
+    "prepare-backend": "node scripts/prepare-backend.mjs",
+    "dev": "npm run build:deps && tauri dev",
+    "build": "npm run build:deps && npm run prepare-backend && tauri build",
+    "icon": "tauri icon ../assets/secbot-main.png",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

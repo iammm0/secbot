@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secbot</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        width: 100%;
+        background: #0b0e14;
+        color: #e6e6e6;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+        overflow: hidden;
+      }
+      .wrap {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        user-select: none;
+      }
+      .logo {
+        font-size: 40px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        background: linear-gradient(90deg, #4f9cf9, #34d399);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .spinner {
+        width: 34px;
+        height: 34px;
+        border: 3px solid rgba(255, 255, 255, 0.12);
+        border-top-color: #4f9cf9;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .hint {
+        font-size: 13px;
+        color: #8a94a6;
+      }
+      .err {
+        font-size: 13px;
+        color: #f87171;
+        max-width: 420px;
+        text-align: center;
+        line-height: 1.6;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="logo">SECBOT</div>
+      <div class="spinner" id="spinner"></div>
+      <div class="hint" id="hint">正在启动本地服务…</div>
+      <div class="err" id="err"></div>
+    </div>
+    <script>
+      // 若 60s 后仍未被 Rust 侧 navigate 走，说明后端未就绪，给出提示
+      setTimeout(() => {
+        const s = document.getElementById("spinner");
+        const h = document.getElementById("hint");
+        const e = document.getElementById("err");
+        if (s) s.style.display = "none";
+        if (h) h.style.display = "none";
+        if (e) {
+          e.style.display = "block";
+          e.textContent =
+            "本地服务启动超时。请确认已执行 `npm run build:deps` 构建 server 与 web，或查看终端日志。";
+        }
+      }, 60000);
+    </script>
+  </body>
+</html>
