@@ -2,10 +2,10 @@ name: Release Pipeline
 
 # 与仓库既有 release.yml（tag 触发、仅打 npm tarball 到 Release）并存、互补。
 # 发布策略（遵守项目规则）：
-#   - 手动触发（workflow_dispatch）。
-#   - release_type=test（默认）：测试版 —— 版本号自动生成 X.Y.Z-beta.<run_number>，
-#     npm 打 `beta` dist-tag，GitHub Release 标记为 pre-release。
-#   - release_type=formal：正式版 —— 必须显式提供 version（如 2.0.0），
+#   - 触发方式：手动 workflow_dispatch，或推送 v* tag（tag 事件不依赖默认分支）。
+#   - test（默认 / 带预发布标识的 tag 如 v2.0.0-beta.1）：测试版 —— npm 打 `beta`
+#     dist-tag，GitHub Release 标记为 pre-release。
+#   - formal（release_type=formal 且填 version / 纯 vX.Y.Z tag）：正式版 ——
 #     npm 打 `latest`，GitHub Release 为正式发布。
 #
 # 产线：
@@ -13,6 +13,9 @@ name: Release Pipeline
 #   2) 桌面安装包（Tauri，自包含 Node 后端）→ macOS/Windows/Linux 矩阵 → 附加到同一 Release。
 
 on:
+  push:
+    tags:
+      - "rp-v*" # 专用前缀，避免与既有 release.yml 的 v*.*.* 触发冲突；tag 事件不依赖默认分支
   workflow_dispatch:
     inputs:
       release_type:
@@ -51,35 +54,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 校验参数（正式版必须显式给版本号）
-        run: |
-          RT="${{ github.event.inputs.release_type || 'test' }}"
-          if [ "$RT" = "formal" ] && [ -z "${{ github.event.inputs.version }}" ]; then
-            echo "::error::正式发布(formal)必须提供 version 输入（如 2.0.0）"
-            exit 1
-          fi
-
       - name: 计算版本号
         id: ver
         run: |
-          RT="${{ github.event.inputs.release_type || 'test' }}"
-          if [ "$RT" = "formal" ]; then
-            V="${{ github.event.inputs.version }}"
-            V="${V#v}"
-            NPM_TAG="latest"
-            PRE="false"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # tag 触发：tag 形如 rp-v2.0.0-beta.1 / rp-v2.0.0；含预发布标识(-)视为 test
+            TAG="${{ github.ref_name }}"
+            V="${TAG#rp-v}"; V="${V#v}"
+            TAG_OUT="$TAG"
+            if echo "$V" | grep -q '-'; then
+              RT="test"; NPM_TAG="beta"; PRE="true"
+            else
+              RT="formal"; NPM_TAG="latest"; PRE="false"
+            fi
           else
-            BASE=$(node -p "require('./package.json').version.split('-')[0]")
-            V="${BASE}-beta.${{ github.run_number }}"
-            NPM_TAG="beta"
-            PRE="true"
+            # 手动触发
+            RT="${{ github.event.inputs.release_type || 'test' }}"
+            if [ "$RT" = "formal" ]; then
+              if [ -z "${{ github.event.inputs.version }}" ]; then
+                echo "::error::正式发布(formal)必须提供 version 输入（如 2.0.0）"; exit 1
+              fi
+              V="${{ github.event.inputs.version }}"; V="${V#v}"
+              NPM_TAG="latest"; PRE="false"
+            else
+              BASE=$(node -p "require('./package.json').version.split('-')[0]")
+              V="${BASE}-beta.${{ github.run_number }}"
+              NPM_TAG="beta"; PRE="true"
+            fi
+            TAG_OUT="v$V"
           fi
           echo "release_type=$RT" >> "$GITHUB_OUTPUT"
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG_OUT" >> "$GITHUB_OUTPUT"
           echo "npm_tag=$NPM_TAG" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRE" >> "$GITHUB_OUTPUT"
-          echo "解析结果：type=$RT version=$V npm_tag=$NPM_TAG prerelease=$PRE"
+          echo "解析结果：event=${{ github.event_name }} type=$RT version=$V tag=$TAG_OUT npm_tag=$NPM_TAG prerelease=$PRE"
 
       - name: 创建 GitHub Release（若不存在）
         env:
