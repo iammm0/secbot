@@ -206,9 +206,10 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev patchelf
 
-      - name: 安装依赖（根 + desktop）
+      - name: 安装依赖（根 + web + desktop）
         run: |
           npm ci
+          npm run install:web
           npm --prefix desktop ci
 
       - name: 注入版本号
