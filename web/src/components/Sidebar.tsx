@@ -48,7 +48,15 @@ export function Sidebar({ onClear, onOpenSettings }: Props) {
       `}>
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-3 border-b border-white/5">
-          {!collapsed && <span className="text-primary font-mono text-sm font-bold">SecBot</span>}
+          <div className={`flex min-w-0 items-center ${collapsed ? 'justify-center' : 'gap-2'}`}>
+            <img
+              src="/secbot-icon.png"
+              alt=""
+              aria-hidden="true"
+              className="h-7 w-7 shrink-0 object-contain"
+            />
+            {!collapsed && <span className="truncate text-primary font-mono text-sm font-bold">SecBot</span>}
+          </div>
           <button onClick={() => setCollapsed(!collapsed)} className="text-text-dim hover:text-text text-sm">
             {collapsed ? '▶' : '◀'}
           </button>
