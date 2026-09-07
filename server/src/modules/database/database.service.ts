@@ -205,7 +205,9 @@ export class DatabaseService implements OnModuleInit {
     const limit = Math.min(Math.max(Number(opts.limit ?? 50), 1), 100);
     const offset = Math.max(Number(opts.offset ?? 0), 0);
     const totalRow = this.db
-      .prepare('SELECT COUNT(*) as c FROM (SELECT session_id FROM conversations GROUP BY session_id)')
+      .prepare(
+        'SELECT COUNT(*) as c FROM (SELECT session_id FROM conversations GROUP BY session_id)',
+      )
       .get() as { c: number };
     const rows = this.db
       .prepare(

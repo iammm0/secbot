@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpException, Logger, Param, Post, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Logger,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { mapExceptionToClientBody } from '../../common/errors/map-exception-to-client';
 import { ChatService } from './chat.service';

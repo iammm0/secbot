@@ -139,8 +139,7 @@ export class NmapScanTool extends BaseTool {
             phase: lastProgress?.phase ?? 'waiting',
             progress: lastProgress?.progress,
             message: 'no nmap output for over 2 minutes',
-            hint:
-              'Process is still alive, but the scan may be blocked on network timeouts. Consider narrower ports, -Pn only when needed, or a lower timeout.',
+            hint: 'Process is still alive, but the scan may be blocked on network timeouts. Consider narrower ports, -Pn only when needed, or a lower timeout.',
           });
         } else if (outputAge > 30_000) {
           emitProgress({

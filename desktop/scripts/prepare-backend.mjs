@@ -18,6 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, rmSync, copyFileSync, chmodSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcTauri = resolve(here, '..', 'src-tauri'); // desktop/src-tauri
@@ -68,10 +69,17 @@ function assembleBackend() {
   // 依据 lock 解析已锁定版本，同时容忍版本号字段差异，并触发原生模块编译。
   // shell:true —— Windows 下 Node 20+ 直接 spawn npm.cmd 会 EINVAL，须经 shell。
   log('安装生产依赖（npm install --omit=dev，含平台原生模块）');
+  const npmCacheDir = process.env.npm_config_cache || join(tmpdir(), 'secbot-desktop-npm-cache');
+  mkdirSync(npmCacheDir, { recursive: true });
   execFileSync(
     'npm',
     ['install', '--omit=dev', '--no-audit', '--no-fund'],
-    { cwd: backendDir, stdio: 'inherit', shell: true },
+    {
+      cwd: backendDir,
+      stdio: 'inherit',
+      shell: true,
+      env: { ...process.env, npm_config_cache: npmCacheDir },
+    },
   );
 }
 
