@@ -1,0 +1,253 @@
+name: Release Pipeline
+
+# 与仓库既有 release.yml（tag 触发、仅打 npm tarball 到 Release）并存、互补。
+# 发布策略（遵守项目规则）：
+#   - 触发方式：手动 workflow_dispatch，或推送 v* tag（tag 事件不依赖默认分支）。
+#   - test（默认 / 带预发布标识的 tag 如 v2.0.0-beta.1）：测试版 —— npm 打 `beta`
+#     dist-tag，GitHub Release 标记为 pre-release。
+#   - formal（release_type=formal 且填 version / 纯 vX.Y.Z tag）：正式版 ——
+#     npm 打 `latest`，GitHub Release 为正式发布。
+#
+# 产线：
+#   1) npm 包 @<owner>/secbot（含 server + TUI + web + CLI）→ 发布到 GitHub Packages。
+#   2) 桌面安装包（Tauri，自包含 Node 后端）→ macOS/Windows/Linux 矩阵 → 附加到同一 Release。
+
+on:
+  push:
+    tags:
+      - "rp-v*" # 专用前缀，避免与既有 release.yml 的 v*.*.* 触发冲突；tag 事件不依赖默认分支
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "发布类型：test=测试版(beta/pre-release)；formal=正式版(需填 version)"
+        type: choice
+        options: [test, formal]
+        default: test
+      version:
+        description: "正式版本号，如 2.0.0（仅 formal 必填；test 忽略，自动生成 X.Y.Z-beta.<run_number>）"
+        required: false
+        type: string
+  # 如需“每隔一段时间自动发测试版”，取消下方注释即可（当前按选择为仅手动触发）。
+  # schedule:
+  #   - cron: "0 2 * * 1"  # 每周一 02:00 UTC
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 计算版本号、创建（或复用）GitHub Release
+  # ---------------------------------------------------------------------------
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      npm_tag: ${{ steps.ver.outputs.npm_tag }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
+      release_type: ${{ steps.ver.outputs.release_type }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 计算版本号
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # tag 触发：tag 形如 rp-v2.0.0-beta.1 / rp-v2.0.0；含预发布标识(-)视为 test
+            TAG="${{ github.ref_name }}"
+            V="${TAG#rp-v}"; V="${V#v}"
+            TAG_OUT="$TAG"
+            if echo "$V" | grep -q '-'; then
+              RT="test"; NPM_TAG="beta"; PRE="true"
+            else
+              RT="formal"; NPM_TAG="latest"; PRE="false"
+            fi
+          else
+            # 手动触发
+            RT="${{ github.event.inputs.release_type || 'test' }}"
+            if [ "$RT" = "formal" ]; then
+              if [ -z "${{ github.event.inputs.version }}" ]; then
+                echo "::error::正式发布(formal)必须提供 version 输入（如 2.0.0）"; exit 1
+              fi
+              V="${{ github.event.inputs.version }}"; V="${V#v}"
+              NPM_TAG="latest"; PRE="false"
+            else
+              BASE=$(node -p "require('./package.json').version.split('-')[0]")
+              V="${BASE}-beta.${{ github.run_number }}"
+              NPM_TAG="beta"; PRE="true"
+            fi
+            TAG_OUT="v$V"
+          fi
+          echo "release_type=$RT" >> "$GITHUB_OUTPUT"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG_OUT" >> "$GITHUB_OUTPUT"
+          echo "npm_tag=$NPM_TAG" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRE" >> "$GITHUB_OUTPUT"
+          echo "解析结果：event=${{ github.event_name }} type=$RT version=$V tag=$TAG_OUT npm_tag=$NPM_TAG prerelease=$PRE"
+
+      - name: 创建 GitHub Release（若不存在）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，复用。"
+          else
+            FLAGS=""
+            if [ "${{ steps.ver.outputs.prerelease }}" = "true" ]; then FLAGS="--prerelease"; fi
+            gh release create "$TAG" $FLAGS \
+              --title "Secbot ${{ steps.ver.outputs.version }}" \
+              --notes "自动构建发布（${{ steps.ver.outputs.release_type }}）。含 npm 包（GitHub Packages）与桌面安装包（macOS / Windows / Linux）。"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # npm 包：server + TUI + web + CLI，发布到 GitHub Packages
+  # ---------------------------------------------------------------------------
+  npm-package:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@${{ github.repository_owner }}"
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 注入版本号
+        run: node scripts/set-release-version.mjs "${{ needs.prepare.outputs.version }}"
+
+      - name: 构建 + 打包 + 健康校验
+        run: npm run release:verify
+
+      - name: 改名为 GitHub Packages 作用域
+        run: node scripts/apply-github-packages-name.js
+
+      - name: 打包发布 tarball
+        id: pack
+        run: |
+          FILE=$(npm pack --silent 2>/dev/null | tail -n1)
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          echo "生成 tarball: $FILE"
+
+      - name: 发布到 GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish "${{ steps.pack.outputs.file }}" --tag "${{ needs.prepare.outputs.npm_tag }}"
+
+      - name: 上传 tarball 到 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ needs.prepare.outputs.tag }}" "${{ steps.pack.outputs.file }}" --clobber
+
+      - name: 存档 tarball 为构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: ${{ steps.pack.outputs.file }}
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 桌面安装包：Tauri 多平台矩阵（自包含 Node 后端）
+  # ---------------------------------------------------------------------------
+  desktop:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            label: macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            label: macos-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: windows-x64
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            label: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust 构建缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: 安装 Linux 系统依赖（仅 Ubuntu）
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential curl wget file \
+            libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+
+      - name: 安装依赖（根 + web + desktop）
+        run: |
+          npm ci
+          npm run install:web
+          npm --prefix desktop ci
+
+      - name: 注入版本号
+        run: node scripts/set-release-version.mjs "${{ needs.prepare.outputs.version }}"
+
+      - name: 构建桌面安装包
+        env:
+          SECBOT_TARGET_TRIPLE: ${{ matrix.target }}
+        run: npm --prefix desktop run build
+
+      - name: 收集并上传安装包到 Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          BUNDLE="desktop/src-tauri/target/release/bundle"
+          files=()
+          while IFS= read -r f; do files+=("$f"); done < <(find "$BUNDLE" -type f \
+            \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" \
+               -o -name "*.deb" -o -name "*.AppImage" -o -name "*.rpm" \) 2>/dev/null)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::未找到桌面安装包产物于 $BUNDLE"
+            find "$BUNDLE" -maxdepth 2 -type d 2>/dev/null || true
+            exit 1
+          fi
+          printf '将上传：%s\n' "${files[@]}"
+          gh release upload "$TAG" "${files[@]}" --clobber
+
+      - name: 存档安装包为构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.label }}
+          path: |
+            desktop/src-tauri/target/release/bundle/**/*.dmg
+            desktop/src-tauri/target/release/bundle/**/*.msi
+            desktop/src-tauri/target/release/bundle/**/*.exe
+            desktop/src-tauri/target/release/bundle/**/*.deb
+            desktop/src-tauri/target/release/bundle/**/*.AppImage
+            desktop/src-tauri/target/release/bundle/**/*.rpm
+          if-no-files-found: warn

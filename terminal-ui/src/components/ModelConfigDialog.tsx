@@ -199,7 +199,10 @@ export function ModelConfigDialog() {
   }, [view, detailProvider]);
 
   useEffect(() => {
-    if (view !== 'detail' || !detailProvider) {
+    // Keep the freshly discovered list alive while the model picker is open.
+    // The picker is entered directly from detail (and after API-key discovery),
+    // so clearing on this transition made it render "共 0 个".
+    if ((view !== 'detail' && view !== 'model_select') || !detailProvider) {
       setDiscoveredModels([]);
       setDiscoveredModelsError(null);
       return;

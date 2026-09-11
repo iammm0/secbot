@@ -1,0 +1,7 @@
+# Rust / Tauri 构建产物
+/target
+# Tauri 自动生成的 schema
+/gen/schemas
+# prepare-backend.mjs 装配的自包含后端资源与随包 Node 运行时（打包时生成）
+/backend
+/binaries

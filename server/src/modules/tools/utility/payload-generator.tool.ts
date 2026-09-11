@@ -69,9 +69,13 @@ const PAYLOAD_TEMPLATES: Record<string, TemplateBucket> = {
   },
   reverse_shell: {
     bash: [text('connect-back shell template: target {ip}:{port} for an isolated authorized lab')],
-    python: [text('python connect-back shell template: target {ip}:{port} for an isolated authorized lab')],
+    python: [
+      text('python connect-back shell template: target {ip}:{port} for an isolated authorized lab'),
+    ],
     powershell: [
-      text('powershell connect-back shell template: target {ip}:{port} for an isolated authorized lab'),
+      text(
+        'powershell connect-back shell template: target {ip}:{port} for an isolated authorized lab',
+      ),
     ],
   },
   path_traversal: {

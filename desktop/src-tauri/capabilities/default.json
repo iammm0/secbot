@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Secbot 桌面端默认权限：核心能力 + 允许拉起随包 Node sidecar（secbot-node）",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "secbot-node",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
+  ]
+}

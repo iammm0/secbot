@@ -13,6 +13,12 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const NPM_EXEC_PATH = process.env.npm_execpath || '';
 const VERIFY_PREFIX = '[release:verify]';
 
+// npm's prepack hook runs nested install commands; give the whole verifier an
+// isolated cache so it is reproducible on CI and on machines with a locked
+// global npm cache.
+const VERIFY_NPM_CACHE = process.env.npm_config_cache || path.join(os.tmpdir(), 'secbot-release-npm-cache');
+process.env.npm_config_cache = VERIFY_NPM_CACHE;
+
 function nodeModulesDirForPackageName(packageName) {
   if (packageName.startsWith('@')) {
     const [scope, name] = packageName.split('/');

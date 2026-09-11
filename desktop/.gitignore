@@ -1,0 +1,3 @@
+# Secbot 桌面端依赖与产物
+node_modules/
+dist/
