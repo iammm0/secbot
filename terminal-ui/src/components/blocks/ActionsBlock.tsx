@@ -1,11 +1,10 @@
 /**
- * 执行块 — 工具调用列表（有 actions 时用 ActionItem 逐条渲染）
+ * 执行块 — 工具调用一行展示，过程信息压低，不与观察块抢 ▸ 前缀
  *
- * 重构说明（Layer 4 - 执行/工具调用）：
- *  - 标题行：`⚙ 执行`（primary/green，bold）
- *  - 有 actions 时：paddingLeft={2} + ActionItem 列表
- *  - 无 actions 时：paddingLeft={2} 显示 body 文本（去掉 renderMarkdown）
- *  - marginBottom 统一改为 1
+ *  - 进行中：`~ tool · arg`
+ *  - 完成：  `✓ tool · arg`
+ *  - 失败：  `✗ tool · arg`
+ *  - 有 actions 列表时仍用 ActionItem 逐条渲染
  */
 import React from "react";
 import { Box, Text } from "ink";
@@ -20,15 +19,22 @@ interface ActionsBlockProps {
 
 export function ActionsBlock({ block, noMargin }: ActionsBlockProps) {
   const theme = useTheme();
-  const title = block.title ?? "执行（原始）";
-  const body = block.body || " ";
-  const hasActions = block.actions && block.actions.length > 0;
+  const title = block.title ?? "工具调用";
+  const errorLine = (block.body || "").trim();
+  const hasActions = Boolean(block.actions && block.actions.length > 0);
+  const status = block.actionStatus ?? (errorLine ? "error" : "done");
+  const icon = status === "running" ? "~" : status === "error" ? "✗" : "✓";
+  const color =
+    status === "error"
+      ? theme.error
+      : status === "running"
+        ? theme.warning
+        : theme.textMuted;
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
-      <Text color={theme.textMuted} dimColor>
-        {"▸ "}
-        {title}
+      <Text color={color} dimColor={status !== "error"} bold={status === "error"}>
+        {icon} {title}
       </Text>
 
       {hasActions ? (
@@ -43,13 +49,11 @@ export function ActionsBlock({ block, noMargin }: ActionsBlockProps) {
             />
           ))}
         </Box>
-      ) : (
+      ) : errorLine ? (
         <Box paddingLeft={3}>
-          <Text color={theme.textMuted} dimColor>
-            {body}
-          </Text>
+          <Text color={theme.error}>{errorLine}</Text>
         </Box>
-      )}
+      ) : null}
     </Box>
   );
 }

@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { Box, Text, useInput } from "ink";
 import { MainContent } from "../MainContent.js";
+import type { FoldableBlockInfo } from "../MainContent.js";
 import { SlashSuggestions } from "../components/SlashSuggestions.js";
 import { useMouseScroll } from "../hooks/useMouseScroll.js";
 import { getMouseEmitter, sanitizeInputValue } from "../hooks/mouseFilter.js";
@@ -43,6 +44,11 @@ import {
 } from "../components/TaskPanel.js";
 import { getBaseUrl } from "../config.js";
 import { APP_VERSION } from "../version.js";
+import {
+  MESSAGE_PLACEHOLDER,
+  PAUSE_HINT,
+  PAUSED_PLACEHOLDER,
+} from "../copy.js";
 
 const TASK_PANEL_MIN_COLUMNS = 112;
 const TASK_PANEL_WIDE_COLUMNS = 132;
@@ -67,6 +73,10 @@ export function SessionView({
   const [taskPanelOverride, setTaskPanelOverride] = useState<boolean | null>(
     null,
   );
+  const [expandedOverride, setExpandedOverride] = useState<
+    Record<string, boolean>
+  >({});
+  const foldableBlocksRef = useRef<FoldableBlockInfo[]>([]);
   const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
   const scrollableHeightRef = useRef(1);
@@ -277,6 +287,27 @@ export function SessionView({
     setTaskPanelOverride((current) => !(current ?? true));
   }, [taskPanelAvailable, toast]);
 
+  const handleFoldableBlocks = useCallback((list: FoldableBlockInfo[]) => {
+    foldableBlocksRef.current = list;
+  }, []);
+
+  const toggleNearestFoldable = useCallback(() => {
+    const list = foldableBlocksRef.current;
+    if (list.length === 0) return;
+    const viewEnd = scrollOffset + scrollableHeight;
+    const visible = list.filter(
+      (b) => b.lineEnd > scrollOffset && b.lineStart < viewEnd,
+    );
+    const pool = visible.length > 0 ? visible : list;
+    const target = pool[pool.length - 1];
+    setExpandedOverride((prev) => {
+      const current = Object.prototype.hasOwnProperty.call(prev, target.id)
+        ? prev[target.id]
+        : target.defaultExpanded;
+      return { ...prev, [target.id]: !current };
+    });
+  }, [scrollOffset, scrollableHeight]);
+
   const removeCtrlTTextInputEcho = useCallback((before: string) => {
     setTimeout(() => {
       setInputValue((current) => (current === `${before}t` ? before : current));
@@ -398,6 +429,16 @@ export function SessionView({
           );
         },
       }),
+      register({
+        title: "展开或折叠当前输出",
+        value: "session.toggle.output",
+        category: "会话",
+        keybind: "output_expand",
+        onSelect: ({ close }) => {
+          toggleNearestFoldable();
+          close();
+        },
+      }),
     ];
     return () => unregs.forEach((u) => u());
   }, [
@@ -406,6 +447,7 @@ export function SessionView({
     scrollableHeight,
     scrollToNextBlock,
     toggleTaskPanel,
+    toggleNearestFoldable,
     newSession,
     switchSession,
     sessionList,
@@ -422,6 +464,19 @@ export function SessionView({
     if (keybind.match("task_panel_toggle", evt)) {
       removeCtrlTTextInputEcho(inputValueRef.current);
       toggleTaskPanel();
+      return;
+    }
+    if (keybind.match("output_expand", evt)) {
+      const isBareO = evt.name === "o" && !evt.ctrl && !evt.shift;
+      if (isBareO && inputValueRef.current.length > 0) {
+        return;
+      }
+      if (isBareO) {
+        setTimeout(() => {
+          setInputValue((current) => (current === "o" ? "" : current));
+        }, 0);
+      }
+      toggleNearestFoldable();
       return;
     }
     if (keybind.match("agent_switch", evt)) {
@@ -699,6 +754,8 @@ export function SessionView({
             currentSentAt={currentSentAt}
             currentCompletedAt={currentCompletedAt}
             currentRoundChatMode={currentRoundChatMode}
+            expandedOverride={expandedOverride}
+            onFoldableBlocks={handleFoldableBlocks}
           />
         </Box>
         {taskPanelVisible ? (
@@ -738,10 +795,10 @@ export function SessionView({
         onSubmit={handleComposerSubmit}
         placeholder={
           streaming
-            ? "Esc 暂停当前任务"
+            ? PAUSE_HINT
             : paused
-              ? "补充说明并继续原任务"
-              : "Ask anything..."
+              ? PAUSED_PLACEHOLDER
+              : MESSAGE_PLACEHOLDER
         }
       />
 
@@ -759,6 +816,7 @@ export function SessionView({
           totalLines > scrollableHeight &&
           scrollOffset < totalLines - scrollableHeight
         }
+        expandLabel={keybind.print("output_expand")}
         version={APP_VERSION}
       />
     </Box>

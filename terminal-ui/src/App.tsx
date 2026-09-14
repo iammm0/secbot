@@ -20,6 +20,7 @@ import { ToolsDialog } from './components/ToolsDialog.js';
 import { HELP_TOOLS_TEXT } from './slash.js';
 import { HomeView } from './views/HomeView.js';
 import { SessionView } from './views/SessionView.js';
+import { NO_SKILLS } from './copy.js';
 
 interface AppProps {
   columns?: number;
@@ -229,7 +230,7 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
               title="Skills 列表"
               fetchContent={() =>
                 api.get<{ skills: Array<{ slug: string; description: string; scope: string }> }>('/api/skills').then((r) =>
-                  (r.skills ?? []).map((skill) => `${skill.slug} [${skill.scope}] — ${skill.description}`).join('\n') || 'No skills found.'
+                  (r.skills ?? []).map((skill) => `${skill.slug} [${skill.scope}] — ${skill.description}`).join('\n') || NO_SKILLS
                 )
               }
             />

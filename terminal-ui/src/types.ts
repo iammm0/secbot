@@ -228,8 +228,20 @@ export interface ContentBlock {
   id: string;
   type: BlockRenderType;
   title?: string;
-  /** Markdown 正文，由 MD 渲染组件渲染 */
+  /** Markdown 正文，由 MD 渲染组件渲染（当前展示文本，折叠后为预览） */
   body: string;
+  /** 可折叠块的原文；展开时替换 body */
+  fullBody?: string;
+  /** 可折叠块的预览（含「另有 N 行已折叠」） */
+  previewBody?: string;
+  /** 折叠隐藏的行数 */
+  hiddenLines?: number;
+  /** 是否可用快捷键展开/收起 */
+  foldable?: boolean;
+  /** 无用户覆盖时是否展开（思考/报告默认展开，观察默认收起） */
+  defaultExpanded?: boolean;
+  /** 工具调用块的执行状态 */
+  actionStatus?: "running" | "done" | "error";
   /** 规划块专用：待办列表，有则用 TodoList 渲染 */
   todos?: TodoItemData[];
   /** 执行块专用：工具列表，有则用 ActionItem 渲染 */

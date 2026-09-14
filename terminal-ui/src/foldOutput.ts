@@ -72,3 +72,49 @@ export function foldBody(body: string, maxLines = COLLAPSED_PREVIEW_LINES): stri
   if (!preview) return `… 另有 ${hiddenLines} 行已折叠`;
   return `${preview}\n… 另有 ${hiddenLines} 行已折叠`;
 }
+
+export interface FoldMeta {
+  body: string;
+  fullBody?: string;
+  previewBody?: string;
+  hiddenLines?: number;
+  foldable?: boolean;
+  defaultExpanded?: boolean;
+}
+
+export function makeFoldable(
+  full: string,
+  options: { maxLines?: number; defaultExpanded?: boolean } = {},
+): FoldMeta {
+  const maxLines = options.maxLines ?? COLLAPSED_PREVIEW_LINES;
+  const defaultExpanded = options.defaultExpanded ?? false;
+  const folded = foldText(full, maxLines);
+  if (!folded.truncated) {
+    return { body: full };
+  }
+  const previewBody = foldBody(full, maxLines);
+  return {
+    body: defaultExpanded ? full : previewBody,
+    fullBody: full,
+    previewBody,
+    hiddenLines: folded.hiddenLines,
+    foldable: true,
+    defaultExpanded,
+  };
+}
+
+export function displayBodyForFold(
+  block: {
+    id: string;
+    body: string;
+    fullBody?: string;
+    previewBody?: string;
+    foldable?: boolean;
+    defaultExpanded?: boolean;
+  },
+  expandedOverride: Record<string, boolean>,
+): string {
+  if (!block.foldable || !block.fullBody) return block.body;
+  const expanded = expandedOverride[block.id] ?? block.defaultExpanded ?? false;
+  return expanded ? block.fullBody : (block.previewBody ?? block.body);
+}

@@ -13,6 +13,12 @@ import { useCommand, useExit } from '../contexts/index.js';
 import { SlashSuggestions } from '../components/SlashSuggestions.js';
 import { APP_VERSION } from '../version.js';
 import { getBaseUrl } from '../config.js';
+import {
+  HOME_CHROME,
+  HOME_HINT,
+  LOCAL_WORKSPACE,
+  MESSAGE_PLACEHOLDER,
+} from '../copy.js';
 
 /** 标题式 ASCII 艺术字 — 纯绿色粗体 Logo */
 const TITLE_ASCII = (() => {
@@ -152,7 +158,7 @@ export function HomeView() {
                 }
                 handleSubmit();
               }}
-              placeholder="Ask anything... 如 '执行安全扫描'"
+              placeholder={MESSAGE_PLACEHOLDER}
             />
           </Box>
         </Box>
@@ -174,8 +180,8 @@ export function HomeView() {
       {/* 建议行 */}
       <Box flexShrink={0} alignItems="center" justifyContent="center" width="100%" marginTop={1}>
         <Box flexDirection="row" gap={1}>
-          <Text color={theme.secondary}>agent</Text>
-          <Text color={theme.textMuted}>· / commands · {backendLabel}</Text>
+          <Text color={theme.secondary}>{HOME_CHROME}</Text>
+          <Text color={theme.textMuted}> · {backendLabel}</Text>
         </Box>
       </Box>
 
@@ -185,9 +191,7 @@ export function HomeView() {
       <Box flexShrink={0} alignItems="center" justifyContent="center" width="100%">
         <Text color={theme.text}>
           <Text color={theme.warning}>• </Text>
-          <Text color={theme.text}>
-            Tip 直接输入问题或任务，Agent 会自动判断问答、追问或执行
-          </Text>
+          <Text color={theme.text}>{HOME_HINT}</Text>
         </Text>
       </Box>
 
@@ -201,7 +205,7 @@ export function HomeView() {
         paddingTop={1}
         paddingBottom={1}
       >
-        <Text color={theme.textMuted} wrap="truncate">SECBOT · local workspace</Text>
+        <Text color={theme.textMuted} wrap="truncate">SECBOT · {LOCAL_WORKSPACE}</Text>
         <Text color={theme.textMuted}>{APP_VERSION}</Text>
       </Box>
     </Box>

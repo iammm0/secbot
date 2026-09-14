@@ -19,6 +19,8 @@ import { streamStateToBlocks } from "./contentBlocks.js";
 import { DiscriminatorPool } from "./blockDiscriminators/index.js";
 import { ContentBlock } from "./components/ContentBlock.js";
 import { TRANSIENT_TOOLS } from "./streamConstants.js";
+import { displayBodyForFold } from "./foldOutput.js";
+import { EMPTY_OUTPUT } from "./copy.js";
 
 // ─── 常量 ──────────────────────────────────────────────────────────────────────
 
@@ -108,7 +110,6 @@ function wrappedRows(text: string, width: number): number {
 }
 
 function estimateBlockRows(block: ContentBlockType, contentWidth: number): number {
-  const baseRows = Math.max(1, block.lineEnd - block.lineStart);
   const titleRows = block.title ? 1 : 0;
   const body = block.body || " ";
 
@@ -126,14 +127,34 @@ function estimateBlockRows(block: ContentBlockType, contentWidth: number): numbe
       wrappedRows(body, contentWidth) +
       Math.max(0, block.todos?.length ?? 0);
   } else if (block.type === "actions") {
-    estimated = titleRows + wrappedRows(body, Math.max(1, contentWidth - 2));
+    const extra = (block.body || "").trim();
+    estimated = titleRows + (extra ? wrappedRows(extra, Math.max(1, contentWidth - 2)) : 0);
   } else if (block.type === "browser") {
     estimated =
       titleRows +
       Math.max(1, block.browserSteps?.length ?? wrappedRows(body, contentWidth));
   }
 
-  return Math.max(baseRows, estimated);
+  return Math.max(1, estimated);
+}
+
+function applyFoldState(
+  blocks: ContentBlockType[],
+  expandedOverride: Record<string, boolean>,
+): ContentBlockType[] {
+  return blocks.map((block) => {
+    if (!block.foldable || !block.fullBody) return block;
+    const nextBody = displayBodyForFold(block, expandedOverride);
+    if (nextBody === block.body) return block;
+    return { ...block, body: nextBody };
+  });
+}
+
+export interface FoldableBlockInfo {
+  id: string;
+  lineStart: number;
+  lineEnd: number;
+  defaultExpanded: boolean;
 }
 
 function relayoutBlocksForWidth(
@@ -178,6 +199,10 @@ interface MainContentProps {
   currentCompletedAt?: number;
   /** 当前轮次请求模式（ask 下与历史项各自 chatMode 一起参与去重渲染） */
   currentRoundChatMode?: ChatMode;
+  /** 用户对可折叠块的展开覆盖（id → 是否展开） */
+  expandedOverride?: Record<string, boolean>;
+  /** 布局完成后回传可折叠块，供快捷键切换 */
+  onFoldableBlocks?: (blocks: FoldableBlockInfo[]) => void;
 }
 
 // ─── 组件 ──────────────────────────────────────────────────────────────────────
@@ -197,6 +222,8 @@ export function MainContent({
   currentSentAt = 0,
   currentCompletedAt = 0,
   currentRoundChatMode = "agent",
+  expandedOverride = {},
+  onFoldableBlocks,
 }: MainContentProps) {
   const [dismissedTransientTools, setDismissedTransientTools] = useState<
     Set<string>
@@ -314,6 +341,11 @@ export function MainContent({
     currentRoundChatMode,
   ]);
 
+  const foldedBlocks = useMemo(
+    () => applyFoldState(rawBlocks, expandedOverride),
+    [rawBlocks, expandedOverride],
+  );
+
   const reserveScrollbarGutter = showScrollbar;
   const contentColumnWidth = Math.max(
     16,
@@ -321,9 +353,23 @@ export function MainContent({
   );
 
   const blocks = useMemo(
-    () => relayoutBlocksForWidth(rawBlocks, contentColumnWidth),
-    [rawBlocks, contentColumnWidth],
+    () => relayoutBlocksForWidth(foldedBlocks, contentColumnWidth),
+    [foldedBlocks, contentColumnWidth],
   );
+
+  useEffect(() => {
+    if (!onFoldableBlocks) return;
+    onFoldableBlocks(
+      blocks
+        .filter((b) => b.foldable && b.fullBody)
+        .map((b) => ({
+          id: b.id,
+          lineStart: b.lineStart,
+          lineEnd: b.lineEnd,
+          defaultExpanded: Boolean(b.defaultExpanded),
+        })),
+    );
+  }, [blocks, onFoldableBlocks]);
 
   // ── 滚动计算 ──────────────────────────────────────────────────────────────────
 
@@ -442,7 +488,7 @@ export function MainContent({
           height={scrollableHeight}
         >
           {blocks.length === 0 ? (
-            <Text color="dim">暂无输出，输入消息或斜杠命令开始</Text>
+            <Text color="dim">{EMPTY_OUTPUT}</Text>
           ) : (
             <>
               {/* 顶部空白占位（虚拟滚动） */}

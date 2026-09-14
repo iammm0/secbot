@@ -23,7 +23,6 @@ export function SummaryBlock({ title, body, noMargin, bold }: SummaryBlockProps)
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
       {title ? (
         <Text color={theme.success} bold>
-          {"= "}
           {title}
         </Text>
       ) : null}

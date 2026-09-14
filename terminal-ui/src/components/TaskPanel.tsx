@@ -1,6 +1,15 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { useTheme } from "../contexts/ThemeContext.js";
+import {
+  CONTEXT,
+  MORE_ITEMS,
+  NO_TASKS,
+  NO_TOOLS,
+  PLAN,
+  TASKS,
+  TOOLS,
+} from "../copy.js";
 import type {
   ContextUsageSnapshot,
   StreamState,
@@ -194,13 +203,13 @@ export function TaskPanel({ snapshot, width }: TaskPanelProps) {
       paddingRight={1}
     >
       <Text color={theme.success} bold wrap="truncate">
-        TASKS
+        {TASKS}
       </Text>
 
-      <SectionTitle>plan</SectionTitle>
+      <SectionTitle>{PLAN}</SectionTitle>
       {visibleTodos.length === 0 ? (
         <Text color={theme.textMuted} dimColor wrap="truncate">
-          no tasks yet
+          {NO_TASKS}
         </Text>
       ) : (
         visibleTodos.map((todo, index) => {
@@ -215,14 +224,14 @@ export function TaskPanel({ snapshot, width }: TaskPanelProps) {
       )}
       {hiddenTodos > 0 ? (
         <Text color={theme.textMuted} dimColor wrap="truncate">
-          ... +{hiddenTodos} more
+          {MORE_ITEMS(hiddenTodos)}
         </Text>
       ) : null}
 
-      <SectionTitle>tools</SectionTitle>
+      <SectionTitle>{TOOLS}</SectionTitle>
       {snapshot.tools.length === 0 ? (
         <Text color={theme.textMuted} dimColor wrap="truncate">
-          no tools yet
+          {NO_TOOLS}
         </Text>
       ) : (
         snapshot.tools.map((tool, index) => {
@@ -240,7 +249,7 @@ export function TaskPanel({ snapshot, width }: TaskPanelProps) {
         })
       )}
 
-      <SectionTitle>context</SectionTitle>
+      <SectionTitle>{CONTEXT}</SectionTitle>
       {usage ? (
         <>
           <Text color={ctxColor} wrap="truncate">

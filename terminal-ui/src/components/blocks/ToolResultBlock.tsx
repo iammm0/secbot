@@ -1,9 +1,10 @@
 /**
- * 工具结果块 — 工具执行结果专用展示
+ * 工具结果块 — 观察输出，标题 muted，正文 Markdown
  */
-import React from 'react';
-import { BlockCommon } from './BlockCommon.js';
-import { useTheme } from '../../contexts/ThemeContext.js';
+import React from "react";
+import { Box, Text } from "ink";
+import { useTheme } from "../../contexts/ThemeContext.js";
+import { renderMarkdown } from "../../renderMarkdown.js";
 
 interface ToolResultBlockProps {
   title?: string;
@@ -12,18 +13,28 @@ interface ToolResultBlockProps {
   isPlaceholder?: boolean;
 }
 
-export function ToolResultBlock({ title = '工具结果', body, noMargin, isPlaceholder: _isPlaceholder }: ToolResultBlockProps) {
+export function ToolResultBlock({
+  title = "观察",
+  body,
+  noMargin,
+  isPlaceholder,
+}: ToolResultBlockProps) {
   const theme = useTheme();
-  const head = title === '工具结果' ? `${title}（原始）` : title;
+  const rendered = isPlaceholder ? body || " " : renderMarkdown(body || " ");
+  const lines = rendered.split("\n");
+
   return (
-    <BlockCommon
-      title={`▸ ${head}`}
-      titleColor={theme.textMuted}
-      body={body}
-      bodyColor={theme.textMuted}
-      noMargin={noMargin}
-      accentBar={false}
-      accentColor={theme.textMuted}
-    />
+    <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
+      <Text color={theme.textMuted} dimColor>
+        {title}
+      </Text>
+      <Box flexDirection="column" paddingLeft={2}>
+        {lines.map((line, i) => (
+          <Text key={i} color={theme.textMuted} dimColor={Boolean(isPlaceholder)}>
+            {line || " "}
+          </Text>
+        ))}
+      </Box>
+    </Box>
   );
 }

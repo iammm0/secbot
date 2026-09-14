@@ -3,6 +3,19 @@ import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
 import { useTheme } from "../contexts/ThemeContext.js";
 import type { ContextUsageSnapshot } from "../types.js";
+import {
+  COMMANDS,
+  EXPAND_HINT,
+  PHASE_IDLE,
+  PHASE_PAUSED,
+  PHASE_RUNNING,
+  SCROLL,
+  TASKS,
+  TASKS_NARROW,
+  TASKS_OFF,
+  TASKS_ON,
+  localizePhase,
+} from "../copy.js";
 
 function formatTokenCount(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0";
@@ -32,9 +45,9 @@ function formatContextUsage(usage: ContextUsageSnapshot | null): string {
 }
 
 function phaseLabel(streaming: boolean, paused?: boolean, phase?: string, detail?: string): string {
-  if (paused && !streaming) return "paused";
-  if (!streaming) return "idle";
-  const raw = detail?.trim() || phase?.trim() || "running";
+  if (paused && !streaming) return PHASE_PAUSED;
+  if (!streaming) return PHASE_IDLE;
+  const raw = localizePhase(detail?.trim() || phase?.trim() || PHASE_RUNNING);
   return raw.length > 32 ? `${raw.slice(0, 31)}...` : raw;
 }
 
@@ -144,6 +157,7 @@ interface BottomStatusLineProps {
   taskPanelAvailable: boolean;
   showUpIndicator: boolean;
   showDownIndicator: boolean;
+  expandLabel: string;
   version?: string;
 }
 
@@ -158,6 +172,7 @@ export function BottomStatusLine({
   taskPanelAvailable,
   showUpIndicator,
   showDownIndicator,
+  expandLabel,
   version,
 }: BottomStatusLineProps) {
   const theme = useTheme();
@@ -181,9 +196,14 @@ export function BottomStatusLine({
     >
       <Box flexShrink={1} minWidth={0}>
         <Text color={theme.textMuted} wrap="truncate">
-          {range} · {arrows} · {pageUpLabel}/{pageDownLabel} scroll · tasks{" "}
-          {taskPanelAvailable ? (taskPanelVisible ? "on" : "off") : "narrow"}{" "}
-          {taskPanelLabel} · / commands
+          {range} · {arrows} · {pageUpLabel}/{pageDownLabel} {SCROLL} · {TASKS}
+          {" "}
+          {taskPanelAvailable
+            ? taskPanelVisible
+              ? TASKS_ON
+              : TASKS_OFF
+            : TASKS_NARROW}{" "}
+          {taskPanelLabel} · {expandLabel} {EXPAND_HINT} · / {COMMANDS}
         </Text>
       </Box>
       {version ? (

@@ -19,18 +19,16 @@ import {
   EXPLORING_TOOLS,
   TERMINAL_TOOLS,
 } from "./streamConstants.js";
-import { COLLAPSED_PREVIEW_LINES, foldBody, formatToolArg, peekableOutput } from "./foldOutput.js";
+import { COLLAPSED_PREVIEW_LINES, formatToolArg, makeFoldable, peekableOutput } from "./foldOutput.js";
+import { ANSWER_TITLE, REPORT_TITLE } from "./copy.js";
 
 // ─── 常量 ──────────────────────────────────────────────────────────────────────
-
-/** 执行结果类块最大展示行数，超出省略，避免刷屏 */
-const MAX_RESULT_LINES = 24;
 
 /** 工具观察默认只露几行，和 Cursor 一样折叠长输出 */
 const MAX_OBSERVATION_LINES = COLLAPSED_PREVIEW_LINES;
 
-/** 安全报告块最大行数（略宽于工具结果，仍防止刷屏） */
-const MAX_REPORT_LINES = 48;
+/** 安全报告折叠预览行数（展开后显示全文） */
+const MAX_REPORT_PREVIEW_LINES = 48;
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────
 
@@ -46,12 +44,8 @@ function blockLines(
   extraLines = 0,
 ): number {
   const bodyLines = body ? body.split("\n").length : 0;
-  return (title ? 1 : 0) + Math.max(1, bodyLines) + extraLines;
-}
-
-/** 截断超长正文，避免刷屏；工具/观察默认折叠为少量预览 */
-function truncateBody(body: string, maxLines: number): string {
-  return foldBody(body, maxLines);
+  const titleLines = title ? 1 : 0;
+  return Math.max(1, titleLines + bodyLines) + extraLines;
 }
 
 /** 将连接中断等模糊错误转为可读提示 */
@@ -200,21 +194,19 @@ export function streamStateToBlocks(
     title: string,
     body: string,
     extra?: Partial<
-      Pick<
-        ContentBlock,
-        "completedAt" | "durationMs" | "sentAt" | "resolvedType"
-      >
+      Omit<ContentBlock, "id" | "type" | "lineStart" | "lineEnd">
     >,
   ): void {
-    const lineCount = blockLines(title, body);
+    const displayBody = extra?.body ?? body;
+    const lineCount = blockLines(title, displayBody);
     blocks.push({
       id,
       type,
       title,
-      body,
       lineStart,
       lineEnd: lineStart + lineCount,
       ...extra,
+      body: displayBody,
     });
     lineStart += lineCount;
   }
@@ -222,8 +214,8 @@ export function streamStateToBlocks(
   // ── API 输出 ──────────────────────────────────────────────────────────────────
 
   if (apiOutput !== null) {
-    const body = truncateBody(apiOutput, MAX_RESULT_LINES);
-    addBlock("api", "api", "API", body);
+    const fold = makeFoldable(apiOutput, { defaultExpanded: false });
+    addBlock("api", "api", "API", fold.body, fold);
   }
 
   // ── 流式阶段指示（phase）────────────────────────────────────────────────────
@@ -327,11 +319,13 @@ export function streamStateToBlocks(
         const trimmed = extracted.trim();
         if (!trimmed || trimmed === "…") continue;
         if (timelineEmitted++ > 0) addVisualGap();
+        const fold = makeFoldable(extracted, { defaultExpanded: true });
         addBlock(
           item.id,
           "thought",
           item.title || "推理",
-          truncateBody(extracted, MAX_RESULT_LINES),
+          fold.body,
+          fold,
         );
         continue;
       }
@@ -344,18 +338,18 @@ export function streamStateToBlocks(
         const arg = formatToolArg(item.params);
         const toolLabel = item.tool || item.title || "工具调用";
         const title = arg ? `${toolLabel} · ${arg}` : toolLabel;
-        const statusLine =
+        const actionStatus =
           item.status === "done"
             ? item.success === false
-              ? "失败"
-              : "完成"
-            : "执行中";
-        const errorLine = item.error ? `\n${item.error}` : "";
+              ? "error"
+              : "done"
+            : "running";
         addBlock(
           item.id,
           "actions",
           title,
-          `${statusLine}${errorLine}`,
+          item.error?.trim() ?? "",
+          { actionStatus },
         );
         continue;
       }
@@ -391,25 +385,27 @@ export function streamStateToBlocks(
         const baseTitle = item.title
           || (item.tool ? `观察 · ${item.tool}` : "总结观察");
         const obsLabel = observationTitle(item.tool, item.iteration, baseTitle);
-        addBlock(
-          item.id,
-          "tool_result",
-          obsLabel,
-          foldBody(peekableOutput(item.body || "…") || item.body || "…", MAX_OBSERVATION_LINES),
-          { resolvedType: observationResolvedType(item.tool) },
-        );
+        const full =
+          peekableOutput(item.body || "…") || item.body || "…";
+        const fold = makeFoldable(full, {
+          maxLines: MAX_OBSERVATION_LINES,
+          defaultExpanded: false,
+        });
+        addBlock(item.id, "tool_result", obsLabel, fold.body, {
+          ...fold,
+          resolvedType: observationResolvedType(item.tool),
+        });
         continue;
       }
     }
 
     if (report?.trim()) {
       if (timelineEmitted > 0 || blocks.length > 0) addVisualGap();
-      addBlock(
-        "stream-report",
-        "report",
-        "安全报告",
-        truncateBody(report.trim(), MAX_REPORT_LINES),
-      );
+      const fold = makeFoldable(report.trim(), {
+        maxLines: MAX_REPORT_PREVIEW_LINES,
+        defaultExpanded: true,
+      });
+      addBlock("stream-report", "report", REPORT_TITLE, fold.body, fold);
     }
 
     for (const item of finals) {
@@ -418,7 +414,7 @@ export function streamStateToBlocks(
         addBlock(
           item.id,
           "summary",
-          item.title || "最终总结",
+          item.title || ANSWER_TITLE,
           item.body || "…",
           {
             completedAt: validCompletedAt,
@@ -431,12 +427,11 @@ export function streamStateToBlocks(
   } else {
     // 兼容旧结构：无 timeline 时退回到 content。
     if (report?.trim()) {
-      addBlock(
-        "stream-report",
-        "report",
-        "安全报告",
-        truncateBody(report.trim(), MAX_REPORT_LINES),
-      );
+      const fold = makeFoldable(report.trim(), {
+        maxLines: MAX_REPORT_PREVIEW_LINES,
+        defaultExpanded: true,
+      });
+      addBlock("stream-report", "report", REPORT_TITLE, fold.body, fold);
     }
     if (actions.length > 0) {
       const filtered = actions.filter(
@@ -447,11 +442,17 @@ export function streamStateToBlocks(
         const done = a.result !== undefined;
         const status = done ? (a.success ? "完成" : "失败") : "执行中";
         const err = a.error ? `\n错误: ${a.error}` : "";
+        const actionStatus = done
+          ? a.success
+            ? "done"
+            : "error"
+          : "running";
         addBlock(
           `legacy-action-${i}`,
           "actions",
           `工具调用 · ${a.tool}`,
           `状态: ${status}${err}`,
+          { actionStatus },
         );
       }
     }
