@@ -7,7 +7,8 @@
     "build:deps": "npm --prefix .. run build && npm --prefix .. run build:web",
     "prepare-backend": "node scripts/prepare-backend.mjs",
     "dev": "npm run build:deps && tauri dev",
-    "build": "npm run build:deps && npm run prepare-backend && tauri build",
+    "build": "npm run build:deps && npm run prepare-backend && tauri build --bundles app",
+    "build:ci": "npm run build:deps && npm run prepare-backend && tauri build --bundles all",
     "icon": "tauri icon ../assets/secbot-main.png",
     "tauri": "tauri"
   },

@@ -19,6 +19,7 @@ import type {
 
 export interface SyncContextValue {
   streaming: boolean;
+  paused: boolean;
   streamState: StreamState;
   history: HistoryItem[];
   /** 当前正在进行（或刚完成）的轮次：用户消息文本 */
@@ -35,6 +36,7 @@ export interface SyncContextValue {
     React.SetStateAction<PendingRootRequest | null>
   >;
   sendMessage: (message: string, mode: ChatMode, agent: string) => void;
+  stopStream: () => void;
   setRESTOutput: (text: string | null) => void;
   activeSessionId: string;
   sessionList: SessionListEntry[];
@@ -50,6 +52,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     <Context.Provider
       value={{
         streaming: value.streaming,
+        paused: value.paused,
         streamState: value.streamState,
         history: value.history,
         currentUserMessage: value.currentUserMessage,
@@ -60,6 +63,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         pendingRootRequest: value.pendingRootRequest,
         setPendingRootRequest: value.setPendingRootRequest,
         sendMessage: value.sendMessage,
+        stopStream: value.stopStream,
         setRESTOutput: value.setRESTOutput,
         activeSessionId: value.activeSessionId,
         sessionList: value.sessionList,

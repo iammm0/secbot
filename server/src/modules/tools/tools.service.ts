@@ -15,7 +15,8 @@ import { BaseTool, ToolResult } from './core/base-tool';
 import { ListToolsResponseDto } from './dto/tools.dto';
 import { SkillsService } from '../skills/skills.service';
 import { createSkillsTools } from './skills';
-import { MCP_TOOLS } from './mcp';
+import { createMcpTools } from './mcp';
+import { PreferencesService } from '../preferences/preferences.service';
 
 @Injectable()
 export class ToolsService {
@@ -28,6 +29,7 @@ export class ToolsService {
   constructor(
     private readonly vulnDbService: VulnDbService,
     private readonly skillsService: SkillsService,
+    private readonly preferences: PreferencesService,
   ) {
     this.vulnDbQueryTool = new VulnDbQueryTool(this.vulnDbService);
 
@@ -35,6 +37,7 @@ export class ToolsService {
       t.name === 'vuln_scan' ? new VulnScannerTool(this.vulnDbService) : t,
     );
     const skillsTools = createSkillsTools(this.skillsService);
+    const mcpTools = createMcpTools(this.preferences);
 
     this.categories = [
       { id: 'security', name: 'Core Security', tools: securityTools },
@@ -48,7 +51,7 @@ export class ToolsService {
       { id: 'crawler', name: 'Crawler', tools: CRAWLER_TOOLS },
       { id: 'web_research', name: 'Web Research', tools: WEB_RESEARCH_TOOLS },
       { id: 'skills', name: 'Skills', tools: skillsTools },
-      { id: 'mcp', name: 'MCP', tools: MCP_TOOLS },
+      { id: 'mcp', name: 'MCP', tools: mcpTools },
       { id: 'vuln_db', name: 'Vulnerability DB', tools: [this.vulnDbQueryTool] },
     ];
     this.allTools = this.uniqueTools(this.categories.flatMap((c) => c.tools));
@@ -78,6 +81,24 @@ export class ToolsService {
       categories,
       tools: categories.flatMap((c) => c.tools),
     };
+  }
+
+  /** 给 IntentRouter 用的短目录：类别 + 工具名，避免把描述全文塞进分类 prompt */
+  describeCatalogCompact(maxChars = 1800): string {
+    const lines = this.categories.map(
+      (category) =>
+        `${category.name}(${category.tools.length}): ${category.tools.map((tool) => tool.name).join(', ')}`,
+    );
+    const text = `共 ${this.allTools.length} 个工具\n${lines.join('\n')}`;
+    if (text.length <= maxChars) return text;
+    return `${text.slice(0, Math.max(0, maxChars - 1))}…`;
+  }
+
+  listCatalogEntries(): Array<{ id: string; tools: Array<{ name: string; description: string }> }> {
+    return this.categories.map((category) => ({
+      id: category.id,
+      tools: category.tools.map((tool) => ({ name: tool.name, description: tool.description })),
+    }));
   }
 
   getBasicTools(): BaseTool[] {

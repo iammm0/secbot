@@ -108,6 +108,12 @@ export interface ToolProgressSnapshot {
   raw?: string;
 }
 
+export interface ContextUsagePart {
+  id: string;
+  label: string;
+  tokens: number;
+}
+
 /** 当前上下文用量快照（每次后端 build context 后由 SSE 推送） */
 export interface ContextUsageSnapshot {
   /** 当前模型；null 时表示后端未识别 */
@@ -120,12 +126,14 @@ export interface ContextUsageSnapshot {
   usedTokens: number;
   /** 给输出 + system 预留的 token */
   reservedTokens: number;
-  /** usedTokens / promptBudget，已 clamp 到 0-1 */
+  /** usedTokens / contextWindow，已 clamp 到 0-1 */
   ratio: number;
   /** 当前会话 focus 关键词 */
   focus: string[];
   /** ContextStore 中 pinned 条目数 */
   pinned: number;
+  /** 分段用量（系统提示 / 工具 / 对话等） */
+  parts: ContextUsagePart[];
   /** 上次更新时刻（Date.now()） */
   updatedAt: number;
 }

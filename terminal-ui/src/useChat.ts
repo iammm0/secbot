@@ -17,6 +17,7 @@ import { api } from "./api.js";
 import { connectSSE } from "./sse.js";
 import { TRANSIENT_TOOLS } from "./streamConstants.js";
 import { buildObservationBody } from "./toolObservation.js";
+import { parseContextUsageParts } from "./contextUsage.js";
 import type {
   BrowserStep,
   ChatRequest,
@@ -124,11 +125,13 @@ function createPersistedHistoryItem(
   const timestamp = Date.parse(record.timestamp);
   const completedAt = Number.isFinite(timestamp) ? timestamp : 0;
   const sentAt = completedAt;
+  const paused = record.assistantMessage.trim() === "任务已暂停。发送消息即可从中断处继续原任务。";
   return {
     userMessage: record.userMessage,
     sentAt,
-    completedAt,
+    completedAt: paused ? 0 : completedAt,
     chatMode: "agent",
+    paused,
     streamState: {
       ...initialStreamState,
       response: record.assistantMessage,
@@ -220,10 +223,12 @@ export interface HistoryItem {
   sentAt: number;
   /** Secbot 响应的完整流状态快照 */
   streamState: StreamState;
-  /** 流式响应完成时刻（Date.now()），0 表示异常中断 */
+  /** 流式响应完成时刻（Date.now()），0 表示异常中断 / 暂停 */
   completedAt: number;
   /** 该轮请求使用的模式（旧历史缺省按 agent） */
   chatMode?: ChatMode;
+  /** 运行中被用户暂停，可继续原任务 */
+  paused?: boolean;
 }
 
 // ─── Typewriter 配置 ───────────────────────────────────────────────────────────
@@ -319,6 +324,7 @@ function buildActionProgressBody(
 
 export function useChat() {
   const [streaming, setStreaming] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [streamState, setStreamState] =
     useState<StreamState>(initialStreamState);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -338,6 +344,10 @@ export function useChat() {
   // 用于在异步回调中访问最新状态的 Ref
   const abortRef = useRef<AbortController | null>(null);
   const streamStateRef = useRef<StreamState>(initialStreamState);
+  const streamingRef = useRef(false);
+  const pausedRef = useRef(false);
+  const userPausedRef = useRef(false);
+  const taskGoalRef = useRef("");
   /** 当前轮次用户消息（异步 onDone/onError 回调中使用） */
   const currentUserMessageRef = useRef<string>("");
   /** 当前轮次发送时刻 */
@@ -380,6 +390,14 @@ export function useChat() {
   useEffect(() => {
     streamStateRef.current = streamState;
   }, [streamState]);
+
+  useEffect(() => {
+    streamingRef.current = streaming;
+  }, [streaming]);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   useEffect(() => {
     historyRef.current = history;
@@ -503,6 +521,13 @@ export function useChat() {
     completedAtRef.current = snapshot.currentCompletedAt;
     apiOutputSnapRef.current = snapshot.apiOutput;
     currentRoundChatModeRef.current = snapshot.currentRoundChatMode ?? "agent";
+    const last = snapshot.history[snapshot.history.length - 1];
+    const pausedNow = Boolean(last?.paused) && snapshot.currentCompletedAt === 0;
+    pausedRef.current = pausedNow;
+    setPaused(pausedNow);
+    if (pausedNow) {
+      taskGoalRef.current = last?.userMessage ?? taskGoalRef.current;
+    }
   }, []);
 
   const emptySessionSnapshot = useCallback(
@@ -652,6 +677,17 @@ export function useChat() {
         persistedSessionIdsRef.current = nextPersisted;
         setSessionListVersion((v) => v + 1);
         void loadPersistedSessionHistory(activeSessionIdRef.current);
+        const newest = payload.sessions[0];
+        const newestId = newest?.sessionId.trim() || "";
+        if (
+          newestId &&
+          newestId !== activeSessionIdRef.current &&
+          historyRef.current.length === 0 &&
+          !hasContent(streamStateRef.current) &&
+          !currentUserSnapRef.current
+        ) {
+          switchSession(newestId);
+        }
       } catch {
         // ignore persisted-session bootstrap failures; runtime sessions still work
       }
@@ -661,12 +697,12 @@ export function useChat() {
     return () => {
       cancelled = true;
     };
-  }, [emptySessionSnapshot, loadPersistedSessionHistory]);
+  }, [emptySessionSnapshot, loadPersistedSessionHistory, switchSession, hasContent]);
 
   // ── 发送消息 ──────────────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(
-    (message: string, mode: ChatMode = "agent", agent: string = "secbot-cli") => {
+    (message: string, mode: ChatMode = "agent", agent: string = "hackbot") => {
       // 取消正在进行的请求与 typewriter
       abortRef.current?.abort();
       clearTypewriter();
@@ -691,12 +727,20 @@ export function useChat() {
           streamState: prev,
           completedAt: completedAtRef.current,
           chatMode: requestModeRef.current,
+          paused: pausedRef.current || streamingRef.current,
         };
         setHistory((h) => [...h, historyItem]);
       }
 
       requestModeRef.current = mode;
       setCurrentRoundChatMode(mode);
+
+      const shouldResume = pausedRef.current || streamingRef.current;
+      const resumeFrom = shouldResume ? (taskGoalRef.current || undefined) : undefined;
+      if (!shouldResume) taskGoalRef.current = message;
+      userPausedRef.current = false;
+      pausedRef.current = false;
+      setPaused(false);
 
       // ── 初始化当前轮次 ─────────────────────────────────────────────────────────
       const now = Date.now();
@@ -723,6 +767,7 @@ export function useChat() {
           mode,
           agent,
           client_shell: buildClientShellPayload(),
+          ...(shouldResume ? { resume: true, resume_from: resumeFrom } : {}),
         } as Record<string, unknown>,
         {
           onEvent(ev: SSEEvent) {
@@ -1099,6 +1144,25 @@ export function useChat() {
                 }));
                 break;
 
+              case "workflow_trace": {
+                const elapsed = Number(data.elapsed_ms ?? 0);
+                const seconds = Number.isFinite(elapsed)
+                  ? Math.max(0, Math.round(elapsed / 1000))
+                  : 0;
+                const kind = String(data.kind ?? "");
+                const name = String(data.name ?? "");
+                if (data.event === "heartbeat" || data.event === "start") {
+                  setStreamState((s) => ({
+                    ...s,
+                    phase: kind === "stage" ? name : kind,
+                    detail:
+                      (typeof data.detail === "string" && data.detail) ||
+                      `${name}${seconds ? ` · ${seconds}s` : ""}`,
+                  }));
+                }
+                break;
+              }
+
               case "context_usage": {
                 const focusRaw = data.focus;
                 const focus = Array.isArray(focusRaw)
@@ -1123,6 +1187,7 @@ export function useChat() {
                     ratio,
                     focus,
                     pinned: Number(data.pinned ?? 0),
+                    parts: parseContextUsageParts(data.parts),
                     updatedAt: Date.now(),
                   },
                 }));
@@ -1351,7 +1416,17 @@ export function useChat() {
                 break;
               }
 
+              case "paused": {
+                const original =
+                  typeof data.original_message === "string" ? data.original_message : "";
+                if (original) taskGoalRef.current = original;
+                userPausedRef.current = true;
+                setPaused(true);
+                break;
+              }
+
               case "done":
+                if (data.paused) userPausedRef.current = true;
                 break;
 
               default:
@@ -1360,28 +1435,34 @@ export function useChat() {
           },
 
           onDone: () => {
-            // 确保 typewriter 先完成（若已完成则立即结束；否则等 typewriter 自然结束后 streaming 仍为 true）
-            // 这里的策略：onDone 标记 completedAt 并立即停止 streaming，
-            // typewriter 会在下一次 setInterval tick 中继续揭示剩余字符但 streaming=false 时
-            // ResponseBlock 仍可继续渲染（它不依赖 streaming flag）。
-            const doneAt = Date.now();
+            const pausedNow = userPausedRef.current;
+            const doneAt = pausedNow ? 0 : Date.now();
             completedAtRef.current = doneAt;
             setCurrentCompletedAt(doneAt);
             setStreaming(false);
+            setPaused(pausedNow);
+            pausedRef.current = pausedNow;
+            if (!pausedNow) taskGoalRef.current = "";
           },
 
           onError: (err) => {
             clearTypewriter();
             const raw = err.message || String(err);
             const lower = raw.toLowerCase();
+            if (userPausedRef.current || lower.includes("aborted") || lower.includes("abort")) {
+              completedAtRef.current = 0;
+              setCurrentCompletedAt(0);
+              setStreaming(false);
+              setPaused(true);
+              pausedRef.current = true;
+              return;
+            }
             const friendly =
-              lower.includes("aborted") || lower.includes("abort")
-                ? "请求已取消。"
-                : lower.includes("failed to fetch") ||
-                    lower.includes("networkerror") ||
-                    lower.includes("econnrefused")
-                  ? "无法连接服务端，请确认后端已启动且 SECBOT_API_URL 正确。"
-                  : raw;
+              lower.includes("failed to fetch") ||
+              lower.includes("networkerror") ||
+              lower.includes("econnrefused")
+                ? "无法连接服务端，请确认后端已启动且 SECBOT_API_URL 正确。"
+                : raw;
             setStreamState((s) => ({ ...s, error: friendly }));
             completedAtRef.current = Date.now();
             setCurrentCompletedAt(Date.now());
@@ -1398,9 +1479,14 @@ export function useChat() {
   // ── 其他操作 ──────────────────────────────────────────────────────────────────
 
   const stopStream = useCallback(() => {
+    userPausedRef.current = true;
+    pausedRef.current = true;
     abortRef.current?.abort();
     clearTypewriter();
     setStreaming(false);
+    setPaused(true);
+    setCurrentCompletedAt(0);
+    completedAtRef.current = 0;
   }, [clearTypewriter]);
 
   const setRESTOutput = useCallback((text: string | null) => {
@@ -1417,6 +1503,7 @@ export function useChat() {
 
   return {
     streaming,
+    paused,
     streamState,
     history,
     /** 当前正在进行（或刚完成）的轮次：用户消息文本 */

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { getPersistedConfig } from '../config/persisted-config';
+import { getPersistedConfig, closePersistedConfigConnections } from '../config/persisted-config';
 import { createLLM } from './llm.factory';
 
 const ENV_KEYS = [
@@ -71,6 +71,7 @@ describe('createLLM persisted config resolution', () => {
   afterEach(() => {
     restoreEnv();
     globalThis.fetch = originalFetch;
+    closePersistedConfigConnections();
     if (tempDir) {
       fs.rmSync(tempDir, { recursive: true, force: true });
       tempDir = null;

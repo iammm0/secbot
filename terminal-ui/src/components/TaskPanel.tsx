@@ -245,14 +245,18 @@ export function TaskPanel({ snapshot, width }: TaskPanelProps) {
         <>
           <Text color={ctxColor} wrap="truncate">
             ctx {pct}% {formatTokenCount(usage.usedTokens)}/
-            {formatTokenCount(usage.promptBudget)}
+            {formatTokenCount(
+              usage.contextWindow > 0 ? usage.contextWindow : usage.promptBudget,
+            )}
           </Text>
           <Text color={theme.textMuted} dimColor wrap="truncate">
             {usage.model ?? "model?"}
           </Text>
-          <Text color={theme.textMuted} dimColor wrap="truncate">
-            pinned {usage.pinned} · focus {usage.focus.length}
-          </Text>
+          {(usage.parts ?? []).slice(0, 8).map((part) => (
+            <Text key={part.id} color={theme.textMuted} dimColor wrap="truncate">
+              {part.label} {formatTokenCount(part.tokens)}
+            </Text>
+          ))}
         </>
       ) : (
         <Text color={theme.textMuted} dimColor wrap="truncate">

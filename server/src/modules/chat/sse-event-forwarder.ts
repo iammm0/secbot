@@ -1,5 +1,6 @@
 import { EventType, BusEvent } from '../../common/event-bus';
 import { TodoItem, InteractionSummary } from '../../common/types';
+import { mergeUsageParts, sumPartTokens, type ContextUsagePart } from './context-usage';
 
 export type SSEEmit = (name: string, data: Record<string, unknown>) => void;
 
@@ -148,18 +149,23 @@ export function emitContextUsage(
     reservedTokens: number;
     focus: string[];
     pinned: number;
+    parts?: ContextUsagePart[];
   },
+  extraParts: ContextUsagePart[] = [],
 ): void {
-  const ratio =
-    debug.promptBudget > 0 ? Math.min(1, Math.max(0, debug.usedTokens / debug.promptBudget)) : 0;
+  const parts = mergeUsageParts([...(debug.parts ?? []), ...extraParts]);
+  const usedTokens = parts.length > 0 ? sumPartTokens(parts) : debug.usedTokens;
+  const window = debug.contextWindow > 0 ? debug.contextWindow : debug.promptBudget;
+  const ratio = window > 0 ? Math.min(1, Math.max(0, usedTokens / window)) : 0;
   emit('context_usage', {
     model: debug.modelName ?? null,
     context_window: debug.contextWindow,
     prompt_budget: debug.promptBudget,
-    used_tokens: debug.usedTokens,
+    used_tokens: usedTokens,
     reserved_tokens: debug.reservedTokens,
     ratio,
     focus: debug.focus,
     pinned: debug.pinned,
+    parts,
   });
 }

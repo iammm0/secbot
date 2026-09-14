@@ -26,10 +26,14 @@ describe('ContextAssemblerService', () => {
         },
       ]),
     };
+    const preferences = {
+      getCustomInstructions: vi.fn().mockReturnValue(''),
+    };
     const service = new ContextAssemblerService(
       memoryService as never,
       databaseService as never,
       new ContextStoreService(),
+      preferences as never,
     );
     const session = createSession({ id: 's-1' });
     session.messages.push({
@@ -47,11 +51,59 @@ describe('ContextAssemblerService', () => {
     });
 
     expect(result.contextBlock).toContain('【RecentSession】');
-    expect(result.contextBlock).toContain('【SQLiteHistory】');
+    expect(result.contextBlock).not.toContain('【SQLiteHistory】');
     expect(result.contextBlock).toContain('【VectorMemory】');
     expect(result.debug.sessionMessages).toBe(1);
-    expect(result.debug.sqliteTurns).toBe(1);
+    expect(result.debug.sqliteTurns).toBe(0);
     expect(result.debug.vectorHits).toBe(1);
+    expect(result.debug.parts.some((part) => part.id === 'conversation' && part.tokens > 0)).toBe(true);
+    expect(result.debug.parts.some((part) => part.id === 'history' && part.tokens > 0)).toBe(false);
+    expect(result.debug.parts.some((part) => part.id === 'memory' && part.tokens > 0)).toBe(true);
+    expect(databaseService.getConversations).not.toHaveBeenCalled();
+  });
+
+  it('内存无会话消息时才叠 SQLite，task_simple 跳过向量', async () => {
+    const memoryService = {
+      search_vector_memories: vi.fn().mockResolvedValue([
+        {
+          similarity: 0.91,
+          item: { content: '旧记忆', metadata: { sessionId: 's-empty' } },
+        },
+      ]),
+      remember: vi.fn(),
+      add_vector_memory: vi.fn(),
+    };
+    const databaseService = {
+      getConversations: vi.fn().mockReturnValue([
+        { userMessage: '先做端口扫描', assistantMessage: '已建议使用 nmap -sV' },
+      ]),
+    };
+    const preferences = { getCustomInstructions: vi.fn().mockReturnValue('') };
+    const service = new ContextAssemblerService(
+      memoryService as never,
+      databaseService as never,
+      new ContextStoreService(),
+      preferences as never,
+    );
+    const session = createSession({ id: 's-empty' });
+    const withSqlite = await service.build({
+      query: '继续扫描',
+      session,
+      sessionId: 's-empty',
+      agentType: 'hackbot',
+    });
+    expect(withSqlite.contextBlock).toContain('【SQLiteHistory】');
+    expect(databaseService.getConversations).toHaveBeenCalled();
+
+    const skipVec = await service.build({
+      query: '再扫一遍',
+      session,
+      sessionId: 's-empty',
+      agentType: 'hackbot',
+      skipVector: true,
+    });
+    expect(memoryService.search_vector_memories).toHaveBeenCalledTimes(1);
+    expect(skipVec.debug.vectorHits).toBe(0);
   });
 
   it('记忆落库时写入短期、情节与向量记忆', async () => {
@@ -63,10 +115,14 @@ describe('ContextAssemblerService', () => {
     const databaseService = {
       getConversations: vi.fn().mockReturnValue([]),
     };
+    const preferences = {
+      getCustomInstructions: vi.fn().mockReturnValue(''),
+    };
     const service = new ContextAssemblerService(
       memoryService as never,
       databaseService as never,
       new ContextStoreService(),
+      preferences as never,
     );
 
     await service.rememberTurn({

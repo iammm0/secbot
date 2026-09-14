@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { BaseTool, ToolResult } from '../core/base-tool';
 import { ExecGoActionRequest, ExecGoClient, execGoEnabled } from './execgo-client.js';
 import { executeCommandShellProfile, validateCommandAgainstShell } from './shell-command-guard.js';
+import { getExecutionTarget, getSshCommandRunner } from '../../workspaces/execution-context';
 
 function adaptCommandForPlatform(command: string): string {
   if (process.platform !== 'darwin') {
@@ -43,6 +44,36 @@ export class ExecuteCommandTool extends BaseTool {
     }
 
     const command = adaptCommandForPlatform(rawCommand);
+
+    const sshTarget = getExecutionTarget();
+    if (sshTarget?.kind === 'ssh') {
+      const runner = getSshCommandRunner();
+      if (!runner) {
+        return { success: false, result: { command }, error: 'SSH 执行器未就绪' };
+      }
+      try {
+        const remote = await runner(sshTarget.host, command, timeoutSec);
+        return {
+          success: remote.success,
+          result: {
+            command,
+            returncode: remote.exitCode ?? (remote.success ? 0 : 1),
+            stdout: remote.output,
+            stderr: remote.error,
+            output: remote.output || remote.error,
+            executor: 'ssh',
+            target: sshTarget.host,
+          },
+          error: remote.success ? undefined : remote.error || '远程命令失败',
+        };
+      } catch (error) {
+        return {
+          success: false,
+          result: { command, executor: 'ssh', target: sshTarget.host },
+          error: (error as Error).message,
+        };
+      }
+    }
 
     if (shell) {
       const profile = executeCommandShellProfile();

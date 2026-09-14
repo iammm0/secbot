@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { getPreferredAgent, setPreferredAgent } from '@/hooks/useChat'
 
 interface Provider {
   id: string
@@ -56,6 +58,8 @@ export function ModelConfig() {
   const [probing, setProbing] = useState(false)
   const [modelError, setModelError] = useState('')
   const [message, setMessage] = useState('')
+  const [pendingProvider, setPendingProvider] = useState<{ id: string; name: string } | null>(null)
+  const [agent, setAgent] = useState(getPreferredAgent)
 
   const loadProvider = async (id: string) => {
     const detail = await request<{ model?: string | null; base_url?: string | null }>(
@@ -105,23 +109,29 @@ export function ModelConfig() {
 
   const selectProvider = async (id: string) => {
     if (id === activeProvider) return
-    const provider = providers.find(item => item.id === id)
-    if (!window.confirm(`是否将默认推理后端切换为“${provider?.name ?? id}”？`)) return
-    await request<{ success: boolean; message: string }>('/api/system/config/provider', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ llm_provider: id }),
-    })
-    setConfig(prev => prev ? { ...prev, llm_provider: id } : prev)
-    setApiKey('')
+    setSaving(true)
     try {
-      await loadProvider(id)
+      await request<{ success: boolean; message: string }>('/api/system/config/provider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ llm_provider: id }),
+      })
+      setConfig(prev => (prev ? { ...prev, llm_provider: id } : prev))
+      setApiKey('')
+      try {
+        await loadProvider(id)
+      } catch (error) {
+        setModels([])
+        setModelError(String((error as Error).message))
+      }
+      setMessage(`已切换至 ${id}`)
+      setTimeout(() => setMessage(''), 2000)
     } catch (error) {
-      setModels([])
-      setModelError(String((error as Error).message))
+      setMessage(String((error as Error).message))
+    } finally {
+      setSaving(false)
+      setPendingProvider(null)
     }
-    setMessage(`已切换至 ${id}`)
-    setTimeout(() => setMessage(''), 2000)
   }
 
   const saveConnectionAndProbe = async () => {
@@ -183,6 +193,33 @@ export function ModelConfig() {
   return (
     <div className="space-y-5">
       <div>
+        <h3 className="text-xs uppercase tracking-wider text-text-dim mb-2">智能体</h3>
+        <div className="flex flex-wrap gap-2">
+          {([
+            { id: 'hackbot', name: 'Hackbot', hint: '自动执行' },
+            { id: 'superhackbot', name: 'SuperHackbot', hint: '敏感操作需确认' },
+          ] as const).map(item => (
+            <button
+              type="button"
+              key={item.id}
+              onClick={() => {
+                setPreferredAgent(item.id)
+                setAgent(item.id)
+              }}
+              className={`px-3 py-1.5 rounded text-xs font-mono transition-all ${
+                agent === item.id
+                  ? 'bg-primary/20 text-primary border border-primary/40'
+                  : 'bg-hover text-text-dim border border-border hover:border-text-dim/40'
+              }`}
+            >
+              {item.name}
+              {agent === item.id ? <span className="ml-1">✓</span> : null}
+              <span className="ml-2 text-[10px] text-text-dim">{item.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
         <h3 className="text-xs uppercase tracking-wider text-text-dim mb-2">
           ① 切换推理后端
         </h3>
@@ -191,11 +228,14 @@ export function ModelConfig() {
             <button
               type="button"
               key={p.id}
-              onClick={() => selectProvider(p.id)}
+              onClick={() => {
+                if (p.id === activeProvider) return
+                setPendingProvider({ id: p.id, name: p.name })
+              }}
               className={`px-3 py-1.5 rounded text-xs font-mono transition-all ${
                 p.id === activeProvider
                   ? 'bg-primary/20 text-primary border border-primary/40'
-                  : 'bg-white/5 text-text-dim border border-white/10 hover:border-white/20'
+                  : 'bg-hover text-text-dim border border-border hover:border-text-dim/40'
               }`}
             >
               {p.name}
@@ -217,8 +257,8 @@ export function ModelConfig() {
               type="password"
               value={apiKey}
               onChange={e => setApiKey(e.target.value)}
-              placeholder={activeProviderMeta.configured ? '已配置；留空表示不修改' : '请输入 API Key'}
-              className="w-full px-3 py-2 rounded bg-white/5 border border-white/10 text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
+              placeholder={activeProviderMeta.configured ? '已配置；留空表示不修改' : '请输入 API 密钥'}
+              className="w-full px-3 py-2 rounded bg-hover border border-border text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
             />
           </div>
         )}
@@ -229,7 +269,7 @@ export function ModelConfig() {
             value={baseUrl}
             onChange={e => setBaseUrl(e.target.value)}
             placeholder="https://api.openai.com"
-            className="w-full px-3 py-2 rounded bg-white/5 border border-white/10 text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
+            className="w-full px-3 py-2 rounded bg-hover border border-border text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
           />
         </div>
         <button
@@ -254,7 +294,7 @@ export function ModelConfig() {
             value={model}
             onChange={e => setModel(e.target.value)}
             disabled={models.length === 0 || probing}
-            className="w-full px-3 py-2 rounded bg-white/5 border border-white/10 text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
+            className="w-full px-3 py-2 rounded bg-hover border border-border text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
           >
             {models.length === 0 && (
               <option value={model}>{probing ? '探测中...' : model || '请先保存连接并探测'}</option>
@@ -277,6 +317,19 @@ export function ModelConfig() {
         </button>
         {message && <span className="ml-3 text-xs text-primary">{message}</span>}
       </div>
+
+      {pendingProvider ? (
+        <ConfirmDialog
+          title="切换推理后端"
+          message={`是否将默认推理后端切换为“${pendingProvider.name}”？`}
+          confirmLabel="切换"
+          busy={saving}
+          onCancel={() => {
+            if (!saving) setPendingProvider(null)
+          }}
+          onConfirm={() => void selectProvider(pendingProvider.id)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -44,9 +44,10 @@ interface BlockRendererProps {
   noMargin?: boolean;
 }
 
-/** 折叠占位文案特征（与 contentBlocks 中占位一致） */
+/** 折叠占位文案特征（与 foldOutput / 历史占位一致） */
 function isPlaceholderBody(body: string): boolean {
-  return /^\*\(共 \d+ 行/.test(body.trim());
+  const text = body.trim();
+  return /另有 \d+ 行已折叠/.test(text) || /^\*\(共 \d+ 行/.test(text);
 }
 
 export function BlockRenderer({ block, noMargin }: BlockRendererProps) {
@@ -192,6 +193,7 @@ export function BlockRenderer({ block, noMargin }: BlockRendererProps) {
           title={block.title}
           body={block.body}
           noMargin={noMargin}
+          isPlaceholder={placeholder}
         />
       );
     case "exploring":
@@ -200,6 +202,7 @@ export function BlockRenderer({ block, noMargin }: BlockRendererProps) {
           title={block.title}
           body={block.body}
           noMargin={noMargin}
+          isPlaceholder={placeholder}
         />
       );
     case "spacer":

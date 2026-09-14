@@ -11,6 +11,8 @@ export interface ChatRequest {
   mode?: ChatMode
   agent?: string
   model?: string | null
+  resume?: boolean
+  resume_from?: string
   client_shell?: {
     platform?: string
     shell?: string
@@ -57,6 +59,12 @@ export interface StreamTimelineItem {
   exploreSummary?: { factsCount?: number; unresolved?: string[]; summary?: string }
 }
 
+export interface ContextUsagePart {
+  id: string
+  label: string
+  tokens: number
+}
+
 export interface ContextUsageSnapshot {
   model: string | null
   contextWindow: number
@@ -66,6 +74,7 @@ export interface ContextUsageSnapshot {
   ratio: number
   focus: string[]
   pinned: number
+  parts: ContextUsagePart[]
   updatedAt: number
 }
 
@@ -83,11 +92,14 @@ export interface StreamState {
   timeline: StreamTimelineItem[]
   contextUsage: ContextUsageSnapshot | null
   currentUserMessage?: string
+  paused?: boolean
 }
 
 export interface HistoryItem {
+  id?: string
   userMessage: string
   sentAt: number
   streamState: StreamState
   completedAt: number | null
+  paused?: boolean
 }

@@ -28,9 +28,10 @@
 
 | 变量 | 说明 | 默认 |
 | --- | --- | --- |
-| `SECBOT_EXPLORE_MAX_ITERS` | ExploreAgent 最大 ReAct 步数 | `12` |
+| `SECBOT_REACT_MAX_ITERS` | Hackbot / SuperHackbot ReAct 最大轮数 | `20` |
+| `SECBOT_EXPLORE_MAX_ITERS` | ExploreAgent 最大 ReAct 步数 | `6` |
 | `SECBOT_CONTEXT_DEBUG` | `1`/`true` 输出 context_debug SSE | 关 |
-| `SECBOT_ADAPTIVE_REPLAN` | `0`/`false` 关闭取消 todo 后的自适应重规划 | 开 |
+| `SECBOT_ADAPTIVE_REPLAN` | `1`/`true` 开启取消 todo 后的自适应重规划 | 关 |
 | `SECBOT_TUI_BACKEND` | `spawn` / `service` / `remote` | `spawn` |
 | `SECBOT_API_URL` | service 模式后端 URL | — |
 | `SECBOT_MCP_ALLOW_SENSITIVE` | MCP 暴露敏感工具 | 关 |

@@ -10,9 +10,10 @@ interface ExploringBlockProps {
   title?: string;
   body: string;
   noMargin?: boolean;
+  isPlaceholder?: boolean;
 }
 
-export function ExploringBlock({ title, body, noMargin }: ExploringBlockProps) {
+export function ExploringBlock({ title, body, noMargin, isPlaceholder }: ExploringBlockProps) {
   const theme = useTheme();
   const rendered = renderMarkdown(body || " ");
   const lines = rendered.split("\n");
@@ -20,13 +21,13 @@ export function ExploringBlock({ title, body, noMargin }: ExploringBlockProps) {
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
-      <Text color={theme.secondary} bold>
-        {"◆ "}
+      <Text color={isPlaceholder ? theme.textMuted : theme.secondary} bold={!isPlaceholder} dimColor={isPlaceholder}>
+        {"▸ "}
         {head}
       </Text>
-      <Box flexDirection="column" paddingLeft={2}>
+      <Box flexDirection="column" paddingLeft={3}>
         {lines.map((line, i) => (
-          <Text key={i} color={theme.text}>
+          <Text key={i} color={theme.textMuted} dimColor>
             {line || " "}
           </Text>
         ))}

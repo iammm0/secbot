@@ -5,7 +5,7 @@ import { ChatMessage } from '../../../common/types';
 import { LLMProvider, createLLM } from '../../../common/llm';
 import { TodoItem } from '../../../common/types';
 import { validateToolInvocation } from './tool-action-validate';
-import { formatExecuteCommandObservation } from './observation-format';
+import { formatExecuteCommandObservation, truncateMiddleText } from './observation-format';
 import { type ClientShellPayload, formatClientShellContextBlock } from './client-shell-context.js';
 import {
   extractFinalAnswer,
@@ -13,6 +13,8 @@ import {
   parseToolAction,
   type ParsedAction,
 } from './parse-tool-action';
+import { throwIfAborted } from '../../chat/paused-task';
+import { traceToolRun } from '../../chat/workflow-trace';
 
 interface ReActStep {
   type: 'thought' | 'action' | 'observation';
@@ -22,7 +24,7 @@ interface ReActStep {
 
 type OnEventCallback = (event: BusEvent) => void;
 
-const REACT_OPERATING_POLICY =
+export const REACT_OPERATING_POLICY =
   '【工作模式】执行优先：在具备授权前提下优先给出可落地步骤、命令和工具调用；' +
   '若缺关键参数，先提出最少澄清问题再继续。\n' +
   '【上下文约束】必须优先使用已提供的 RecentSession / SQLiteHistory / VectorMemory；' +
@@ -59,6 +61,7 @@ export class SecurityReActAgent extends BaseAgent {
 
   async process(userInput: string, options?: Record<string, unknown>): Promise<string> {
     const onEvent = options?.onEvent as OnEventCallback | undefined;
+    const abortSignal = options?.abortSignal as AbortSignal | undefined;
 
     this._reactHistory = [];
     this.addMessage('user', userInput);
@@ -76,6 +79,14 @@ export class SecurityReActAgent extends BaseAgent {
     ];
 
     for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
+      throwIfAborted(abortSignal, {
+        progressNote: this._reactHistory
+          .slice(-6)
+          .map((step) => step.content)
+          .join('\n')
+          .slice(0, 4000),
+      });
+
       onEvent?.({
         type: EventType.THINK_START,
         data: { agent: this.name, iteration },
@@ -84,6 +95,7 @@ export class SecurityReActAgent extends BaseAgent {
       });
 
       const thought = await this.llm.chat(messages);
+      throwIfAborted(abortSignal, { progressNote: thought.slice(0, 4000) });
 
       this._reactHistory.push({
         type: 'thought',
@@ -153,6 +165,8 @@ export class SecurityReActAgent extends BaseAgent {
         timestamp: new Date(),
         iteration,
       });
+
+      throwIfAborted(abortSignal, { progressNote: `即将调用工具：${action.tool}` });
 
       const paramErr = validateToolInvocation(action.tool, action.params);
       if (paramErr) {
@@ -251,7 +265,7 @@ export class SecurityReActAgent extends BaseAgent {
     }
 
     try {
-      return await tool.run(params, onProgress);
+      return await traceToolRun(toolName, () => tool.run(params, onProgress));
     } catch (err) {
       return {
         success: false,
@@ -282,10 +296,14 @@ export class SecurityReActAgent extends BaseAgent {
     }
 
     if (typeof result.result === 'string') {
-      return result.result;
+      return truncateMiddleText(result.result, 12_000, 3_500, 3_500);
     }
 
-    return JSON.stringify(result.result, null, 2);
+    try {
+      return truncateMiddleText(JSON.stringify(result.result, null, 2), 12_000, 3_500, 3_500);
+    } catch {
+      return truncateMiddleText(String(result.result), 12_000, 3_500, 3_500);
+    }
   }
 
   async executeTodo(
@@ -294,6 +312,8 @@ export class SecurityReActAgent extends BaseAgent {
     options?: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     const onEvent = options?.onEvent as OnEventCallback | undefined;
+    const abortSignal = options?.abortSignal as AbortSignal | undefined;
+    throwIfAborted(abortSignal, { progressNote: `准备执行子任务：${todo.content}` });
 
     const prompt =
       `针对以下子任务，选择合适的工具并执行。\n\n` +
@@ -322,6 +342,7 @@ export class SecurityReActAgent extends BaseAgent {
     });
 
     const thought = await this.llm.chat(messages);
+    throwIfAborted(abortSignal, { progressNote: thought.slice(0, 4000) });
 
     onEvent?.({
       type: EventType.THINK_END,
@@ -365,6 +386,8 @@ export class SecurityReActAgent extends BaseAgent {
       });
       return { todoId: todo.id, success: false, error: paramErr };
     }
+
+    throwIfAborted(abortSignal, { progressNote: `即将调用工具：${action.tool}` });
 
     const result = await this.executeTool(action.tool, action.params, (progress) => {
       onEvent?.({

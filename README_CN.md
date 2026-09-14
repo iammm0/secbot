@@ -191,10 +191,11 @@ DEEPSEEK_MODEL=deepseek-chat
 # OLLAMA_BASE_URL=http://localhost:11434
 # OLLAMA_MODEL=llama3.2
 
-# 可选：探索迭代上限、上下文调试 SSE、关闭自适应重规划、NVD 速率
-# SECBOT_EXPLORE_MAX_ITERS=12
+# 可选：ReAct/探索上限、上下文调试 SSE、开启自适应重规划、NVD 速率
+# SECBOT_REACT_MAX_ITERS=20
+# SECBOT_EXPLORE_MAX_ITERS=6
 # SECBOT_CONTEXT_DEBUG=1
-# SECBOT_ADAPTIVE_REPLAN=false
+# SECBOT_ADAPTIVE_REPLAN=1
 # NVD_API_KEY=your-nvd-key
 ```
 

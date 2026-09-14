@@ -19,14 +19,15 @@ import {
   EXPLORING_TOOLS,
   TERMINAL_TOOLS,
 } from "./streamConstants.js";
+import { COLLAPSED_PREVIEW_LINES, foldBody, formatToolArg, peekableOutput } from "./foldOutput.js";
 
 // ─── 常量 ──────────────────────────────────────────────────────────────────────
 
 /** 执行结果类块最大展示行数，超出省略，避免刷屏 */
 const MAX_RESULT_LINES = 24;
 
-/** 工具观察块可稍长，仍设上限 */
-const MAX_OBSERVATION_LINES = 32;
+/** 工具观察默认只露几行，和 Cursor 一样折叠长输出 */
+const MAX_OBSERVATION_LINES = COLLAPSED_PREVIEW_LINES;
 
 /** 安全报告块最大行数（略宽于工具结果，仍防止刷屏） */
 const MAX_REPORT_LINES = 48;
@@ -48,11 +49,9 @@ function blockLines(
   return (title ? 1 : 0) + Math.max(1, bodyLines) + extraLines;
 }
 
-/** 截断超长正文，避免刷屏 */
+/** 截断超长正文，避免刷屏；工具/观察默认折叠为少量预览 */
 function truncateBody(body: string, maxLines: number): string {
-  const lines = body.split("\n");
-  if (lines.length <= maxLines) return body;
-  return lines.slice(0, maxLines).join("\n") + "\n\n… 已省略";
+  return foldBody(body, maxLines);
 }
 
 /** 将连接中断等模糊错误转为可读提示 */
@@ -342,17 +341,20 @@ export function streamStateToBlocks(
           if (dismissed.has(item.tool)) continue;
         }
         if (timelineEmitted++ > 0) addVisualGap();
+        const arg = formatToolArg(item.params);
+        const toolLabel = item.tool || item.title || "工具调用";
+        const title = arg ? `${toolLabel} · ${arg}` : toolLabel;
         const statusLine =
           item.status === "done"
             ? item.success === false
-              ? "状态: 失败"
-              : "状态: 完成"
-            : "状态: 执行中";
-        const errorLine = item.error ? `\n错误: ${item.error}` : "";
+              ? "失败"
+              : "完成"
+            : "执行中";
+        const errorLine = item.error ? `\n${item.error}` : "";
         addBlock(
           item.id,
           "actions",
-          item.title || "工具调用",
+          title,
           `${statusLine}${errorLine}`,
         );
         continue;
@@ -393,7 +395,7 @@ export function streamStateToBlocks(
           item.id,
           "tool_result",
           obsLabel,
-          truncateBody(item.body || "…", MAX_OBSERVATION_LINES),
+          foldBody(peekableOutput(item.body || "…") || item.body || "…", MAX_OBSERVATION_LINES),
           { resolvedType: observationResolvedType(item.tool) },
         );
         continue;

@@ -11,7 +11,7 @@ export interface LocalContextValue {
 
 const { Context, use: useLocal } = createSimpleContext<LocalContextValue>('Local');
 
-const defaultAgent = 'secbot-cli';
+const defaultAgent = 'hackbot';
 
 export function LocalProvider({ children }: { children: React.ReactNode }) {
   const [agent, setAgent] = useState<string>(defaultAgent);

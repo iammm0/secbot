@@ -65,15 +65,8 @@ export class SummaryAgent extends BaseAgent {
     const todoCompletion = this.buildTodoCompletion(options?.todos);
 
     if (mode === 'brief') {
-      const briefPrompt = `请将以下安全测试报告压缩为 3-5 句话的摘要，保留最关键的发现和建议：\n\n${rawReport}`;
-      const briefMessages: ChatMessage[] = [
-        { role: 'system', content: this.systemPrompt },
-        { role: 'user', content: briefPrompt },
-      ];
-      const briefSummary = await this.llm.chat(briefMessages);
-
       return {
-        taskSummary: briefSummary,
+        taskSummary: this.extractTaskSummary(rawReport, userInput),
         todoCompletion,
         keyFindings,
         actionSummary: this.extractSection(rawReport, '执行操作', '操作记录', '操作'),

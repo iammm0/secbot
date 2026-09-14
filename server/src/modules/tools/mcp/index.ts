@@ -1,6 +1,9 @@
 export { McpCallTool } from './mcp-call.tool';
 
+import { PreferencesService } from '../../preferences/preferences.service';
 import { BaseTool } from '../core/base-tool';
 import { McpCallTool } from './mcp-call.tool';
 
-export const MCP_TOOLS: BaseTool[] = [new McpCallTool()];
+export function createMcpTools(preferences: PreferencesService): BaseTool[] {
+  return [new McpCallTool(preferences)];
+}

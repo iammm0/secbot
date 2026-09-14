@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Database from 'better-sqlite3';
 import * as path from 'path';
@@ -14,7 +14,7 @@ import type {
 } from './entities';
 
 @Injectable()
-export class DatabaseService implements OnModuleInit {
+export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private db!: Database.Database;
 
   constructor(private readonly config: ConfigService) {}
@@ -27,6 +27,14 @@ export class DatabaseService implements OnModuleInit {
     this.db.pragma('journal_mode = WAL');
     this.initDatabase();
     this.syncYamlToSqlite();
+  }
+
+  onModuleDestroy() {
+    try {
+      this.db?.close();
+    } catch {
+      /* already closed */
+    }
   }
 
   /**
@@ -140,6 +148,31 @@ export class DatabaseService implements OnModuleInit {
         timestamp TEXT NOT NULL DEFAULT (datetime('now'))
       );
       CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_records(session_id);
+
+      CREATE TABLE IF NOT EXISTS workspaces (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS workspace_nodes (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'secbot',
+        address TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'unknown',
+        meta TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_workspace_nodes_ws ON workspace_nodes(workspace_id);
+      CREATE TABLE IF NOT EXISTS workspace_sessions (
+        session_id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        node_id TEXT,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_workspace_sessions_ws ON workspace_sessions(workspace_id);
     `);
   }
 
@@ -218,12 +251,23 @@ export class DatabaseService implements OnModuleInit {
           MIN(c.timestamp) as created_at,
           MAX(c.timestamp) as updated_at,
           MAX(c.id) as last_id,
-          (
-            SELECT c2.user_message
-            FROM conversations c2
-            WHERE c2.session_id = c.session_id
-            ORDER BY c2.id ASC
-            LIMIT 1
+          COALESCE(
+            (
+              SELECT json_extract(c4.metadata, '$.title')
+              FROM conversations c4
+              WHERE c4.session_id = c.session_id
+                AND json_extract(c4.metadata, '$.title') IS NOT NULL
+                AND TRIM(json_extract(c4.metadata, '$.title')) != ''
+              ORDER BY c4.id DESC
+              LIMIT 1
+            ),
+            (
+              SELECT c2.user_message
+              FROM conversations c2
+              WHERE c2.session_id = c.session_id
+              ORDER BY c2.id ASC
+              LIMIT 1
+            )
           ) as title,
           (
             SELECT c3.agent_type
@@ -308,6 +352,7 @@ export class DatabaseService implements OnModuleInit {
         userMessage: c.userMessage,
         assistantMessage: c.assistantMessage,
         sessionId: c.sessionId || 'default',
+        metadata: c.metadata || '{}',
       }));
 
     return {
@@ -339,6 +384,48 @@ export class DatabaseService implements OnModuleInit {
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const info = this.db.prepare(`DELETE FROM conversations ${where}`).run(...params);
     return info.changes;
+  }
+
+  getLatestConversation(sessionId: string): Conversation | null {
+    const row = this.db
+      .prepare('SELECT * FROM conversations WHERE session_id = ? ORDER BY id DESC LIMIT 1')
+      .get(sessionId) as Record<string, unknown> | undefined;
+    return row ? this.mapConversation(row) : null;
+  }
+
+  updateConversationMetadata(id: number, metadata: string): boolean {
+    const info = this.db.prepare('UPDATE conversations SET metadata = ? WHERE id = ?').run(metadata, id);
+    return info.changes > 0;
+  }
+
+  updateSessionTitle(sessionId: string, title: string): boolean {
+    const trimmed = title.trim().slice(0, 80);
+    const latest = this.getLatestConversation(sessionId);
+    if (!latest?.id) {
+      this.saveConversation({
+        agentType: 'hackbot',
+        userMessage: trimmed,
+        assistantMessage: '',
+        sessionId,
+        timestamp: new Date().toISOString(),
+        metadata: JSON.stringify({ title: trimmed, paused: null, timeline: [] }),
+      });
+      return true;
+    }
+    let meta: Record<string, unknown> = {};
+    try {
+      meta = JSON.parse(latest.metadata || '{}') as Record<string, unknown>;
+    } catch {
+      meta = {};
+    }
+    meta.title = trimmed;
+    return this.updateConversationMetadata(latest.id, JSON.stringify(meta));
+  }
+
+  deleteChatSession(sessionId: string): number {
+    const deleted = this.deleteConversations({ sessionId });
+    this.unbindWorkspaceSession(sessionId);
+    return deleted;
   }
 
   /* ---- UserConfig ---- */
@@ -589,6 +676,212 @@ export class DatabaseService implements OnModuleInit {
       description: r['description'] as string,
       updatedAt: r['updated_at'] as string,
     };
+  }
+
+  /* ---- Workspaces ---- */
+
+  listWorkspaces(): Array<{ id: string; name: string; createdAt: string; updatedAt: string }> {
+    const rows = this.db
+      .prepare('SELECT * FROM workspaces ORDER BY created_at ASC')
+      .all() as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: String(r['id'] ?? ''),
+      name: String(r['name'] ?? ''),
+      createdAt: String(r['created_at'] ?? ''),
+      updatedAt: String(r['updated_at'] ?? ''),
+    }));
+  }
+
+  getWorkspace(id: string): { id: string; name: string; createdAt: string; updatedAt: string } | null {
+    const r = this.db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (!r) return null;
+    return {
+      id: String(r['id'] ?? ''),
+      name: String(r['name'] ?? ''),
+      createdAt: String(r['created_at'] ?? ''),
+      updatedAt: String(r['updated_at'] ?? ''),
+    };
+  }
+
+  upsertWorkspace(id: string, name: string): void {
+    this.db
+      .prepare(
+        `
+        INSERT INTO workspaces (id, name, created_at, updated_at)
+        VALUES (?, ?, datetime('now'), datetime('now'))
+        ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = datetime('now')
+      `,
+      )
+      .run(id, name);
+  }
+
+  renameWorkspace(id: string, name: string): boolean {
+    const info = this.db
+      .prepare(`UPDATE workspaces SET name = ?, updated_at = datetime('now') WHERE id = ?`)
+      .run(name, id);
+    return info.changes > 0;
+  }
+
+  deleteWorkspace(id: string): boolean {
+    this.db.prepare('DELETE FROM workspace_nodes WHERE workspace_id = ?').run(id);
+    this.db.prepare('DELETE FROM workspace_sessions WHERE workspace_id = ?').run(id);
+    const info = this.db.prepare('DELETE FROM workspaces WHERE id = ?').run(id);
+    return info.changes > 0;
+  }
+
+  listWorkspaceNodes(workspaceId?: string): Array<{
+    id: string;
+    workspaceId: string;
+    name: string;
+    kind: string;
+    address: string;
+    status: string;
+    meta: string;
+    createdAt: string;
+  }> {
+    const rows = (
+      workspaceId
+        ? this.db.prepare('SELECT * FROM workspace_nodes WHERE workspace_id = ? ORDER BY created_at ASC').all(workspaceId)
+        : this.db.prepare('SELECT * FROM workspace_nodes ORDER BY created_at ASC').all()
+    ) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      id: String(r['id'] ?? ''),
+      workspaceId: String(r['workspace_id'] ?? ''),
+      name: String(r['name'] ?? ''),
+      kind: String(r['kind'] ?? 'secbot'),
+      address: String(r['address'] ?? ''),
+      status: String(r['status'] ?? 'unknown'),
+      meta: String(r['meta'] ?? '{}'),
+      createdAt: String(r['created_at'] ?? ''),
+    }));
+  }
+
+  getWorkspaceNode(id: string): {
+    id: string;
+    workspaceId: string;
+    name: string;
+    kind: string;
+    address: string;
+    status: string;
+    meta: string;
+    createdAt: string;
+  } | null {
+    const r = this.db.prepare('SELECT * FROM workspace_nodes WHERE id = ?').get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (!r) return null;
+    return {
+      id: String(r['id'] ?? ''),
+      workspaceId: String(r['workspace_id'] ?? ''),
+      name: String(r['name'] ?? ''),
+      kind: String(r['kind'] ?? 'secbot'),
+      address: String(r['address'] ?? ''),
+      status: String(r['status'] ?? 'unknown'),
+      meta: String(r['meta'] ?? '{}'),
+      createdAt: String(r['created_at'] ?? ''),
+    };
+  }
+
+  upsertWorkspaceNode(node: {
+    id: string;
+    workspaceId: string;
+    name: string;
+    kind: string;
+    address: string;
+    status?: string;
+    meta?: string;
+  }): void {
+    this.db
+      .prepare(
+        `
+        INSERT INTO workspace_nodes (id, workspace_id, name, kind, address, status, meta, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          kind = excluded.kind,
+          address = excluded.address,
+          status = excluded.status,
+          meta = excluded.meta
+      `,
+      )
+      .run(
+        node.id,
+        node.workspaceId,
+        node.name,
+        node.kind,
+        node.address,
+        node.status ?? 'unknown',
+        node.meta ?? '{}',
+      );
+  }
+
+  updateWorkspaceNodeStatus(id: string, status: string, meta?: string): boolean {
+    const info = meta
+      ? this.db.prepare('UPDATE workspace_nodes SET status = ?, meta = ? WHERE id = ?').run(status, meta, id)
+      : this.db.prepare('UPDATE workspace_nodes SET status = ? WHERE id = ?').run(status, id);
+    return info.changes > 0;
+  }
+
+  deleteWorkspaceNode(id: string): boolean {
+    const info = this.db.prepare('DELETE FROM workspace_nodes WHERE id = ?').run(id);
+    return info.changes > 0;
+  }
+
+  bindWorkspaceSession(workspaceId: string, sessionId: string, nodeId?: string | null): void {
+    this.db
+      .prepare(
+        `
+        INSERT INTO workspace_sessions (session_id, workspace_id, node_id, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(session_id) DO UPDATE SET
+          workspace_id = excluded.workspace_id,
+          node_id = excluded.node_id,
+          updated_at = datetime('now')
+      `,
+      )
+      .run(sessionId, workspaceId, nodeId ?? null);
+  }
+
+  getWorkspaceSession(sessionId: string): { sessionId: string; workspaceId: string; nodeId: string | null } | null {
+    const row = this.db
+      .prepare('SELECT * FROM workspace_sessions WHERE session_id = ?')
+      .get(sessionId) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return {
+      sessionId: String(row['session_id'] ?? ''),
+      workspaceId: String(row['workspace_id'] ?? ''),
+      nodeId: row['node_id'] == null ? null : String(row['node_id']),
+    };
+  }
+
+  unbindWorkspaceSession(sessionId: string): void {
+    this.db.prepare('DELETE FROM workspace_sessions WHERE session_id = ?').run(sessionId);
+  }
+
+  listWorkspaceSessionIds(workspaceId: string): string[] {
+    const rows = this.db
+      .prepare('SELECT session_id FROM workspace_sessions WHERE workspace_id = ?')
+      .all(workspaceId) as Array<Record<string, unknown>>;
+    return rows.map((r) => String(r['session_id'] ?? '')).filter(Boolean);
+  }
+
+  listAllWorkspaceSessions(): Array<{ sessionId: string; workspaceId: string; nodeId: string | null }> {
+    const rows = this.db.prepare('SELECT * FROM workspace_sessions').all() as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      sessionId: String(r['session_id'] ?? ''),
+      workspaceId: String(r['workspace_id'] ?? ''),
+      nodeId: r['node_id'] == null ? null : String(r['node_id']),
+    }));
+  }
+
+  reassignWorkspaceSessions(fromId: string, toId: string): void {
+    this.db
+      .prepare(
+        `UPDATE workspace_sessions SET workspace_id = ?, updated_at = datetime('now') WHERE workspace_id = ?`,
+      )
+      .run(toId, fromId);
   }
 
   private mapPromptChain(r: Record<string, unknown>): PromptChain {

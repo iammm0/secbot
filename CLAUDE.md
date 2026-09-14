@@ -50,9 +50,10 @@ Besides `thought_*`, `action_*`, `planning`, `report`, `response`, `done`, `erro
 |----------|---------|
 | `LLM_PROVIDER`, `*_API_KEY`, `*_MODEL` | LLM routing (`server/src/common/llm/llm.factory.ts`) |
 | `NVD_API_KEY` | Higher NVD rate limits for `VulnDbService` |
-| `SECBOT_EXPLORE_MAX_ITERS` | Max ReAct iterations for `ExploreAgent` (default 12) |
+| `SECBOT_REACT_MAX_ITERS` | Max ReAct iterations for Hackbot / SuperHackbot (default 20) |
+| `SECBOT_EXPLORE_MAX_ITERS` | Max ReAct iterations for `ExploreAgent` (default 6) |
 | `SECBOT_CONTEXT_DEBUG` | `1` / `true` → emit `context_debug` SSE |
-| `SECBOT_ADAPTIVE_REPLAN` | `0` / `false` → disable adaptive replan after cancelled todos |
+| `SECBOT_ADAPTIVE_REPLAN` | `1` / `true` → enable adaptive replan after cancelled todos |
 | `SECBOT_TUI_BACKEND`, `SECBOT_API_URL` | TUI connects to spawned vs remote backend |
 
 ## Commands (from repo root)

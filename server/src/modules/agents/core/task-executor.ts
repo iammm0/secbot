@@ -9,6 +9,7 @@ import {
   markTodoCancelled,
 } from '../../../common/types';
 import type { ClientShellPayload } from './client-shell-context.js';
+import { isTaskPausedError, snapshotTodos, throwIfAborted, TaskPausedError } from '../../chat/paused-task';
 
 type OnEventCallback = (event: BusEvent) => void;
 
@@ -30,6 +31,7 @@ export class TaskExecutor {
     onEvent?: OnEventCallback,
     clientShell?: ClientShellPayload,
     contextBlock?: string,
+    abortSignal?: AbortSignal,
   ): Promise<{ summary: string; cancelledCount: number }> {
     const layers = this.planner.getExecutionOrder(this.plan.todos);
     const results: string[] = [];
@@ -43,6 +45,11 @@ export class TaskExecutor {
     });
 
     for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
+      throwIfAborted(abortSignal, {
+        originalMessage: userInput,
+        todos: snapshotTodos(currentTodos),
+      });
+
       const layer = layers[layerIdx];
 
       this.eventBus.emitSimple(EventType.TASK_PHASE, {
@@ -79,6 +86,7 @@ export class TaskExecutor {
             onEvent,
             client_shell: clientShell,
             contextBlock,
+            abortSignal,
           })) as {
             success?: boolean;
             error?: string;
@@ -112,6 +120,13 @@ export class TaskExecutor {
 
           return `[${todo.id}] ${todo.content}\n结果: ${resultText}`;
         } catch (err) {
+          if (isTaskPausedError(err)) {
+            throw new TaskPausedError({
+              ...err.snapshot,
+              originalMessage: err.snapshot.originalMessage || userInput,
+              todos: snapshotTodos(currentTodos),
+            });
+          }
           const errorMsg = err instanceof Error ? err.message : String(err);
           cancelledCount += 1;
 
@@ -126,8 +141,22 @@ export class TaskExecutor {
         }
       });
 
-      const layerResults = await Promise.all(layerPromises);
-      results.push(...layerResults);
+      const settled = await Promise.allSettled(layerPromises);
+      const pausedHit = settled.find(
+        (item) => item.status === 'rejected' && isTaskPausedError(item.reason),
+      );
+      if (pausedHit && pausedHit.status === 'rejected') {
+        throw pausedHit.reason;
+      }
+      for (const item of settled) {
+        if (item.status === 'fulfilled') {
+          results.push(item.value);
+        } else if (!isTaskPausedError(item.reason)) {
+          const errorMsg =
+            item.reason instanceof Error ? item.reason.message : String(item.reason);
+          results.push(`层执行错误: ${errorMsg}`);
+        }
+      }
 
       this.eventBus.emitSimple(EventType.TASK_PHASE, {
         phase: 'layer_complete',

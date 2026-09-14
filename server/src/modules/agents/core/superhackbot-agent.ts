@@ -33,8 +33,16 @@ const SUPERHACKBOT_SYSTEM_PROMPT =
   '- 保持操作的可追溯性，每步操作都要记录详细日志。\n' +
   '- 发现高危漏洞时立即通知用户并暂停后续测试。';
 
+function resolveReactMaxIterations(): number {
+  const raw = (process.env.SECBOT_REACT_MAX_ITERS ?? '').trim();
+  if (!raw) return 20;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 20;
+  return Math.min(80, Math.max(1, Math.floor(n)));
+}
+
 export class SuperHackbotAgent extends SecurityReActAgent {
   constructor(tools: BaseTool[]) {
-    super('SuperHackbot', SUPERHACKBOT_SYSTEM_PROMPT, tools, false, Infinity);
+    super('SuperHackbot', SUPERHACKBOT_SYSTEM_PROMPT, tools, false, resolveReactMaxIterations());
   }
 }

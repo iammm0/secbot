@@ -69,11 +69,12 @@ function assembleBackend() {
   // 依据 lock 解析已锁定版本，同时容忍版本号字段差异，并触发原生模块编译。
   // shell:true —— Windows 下 Node 20+ 直接 spawn npm.cmd 会 EINVAL，须经 shell。
   log('安装生产依赖（npm install --omit=dev，含平台原生模块）');
-  const npmCacheDir = process.env.npm_config_cache || join(tmpdir(), 'secbot-desktop-npm-cache');
+  const npmCacheDir =
+    process.env.SECBOT_NPM_CACHE || join(tmpdir(), 'secbot-desktop-npm-cache');
   mkdirSync(npmCacheDir, { recursive: true });
   execFileSync(
     'npm',
-    ['install', '--omit=dev', '--no-audit', '--no-fund'],
+    ['install', '--omit=dev', '--no-audit', '--no-fund', '--cache', npmCacheDir],
     {
       cwd: backendDir,
       stdio: 'inherit',

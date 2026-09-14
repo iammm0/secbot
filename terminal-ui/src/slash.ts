@@ -95,15 +95,22 @@ export function parseSlash(
   }
   if (cmd === '/agent') {
     const arg = parts[1]?.toLowerCase();
-    const agent = arg === 'super' || arg === 'superhackbot' ? 'superhackbot' : 'secbot-cli';
+    const agent = arg === 'super' || arg === 'superhackbot' ? 'superhackbot' : 'hackbot';
     return { handled: true };
   }
 
-  // /help — 静态展示集成的安全工具，不调 API
+  // /help — 与后端 GET /api/commands 同源文案，失败时回退静态文本
   if (cmd === '/help') {
     return {
       handled: true,
-      fetchThen: () => Promise.resolve(HELP_TOOLS_TEXT),
+      fetchThen: async () => {
+        try {
+          const r = await api.get<{ help_tools_text?: string }>('/api/commands?client=tui');
+          return r.help_tools_text?.trim() || HELP_TOOLS_TEXT;
+        } catch {
+          return HELP_TOOLS_TEXT;
+        }
+      },
     };
   }
   if (cmd === '/list-agents') {
@@ -230,7 +237,7 @@ export function getAgentFromState(
   if (cmd !== '/agent') return currentAgent;
   const arg = parts[1]?.toLowerCase();
   if (arg === 'super' || arg === 'superhackbot') return 'superhackbot';
-  if (arg === 'secbot-cli' || arg === 'default') return 'secbot-cli';
+  if (arg === 'secbot-cli' || arg === 'hackbot' || arg === 'default') return 'hackbot';
   return currentAgent;
 }
 

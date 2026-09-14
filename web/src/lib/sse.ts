@@ -43,7 +43,7 @@ export function connectSSE(
 
       if (!response.ok) {
         const text = await response.text()
-        throw new Error(`SSE HTTP ${response.status}: ${text.slice(0, 200)}`)
+        throw new Error(`SSE 请求失败（HTTP ${response.status}）：${text.slice(0, 200)}`)
       }
 
       const reader = response.body?.getReader()
@@ -71,14 +71,14 @@ export function connectSSE(
           clearReadStall()
           readStallId = setTimeout(() => {
             controller.abort()
-            callbacks.onError?.(new Error('Read timeout: server unresponsive'))
+            callbacks.onError?.(new Error('读取超时：服务端长时间无响应'))
           }, READ_STALL_TIMEOUT_MS)
         }
 
         connectionTimeoutId = setTimeout(() => {
           if (hasReceivedEvent) return
           controller.abort()
-          callbacks.onError?.(new Error('Connection timeout — is the backend running?'))
+          callbacks.onError?.(new Error('连接超时，请确认后端已启动'))
         }, CONNECTION_TIMEOUT_MS)
 
         while (true) {

@@ -1,4 +1,5 @@
 import type { StreamTimelineItem } from '@/lib/types'
+import { MarkdownBody } from '@/components/MarkdownBody'
 
 interface Props { item: StreamTimelineItem }
 
@@ -7,7 +8,7 @@ export function PlanningBlock({ item }: Props) {
     <div className="glass-card p-4 animate-fade-in-up">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-accent text-xs font-semibold uppercase tracking-wider">{item.title}</span>
-        {item.planScope === 'adaptive' && <span className="text-xs text-warning bg-warning/10 px-2 py-0.5 rounded">adaptive</span>}
+        {item.planScope === 'adaptive' && <span className="text-xs text-warning bg-warning/10 px-2 py-0.5 rounded">自适应</span>}
       </div>
       {item.todos && item.todos.length > 0 && (
         <ul className="space-y-1.5">
@@ -16,7 +17,7 @@ export function PlanningBlock({ item }: Props) {
               <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${
                 todo.status === 'done' ? 'border-primary bg-primary/20 text-primary' :
                 todo.status === 'cancelled' ? 'border-error bg-error/10 text-error' :
-                'border-white/20'
+                'border-border'
               }`}>
                 {todo.status === 'done' ? '✓' : todo.status === 'cancelled' ? '×' : ''}
               </span>
@@ -25,7 +26,7 @@ export function PlanningBlock({ item }: Props) {
           ))}
         </ul>
       )}
-      {item.body && !item.todos?.length && <p className="text-sm text-text-dim font-mono">{item.body}</p>}
+      {item.body && !item.todos?.length ? <MarkdownBody className="md-compact">{item.body}</MarkdownBody> : null}
     </div>
   )
 }

@@ -10,10 +10,26 @@ interface TerminalBlockProps {
   title?: string;
   body: string;
   noMargin?: boolean;
+  isPlaceholder?: boolean;
 }
 
-export function TerminalBlock({ title = '终端', body, noMargin }: TerminalBlockProps) {
+export function TerminalBlock({ title = '终端', body, noMargin, isPlaceholder }: TerminalBlockProps) {
   const theme = useTheme();
+  if (isPlaceholder) {
+    return (
+      <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
+        <Text color={theme.textMuted} dimColor>
+          {"▸ "}
+          {title}
+        </Text>
+        <Box paddingLeft={3}>
+          <Text color={theme.textMuted} dimColor>
+            {body || ' '}
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
   const rendered = renderMarkdown(body || ' ');
   const lines = rendered.split('\n');
   return (

@@ -24,11 +24,15 @@ function formatContextUsage(usage: ContextUsageSnapshot | null): string {
   if (!usage) return "ctx --";
   const pct = Math.round(Math.min(1, Math.max(0, usage.ratio)) * 100);
   const used = formatTokenCount(usage.usedTokens);
-  const budget = formatTokenCount(usage.promptBudget);
-  return `ctx ${pct}% ${used}/${budget}`;
+  const total =
+    usage.contextWindow > 0
+      ? formatTokenCount(usage.contextWindow)
+      : formatTokenCount(usage.promptBudget);
+  return `ctx ${pct}% ${used}/${total}`;
 }
 
-function phaseLabel(streaming: boolean, phase?: string, detail?: string): string {
+function phaseLabel(streaming: boolean, paused?: boolean, phase?: string, detail?: string): string {
+  if (paused && !streaming) return "paused";
   if (!streaming) return "idle";
   const raw = detail?.trim() || phase?.trim() || "running";
   return raw.length > 32 ? `${raw.slice(0, 31)}...` : raw;
@@ -41,6 +45,7 @@ interface TopStatusBarProps {
   backendUrl: string;
   usage: ContextUsageSnapshot | null;
   streaming: boolean;
+  paused?: boolean;
   phase?: string;
   detail?: string;
 }
@@ -52,6 +57,7 @@ export function TopStatusBar({
   backendUrl,
   usage,
   streaming,
+  paused,
   phase,
   detail,
 }: TopStatusBarProps) {
@@ -82,8 +88,8 @@ export function TopStatusBar({
       </Box>
       <Box flexShrink={0} marginLeft={2}>
         <Text wrap="truncate">
-          <Text color={streaming ? theme.warning : theme.textMuted}>
-            {phaseLabel(streaming, phase, detail)}
+          <Text color={streaming || paused ? theme.warning : theme.textMuted}>
+            {phaseLabel(streaming, paused, phase, detail)}
           </Text>
           <Text color={theme.textMuted}> · {backend} · {model} · </Text>
           <Text color={ctxColor}>{formatContextUsage(usage)}</Text>

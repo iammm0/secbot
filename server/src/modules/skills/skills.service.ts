@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { CreateSkillRequestDto, SkillDetailDto, SkillSummaryDto } from './dto/skills.dto';
@@ -80,6 +80,18 @@ export class SkillsService {
 
     await fs.writeFile(filePath, this.renderSkill(record), 'utf8');
     return this.toDetail(record);
+  }
+
+  async deleteSkill(nameOrSlug: string): Promise<{ deleted: string }> {
+    const record = await this.findSkill(nameOrSlug);
+    if (!record) {
+      throw new NotFoundException(`Skill not found: ${nameOrSlug}`);
+    }
+    if (record.scope !== 'custom') {
+      throw new BadRequestException('只能删除自定义技能');
+    }
+    await fs.rm(path.join(this.workspaceRoot, record.relativeDir), { recursive: true, force: true });
+    return { deleted: record.slug };
   }
 
   private async loadAllSkills(): Promise<SkillRecord[]> {

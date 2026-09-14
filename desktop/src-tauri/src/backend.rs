@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager};
-use tauri_plugin_shell::process::CommandChild;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 /// 后端子进程句柄：开发模式为 std 进程，发布模式为 Tauri sidecar 进程。
@@ -137,14 +137,36 @@ pub fn spawn_backend(app: &AppHandle) -> Result<BackendProcess, String> {
             entry.display(),
             port
         );
-        let (_rx, child) = app
+        let (mut rx, child) = app
             .shell()
             .sidecar("secbot-node")
             .map_err(|e| format!("解析 sidecar secbot-node 失败: {e}"))?
             .arg(entry.to_string_lossy().to_string())
             .env("PORT", port.to_string())
+            .current_dir(&backend_dir)
             .spawn()
             .map_err(|e| format!("启动 sidecar node 失败: {e}"))?;
+        // 必须持续消费 sidecar 的 stdout/stderr。丢掉 Receiver 会关掉管道，
+        // Nest 启动日志一写就会 SIGPIPE 退出，窗口会一直停在加载页。
+        tauri::async_runtime::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                match event {
+                    CommandEvent::Stdout(line) | CommandEvent::Stderr(line) => {
+                        eprint!("{}", String::from_utf8_lossy(&line));
+                    }
+                    CommandEvent::Error(err) => {
+                        eprintln!("[secbot-desktop] sidecar: {err}");
+                    }
+                    CommandEvent::Terminated(payload) => {
+                        eprintln!(
+                            "[secbot-desktop] sidecar 退出 code={:?} signal={:?}",
+                            payload.code, payload.signal
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        });
         Ok(BackendProcess::Sidecar(child))
     }
 }

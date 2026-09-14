@@ -1,21 +1,25 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   Logger,
   Param,
+  Patch,
   Post,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { mapExceptionToClientBody } from '../../common/errors/map-exception-to-client';
 import { ChatService } from './chat.service';
 import {
   ChatRequestDto,
   ChatSessionHistoryQueryDto,
   ChatSessionsQueryDto,
+  PatchChatSessionDto,
   RootResponseRequestDto,
 } from './dto/chat.dto';
 
@@ -38,19 +42,37 @@ export class ChatController {
     return this.chatService.getPersistedSessionHistory(sessionId, query);
   }
 
+  @Patch('sessions/:sessionId')
+  patchSession(@Param('sessionId') sessionId: string, @Body() body: PatchChatSessionDto) {
+    return this.chatService.patchPersistedSession(sessionId, body);
+  }
+
+  @Delete('sessions/:sessionId')
+  deleteSession(@Param('sessionId') sessionId: string) {
+    return this.chatService.deletePersistedSession(sessionId);
+  }
+
   @Post()
-  async chatStream(@Body() body: ChatRequestDto, @Res() res: Response) {
+  async chatStream(@Body() body: ChatRequestDto, @Req() req: Request, @Res() res: Response) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    const abort = new AbortController();
+    const onDisconnect = () => {
+      if (!res.writableEnded) abort.abort();
+    };
+    req.on('close', onDisconnect);
+    req.on('aborted', onDisconnect);
+
     const send = (event: string, data: Record<string, unknown>) => {
+      if (res.writableEnded) return;
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
     try {
-      await this.chatService.handleMessage(body, send);
+      await this.chatService.handleMessage(body, send, abort.signal);
     } catch (err) {
       const mapped = mapExceptionToClientBody(err);
       if (!(err instanceof HttpException)) {
@@ -63,8 +85,11 @@ export class ChatController {
         statusCode: mapped.statusCode,
       });
       send('done', {});
+    } finally {
+      req.off('close', onDisconnect);
+      req.off('aborted', onDisconnect);
     }
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 
   @Post('root-response')

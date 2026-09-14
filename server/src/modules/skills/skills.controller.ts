@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { CreateSkillRequestDto } from './dto/skills.dto';
 import { SkillsService } from './skills.service';
 
@@ -20,5 +20,10 @@ export class SkillsController {
   @Post()
   async createSkill(@Body() body: CreateSkillRequestDto) {
     return await this.skillsService.createSkill(body);
+  }
+
+  @Delete(':name')
+  async deleteSkill(@Param('name') name: string) {
+    return await this.skillsService.deleteSkill(name);
   }
 }

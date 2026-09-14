@@ -1,6 +1,7 @@
 import type { StreamTimelineItem } from '@/lib/types'
 import { ThoughtBlock } from './ThoughtBlock'
 import { ActionBlock } from './ActionBlock'
+import { ObservationBlock } from './ObservationBlock'
 import { PlanningBlock } from './PlanningBlock'
 import { BrowserTimelineBlock } from './BrowserTimelineBlock'
 import { ResponseBlock } from './ResponseBlock'
@@ -21,8 +22,9 @@ export function BlockRouter({ item }: Props) {
       return <PlanningBlock item={item} />
     case 'browser_event':
       return <BrowserTimelineBlock item={item} />
-    case 'final':
     case 'observation':
+      return <ObservationBlock item={item} />
+    case 'final':
       return <ResponseBlock item={item} />
     default:
       return null

@@ -3,9 +3,10 @@ import { ToolsController } from './tools.controller';
 import { ToolsService } from './tools.service';
 import { VulnDbModule } from '../vuln-db/vuln-db.module';
 import { SkillsModule } from '../skills/skills.module';
+import { PreferencesModule } from '../preferences/preferences.module';
 
 @Module({
-  imports: [VulnDbModule, SkillsModule],
+  imports: [VulnDbModule, SkillsModule, PreferencesModule],
   controllers: [ToolsController],
   providers: [ToolsService],
   exports: [ToolsService],

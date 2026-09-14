@@ -1,8 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MemoryService } from '../memory/memory.service';
 import { DatabaseService } from '../database/database.service';
-import { ContextItem, ContextPatch, Session, SessionContextState } from '../../common/types';
+import {
+  ChatMessage,
+  ContextItem,
+  ContextPatch,
+  PausedTaskSnapshot,
+  Session,
+  SessionContextState,
+} from '../../common/types';
+import { clipText } from '../agents/core/secbot-profile';
 import { ContextStoreService } from './context-store.service';
+import { PreferencesService } from '../preferences/preferences.service';
+import { partsFromContextItems, type ContextUsagePart } from './context-usage';
 import {
   ModelWindow,
   approxTokens,
@@ -34,11 +44,21 @@ interface ContextDebugMeta {
   contextWindow: number;
   /** 该模型保留给 system / 输出的预算 */
   reservedTokens: number;
+  parts: ContextUsagePart[];
 }
 
 export interface AssembledContext {
   contextBlock: string;
   debug: ContextDebugMeta;
+}
+
+/** IntentRouter 用的轻量会话切片：不做向量/SQLite 检索，避免分类阶段变慢 */
+export interface RouterSessionBrief {
+  pinnedFacts: string[];
+  sessionFocus: string[];
+  unresolved: string[];
+  pausedTask: { originalMessage: string; progressNote: string } | null;
+  recentMessages: ChatMessage[];
 }
 
 interface BuildArgs {
@@ -47,6 +67,8 @@ interface BuildArgs {
   sessionId: string;
   agentType: string;
   modelName?: string;
+  /** task_simple / qa 跳过向量检索 */
+  skipVector?: boolean;
 }
 
 @Injectable()
@@ -57,6 +79,7 @@ export class ContextAssemblerService {
     private readonly memoryService: MemoryService,
     private readonly databaseService: DatabaseService,
     private readonly contextStore: ContextStoreService,
+    private readonly preferences: PreferencesService,
   ) {}
 
   /** 把 ExploreAgent 产出的 patch 写入对应 session 的上下文池 */
@@ -80,14 +103,73 @@ export class ContextAssemblerService {
     return this.contextStore.get(sessionId);
   }
 
+  summarizeForRouter(sessionId: string, session: Session): RouterSessionBrief {
+    const state = this.getStoreSnapshot(sessionId);
+    const recentMessages: ChatMessage[] = session.messages.slice(-6).map((m) => ({
+      role: m.role as ChatMessage['role'],
+      content: clipText(m.content, 480),
+    }));
+    const sessionFocus = [...state.focus]
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 12)
+      .map((entry) => entry.keyword)
+      .filter(Boolean);
+    const paused = state.pausedTask;
+    return {
+      pinnedFacts: state.pinned
+        .slice(0, 10)
+        .map((item) => clipText(item.content, 280))
+        .filter(Boolean),
+      sessionFocus,
+      unresolved: state.unresolved
+        .slice(0, 8)
+        .map((item) => clipText(item, 200))
+        .filter(Boolean),
+      pausedTask: paused?.originalMessage
+        ? {
+            originalMessage: clipText(paused.originalMessage, 240),
+            progressNote: clipText(paused.progressNote ?? '', 240),
+          }
+        : null,
+      recentMessages,
+    };
+  }
+
+  getPausedTask(sessionId: string): PausedTaskSnapshot | null {
+    return this.contextStore.getPausedTask(sessionId) ?? null;
+  }
+
+  setPausedTask(sessionId: string, snapshot: PausedTaskSnapshot): void {
+    this.contextStore.setPausedTask(sessionId, snapshot);
+  }
+
+  clearPausedTask(sessionId: string): void {
+    this.contextStore.clearPausedTask(sessionId);
+  }
+
   async build(params: BuildArgs): Promise<AssembledContext> {
-    const { query, session, sessionId, agentType, modelName } = params;
+    const { query, session, sessionId, agentType, modelName, skipVector } = params;
     this.contextStore.setModelName(sessionId, modelName);
     const state = this.contextStore.get(sessionId);
     const window = getModelWindow(modelName);
     const budget = computePromptBudget(window);
 
     const candidates: ContextItem[] = [];
+
+    const instructions = this.preferences.getCustomInstructions();
+    if (instructions) {
+      const content = `用户自定义指令：\n${instructions}`;
+      candidates.push({
+        id: 'user-instructions',
+        content,
+        source: 'user_pinned',
+        priority: 1,
+        tokensEstimate: approxTokens(content),
+        tags: ['instructions'],
+        ttl: 'persistent',
+        createdAt: new Date(),
+      });
+    }
 
     // 1) pinned：ExploreAgent 写入 / 用户 pin，最高优先级
     for (const item of state.pinned) {
@@ -112,56 +194,63 @@ export class ContextAssemblerService {
       });
     }
 
-    // 3) SQLite 历史回合
-    const sqliteHistory = this.databaseService.getConversations({ sessionId, limit: 8 });
-    sqliteHistory.reverse().forEach((turn, idx) => {
-      const content = `用户: ${turn.userMessage}\n助手: ${turn.assistantMessage}`;
-      candidates.push({
-        id: `sqlite-${idx}`,
-        content,
-        source: 'sqlite',
-        priority: 0.45,
-        tokensEstimate: approxTokens(content),
-        tags: ['history'],
-        ttl: 'session',
-        createdAt: new Date(),
+    // 3) SQLite 历史回合：内存里已有 session.messages 时不再叠切片
+    let sqliteTurns = 0;
+    if (session.messages.length === 0) {
+      const sqliteHistory = this.databaseService.getConversations({ sessionId, limit: 8 });
+      sqliteHistory.reverse().forEach((turn, idx) => {
+        const content = `用户: ${turn.userMessage}\n助手: ${turn.assistantMessage}`;
+        candidates.push({
+          id: `sqlite-${idx}`,
+          content,
+          source: 'sqlite',
+          priority: 0.45,
+          tokensEstimate: approxTokens(content),
+          tags: ['history'],
+          ttl: 'session',
+          createdAt: new Date(),
+        });
       });
-    });
+      sqliteTurns = sqliteHistory.length;
+    }
 
     // 4) Vector：focus 加权检索；query 与 focus 关键词组合检索后归并
     const focusKeywords = state.focus.map((f) => f.keyword);
-    const vectorQueryText =
-      focusKeywords.length > 0 ? `${query} ${focusKeywords.join(' ')}` : query;
-    const queryVector = this.textToVector(vectorQueryText);
     let vectorHits = 0;
-    try {
-      const vectorResults = await this.memoryService.search_vector_memories(
-        queryVector,
-        'episodic',
-        8,
-      );
-      for (const hit of vectorResults) {
-        const content = hit.item.content.trim();
-        if (!content) continue;
-        const focusBoost = this.computeFocusBoost(content, focusKeywords);
-        candidates.push({
-          id: `vec-${hit.item.id ?? `${vectorHits}`}`,
-          content: `${content}\n来源: ${String(hit.item.metadata?.sessionId ?? 'unknown')} / 相似度: ${hit.similarity.toFixed(3)}`,
-          source: 'vector',
-          priority: Math.min(0.85, 0.35 + hit.similarity * 0.4 + focusBoost),
-          tokensEstimate: approxTokens(content),
-          tags: ['vector'],
-          ttl: 'turn',
-          createdAt: new Date(),
-        });
-        vectorHits++;
+    if (!skipVector) {
+      const vectorQueryText =
+        focusKeywords.length > 0 ? `${query} ${focusKeywords.join(' ')}` : query;
+      const queryVector = this.textToVector(vectorQueryText);
+      try {
+        const vectorResults = await this.memoryService.search_vector_memories(
+          queryVector,
+          'episodic',
+          8,
+        );
+        for (const hit of vectorResults) {
+          const content = hit.item.content.trim();
+          if (!content) continue;
+          const focusBoost = this.computeFocusBoost(content, focusKeywords);
+          candidates.push({
+            id: `vec-${hit.item.id ?? `${vectorHits}`}`,
+            content: `${content}\n来源: ${String(hit.item.metadata?.sessionId ?? 'unknown')} / 相似度: ${hit.similarity.toFixed(3)}`,
+            source: 'vector',
+            priority: Math.min(0.85, 0.35 + hit.similarity * 0.4 + focusBoost),
+            tokensEstimate: approxTokens(content),
+            tags: ['vector'],
+            ttl: 'turn',
+            createdAt: new Date(),
+          });
+          vectorHits++;
+        }
+      } catch (error) {
+        this.logger.warn(`vector search failed: ${(error as Error).message}`);
       }
-    } catch (error) {
-      this.logger.warn(`vector search failed: ${(error as Error).message}`);
     }
 
     // 5) 去重 + 按预算切片
     const { selected, dropped, usedTokens } = packByBudget(candidates, budget);
+    const parts = partsFromContextItems(selected);
 
     const sections = renderSections(selected);
     const block = sections.length > 0 ? sections.join('\n\n') : '';
@@ -180,7 +269,7 @@ export class ContextAssemblerService {
       contextBlock,
       debug: {
         sessionMessages: recentSession.length,
-        sqliteTurns: sqliteHistory.length,
+        sqliteTurns,
         vectorHits,
         pinned: state.pinned.length,
         focus: focusKeywords,
@@ -190,6 +279,7 @@ export class ContextAssemblerService {
         modelName: modelName ?? state.modelName,
         contextWindow: window.context,
         reservedTokens: window.reserveForOutput + window.reserveForSystem,
+        parts,
       },
     };
   }
@@ -309,13 +399,16 @@ function packByBudget(candidates: ContextItem[], budget: number): PackResult {
 
 function renderSections(items: ContextItem[]): string[] {
   const groups: Record<string, string[]> = {
+    UserInstructions: [],
     Pinned: [],
     RecentSession: [],
     SQLiteHistory: [],
     VectorMemory: [],
   };
   for (const item of items) {
-    if (item.source === 'explore' || item.source === 'user_pinned') {
+    if (item.tags.includes('instructions')) {
+      groups.UserInstructions.push(item.content);
+    } else if (item.source === 'explore' || item.source === 'user_pinned') {
       groups.Pinned.push(item.content);
     } else if (item.source === 'recent') {
       groups.RecentSession.push(item.content);
@@ -326,7 +419,7 @@ function renderSections(items: ContextItem[]): string[] {
     }
   }
   const sections: string[] = [];
-  for (const name of ['Pinned', 'RecentSession', 'SQLiteHistory', 'VectorMemory']) {
+  for (const name of ['UserInstructions', 'Pinned', 'RecentSession', 'SQLiteHistory', 'VectorMemory']) {
     const block = groups[name];
     if (block.length > 0) {
       sections.push(`【${name}】\n${block.join('\n\n')}`);

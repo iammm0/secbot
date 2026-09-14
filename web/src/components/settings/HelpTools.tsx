@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Icon } from '@/components/Icon'
 
 interface Tool {
   name: string
@@ -46,16 +47,20 @@ export function HelpTools() {
             <div key={cat.id}>
               <button
                 onClick={() => setExpandedCat(expandedCat === cat.id ? null : cat.id)}
-                className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded hover:bg-white/5 transition-colors"
+                className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded hover:bg-hover transition-colors"
               >
-                <span className="text-xs text-white/30">{expandedCat === cat.id ? '▼' : '▶'}</span>
+                <Icon
+                  name="arrow-right-02"
+                  size={12}
+                  className={`text-text-dim transition-transform ${expandedCat === cat.id ? 'rotate-90' : ''}`}
+                />
                 <span className="text-xs font-mono text-secondary">{cat.name}</span>
                 <span className="text-[10px] text-text-dim ml-auto">{cat.count}</span>
               </button>
               {expandedCat === cat.id && (
                 <div className="ml-5 space-y-1 mb-2">
                   {cat.tools.map(tool => (
-                    <div key={tool.name} className="px-2 py-1 rounded bg-white/3 border border-white/5">
+                    <div key={tool.name} className="px-2 py-1 rounded bg-hover border border-border">
                       <div className="text-xs font-mono text-primary">{tool.name}</div>
                       <div className="text-[11px] text-text-dim">{tool.description}</div>
                     </div>

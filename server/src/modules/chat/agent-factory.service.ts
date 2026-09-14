@@ -8,6 +8,9 @@ import { ExploreAgent } from '../agents/core/explore-agent';
 import { HackbotAgent } from '../agents/core/hackbot-agent';
 import { SuperHackbotAgent } from '../agents/core/superhackbot-agent';
 import { SecurityReActAgent } from '../agents/core/security-react-agent';
+import type { ContextUsagePart } from './context-usage';
+import { usagePart } from './context-usage';
+import { approxTokens } from './model-context-window';
 
 @Injectable()
 export class AgentFactoryService {
@@ -27,6 +30,26 @@ export class AgentFactoryService {
 
   createIntentRouter(): IntentRouter {
     return new IntentRouter();
+  }
+
+  getToolCatalogCompact(): string {
+    return this.toolsService.describeCatalogCompact();
+  }
+
+  getDefinitionUsageParts(): ContextUsagePart[] {
+    let tools = 0;
+    let skills = 0;
+    let mcp = 0;
+    for (const category of this.toolsService.listCatalogEntries()) {
+      const text = category.tools.map((tool) => `- ${tool.name}: ${tool.description}`).join('\n');
+      const tokens = text ? approxTokens(text) : 0;
+      if (category.id === 'skills') skills += tokens;
+      else if (category.id === 'mcp') mcp += tokens;
+      else tools += tokens;
+    }
+    return [usagePart('tools', tools), usagePart('skills', skills), usagePart('mcp', mcp)].filter(
+      (part): part is ContextUsagePart => part != null,
+    );
   }
 
   createExploreAgent(): ExploreAgent {

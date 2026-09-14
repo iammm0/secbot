@@ -5,6 +5,9 @@ import { loadYamlConfig, saveYamlConfig } from '../../config/yaml-config-loader.
 
 const DEFAULT_DATABASE_PATH = 'data/opencomsagent.db';
 
+/** Keep handles alive; GC of ephemeral better-sqlite3 Database aborts Node (`env != nullptr`). */
+const openHandles = new Map<string, Database.Database>();
+
 function resolveDatabasePath(rootDir = process.cwd()): string {
   const yamlDbPath = (loadYamlConfig(rootDir).flat['database.path'] ?? '').trim();
   const configuredPath =
@@ -33,16 +36,42 @@ function unflattenConfig(flat: Record<string, string>): Record<string, unknown> 
   return nested;
 }
 
+function handleKey(dbPath: string, writable: boolean): string {
+  return `${writable ? 'w' : 'r'}:${dbPath}`;
+}
+
+function getConfigDb(dbPath: string, writable: boolean): Database.Database | null {
+  if (!fs.existsSync(dbPath)) return null;
+  const key = handleKey(dbPath, writable);
+  const existing = openHandles.get(key);
+  if (existing) return existing;
+  const db = writable
+    ? new Database(dbPath)
+    : new Database(dbPath, { readonly: true, fileMustExist: true });
+  openHandles.set(key, db);
+  return db;
+}
+
+export function closePersistedConfigConnections(): void {
+  for (const db of openHandles.values()) {
+    try {
+      db.close();
+    } catch {
+      /* already closed */
+    }
+  }
+  openHandles.clear();
+}
+
 export function getPersistedConfig(key: string, rootDir = process.cwd()): string | null {
   try {
     const dbPath = resolveDatabasePath(rootDir);
-    if (!fs.existsSync(dbPath)) return null;
+    const db = getConfigDb(dbPath, false);
+    if (!db) return null;
 
-    const db = new Database(dbPath, { readonly: true });
     const row = db.prepare('SELECT value FROM user_configs WHERE key = ?').get(key) as
       | { value: string }
       | undefined;
-    db.close();
 
     const value = (row?.value ?? '').trim();
     return value.length > 0 ? value : null;
@@ -69,10 +98,9 @@ export function deletePersistedConfig(key: string, rootDir = process.cwd()): boo
   let sqliteDeleted = false;
   try {
     const dbPath = resolveDatabasePath(rootDir);
-    if (fs.existsSync(dbPath)) {
-      const db = new Database(dbPath);
+    const db = getConfigDb(dbPath, true);
+    if (db) {
       sqliteDeleted = db.prepare('DELETE FROM user_configs WHERE key = ?').run(key).changes > 0;
-      db.close();
     }
   } catch {
     sqliteDeleted = false;

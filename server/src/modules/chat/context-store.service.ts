@@ -123,10 +123,23 @@ export class ContextStoreService {
     this.stores.set(sessionId, this.createEmpty());
   }
 
+  getPausedTask(sessionId: string): SessionContextState['pausedTask'] {
+    return this.get(sessionId).pausedTask ?? null;
+  }
+
+  setPausedTask(sessionId: string, snapshot: NonNullable<SessionContextState['pausedTask']>): void {
+    this.get(sessionId).pausedTask = snapshot;
+  }
+
+  clearPausedTask(sessionId: string): void {
+    const state = this.stores.get(sessionId);
+    if (state) state.pausedTask = null;
+  }
+
   // ------ internals ------
 
   private createEmpty(): SessionContextState {
-    return { pinned: [], focus: [], unresolved: [], modelName: undefined };
+    return { pinned: [], focus: [], unresolved: [], modelName: undefined, pausedTask: null };
   }
 
   private upsertFact(state: SessionContextState, fact: ContextPatchFact, now: Date): void {

@@ -31,6 +31,7 @@ function ensureRenderer(): void {
   if (initialized) return;
   const factory = resolveMarkedTerminalFactory();
   /** marked-terminal 默认 renderer 已经会染色（chalk）；只覆盖与终端窄屏适配相关的选项 */
+  marked.use({ gfm: true, breaks: false });
   marked.use(
     factory({
       showSectionPrefix: false,

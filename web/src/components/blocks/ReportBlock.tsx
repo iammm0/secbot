@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { StreamTimelineItem } from '@/lib/types'
-import Markdown from 'react-markdown'
+import { Icon } from '@/components/Icon'
+import { MarkdownBody } from '@/components/MarkdownBody'
 
 interface Props { item: StreamTimelineItem }
 
@@ -8,16 +9,16 @@ export function ReportBlock({ item }: Props) {
   const [expanded, setExpanded] = useState(true)
 
   return (
-    <div className="glass-card p-4 animate-fade-in-up border-accent/20">
-      <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-2 w-full text-left mb-2">
-        <span className="text-accent text-xs font-semibold uppercase tracking-wider">Security Report</span>
-        <span className="text-white/30 ml-auto text-xs">{expanded ? '▼' : '▶'}</span>
+    <div className="glass-card animate-fade-in-up border-accent/20 p-4">
+      <button onClick={() => setExpanded(!expanded)} className="mb-2 flex w-full items-center gap-2 text-left">
+        <span className="text-xs font-semibold uppercase tracking-wider text-accent">安全报告</span>
+        <Icon
+          name="arrow-right-02"
+          size={12}
+          className={`ml-auto text-text-dim transition-transform ${expanded ? 'rotate-90' : ''}`}
+        />
       </button>
-      {expanded && (
-        <div className="prose prose-invert prose-sm max-w-none font-mono text-sm [&_pre]:glass-card [&_pre]:p-3 [&_code]:text-secondary [&_a]:text-primary [&_h1]:text-primary [&_h2]:text-secondary [&_h3]:text-accent">
-          <Markdown>{item.body}</Markdown>
-        </div>
-      )}
+      {expanded && <MarkdownBody>{item.body}</MarkdownBody>}
     </div>
   )
 }

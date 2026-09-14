@@ -6,6 +6,13 @@ describe('ChatService QA routing', () => {
     const contextAssembler = {
       updateFocusFromInput: vi.fn(),
       getStoreSnapshot: vi.fn().mockReturnValue({ focus: [], unresolved: [] }),
+      summarizeForRouter: vi.fn().mockReturnValue({
+        pinnedFacts: [],
+        sessionFocus: [],
+        unresolved: [],
+        pausedTask: null,
+        recentMessages: [],
+      }),
       build: vi.fn().mockResolvedValue({
         contextBlock: 'ctx',
         debug: {
@@ -20,6 +27,9 @@ describe('ChatService QA routing', () => {
       }),
       rememberTurn: vi.fn().mockResolvedValue(undefined),
       applyPatch: vi.fn(),
+      getPausedTask: vi.fn().mockReturnValue(null),
+      setPausedTask: vi.fn(),
+      clearPausedTask: vi.fn(),
     };
     const agentFactory = {
       createQAAgent: vi.fn().mockReturnValue({ answerAdaptive: vi.fn() }),
@@ -29,15 +39,29 @@ describe('ChatService QA routing', () => {
       createExploreAgent: vi.fn().mockReturnValue({}),
       createHackbot: vi.fn().mockReturnValue({}),
       createSuperhackbot: vi.fn().mockReturnValue({}),
+      getToolCatalogCompact: vi.fn().mockReturnValue('Core Security(1): nmap_scan'),
+      getDefinitionUsageParts: vi.fn().mockReturnValue([]),
     };
     const databaseService = {
       saveConversation: vi.fn(),
+      getConversations: vi.fn().mockReturnValue([]),
+      getLatestConversation: vi.fn().mockReturnValue(null),
+      bindWorkspaceSession: vi.fn(),
+    };
+    const preferences = {
+      getCustomInstructions: vi.fn().mockReturnValue(''),
+    };
+    const executionRouter = {
+      resolve: vi.fn().mockReturnValue({ kind: 'local', nodeId: 'local-host' }),
+      proxyChat: vi.fn(),
     };
 
     return new ChatService(
       agentFactory as never,
       databaseService as never,
       contextAssembler as never,
+      preferences as never,
+      executionRouter as never,
     );
   }
 

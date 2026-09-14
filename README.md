@@ -73,9 +73,10 @@ DEEPSEEK_MODEL=deepseek-chat
 # OLLAMA_MODEL=llama3.2
 
 # Optional: explore iterations, context debug SSE, adaptive replan, NVD rate limits
-# SECBOT_EXPLORE_MAX_ITERS=12
+# SECBOT_REACT_MAX_ITERS=20
+# SECBOT_EXPLORE_MAX_ITERS=6
 # SECBOT_CONTEXT_DEBUG=1
-# SECBOT_ADAPTIVE_REPLAN=false
+# SECBOT_ADAPTIVE_REPLAN=1
 # NVD_API_KEY=your-nvd-key
 ```
 

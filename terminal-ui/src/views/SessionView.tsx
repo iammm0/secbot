@@ -91,6 +91,7 @@ export function SessionView({
   const { navigate } = useRoute();
   const {
     streaming,
+    paused,
     streamState,
     history,
     currentUserMessage,
@@ -100,6 +101,7 @@ export function SessionView({
     pendingRootRequest,
     setPendingRootRequest,
     sendMessage,
+    stopStream,
     sessionList,
     switchSession,
     newSession,
@@ -413,6 +415,10 @@ export function SessionView({
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
+    if (streaming && isInkEscape(input, key)) {
+      stopStream();
+      return;
+    }
     if (keybind.match("task_panel_toggle", evt)) {
       removeCtrlTTextInputEcho(inputValueRef.current);
       toggleTaskPanel();
@@ -506,10 +512,15 @@ export function SessionView({
   const handleSubmit = useCallback(
     (valueOr?: string) => {
       const trimmed = (valueOr ?? inputValue).trim();
-      if (!trimmed) return;
+      if (!trimmed) {
+        if (!paused) return;
+      }
+      const payload = trimmed || "继续任务";
 
       // 记录输入历史（类似终端命令历史，所有提交均记录）
-      setInputHistory((prev) => [...prev, trimmed]);
+      if (trimmed) {
+        setInputHistory((prev) => [...prev, trimmed]);
+      }
       setHistoryIndex(-1);
       draftInputRef.current = "";
 
@@ -595,12 +606,13 @@ export function SessionView({
         return;
       }
 
-      sendMessage(trimmed, "agent", agent);
+      sendMessage(payload, "agent", agent);
       setInputValue("");
       toBottom();
     },
     [
       agent,
+      paused,
       sendMessage,
       setAgent,
       inputValue,
@@ -647,6 +659,7 @@ export function SessionView({
         backendUrl={backendUrl}
         usage={streamState.contextUsage}
         streaming={streaming}
+        paused={paused}
         phase={streamState.phase}
         detail={streamState.detail}
       />
@@ -723,7 +736,13 @@ export function SessionView({
         value={inputValue}
         onChange={(next) => setInputValue(sanitizeInputValue(next))}
         onSubmit={handleComposerSubmit}
-        placeholder="Ask anything..."
+        placeholder={
+          streaming
+            ? "Esc 暂停当前任务"
+            : paused
+              ? "补充说明并继续原任务"
+              : "Ask anything..."
+        }
       />
 
       <BottomStatusLine

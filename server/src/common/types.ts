@@ -78,12 +78,26 @@ export interface FocusEntry {
   lastSeenAt: Date;
 }
 
+export interface PausedTodoSnapshot {
+  id: string;
+  content: string;
+  status: string;
+}
+
+export interface PausedTaskSnapshot {
+  originalMessage: string;
+  progressNote: string;
+  todos: PausedTodoSnapshot[];
+}
+
 export interface SessionContextState {
   pinned: ContextItem[];
   focus: FocusEntry[];
   unresolved: string[];
   /** 当前会话所选模型名（影响预算） */
   modelName?: string;
+  /** 运行中被用户暂停的任务；完成后清除 */
+  pausedTask?: PausedTaskSnapshot | null;
 }
 
 export interface ContextPatchFact {

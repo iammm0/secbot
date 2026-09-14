@@ -83,10 +83,18 @@ npm run dev          # 先构建 server + web，再 tauri dev
 1. `build:deps` → 构建 `server`（tsc）与 `web`（vite build）；
 2. `tauri dev` → 启动窗口并拉起后端，就绪后自动跳转。
 
-打包（自包含，可分发）：
+打包（本机默认只打 `.app`，避免 `bundle_dmg.sh` 失败阻断安装）：
 
 ```bash
-npm run build        # build:deps → prepare-backend → tauri build
+npm run build        # build:deps → prepare-backend → tauri build --bundles app
+```
+
+CI 使用 `npm run build:ci`（`--bundles all`）再打 dmg/nsis/deb 等。
+
+安装 macOS `.app`：
+
+```bash
+ditto desktop/src-tauri/target/release/bundle/macos/Secbot.app /Applications/Secbot.app
 ```
 
 `npm run build` 会：
@@ -94,7 +102,7 @@ npm run build        # build:deps → prepare-backend → tauri build
 2. `prepare-backend` → 把 `server/dist`+`web/dist`+**生产版 `node_modules`**（含当前平台原生
    `better-sqlite3`）装配进 `src-tauri/backend/`，并把当前 Node 运行时复制为
    `src-tauri/binaries/secbot-node-<target-triple>`（Tauri externalBin sidecar）；
-3. `tauri build` → 产出各平台安装包（`.dmg` / `.msi` / `.exe` / `.deb` / `.AppImage`），
+3. `tauri build --bundles app` → 本机产出 `.app`（CI 再打 dmg 等安装包），
    后端资源作为 `resources` 打进包内。
 
 > 产物体积约 300–400MB（内含完整 Node 运行时与依赖），属打包 Node 后端的正常范围。
@@ -135,9 +143,21 @@ sidecar `secbot-node` 通过 shell 插件按 target triple 解析。
 > 桌面矩阵在每个 OS 上**原生**执行 `prepare-backend`，因此各平台的原生模块与 Node
 > 运行时都与目标平台匹配。
 
-## 代码签名与公证（可选，后续）
+## 未签名安装（macOS Gatekeeper）
 
-当前安装包未签名/未公证。分发时如需去除系统告警：
+本期不购买 Developer ID，也不做公证。本机 `npm run build` 只产出 **未签名** `.app`：
 
-- [ ] macOS：Developer ID 签名 + notarization（配置 `APPLE_*` secrets 后接入 workflow）；
-- [ ] Windows：代码签名证书。
+1. 把 `Secbot.app` 拷到 `/Applications`（见上方 `ditto`）。
+2. 首次打开若提示「无法验证开发者」：系统设置 → 隐私与安全性 → 仍要打开；或在终端执行：
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Secbot.app
+   open /Applications/Secbot.app
+   ```
+3. 安装验收：冷启动能拉起后端；设置可点；斜杠 `/` 有命令表；关掉重开后会话仍在（同一后端 SQLite）。
+
+签名与公证列为后续（需 Apple Developer ID 与 CI secrets）。
+
+## 代码签名与公证（后续）
+
+- [ ] macOS：Developer ID 签名 + notarization（配置 `APPLE_*` secrets 后接入 workflow）
+- [ ] Windows：代码签名证书

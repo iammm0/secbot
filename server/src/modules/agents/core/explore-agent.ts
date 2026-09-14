@@ -6,6 +6,9 @@ import { ChatMessage, ContextPatch, ContextPatchFact, IntentDecision } from '../
 import { LLMProvider, createLLM } from '../../../common/llm';
 import { validateToolInvocation } from './tool-action-validate';
 import { parseToolAction, type ParsedAction } from './parse-tool-action';
+import { truncateMiddleText } from './observation-format';
+import { throwIfAborted } from '../../chat/paused-task';
+import { traceToolRun } from '../../chat/workflow-trace';
 
 const EXPLORE_SYSTEM_PROMPT =
   '你是 secbot 的 ExploreAgent。你的唯一目标是：' +
@@ -49,7 +52,7 @@ const EXPLORE_SYSTEM_PROMPT =
   '}\n' +
   'facts 内容要 **简洁、可复用**：例如 target_ip / asset_type / detected_service / cve_relevance / owner_authorization_state。';
 
-const DEFAULT_MAX_ITERATIONS = 12;
+const DEFAULT_MAX_ITERATIONS = 6;
 
 function resolveDefaultMaxIterations(): number {
   const raw = (process.env.SECBOT_EXPLORE_MAX_ITERS ?? '').trim();
@@ -66,8 +69,9 @@ export interface ExploreArgs {
   intent?: IntentDecision;
   contextBlock?: string;
   onEvent?: OnEventCallback;
-  /** 默认 12，可用 SECBOT_EXPLORE_MAX_ITERS 覆盖 */
+  /** 默认 6，可用 SECBOT_EXPLORE_MAX_ITERS 覆盖 */
   maxIterations?: number;
+  abortSignal?: AbortSignal;
 }
 
 export class ExploreAgent extends BaseAgent {
@@ -99,7 +103,7 @@ export class ExploreAgent extends BaseAgent {
   }
 
   async explore(args: ExploreArgs): Promise<ContextPatch> {
-    const { userInput, intent, contextBlock, onEvent } = args;
+    const { userInput, intent, contextBlock, onEvent, abortSignal } = args;
     const defaultMax = resolveDefaultMaxIterations();
     const maxIterations = args.maxIterations ?? defaultMax;
 
@@ -149,7 +153,9 @@ export class ExploreAgent extends BaseAgent {
 
     try {
       for (let iteration = 1; iteration <= maxIterations; iteration++) {
+        throwIfAborted(abortSignal, { originalMessage: userInput, progressNote: '探索阶段中断' });
         const thought = await this.llm.chat(messages);
+        throwIfAborted(abortSignal, { originalMessage: userInput, progressNote: thought.slice(0, 4000) });
         lastThought = thought;
 
         onEvent?.({
@@ -239,7 +245,7 @@ export class ExploreAgent extends BaseAgent {
 
         let observation: string;
         try {
-          const result = await tool.run(action.params);
+          const result = await traceToolRun(action.tool, () => tool.run(action.params));
           observation = result.success
             ? this.formatObservation(result.result)
             : `[错误] ${result.error ?? '未知错误'}`;
@@ -378,11 +384,16 @@ export class ExploreAgent extends BaseAgent {
   }
 
   private formatObservation(result: unknown): string {
-    if (typeof result === 'string') return result.slice(0, 2_000);
-    try {
-      return JSON.stringify(result, null, 2).slice(0, 2_000);
-    } catch {
-      return String(result).slice(0, 2_000);
-    }
+    const raw =
+      typeof result === 'string'
+        ? result
+        : (() => {
+            try {
+              return JSON.stringify(result, null, 2);
+            } catch {
+              return String(result);
+            }
+          })();
+    return truncateMiddleText(raw, 12_000, 3_500, 3_500);
   }
 }

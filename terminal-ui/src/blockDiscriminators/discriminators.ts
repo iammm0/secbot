@@ -17,16 +17,26 @@ export const byTypeDiscriminator: BlockDiscriminator = (block) => {
   return null;
 };
 
+function isMixedMarkdown(body: string): boolean {
+  const hasHeading = /^#{1,6}\s+/m.test(body);
+  const hasFence = /^```/m.test(body);
+  const hasTable = /^\s*\|.+\|\s*$/m.test(body) && /\|?\s*:?-{3,}/.test(body);
+  return [hasHeading, hasFence, hasTable].filter(Boolean).length >= 2;
+}
+
 /** 按内容特征判别：代码块、错误、警告、JSON、Diff 等 */
 export const byContentDiscriminator: BlockDiscriminator = (block) => {
   const body = (block.body ?? '').trim();
   if (!body) return null;
 
+  /** 标题+表格+围栏混排时交给 renderMarkdown，避免整段被当成单一 code/bullet */
+  if (isMixedMarkdown(body)) return null;
+
   if (/^```[\s\S]*?```/m.test(body) || /^```\w*\n/.test(body)) return 'code';
   if (/^\*\*错误\*\*|^错误[:：]|^Error:|^error:/im.test(body)) return 'error';
   if (/^⚠|^警告|^Warning:/im.test(body)) return 'warning';
   if (/^##?\s+摘要|^摘要[:：]|^Summary:/im.test(body)) return 'summary';
-  if (/^\*\(共 \d+ 行/.test(body)) return block.type; // 折叠占位，保持原 type
+  if (/^\*\(共 \d+ 行/.test(body) || /另有 \d+ 行已折叠/.test(body)) return block.type;
 
   if (/^\s*[{\[][\s\S]*[}\]]\s*$/m.test(body) && /"[^"]+"\s*:/.test(body)) return 'json';
   if (/^[+-].*[+-]|^@@ |^diff /im.test(body)) return 'diff';
@@ -58,6 +68,8 @@ export const byStructureDiscriminator: BlockDiscriminator = (block) => {
 
 /** 默认回退：content 或 result 类通用渲染 */
 export const fallbackDiscriminator: BlockDiscriminator = (block) => {
-  const placeholder = /^\*\(共 \d+ 行/.test((block.body ?? '').trim());
+  const placeholder =
+    /^\*\(共 \d+ 行/.test((block.body ?? '').trim()) ||
+    /另有 \d+ 行已折叠/.test(block.body ?? '');
   return placeholder ? 'content' : (block.type || 'content');
 };

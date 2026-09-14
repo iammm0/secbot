@@ -11,11 +11,14 @@
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "^1.93.0",
+    "highlight.js": "^11.12.0",
+    "iconsax": "^0.1.1",
     "nanoid": "^5.1.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^9.0.3",
-    "rehype-highlight": "^7.0.2"
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.7",

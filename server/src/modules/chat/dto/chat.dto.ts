@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 
 export type ChatMode = 'agent';
 
@@ -50,6 +50,27 @@ export class ChatRequestDto {
   @ValidateNested()
   @Type(() => ClientShellDto)
   client_shell?: ClientShellDto;
+
+  /** 客户端声明：从暂停的原任务继续，而不是新开任务 */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  resume?: boolean;
+
+  /** 原任务文本（服务端内存丢失时由客户端带回） */
+  @IsOptional()
+  @IsString()
+  resume_from?: string;
+
+  /** 把本轮对话归入指定工作空间 */
+  @IsOptional()
+  @IsString()
+  workspace_id?: string;
+
+  /** 选中的工作空间节点；未传则用会话绑定或工作空间默认节点 */
+  @IsOptional()
+  @IsString()
+  node_id?: string;
 }
 
 export class ChatResponseDto {
@@ -88,6 +109,12 @@ export class ChatSessionHistoryQueryDto {
   @IsInt()
   @Min(0)
   offset = 0;
+}
+
+export class PatchChatSessionDto {
+  @IsOptional()
+  @IsString()
+  title?: string;
 }
 
 export type RootAction = 'run_once' | 'always_allow' | 'deny';

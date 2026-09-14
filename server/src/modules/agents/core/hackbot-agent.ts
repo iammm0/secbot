@@ -35,8 +35,16 @@ const HACKBOT_SYSTEM_PROMPT =
   '你拥有自动执行工具的能力，会按照 Think → Action → Observation 循环' +
   '自动完成任务，无需用户逐步确认。';
 
+function resolveReactMaxIterations(): number {
+  const raw = (process.env.SECBOT_REACT_MAX_ITERS ?? '').trim();
+  if (!raw) return 20;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 20;
+  return Math.min(80, Math.max(1, Math.floor(n)));
+}
+
 export class HackbotAgent extends SecurityReActAgent {
   constructor(tools: BaseTool[]) {
-    super('Hackbot', HACKBOT_SYSTEM_PROMPT, tools, true, Infinity);
+    super('Hackbot', HACKBOT_SYSTEM_PROMPT, tools, true, resolveReactMaxIterations());
   }
 }

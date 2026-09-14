@@ -26,14 +26,12 @@ export function ActionsBlock({ block, noMargin }: ActionsBlockProps) {
 
   return (
     <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
-      {/* 标题行：tool — muted，compact */}
       <Text color={theme.textMuted} dimColor>
-        {"$ "}
+        {"▸ "}
         {title}
       </Text>
 
       {hasActions ? (
-        /* 有 actions：paddingLeft={2} 缩进列表 */
         <Box flexDirection="column" paddingLeft={2}>
           {block.actions!.map((a, i) => (
             <ActionItem
@@ -46,8 +44,7 @@ export function ActionsBlock({ block, noMargin }: ActionsBlockProps) {
           ))}
         </Box>
       ) : (
-        /* 无 actions：缩进显示 body 文本 */
-        <Box paddingLeft={2}>
+        <Box paddingLeft={3}>
           <Text color={theme.textMuted} dimColor>
             {body}
           </Text>

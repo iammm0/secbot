@@ -8,6 +8,7 @@ import {
   getEnvBackedBaseUrl,
 } from '../../modules/system/llm-provider-registry';
 import { deletePersistedConfig, getPersistedConfig } from '../config/persisted-config';
+import { wrapLlmWithTrace } from '../../modules/chat/workflow-trace';
 
 type ConfigSource = 'sqlite' | 'explicit' | 'generic_env' | 'provider_env' | 'default' | 'none';
 
@@ -160,6 +161,6 @@ export function createLLM(config: LLMConfig = {}): LLMProvider {
     }
   }
 
-  _cachedLLM = { instance, key: cacheKey, ts: Date.now() };
-  return instance;
+  _cachedLLM = { instance: wrapLlmWithTrace(instance), key: cacheKey, ts: Date.now() };
+  return _cachedLLM.instance;
 }

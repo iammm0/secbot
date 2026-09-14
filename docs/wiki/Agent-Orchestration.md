@@ -23,7 +23,7 @@ SSE：`intent_decision`
 
 当 `needs_explore=true`：
 
-- ReAct 微循环（默认最多 12 步，`SECBOT_EXPLORE_MAX_ITERS`）
+- ReAct 微循环（默认最多 6 步，`SECBOT_EXPLORE_MAX_ITERS`）
 - 允许：`vuln_db_query`、`browser_session` 等只读工具
 - **禁止**：标记为 `sensitive` 的工具
 - 结果写入上下文 patch
@@ -52,7 +52,7 @@ SSE：`context_usage`（TUI 右下角 ctx 组件）
 
 1. **PlannerAgent** — 生成分层 todo 计划  
 2. **TaskExecutor** — 按层并行执行  
-3. 可选 **adaptive replan**（`SECBOT_ADAPTIVE_REPLAN=false` 可关闭）  
+3. 可选 **adaptive replan**（默认关，`SECBOT_ADAPTIVE_REPLAN=1` 开启）  
 4. **SummaryAgent** — 仅当 `needs_report=true` 时生成报告
 
 ## 5. ReAct 解析

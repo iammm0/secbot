@@ -48,6 +48,10 @@ export abstract class BaseAgent {
     this.systemPrompt = newPrompt;
   }
 
+  getSystemPrompt(): string {
+    return this.systemPrompt;
+  }
+
   protected defaultSystemPrompt(): string {
     return (
       '你是 SecBot —— 安全圈的技术搭子，全栈网络安全助手。\n' +

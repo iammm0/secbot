@@ -16,6 +16,9 @@ import { CrawlerModule } from './modules/crawler/crawler.module';
 import { MemoryModule } from './modules/memory/memory.module';
 import { VulnDbModule } from './modules/vuln-db/vuln-db.module';
 import { SkillsModule } from './modules/skills/skills.module';
+import { WorkspacesModule } from './modules/workspaces/workspaces.module';
+import { PreferencesModule } from './modules/preferences/preferences.module';
+import { CommandsModule } from './modules/commands/commands.module';
 
 @Module({
   imports: [
@@ -25,7 +28,7 @@ import { SkillsModule } from './modules/skills/skills.module';
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'web', 'dist'),
-      exclude: ['/api/(.*)'],
+      exclude: ['/api/{*path}'],
     }),
     HealthModule,
     SessionsModule,
@@ -40,6 +43,9 @@ import { SkillsModule } from './modules/skills/skills.module';
     MemoryModule,
     VulnDbModule,
     SkillsModule,
+    WorkspacesModule,
+    PreferencesModule,
+    CommandsModule,
   ],
 })
 export class AppModule {}

@@ -3,11 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { routeTree } from './routeTree.gen'
+import { applyTheme, DEFAULT_THEME, THEME_STORAGE_KEY, normalizeTheme } from './lib/theme'
 import './styles/globals.css'
 
-// Apply saved theme on load
-const savedTheme = localStorage.getItem('secbot-theme') ?? 'hacker'
-document.documentElement.setAttribute('data-theme', savedTheme)
+applyTheme(normalizeTheme(localStorage.getItem(THEME_STORAGE_KEY) ?? DEFAULT_THEME))
 
 const queryClient = new QueryClient()
 const router = createRouter({ routeTree })

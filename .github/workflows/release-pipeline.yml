@@ -218,7 +218,7 @@ jobs:
       - name: 构建桌面安装包
         env:
           SECBOT_TARGET_TRIPLE: ${{ matrix.target }}
-        run: npm --prefix desktop run build
+        run: npm --prefix desktop run build:ci
 
       - name: 收集并上传安装包到 Release
         shell: bash
