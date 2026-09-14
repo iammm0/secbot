@@ -90,7 +90,10 @@ export class SkillsService {
     if (record.scope !== 'custom') {
       throw new BadRequestException('只能删除自定义技能');
     }
-    await fs.rm(path.join(this.workspaceRoot, record.relativeDir), { recursive: true, force: true });
+    await fs.rm(path.join(this.workspaceRoot, record.relativeDir), {
+      recursive: true,
+      force: true,
+    });
     return { deleted: record.slug };
   }
 

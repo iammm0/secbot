@@ -3,10 +3,7 @@ import * as os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { NetworkService } from '../network/network.service';
-import {
-  AddWorkspaceNodeDto,
-  type WorkspaceNodeKind,
-} from './dto/workspaces.dto';
+import { AddWorkspaceNodeDto, type WorkspaceNodeKind } from './dto/workspaces.dto';
 import { InvalidNodeAddressError, parseSecbotOrigin, parseSshHost } from './secbot-origin';
 
 export const DEFAULT_WORKSPACE_ID = 'local';
@@ -239,13 +236,14 @@ export class WorkspacesService implements OnModuleInit {
     meta: string;
   }): WorkspaceNodeView {
     const meta = this.readMeta(node.meta);
-    const status =
-      node.status === 'online' || node.status === 'offline' ? node.status : 'unknown';
+    const status = node.status === 'online' || node.status === 'offline' ? node.status : 'unknown';
     return {
       id: node.id,
       workspaceId: node.workspaceId,
       name: node.name,
-      kind: (['local', 'secbot', 'ssh'].includes(node.kind) ? node.kind : 'secbot') as WorkspaceNodeKind,
+      kind: (['local', 'secbot', 'ssh'].includes(node.kind)
+        ? node.kind
+        : 'secbot') as WorkspaceNodeKind,
       address: node.address,
       status,
       createdAt: node.createdAt,

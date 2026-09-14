@@ -49,7 +49,12 @@ export class WorkflowTracer {
     private readonly sessionId: string,
   ) {}
 
-  start(kind: TraceKind, name: string, detail?: string, meta?: Record<string, unknown>): WorkflowSpan {
+  start(
+    kind: TraceKind,
+    name: string,
+    detail?: string,
+    meta?: Record<string, unknown>,
+  ): WorkflowSpan {
     const span: WorkflowSpan = {
       id: `span-${++spanSeq}`,
       kind,
@@ -175,8 +180,12 @@ export class WorkflowTracer {
     const parts = stages.map(
       (span) => `${span.name}=${span.durationMs ?? Date.now() - span.startedAt}ms`,
     );
-    parts.push(`llm=${this.sumOf('llm')}ms/${this.spans.filter((span) => span.kind === 'llm').length}`);
-    parts.push(`tool=${this.sumOf('tool')}ms/${this.spans.filter((span) => span.kind === 'tool').length}`);
+    parts.push(
+      `llm=${this.sumOf('llm')}ms/${this.spans.filter((span) => span.kind === 'llm').length}`,
+    );
+    parts.push(
+      `tool=${this.sumOf('tool')}ms/${this.spans.filter((span) => span.kind === 'tool').length}`,
+    );
     const bottleneck = this.bottleneck();
     if (bottleneck) {
       parts.push(`bottleneck=${bottleneck.kind}:${bottleneck.name}@${bottleneck.duration_ms}ms`);
@@ -210,8 +219,7 @@ export class WorkflowTracer {
     });
     if (event === 'start' || event === 'heartbeat') {
       const seconds = Math.max(1, Math.round(elapsed / 1000));
-      const waiting =
-        span.kind === 'llm' ? '模型' : span.kind === 'tool' ? '工具' : '阶段';
+      const waiting = span.kind === 'llm' ? '模型' : span.kind === 'tool' ? '工具' : '阶段';
       this.emit('phase', {
         phase: span.kind === 'stage' ? span.name : span.kind,
         detail: `等待${waiting} · ${span.name}${span.detail ? ` · ${span.detail}` : ''} · ${seconds}s`,
@@ -280,12 +288,10 @@ class TracedLlm implements LLMProvider {
     const tracer = getWorkflowTracer();
     if (!tracer) return fn();
     const chars = messages.reduce((sum, item) => sum + item.content.length, 0);
-    const span = tracer.start(
-      'llm',
-      mode,
-      this.model ?? 'unknown',
-      { messages: messages.length, chars },
-    );
+    const span = tracer.start('llm', mode, this.model ?? 'unknown', {
+      messages: messages.length,
+      chars,
+    });
     try {
       const result = await fn();
       tracer.end(span, { output_chars: result.length });

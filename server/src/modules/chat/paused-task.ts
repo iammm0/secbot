@@ -16,10 +16,7 @@ export class TaskPausedError extends Error {
   }
 }
 
-export function throwIfAborted(
-  signal?: AbortSignal,
-  snapshot?: Partial<PausedTaskSnapshot>,
-): void {
+export function throwIfAborted(signal?: AbortSignal, snapshot?: Partial<PausedTaskSnapshot>): void {
   if (signal?.aborted) {
     throw new TaskPausedError(snapshot);
   }
@@ -60,9 +57,7 @@ export function looksLikeContinue(message: string): boolean {
 
 export function buildResumePrompt(paused: PausedTaskSnapshot, userMessage: string): string {
   const followUp = userMessage.trim() || '请从中断处继续完成原任务。';
-  const todoLines = paused.todos
-    .map((todo) => `- [${todo.status}] ${todo.content}`)
-    .join('\n');
+  const todoLines = paused.todos.map((todo) => `- [${todo.status}] ${todo.content}`).join('\n');
   const parts = [
     `【继续未完成任务】原任务：${paused.originalMessage || followUp}`,
     paused.progressNote ? `中断前进展：${paused.progressNote.slice(0, 4000)}` : '',

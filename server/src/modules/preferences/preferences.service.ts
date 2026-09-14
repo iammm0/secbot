@@ -34,7 +34,12 @@ export class PreferencesService {
     }
   }
 
-  addMcpServer(input: { name: string; command: string; args?: string[]; cwd?: string }): McpServerConfig {
+  addMcpServer(input: {
+    name: string;
+    command: string;
+    args?: string[];
+    cwd?: string;
+  }): McpServerConfig {
     const name = input.name.trim();
     const command = input.command.trim();
     if (!name) throw new BadRequestException('MCP 名称不能为空');
@@ -82,7 +87,9 @@ export class PreferencesService {
     const name = String(rec.name ?? '').trim();
     const command = String(rec.command ?? '').trim();
     if (!name || !command) return null;
-    const args = Array.isArray(rec.args) ? rec.args.map((item) => String(item).trim()).filter(Boolean) : [];
+    const args = Array.isArray(rec.args)
+      ? rec.args.map((item) => String(item).trim()).filter(Boolean)
+      : [];
     const cwd = typeof rec.cwd === 'string' && rec.cwd.trim() ? rec.cwd.trim() : undefined;
     return {
       id: String(rec.id ?? randomUUID()),

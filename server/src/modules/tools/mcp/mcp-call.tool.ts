@@ -89,9 +89,9 @@ export class McpCallTool extends BaseTool {
     }
   }
 
-  private resolveLaunch(params: Record<string, unknown>):
-    | { ok: true; command: string; args: string[]; cwd?: string }
-    | { ok: false; error: string } {
+  private resolveLaunch(
+    params: Record<string, unknown>,
+  ): { ok: true; command: string; args: string[]; cwd?: string } | { ok: false; error: string } {
     const serverName = String(params.server ?? '').trim();
     if (serverName) {
       const saved = this.preferences?.getMcpServer(serverName);

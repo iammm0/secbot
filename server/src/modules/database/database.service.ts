@@ -394,7 +394,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   updateConversationMetadata(id: number, metadata: string): boolean {
-    const info = this.db.prepare('UPDATE conversations SET metadata = ? WHERE id = ?').run(metadata, id);
+    const info = this.db
+      .prepare('UPDATE conversations SET metadata = ? WHERE id = ?')
+      .run(metadata, id);
     return info.changes > 0;
   }
 
@@ -681,9 +683,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   /* ---- Workspaces ---- */
 
   listWorkspaces(): Array<{ id: string; name: string; createdAt: string; updatedAt: string }> {
-    const rows = this.db
-      .prepare('SELECT * FROM workspaces ORDER BY created_at ASC')
-      .all() as Array<Record<string, unknown>>;
+    const rows = this.db.prepare('SELECT * FROM workspaces ORDER BY created_at ASC').all() as Array<
+      Record<string, unknown>
+    >;
     return rows.map((r) => ({
       id: String(r['id'] ?? ''),
       name: String(r['name'] ?? ''),
@@ -692,7 +694,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }));
   }
 
-  getWorkspace(id: string): { id: string; name: string; createdAt: string; updatedAt: string } | null {
+  getWorkspace(
+    id: string,
+  ): { id: string; name: string; createdAt: string; updatedAt: string } | null {
     const r = this.db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as
       | Record<string, unknown>
       | undefined;
@@ -743,7 +747,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }> {
     const rows = (
       workspaceId
-        ? this.db.prepare('SELECT * FROM workspace_nodes WHERE workspace_id = ? ORDER BY created_at ASC').all(workspaceId)
+        ? this.db
+            .prepare('SELECT * FROM workspace_nodes WHERE workspace_id = ? ORDER BY created_at ASC')
+            .all(workspaceId)
         : this.db.prepare('SELECT * FROM workspace_nodes ORDER BY created_at ASC').all()
     ) as Array<Record<string, unknown>>;
     return rows.map((r) => ({
@@ -819,7 +825,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   updateWorkspaceNodeStatus(id: string, status: string, meta?: string): boolean {
     const info = meta
-      ? this.db.prepare('UPDATE workspace_nodes SET status = ?, meta = ? WHERE id = ?').run(status, meta, id)
+      ? this.db
+          .prepare('UPDATE workspace_nodes SET status = ?, meta = ? WHERE id = ?')
+          .run(status, meta, id)
       : this.db.prepare('UPDATE workspace_nodes SET status = ? WHERE id = ?').run(status, id);
     return info.changes > 0;
   }
@@ -844,7 +852,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       .run(sessionId, workspaceId, nodeId ?? null);
   }
 
-  getWorkspaceSession(sessionId: string): { sessionId: string; workspaceId: string; nodeId: string | null } | null {
+  getWorkspaceSession(
+    sessionId: string,
+  ): { sessionId: string; workspaceId: string; nodeId: string | null } | null {
     const row = this.db
       .prepare('SELECT * FROM workspace_sessions WHERE session_id = ?')
       .get(sessionId) as Record<string, unknown> | undefined;
@@ -867,8 +877,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return rows.map((r) => String(r['session_id'] ?? '')).filter(Boolean);
   }
 
-  listAllWorkspaceSessions(): Array<{ sessionId: string; workspaceId: string; nodeId: string | null }> {
-    const rows = this.db.prepare('SELECT * FROM workspace_sessions').all() as Array<Record<string, unknown>>;
+  listAllWorkspaceSessions(): Array<{
+    sessionId: string;
+    workspaceId: string;
+    nodeId: string | null;
+  }> {
+    const rows = this.db.prepare('SELECT * FROM workspace_sessions').all() as Array<
+      Record<string, unknown>
+    >;
     return rows.map((r) => ({
       sessionId: String(r['session_id'] ?? ''),
       workspaceId: String(r['workspace_id'] ?? ''),

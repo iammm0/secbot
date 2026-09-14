@@ -155,7 +155,10 @@ export class ExploreAgent extends BaseAgent {
       for (let iteration = 1; iteration <= maxIterations; iteration++) {
         throwIfAborted(abortSignal, { originalMessage: userInput, progressNote: '探索阶段中断' });
         const thought = await this.llm.chat(messages);
-        throwIfAborted(abortSignal, { originalMessage: userInput, progressNote: thought.slice(0, 4000) });
+        throwIfAborted(abortSignal, {
+          originalMessage: userInput,
+          progressNote: thought.slice(0, 4000),
+        });
         lastThought = thought;
 
         onEvent?.({

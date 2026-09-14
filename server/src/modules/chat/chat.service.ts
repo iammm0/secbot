@@ -46,10 +46,7 @@ import {
   throwIfAborted,
   TaskPausedError,
 } from './paused-task';
-import {
-  usagePart,
-  type ContextUsagePart,
-} from './context-usage';
+import { usagePart, type ContextUsagePart } from './context-usage';
 import { approxTokens } from './model-context-window';
 import { runWithWorkflowTracer, WorkflowTracer } from './workflow-trace';
 
@@ -109,50 +106,59 @@ export class ChatService {
       }
       const target = this.executionRouter.resolve({ sessionId, workspaceId, nodeId });
       if (target.kind === 'secbot') {
-        return this.executionRouter.proxyChat(target, { ...body, agent: agentType }, emit, abortSignal);
+        return this.executionRouter.proxyChat(
+          target,
+          { ...body, agent: agentType },
+          emit,
+          abortSignal,
+        );
       }
 
       return executionContext.run(target, async () => {
-      this.getOrCreateSession(sessionId, agentType);
-      this.appendSessionMessage(sessionId, MessageRole.USER, message);
-      const session = this.getOrCreateSession(sessionId, agentType);
-      const tracer = new WorkflowTracer(emit, sessionId);
+        this.getOrCreateSession(sessionId, agentType);
+        this.appendSessionMessage(sessionId, MessageRole.USER, message);
+        const session = this.getOrCreateSession(sessionId, agentType);
+        const tracer = new WorkflowTracer(emit, sessionId);
 
-      emit('connected', { message: 'stream started' });
+        emit('connected', { message: 'stream started' });
 
-      return runWithWorkflowTracer(tracer, async () => {
-        try {
-          return await this._handleMessageCore({
-            message,
-            agentType,
-            clientShell,
-            modelName,
-            sessionId,
-            session,
-            emit,
-            abortSignal,
-            resume: body.resume === true,
-            resumeFrom: body.resume_from,
-            tracer,
-          });
-        } catch (error) {
-          if (isTaskPausedError(error)) {
-            return this.finishPaused({
+        return runWithWorkflowTracer(tracer, async () => {
+          try {
+            return await this._handleMessageCore({
+              message,
+              agentType,
+              clientShell,
+              modelName,
               sessionId,
-              userMessage: message,
-              agentType: agentType || 'hackbot',
-              snapshot: error.snapshot,
+              session,
               emit,
+              abortSignal,
+              resume: body.resume === true,
+              resumeFrom: body.resume_from,
+              tracer,
             });
+          } catch (error) {
+            if (isTaskPausedError(error)) {
+              return this.finishPaused({
+                sessionId,
+                userMessage: message,
+                agentType: agentType || 'hackbot',
+                snapshot: error.snapshot,
+                emit,
+              });
+            }
+            const mapped = mapExceptionToClientBody(error);
+            emit('error', {
+              error: mapped.message,
+              code: mapped.code,
+              statusCode: mapped.statusCode,
+            });
+            emit('done', {});
+            return `错误：${mapped.message}`;
+          } finally {
+            tracer.finish();
           }
-          const mapped = mapExceptionToClientBody(error);
-          emit('error', { error: mapped.message, code: mapped.code, statusCode: mapped.statusCode });
-          emit('done', {});
-          return `错误：${mapped.message}`;
-        } finally {
-          tracer.finish();
-        }
-      });
+        });
       });
     });
   }
@@ -343,7 +349,10 @@ export class ChatService {
 
       const onAgentEvent = (event: BusEvent) => forwardAgentEvent(event, emit);
       const runProcess = async (prompt: string) => {
-        throwIfAborted(abortSignal, { originalMessage: originalGoal, todos: snapshotTodos(todosForSummary) });
+        throwIfAborted(abortSignal, {
+          originalMessage: originalGoal,
+          todos: snapshotTodos(todosForSummary),
+        });
         await selectedAgent!.process(prompt, {
           onEvent: onAgentEvent,
           client_shell: clientShell,
@@ -353,18 +362,10 @@ export class ChatService {
       };
       const runExecutor = async (plan: PlanResult, prompt: string) => {
         const executor = new TaskExecutor(plan, selectedAgent!, this.eventBus);
-        return executor.run(
-          prompt,
-          onAgentEvent,
-          clientShell,
-          context.contextBlock,
-          abortSignal,
-        );
+        return executor.run(prompt, onAgentEvent, clientShell, context.contextBlock, abortSignal);
       };
 
-      const remainingFromPause = resuming && paused
-        ? this.todosFromPausedSnapshot(paused)
-        : [];
+      const remainingFromPause = resuming && paused ? this.todosFromPausedSnapshot(paused) : [];
 
       if (remainingFromPause.length > 0) {
         emit('phase', { phase: 'executing', detail: '从中断处继续原任务…' });
@@ -381,8 +382,14 @@ export class ChatService {
         } else {
           await withStage('execute', () => runProcess(workingMessage), 'resume-react');
         }
-      } else if (intent.intent === 'task_simple' || (resuming && intent.intent !== 'task_complex')) {
-        emit('phase', { phase: 'executing', detail: resuming ? '从中断处继续原任务…' : '正在执行任务...' });
+      } else if (
+        intent.intent === 'task_simple' ||
+        (resuming && intent.intent !== 'task_complex')
+      ) {
+        emit('phase', {
+          phase: 'executing',
+          detail: resuming ? '从中断处继续原任务…' : '正在执行任务...',
+        });
         await withStage('execute', () => runProcess(workingMessage), 'react');
       } else {
         emit('phase', { phase: 'planning', detail: '正在分析任务...' });
@@ -411,7 +418,11 @@ export class ChatService {
         todosForSummary = [...planResult.todos];
 
         if (planResult.todos.length > 1) {
-          const firstRun = await withStage('execute', () => runExecutor(planResult, workingMessage), 'todos');
+          const firstRun = await withStage(
+            'execute',
+            () => runExecutor(planResult, workingMessage),
+            'todos',
+          );
 
           const adaptiveOn =
             process.env.SECBOT_ADAPTIVE_REPLAN === '1' ||
@@ -424,7 +435,11 @@ export class ChatService {
             });
             emit('phase', { phase: 'planning', detail: '穿插规划：根据未成功子任务补充方案…' });
             const adaptivePrompt = `${workingMessage}\n\n【穿插规划】上一阶段有 ${firstRun.cancelledCount} 个子任务未成功。请仅输出需要补充执行的新子任务 JSON 数组（新 id 建议 followup-1、followup-2）；若无须补充则输出 []。\n\n阶段摘要（节选）：\n${firstRun.summary.slice(0, 4000)}`;
-            const subPlan = await withStage('plan', () => this.plannerAgent.plan(adaptivePrompt), 'adaptive');
+            const subPlan = await withStage(
+              'plan',
+              () => this.plannerAgent.plan(adaptivePrompt),
+              'adaptive',
+            );
             if (subPlan.todos.length > 0 && !subPlan.directResponse) {
               emitPlanningSse(emit, subPlan.planSummary, subPlan.todos, 'adaptive');
               todosForSummary = [...todosForSummary, ...subPlan.todos];
@@ -442,8 +457,7 @@ export class ChatService {
         todosForSummary.length === 0
           ? false
           : todosForSummary.some(
-              (todo) =>
-                todo.status === TodoStatus.COMPLETED && Boolean(todo.resultSummary?.trim()),
+              (todo) => todo.status === TodoStatus.COMPLETED && Boolean(todo.resultSummary?.trim()),
             );
       if (intent.needsReport && intent.intent !== 'task_simple' && hasUsefulTodoFindings) {
         throwIfAborted(abortSignal, {
@@ -500,8 +514,7 @@ export class ChatService {
             todos: error.snapshot.todos.length
               ? error.snapshot.todos
               : snapshotTodos(todosForSummary),
-            progressNote:
-              error.snapshot.progressNote || this.progressNoteFromAgent(selectedAgent),
+            progressNote: error.snapshot.progressNote || this.progressNoteFromAgent(selectedAgent),
           }),
         );
       }
@@ -737,7 +750,9 @@ export class ChatService {
           id: todo.id,
           content: todo.content,
           status:
-            todo.status === TodoStatus.IN_PROGRESS ? TodoStatus.PENDING : (todo.status as TodoStatus),
+            todo.status === TodoStatus.IN_PROGRESS
+              ? TodoStatus.PENDING
+              : (todo.status as TodoStatus),
         }),
       );
   }
@@ -809,10 +824,7 @@ export class ChatService {
   private hydrateSessionFromSqlite(sessionId: string): void {
     let current = this.sessions.get(sessionId);
     if (!current) return;
-    const turns = this.databaseService
-      .getConversations({ sessionId, limit: 24 })
-      .slice()
-      .reverse();
+    const turns = this.databaseService.getConversations({ sessionId, limit: 24 }).slice().reverse();
     for (const turn of turns) {
       if (turn.userMessage) {
         current = addSessionMessage(current, MessageRole.USER, turn.userMessage);

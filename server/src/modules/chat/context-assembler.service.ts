@@ -419,7 +419,13 @@ function renderSections(items: ContextItem[]): string[] {
     }
   }
   const sections: string[] = [];
-  for (const name of ['UserInstructions', 'Pinned', 'RecentSession', 'SQLiteHistory', 'VectorMemory']) {
+  for (const name of [
+    'UserInstructions',
+    'Pinned',
+    'RecentSession',
+    'SQLiteHistory',
+    'VectorMemory',
+  ]) {
     const block = groups[name];
     if (block.length > 0) {
       sections.push(`【${name}】\n${block.join('\n\n')}`);

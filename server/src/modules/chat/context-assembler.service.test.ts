@@ -56,7 +56,9 @@ describe('ContextAssemblerService', () => {
     expect(result.debug.sessionMessages).toBe(1);
     expect(result.debug.sqliteTurns).toBe(0);
     expect(result.debug.vectorHits).toBe(1);
-    expect(result.debug.parts.some((part) => part.id === 'conversation' && part.tokens > 0)).toBe(true);
+    expect(result.debug.parts.some((part) => part.id === 'conversation' && part.tokens > 0)).toBe(
+      true,
+    );
     expect(result.debug.parts.some((part) => part.id === 'history' && part.tokens > 0)).toBe(false);
     expect(result.debug.parts.some((part) => part.id === 'memory' && part.tokens > 0)).toBe(true);
     expect(databaseService.getConversations).not.toHaveBeenCalled();
@@ -74,9 +76,11 @@ describe('ContextAssemblerService', () => {
       add_vector_memory: vi.fn(),
     };
     const databaseService = {
-      getConversations: vi.fn().mockReturnValue([
-        { userMessage: '先做端口扫描', assistantMessage: '已建议使用 nmap -sV' },
-      ]),
+      getConversations: vi
+        .fn()
+        .mockReturnValue([
+          { userMessage: '先做端口扫描', assistantMessage: '已建议使用 nmap -sV' },
+        ]),
     };
     const preferences = { getCustomInstructions: vi.fn().mockReturnValue('') };
     const service = new ContextAssemblerService(

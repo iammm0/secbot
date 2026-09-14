@@ -9,7 +9,12 @@ import {
   markTodoCancelled,
 } from '../../../common/types';
 import type { ClientShellPayload } from './client-shell-context.js';
-import { isTaskPausedError, snapshotTodos, throwIfAborted, TaskPausedError } from '../../chat/paused-task';
+import {
+  isTaskPausedError,
+  snapshotTodos,
+  throwIfAborted,
+  TaskPausedError,
+} from '../../chat/paused-task';
 
 type OnEventCallback = (event: BusEvent) => void;
 
@@ -152,8 +157,7 @@ export class TaskExecutor {
         if (item.status === 'fulfilled') {
           results.push(item.value);
         } else if (!isTaskPausedError(item.reason)) {
-          const errorMsg =
-            item.reason instanceof Error ? item.reason.message : String(item.reason);
+          const errorMsg = item.reason instanceof Error ? item.reason.message : String(item.reason);
           results.push(`层执行错误: ${errorMsg}`);
         }
       }

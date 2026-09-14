@@ -3,10 +3,7 @@ import { DatabaseService } from '../database/database.service';
 import { NetworkService } from '../network/network.service';
 import { DEFAULT_WORKSPACE_ID, LOCAL_NODE_ID } from './workspaces.service';
 import { parseSecbotOrigin, parseSshHost } from './secbot-origin';
-import {
-  type ExecutionTarget,
-  setSshCommandRunner,
-} from './execution-context';
+import { type ExecutionTarget, setSshCommandRunner } from './execution-context';
 import { ChatRequestDto } from '../chat/dto/chat.dto';
 
 const PROXY_TIMEOUT_MS = 15 * 60 * 1000;
