@@ -10,7 +10,7 @@
 - [[Environment-Variables|环境变量]]
 
 **架构**
-- [[Product-Lines|产品线]]
+- [[Product-Lines|分支策略]]
 - [[Architecture|系统架构]]
 - [[Agent-Orchestration|智能体编排]]
 - [[Terminal-UI|终端界面]]

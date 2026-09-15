@@ -94,7 +94,7 @@ npm version 2.0.1 --no-git-tag-version
 git add package.json package-lock.json CHANGELOG.md
 git commit -m "chore(release): 2.0.1"
 git tag v2.0.1
-git push origin main-ts-version --tags
+git push origin release --tags
 ```
 
 CI 会执行：

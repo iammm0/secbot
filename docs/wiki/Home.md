@@ -1,6 +1,6 @@
 # Secbot Wiki
 
-**Secbot** 是一个 AI 驱动的授权安全自动化工作台：NestJS 后端 + Ink 终端 UI + 多智能体编排 + 内置安全工具链。
+**Secbot** 是一个 AI 驱动的授权安全自动化工作台：NestJS 后端 + Ink 终端 UI + Web / 桌面端 + 多智能体编排 + 内置安全工具链。
 
 > ⚠️ **仅用于已获得书面授权的安全测试、研究与教育。** 请勿对未授权目标进行扫描或利用。
 
@@ -8,18 +8,18 @@
 
 | 项目 | 说明 |
 | --- | --- |
-| **当前版本** | v2.0.0-b2（TypeScript 产品线） |
-| **默认分支** | [`release`](https://github.com/iammm0/secbot/tree/release) |
+| **当前版本** | v2.0.0-b2（TypeScript：TUI + Web / 桌面端） |
+| **默认 / 唯一维护分支** | [`release`](https://github.com/iammm0/secbot/tree/release) |
 | **安装方式** | [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载 `.tgz`（**不发布到 npmjs**） |
 | **官网** | https://secbot.site |
 
-## 三条产品线
+## 维护策略
 
-详见 [[Product-Lines|产品线说明]]：
+**只维护 `release`。** 详见 [[Product-Lines|分支策略]]。
 
-- **v2 TypeScript** — `release` 分支，当前主产品
-- **v1 Python** — `pypi-release` 分支，Legacy 维护线
-- **Go Demo** — `pure-go` 分支，实验性，不作产品承诺
+- **当前产品** — `release`：NestJS + Ink TUI + Web / 桌面端
+- **`pypi-release`** — 已冻结的 Python v1 归档（只读）
+- **`pure-go`** — 已冻结的 Go 实验分支（只读）
 
 ## 快速入口
 

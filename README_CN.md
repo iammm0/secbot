@@ -18,6 +18,28 @@
 - 确保遵守所有适用的法律法规
 - 负责任和道德地使用
 
+## 产品演示
+
+当前产品以桌面端为主界面（`release` 分支）：
+
+![Secbot 桌面端](assets/secbot-demo.gif)
+
+| 首页 | 工具 |
+| --- | --- |
+| ![首页](assets/demos/web-home.gif) | ![内置工具](assets/demos/web-tools.gif) |
+| 设置 | 模型与主题 |
+| ![设置](assets/demos/web-settings.gif) | ![模型配置](assets/demos/web-model.gif) |
+
+## 维护分支
+
+**只维护 [`release`](https://github.com/iammm0/secbot/tree/release)。** 新功能、文档、CI 与 GitHub Releases 都落在这条分支（NestJS + Ink TUI + Web / 桌面端）。
+
+| 分支 | 状态 |
+| --- | --- |
+| **[`release`](https://github.com/iammm0/secbot/tree/release)** | 当前产品，唯一活跃维护线 |
+| [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) | **已冻结** 的 Python v1 归档（只读，不再加功能） |
+| [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) | **已冻结** 的 Go 实验分支（只读，不再加功能） |
+
 ## 功能特性
 
 ### 核心能力
@@ -64,11 +86,14 @@ flowchart LR
   subgraph FrontendClients["前端 / Clients"]
     user[用户]
     tui["terminal-ui (Ink)"]
+    web["Web / Desktop"]
   end
 
   user --> tui
+  user --> web
 
   tui -->|HTTP / SSE| api["NestJS /api/chat"]
+  web -->|HTTP / SSE| api
 
   subgraph BackendRouter["会话编排"]
     api --> chatSvc["ChatService"]
@@ -168,6 +193,7 @@ flowchart LR
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
+# 默认分支即为唯一维护中的 `release`
 ```
 
 ### 2. 安装依赖

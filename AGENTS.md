@@ -6,8 +6,10 @@ This file helps AI coding agents work effectively in this repository. It summari
 
 **Secbot** is an AI-powered security automation workspace (authorized testing only):
 
+- **Maintained branch**: only **`release`**. `pypi-release` (Python) and `pure-go` are frozen archives.
 - **Backend**: NestJS (`server/`), SQLite, optional vector memory, unified vuln DB (NVD / CVE.org / Exploit-DB / MITRE).
 - **Terminal UI**: Ink + React (`terminal-ui/`), talks to the backend over HTTP + **SSE** (`POST /api/chat`).
+- **Web / Desktop**: `web/` (also used by the Tauri desktop app).
 - **No LangChain / LangGraph**: agent loops are hand-written TypeScript (`SecurityReActAgent`, `ExploreAgent`, `TaskExecutor`, etc.).
 
 Binaries (npm package): `secbot` (TUI + optional spawned backend), `secbot-server` (API only).
@@ -22,6 +24,7 @@ Binaries (npm package): `secbot` (TUI + optional spawned backend), `secbot-serve
 | `server/src/modules/tools/` | `ToolsService`, `BaseTool`, categories (security, web-research, vuln-db, …) |
 | `server/src/modules/vuln-db/` | `VulnDbService` (adapters + vector store) |
 | `terminal-ui/src/` | Ink app: `cli.tsx`, `App.tsx`, `useChat.ts` (SSE), `SessionView`, blocks under `components/blocks/` |
+| `web/` | Web UI (desktop app shares this frontend) |
 | `npm-bin/` | Published CLI entry scripts |
 
 ## Chat request flow (high level)

@@ -1,49 +1,39 @@
-# 产品线说明
+# 分支策略
 
-Secbot 仓库同时承载多条技术线。**对外宣发以 v2 TypeScript 为主**；v1 Python 在 PyPI 线维护；Go 仅为 Demo。
+Secbot **只维护一条产品线**：[`release`](https://github.com/iammm0/secbot/tree/release)。新功能、文档、CI 与 GitHub Releases 都落在这条分支。
 
-## v2 TypeScript 产品（当前主产品）
+历史 Python 线与 Go 实验分支已经 **冻结**（只读归档，不再接受新功能或常规修复）。
+
+## 当前产品（`release`）
 
 | 项 | 值 |
 | --- | --- |
-| 分支 | [`release`](https://github.com/iammm0/secbot/tree/release) |
+| 分支 | [`release`](https://github.com/iammm0/secbot/tree/release)（仓库默认分支） |
 | 版本 | v2.0.0-b2 及之后 |
 | 发布 | [GitHub Releases](https://github.com/iammm0/secbot/releases)（`.tgz`） |
-| 技术栈 | NestJS + Ink TUI + SQLite |
-| 功能候选 | [`feat/claude-like-tui`](https://github.com/iammm0/secbot/tree/feat/claude-like-tui)（Claude-like 终端体验，合入 release 后打 GA） |
+| 技术栈 | NestJS + Ink TUI + Web / 桌面端 + SQLite |
 
 **不包含：** npmjs 公开发布。包内元数据名 `@opensec/secbot` 仅用于 tarball 本地安装。
 
-## v1 Python 栈（Legacy）
+## 已冻结归档
 
-| 项 | 值 |
-| --- | --- |
-| 分支 | [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) |
-| 最后 GitHub Release 标记 | [v1.10.0 [Legacy · Python]](https://github.com/iammm0/secbot/releases/tag/v1.10.0) |
-| 后续维护 | 在 `pypi-release` 分支继续演进 |
-| PyPI | `secbot` 包（Python 线，与 TS v2 独立） |
+| 分支 | 曾经定位 | 状态 |
+| --- | --- | --- |
+| [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) | v1 Python 栈（PyPI `secbot`） | **冻结** · 只读；最后标记见 [v1.10.0](https://github.com/iammm0/secbot/releases/tag/v1.10.0) |
+| [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) | Go 重写实验 / Demo | **冻结** · 只读；无正式 Release |
 
-v1 时代代码结构以 Python `app/` 为主；与 v2 无共用运行时。
+这两条分支与当前 `release` 无共用运行时，也不再作为安装或二次开发入口。
 
-## Go 实验（Demo）
+## 历史快照标签
 
-| 项 | 值 |
-| --- | --- |
-| 分支 | [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) |
-| 定位 | 技术验证 / Demo |
-| 发布 | 无正式 Release，不对外承诺 |
+只读参考（与当前维护策略无关）：
 
-## 分支冻结标签
-
-历史快照（只读参考）：
-
-- `release-freeze-2026-06-11` — release 基线
+- `release-freeze-2026-06-11` — 当时的 release 基线
 - `feat-claude-like-tui-freeze-2026-06-11` — Claude-like TUI 功能候选快照
 
 ## 该怎么选？
 
 | 场景 | 选择 |
 | --- | --- |
-| 新用户 / 终端产品体验 | **v2 · release · GitHub Release .tgz** |
-| 继续 Python 版维护 | **pypi-release** |
-| 看 Go 重写实验 | **pure-go**（仅供研究） |
+| 新用户 / 日常使用 / 二次开发 | **`release`** · [GitHub Release `.tgz`](https://github.com/iammm0/secbot/releases) |
+| 查阅旧 Python / Go 实现 | 对应冻结分支（只读，不承诺更新） |

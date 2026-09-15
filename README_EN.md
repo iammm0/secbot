@@ -6,7 +6,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-24%2B-339933.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
-[![Version](https://img.shields.io/badge/version-2.0.0--b1-brightgreen.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-2.0.0--b2-brightgreen.svg)](package.json)
 [![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/iammm0/secbot/releases)
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E.svg)](https://nestjs.com/)
@@ -18,6 +18,22 @@ English | [中文](README_CN.md)
 ---
 
 > **Security Warning**: This tool is **for authorized security testing only**. Unauthorized use for network attacks is illegal. See [Security Warning](docs/SECURITY_WARNING.md).
+
+## Product demos
+
+Desktop app on the maintained `release` branch (Chinese UI):
+
+![Secbot desktop](assets/secbot-demo.gif)
+
+| Home | Tools |
+| --- | --- |
+| ![Home](assets/demos/web-home.gif) | ![Built-in tools](assets/demos/web-tools.gif) |
+| Settings | Model & theme |
+| ![Settings](assets/demos/web-settings.gif) | ![Model config](assets/demos/web-model.gif) |
+
+## Branch policy
+
+**Only [`release`](https://github.com/iammm0/secbot/tree/release) is maintained.** Features, docs, CI, and GitHub Releases all land on this branch (NestJS + Ink TUI + Web / Desktop). Python (`pypi-release`) and Go (`pure-go`) are **frozen** read-only archives.
 
 ---
 
@@ -64,9 +80,11 @@ English | [中文](README_CN.md)
 flowchart LR
   subgraph Clients["Frontend Clients"]
     tui["terminal-ui (Ink)"]
+    web["Web / Desktop"]
   end
 
   tui --> api["NestJS /api/*"]
+  web --> api
 
   api --> chat["ChatModule / ChatService"]
   chat --> intent["IntentRouter\n(single classify)"]
@@ -132,6 +150,7 @@ npx ./opensec-secbot-2.0.0-b2.tgz
 
 ```bash
 git clone https://github.com/iammm0/secbot.git
+# default branch is `release` — the only maintained line
 cd secbot
 npm install
 ```

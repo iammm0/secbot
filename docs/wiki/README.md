@@ -34,7 +34,7 @@ gh workflow run publish-wiki.yml --ref release
 | 文件 | 主题 |
 | --- | --- |
 | `Home.md` | 首页 |
-| `Product-Lines.md` | 三条产品线 |
+| `Product-Lines.md` | 分支策略（只维护 `release`） |
 | `Installation.md` | 安装 |
 | `Quick-Start.md` | 快速开始 |
 | `Architecture.md` | 架构 |

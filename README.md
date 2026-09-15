@@ -4,23 +4,33 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D24-339933.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Secbot is an AI-powered TypeScript security automation workspace with a NestJS backend and an Ink-based terminal UI.
+Secbot is an AI-powered TypeScript security automation workspace with a NestJS backend, an Ink terminal UI, and a Web / Desktop app.
 
 > Security notice: this package is for authorized security testing, research, and education only. Do not run scans or exploitation tasks against targets without explicit permission.
 
-![Secbot demo](assets/secbot-demo.gif)
+![Secbot desktop](assets/secbot-demo.gif)
 
-## Product Lines
+Desktop app on the maintained `release` branch (Chinese UI):
 
-| Line | Branch | Releases | Notes |
-| --- | --- | --- | --- |
-| **v2 TypeScript product** | [`release`](https://github.com/iammm0/secbot/tree/release) | [GitHub Releases](https://github.com/iammm0/secbot/releases) (`.tgz`) | Current product line — NestJS + Ink TUI |
-| **v1 Python stack** | [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) | [v1.10.0+](https://github.com/iammm0/secbot/releases/tag/v1.10.0) | Legacy Python edition; maintained on `pypi-release` |
-| **Go experiment** | [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) | — | Demo / proof-of-concept only |
+| Home | Tools |
+| --- | --- |
+| ![Desktop home](assets/demos/web-home.gif) | ![Built-in tools](assets/demos/web-tools.gif) |
+| Settings | Model & theme |
+| ![Settings](assets/demos/web-settings.gif) | ![Model config](assets/demos/web-model.gif) |
+
+## Branch policy
+
+**Only [`release`](https://github.com/iammm0/secbot/tree/release) is maintained.** Features, docs, CI, and GitHub Releases all land on this branch (NestJS + Ink TUI + Web / Desktop).
+
+| Branch | Status |
+| --- | --- |
+| **[`release`](https://github.com/iammm0/secbot/tree/release)** | Current product — the only active line |
+| [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) | **Frozen** Python v1 archive (read-only; no new features) |
+| [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) | **Frozen** Go experiment (read-only; no new features) |
 
 ## Why This Package
 
-- End-to-end TypeScript architecture (`NestJS + Ink + SQLite`).
+- End-to-end TypeScript architecture (`NestJS + Ink TUI + Web / Desktop + SQLite`).
 - `secbot` binary that starts terminal UI with local spawned backend by default.
 - `secbot-server` binary for backend-only API scenarios.
 - `secbot-mcp` binary that exposes Secbot tools as a stdio MCP server.
@@ -169,6 +179,7 @@ Use the built-in `mcp_call` tool to connect to another stdio MCP server, list it
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
+# default branch is `release` — the only maintained line
 npm ci
 
 # Backend dev
@@ -214,7 +225,8 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 ## Links
 
 - Releases: [https://github.com/iammm0/secbot/releases](https://github.com/iammm0/secbot/releases)
-- Python v1 line: [pypi-release branch](https://github.com/iammm0/secbot/tree/pypi-release)
+- Website: [https://secbot.site](https://secbot.site)
+- Frozen archives: [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) (Python v1), [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) (Go demo)
 - Repository: [https://github.com/iammm0/secbot](https://github.com/iammm0/secbot)
 - Issues: [https://github.com/iammm0/secbot/issues](https://github.com/iammm0/secbot/issues)
 

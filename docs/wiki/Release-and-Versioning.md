@@ -2,11 +2,14 @@
 
 ## 发布渠道
 
-| 产品线 | 渠道 | 说明 |
-| --- | --- | --- |
-| **v2 TypeScript** | GitHub Releases `.tgz` | 主产品宣发 |
-| **v1 Python** | PyPI + GitHub（Legacy） | `pypi-release` 分支 |
-| **npmjs** | ❌ 不使用 | `@opensec/secbot` 未公开发布 |
+当前 **只从 `release` 发版**。
+
+| 渠道 | 说明 |
+| --- | --- |
+| **GitHub Releases `.tgz`** | 唯一用户安装包（NestJS + TUI + Web / 桌面端） |
+| **npmjs** | ❌ 不使用 · `@opensec/secbot` 未公开发布 |
+| **PyPI / `pypi-release`** | 已冻结，不再发新版 |
+| **`pure-go`** | 已冻结，无正式 Release |
 
 ## 用户安装（v2）
 
@@ -47,14 +50,14 @@ npm run release:pack
 
 | 时代 | 版本 | 说明 |
 | --- | --- | --- |
-| Python Legacy | v1.x | 见 [[Product-Lines|产品线]] |
-| TS Beta | v2.0.0-b* | 过渡预览 |
-| TS GA（计划） | v2.0.0+ | 从 release 正式宣发 |
+| Python Legacy（已冻结） | v1.x | 见 [[Product-Lines|分支策略]] |
+| TS Beta | v2.0.0-b* | `release` 上的预览包 |
+| TS GA（计划） | v2.0.0+ | 从 `release` 正式宣发 |
 
 ## CI 说明
 
 - **Release workflow**：tag 触发；使用 Node 24 兼容 actions（upload/download-artifact v6/v7，`action-gh-release@v3`）
-- **CI workflow**：监听 `main` / `main-ts-version` / `npm-release`（feature 分支需自行验证）
+- **CI workflow**：监听 **`release`**（其他功能分支需自行验证）
 
 ## 相关
 
