@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { BaseTool, ToolResult } from '../core/base-tool';
 import { ExecGoActionRequest, ExecGoClient, execGoEnabled } from './execgo-client.js';
+import { getExecGoRuntimeConfig } from './execgo-config.js';
 import { executeCommandShellProfile, validateCommandAgainstShell } from './shell-command-guard.js';
 import { getExecutionTarget, getSshCommandRunner } from '../../workspaces/execution-context';
 
@@ -27,7 +28,7 @@ export class ExecuteCommandTool extends BaseTool {
       'Execute shell commands on the backend host with timeout. ' +
         'Windows: always via cmd.exe /d /s /c (CMD syntax). ' +
         'Unix: via login shell -lc (POSIX). Command must match that environment; see also terminal_session. ' +
-        'Set SECBOT_EXECGO_ENABLED=1 or pass execgo=true to route execution through ExecGo runtime.command.',
+        'Set SECBOT_EXECGO_ENABLED=1, enable ExecGo in settings, or pass execgo=true to route through ExecGo.',
     );
   }
 
@@ -86,43 +87,52 @@ export class ExecuteCommandTool extends BaseTool {
     try {
       if (this.shouldUseExecGo(params)) {
         if (cwd || stdinData) {
-          return {
-            success: false,
-            result: {
-              command,
-              executor: 'execgo',
-              unsupported: {
-                cwd: Boolean(cwd),
-                stdin_data: Boolean(stdinData),
+          const config = getExecGoRuntimeConfig();
+          if (!config.fallbackLocal) {
+            return {
+              success: false,
+              result: {
+                command,
+                executor: 'execgo',
+                unsupported: {
+                  cwd: Boolean(cwd),
+                  stdin_data: Boolean(stdinData),
+                },
               },
-            },
-            error:
-              'ExecGo runtime.command currently supports command, args, and timeout only; cwd and stdin_data are not accepted by this local ExecGo runtime schema.',
-          };
+              error:
+                'ExecGo runtime.command currently supports command, args, and timeout only; cwd and stdin_data are not accepted by this local ExecGo runtime schema.',
+            };
+          }
+        } else {
+          try {
+            const result = await this.executeViaExecGo(command, shell, timeoutMs, params);
+            return {
+              success: result.returnCode === 0,
+              result: {
+                command,
+                returncode: result.returnCode,
+                stdout: result.stdout,
+                stderr: result.stderr,
+                output: result.output || (result.returnCode === 0 ? result.stdout : result.stderr),
+                executor: 'execgo',
+                action_id: result.actionId,
+                task_id: result.taskId,
+                task_status: result.status,
+                task: result.task,
+              },
+              error:
+                result.returnCode === 0
+                  ? undefined
+                  : result.stderr ||
+                    result.output ||
+                    `ExecGo command failed with status ${result.status}`,
+            };
+          } catch (error) {
+            const config = getExecGoRuntimeConfig();
+            if (!config.fallbackLocal) throw error;
+            // fall through to local execute
+          }
         }
-
-        const result = await this.executeViaExecGo(command, shell, timeoutMs, params);
-        return {
-          success: result.returnCode === 0,
-          result: {
-            command,
-            returncode: result.returnCode,
-            stdout: result.stdout,
-            stderr: result.stderr,
-            output: result.output || (result.returnCode === 0 ? result.stdout : result.stderr),
-            executor: 'execgo',
-            action_id: result.actionId,
-            task_id: result.taskId,
-            task_status: result.status,
-            task: result.task,
-          },
-          error:
-            result.returnCode === 0
-              ? undefined
-              : result.stderr ||
-                result.output ||
-                `ExecGo command failed with status ${result.status}`,
-        };
       }
 
       const result = await this.execute(command, shell, timeoutMs, cwd, stdinData);
@@ -134,6 +144,7 @@ export class ExecuteCommandTool extends BaseTool {
           stdout: result.stdout,
           stderr: result.stderr,
           output: result.returnCode === 0 ? result.stdout : result.stderr,
+          executor: 'local',
         },
         error:
           result.returnCode === 0
@@ -151,6 +162,8 @@ export class ExecuteCommandTool extends BaseTool {
 
   private shouldUseExecGo(params: Record<string, unknown>): boolean {
     if (params.execgo !== undefined) return Boolean(params.execgo);
+    const config = getExecGoRuntimeConfig();
+    if (config.enabled) return true;
     const backend = String(process.env.SECBOT_COMMAND_BACKEND ?? '')
       .trim()
       .toLowerCase();

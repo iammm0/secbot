@@ -6,7 +6,8 @@ import { buildObservationBody } from '@/lib/toolObservation'
 import { conversationToHistoryItem, fetchSessionHistory } from '@/lib/chatApi'
 import { getActiveNodeId, getActiveWorkspaceId } from '@/hooks/useWorkspaceStore'
 import { parseContextUsageParts } from '@/lib/formatTokens'
-import type { ChatMode, SSEEvent, StreamState, StreamTimelineItem, BrowserStep, HistoryItem } from '@/lib/types'
+import { setTaskActivity } from '@/lib/taskActivity'
+import type { ChatMode, HitlPending, SSEEvent, StreamState, StreamTimelineItem, BrowserStep, HistoryItem } from '@/lib/types'
 
 const initialStreamState: StreamState = {
   phase: '', detail: '', planning: null, thought: null,
@@ -90,6 +91,9 @@ export function useChat(sessionId: string) {
   const [paused, setPaused] = useState(false)
   const [streamState, setStreamStateRaw] = useState<StreamState>(initialStreamState)
   const [history, setHistory] = useState<HistoryItem[]>(() => loadHistory(sessionId))
+  const [taskElapsedMs, setTaskElapsedMs] = useState(0)
+  const [hitlPending, setHitlPending] = useState<HitlPending | null>(null)
+  const [hitlBusy, setHitlBusy] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   const streamStateRef = useRef<StreamState>(initialStreamState)
@@ -108,6 +112,9 @@ export function useChat(sessionId: string) {
   const streamingRef = useRef(false)
   const requestGenRef = useRef(0)
   const lastReplyRef = useRef('')
+  const taskTickStartedAtRef = useRef<number | null>(null)
+  const taskElapsedOffsetRef = useRef(0)
+  const taskElapsedMsRef = useRef(0)
 
   const setStreamState = useCallback((action: SetStateAction<StreamState>) => {
     setStreamStateRaw((prev) => {
@@ -118,6 +125,32 @@ export function useChat(sessionId: string) {
   }, [])
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => { streamingRef.current = streaming }, [streaming])
+  useEffect(() => { taskElapsedMsRef.current = taskElapsedMs }, [taskElapsedMs])
+
+  useEffect(() => {
+    if (!streaming) return
+    const tick = () => {
+      const started = taskTickStartedAtRef.current
+      if (started == null) return
+      const next = Date.now() - started + taskElapsedOffsetRef.current
+      taskElapsedMsRef.current = next
+      setTaskElapsedMs(next)
+    }
+    tick()
+    const id = window.setInterval(tick, 250)
+    return () => window.clearInterval(id)
+  }, [streaming])
+
+  useEffect(() => {
+    setTaskActivity({
+      busy: streaming,
+      phase: streamState.phase || (paused ? 'paused' : ''),
+      sessionId,
+    })
+    return () => {
+      setTaskActivity({ busy: false, phase: '', sessionId })
+    }
+  }, [streaming, paused, streamState.phase, sessionId])
 
   // Persist history to localStorage
   useEffect(() => { saveHistory(sessionId, history) }, [sessionId, history])
@@ -260,6 +293,14 @@ export function useChat(sessionId: string) {
     setStreaming(false)
     setPaused(pausedNow)
     pausedRef.current = pausedNow
+    if (!pausedNow) {
+      taskTickStartedAtRef.current = null
+      taskElapsedOffsetRef.current = 0
+      taskElapsedMsRef.current = 0
+      setTaskElapsedMs(0)
+    }
+    setHitlPending(null)
+    setHitlBusy(false)
     setStreamState((s) => {
       if (requestGen !== requestGenRef.current) return s
       const snapshot = s
@@ -309,8 +350,20 @@ export function useChat(sessionId: string) {
     currentBrowserTraceIdRef.current = null
     browserStepCounterRef.current = 0
 
+    if (shouldResume) {
+      taskElapsedOffsetRef.current = taskElapsedMsRef.current
+      taskTickStartedAtRef.current = Date.now()
+    } else {
+      taskElapsedOffsetRef.current = 0
+      taskTickStartedAtRef.current = Date.now()
+      taskElapsedMsRef.current = 0
+      setTaskElapsedMs(0)
+    }
+
     setStreamState({ ...resetStreamState(streamStateRef.current), currentUserMessage: message })
     setStreaming(true)
+    setHitlPending(null)
+    setHitlBusy(false)
 
     const controller = connectSSE('/api/chat', {
       message,
@@ -686,10 +739,78 @@ export function useChat(sessionId: string) {
             break
           }
 
+          case 'confirm_required': {
+            const requestId = String(data.request_id ?? '')
+            if (!requestId) break
+            setHitlPending({
+              kind: 'confirm',
+              request: {
+                request_id: requestId,
+                kind: String(data.kind ?? 'sensitive_tool'),
+                tool: String(data.tool ?? ''),
+                params: (data.params && typeof data.params === 'object'
+                  ? (data.params as Record<string, unknown>)
+                  : {}) as Record<string, unknown>,
+                risk_summary: String(data.risk_summary ?? ''),
+                session_id: typeof data.session_id === 'string' ? data.session_id : sessionId,
+              },
+            })
+            setHitlBusy(false)
+            setStreamState((s) => ({
+              ...s,
+              phase: 'awaiting_user',
+              detail: `等待批准 ${String(data.tool ?? '敏感操作')}`,
+            }))
+            break
+          }
+
+          case 'user_input_required': {
+            const requestId = String(data.request_id ?? '')
+            if (!requestId) break
+            const optionsRaw = Array.isArray(data.options) ? data.options : []
+            const options = optionsRaw
+              .map((item, index) => {
+                if (typeof item === 'string') return { id: `opt-${index}`, label: item }
+                if (item && typeof item === 'object') {
+                  const rec = item as Record<string, unknown>
+                  return {
+                    id: String(rec.id ?? `opt-${index}`),
+                    label: String(rec.label ?? rec.text ?? rec.id ?? `选项 ${index + 1}`),
+                  }
+                }
+                return null
+              })
+              .filter((item): item is { id: string; label: string } => Boolean(item))
+            const inputTypeRaw = String(data.input_type ?? 'single_select')
+            const input_type =
+              inputTypeRaw === 'multi_select' || inputTypeRaw === 'text'
+                ? inputTypeRaw
+                : 'single_select'
+            setHitlPending({
+              kind: 'user_input',
+              request: {
+                request_id: requestId,
+                prompt: String(data.prompt ?? '请确认下一步'),
+                input_type,
+                options,
+                allow_free_text: Boolean(data.allow_free_text),
+                session_id: typeof data.session_id === 'string' ? data.session_id : sessionId,
+              },
+            })
+            setHitlBusy(false)
+            setStreamState((s) => ({
+              ...s,
+              phase: 'awaiting_user',
+              detail: '等待你的决策',
+            }))
+            break
+          }
+
           case 'paused': {
             const original = typeof data.original_message === 'string' ? data.original_message : ''
             if (original) pausedOriginalRef.current = original
             userPausedRef.current = true
+            setHitlPending(null)
             setPaused(true)
             setStreamState((s) => ({ ...s, paused: true, phase: 'paused', detail: '任务已暂停，可继续原任务' }))
             break
@@ -697,6 +818,7 @@ export function useChat(sessionId: string) {
 
           case 'done':
             if (data.paused) userPausedRef.current = true
+            setHitlPending(null)
             break
           default: break
         }
@@ -728,9 +850,79 @@ export function useChat(sessionId: string) {
   const stopStream = useCallback(() => {
     userPausedRef.current = true
     pausedRef.current = true
+    setHitlPending(null)
     abortRef.current?.abort()
     finishTurn(true, requestGenRef.current)
   }, [finishTurn])
 
-  return { streaming, paused, streamState, history, sendMessage, stopStream }
+  const respondConfirm = useCallback(
+    async (action: 'allow' | 'deny' | 'always_allow') => {
+      const pending = hitlPending
+      if (!pending || pending.kind !== 'confirm') return
+      setHitlBusy(true)
+      try {
+        const response = await fetch('/api/chat/confirm-response', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            request_id: pending.request.request_id,
+            action,
+            session_id: pending.request.session_id ?? sessionId,
+          }),
+        })
+        if (!response.ok) throw new Error(`确认失败 HTTP ${response.status}`)
+        setHitlPending(null)
+      } catch (err) {
+        setHitlBusy(false)
+        setStreamState((s) => ({
+          ...s,
+          error: err instanceof Error ? err.message : '确认请求失败',
+        }))
+      }
+    },
+    [hitlPending, sessionId],
+  )
+
+  const respondUserInput = useCallback(
+    async (payload: { selected: string[]; text: string }) => {
+      const pending = hitlPending
+      if (!pending || pending.kind !== 'user_input') return
+      setHitlBusy(true)
+      try {
+        const response = await fetch('/api/chat/user-input-response', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            request_id: pending.request.request_id,
+            selected: payload.selected,
+            text: payload.text,
+            session_id: pending.request.session_id ?? sessionId,
+          }),
+        })
+        if (!response.ok) throw new Error(`提交失败 HTTP ${response.status}`)
+        setHitlPending(null)
+      } catch (err) {
+        setHitlBusy(false)
+        setStreamState((s) => ({
+          ...s,
+          error: err instanceof Error ? err.message : '决策提交失败',
+        }))
+      }
+    },
+    [hitlPending, sessionId],
+  )
+
+  return {
+    streaming,
+    paused,
+    streamState,
+    history,
+    sendMessage,
+    stopStream,
+    taskElapsedMs,
+    hitlPending,
+    hitlBusy,
+    respondConfirm,
+    respondUserInput,
+  }
 }

@@ -3,16 +3,18 @@ import { useRef, useEffect } from 'react'
 import { useChat } from '@/hooks/useChat'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { ChatInput } from '@/components/ChatInput'
+import { HitlPrompt } from '@/components/HitlPrompt'
 import { StatusBar } from '@/components/StatusBar'
 import { LoadingBar } from '@/components/LoadingBar'
+import { InitQuote } from '@/components/InitQuote'
 import { BlockRouter, ErrorBlock, ReportBlock } from '@/components/blocks/BlockRouter'
 import { UserMessageBlock } from '@/components/blocks/UserMessageBlock'
-import { CONTINUE_BUTTON, MESSAGE_PLACEHOLDER, PAUSED_BANNER, PAUSED_PLACEHOLDER, THINKING_PLACEHOLDER } from '@/lib/copy'
+import { MESSAGE_PLACEHOLDER, PAUSED_BANNER, PAUSED_PLACEHOLDER, THINKING_PLACEHOLDER } from '@/lib/copy'
 import type { HistoryItem, StreamState } from '@/lib/types'
 
 type SessionSearch = { prompt?: string }
 
-export const Route = createFileRoute('/session/$id')({
+export const Route = createFileRoute('/_chat/session/$id')({
   validateSearch: (search: Record<string, unknown>): SessionSearch => ({
     prompt: typeof search.prompt === 'string' ? search.prompt : undefined,
   }),
@@ -25,9 +27,13 @@ function SessionRoute() {
 }
 
 function TurnThread({ item }: { item: HistoryItem }) {
+  const durationMs =
+    item.completedAt != null && item.completedAt > item.sentAt
+      ? item.completedAt - item.sentAt
+      : null
   return (
     <section className="space-y-3 border-b border-border pb-6 last:border-b-0">
-      <UserMessageBlock message={item.userMessage} />
+      <UserMessageBlock message={item.userMessage} durationMs={durationMs} />
       {item.streamState.timeline.map((block) => (
         <BlockRouter key={block.id} item={block} />
       ))}
@@ -62,7 +68,19 @@ function SessionView() {
   const { prompt } = Route.useSearch()
   const navigate = useNavigate()
   const { addSession, updateLabel, touchSession } = useSessionStore()
-  const { streaming, paused, streamState, history, sendMessage, stopStream } = useChat(id)
+  const {
+    streaming,
+    paused,
+    streamState,
+    history,
+    sendMessage,
+    stopStream,
+    taskElapsedMs,
+    hitlPending,
+    hitlBusy,
+    respondConfirm,
+    respondUserInput,
+  } = useChat(id)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
   const sentInitial = useRef(false)
@@ -109,7 +127,13 @@ function SessionView() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden pt-12 md:pt-0">
-      {streaming && <LoadingBar phase={streamState?.phase} detail={streamState?.detail} />}
+      {streaming && (
+        <LoadingBar
+          phase={streamState?.phase}
+          detail={streamState?.detail}
+          elapsedMs={taskElapsedMs}
+        />
+      )}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -120,30 +144,51 @@ function SessionView() {
         ))}
         {streamState ? <LiveTurn state={streamState} /> : null}
         {empty ? (
-          <p className="pt-12 text-center font-mono text-sm text-text-dim">
-            这是一段连续对话。发送消息后，往上滑可以回顾之前的轮次。
-          </p>
+          <div className="flex min-h-[40vh] items-center justify-center pt-8">
+            <InitQuote seed={`session:${id}`} />
+          </div>
         ) : null}
       </div>
       {paused && !streaming && (
         <div className="px-4 pb-1">
           <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 font-mono text-xs text-warning">
             {PAUSED_BANNER}
-            <span className="ml-2 text-text-dim">点「{CONTINUE_BUTTON}」或回车继续。</span>
+            <span className="ml-2 text-text-dim">点输入框右侧 ▶ 或回车继续。</span>
           </div>
         </div>
       )}
       <div className="px-4 pb-4 pt-2">
+        {hitlPending?.kind === 'confirm' ? (
+          <HitlPrompt
+            kind="confirm"
+            request={hitlPending.request}
+            busy={hitlBusy}
+            onRespond={(action) => void respondConfirm(action)}
+          />
+        ) : null}
+        {hitlPending?.kind === 'user_input' ? (
+          <HitlPrompt
+            kind="user_input"
+            request={hitlPending.request}
+            busy={hitlBusy}
+            onRespond={(payload) => void respondUserInput(payload)}
+          />
+        ) : null}
         <ChatInput
           onSubmit={handleSubmit}
           onStop={stopStream}
-          disabled={streaming}
           streaming={streaming}
           paused={paused}
+          elapsedMs={taskElapsedMs}
+          contextUsage={streamState?.contextUsage ?? null}
           placeholder={placeholder}
         />
       </div>
-      <StatusBar contextUsage={streamState?.contextUsage ?? null} phase={paused ? 'paused' : streamState?.phase} />
+      <StatusBar
+        phase={paused ? 'paused' : streamState?.phase}
+        elapsedMs={taskElapsedMs}
+        busy={streaming}
+      />
     </div>
   )
 }

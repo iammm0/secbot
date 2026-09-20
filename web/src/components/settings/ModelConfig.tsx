@@ -196,8 +196,8 @@ export function ModelConfig() {
         <h3 className="text-xs uppercase tracking-wider text-text-dim mb-2">智能体</h3>
         <div className="flex flex-wrap gap-2">
           {([
-            { id: 'hackbot', name: 'Hackbot', hint: '自动执行' },
-            { id: 'superhackbot', name: 'SuperHackbot', hint: '敏感操作需确认' },
+            { id: 'hackbot', name: 'Hackbot', hint: '敏感操作需批准' },
+            { id: 'superhackbot', name: 'SuperHackbot', hint: '完全自动（含敏感）' },
           ] as const).map(item => (
             <button
               type="button"

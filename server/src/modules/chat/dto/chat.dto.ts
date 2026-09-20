@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsArray, Max, Min, ValidateNested } from 'class-validator';
 
 export type ChatMode = 'agent';
 
@@ -129,4 +129,36 @@ export class RootResponseRequestDto {
   @IsOptional()
   @IsString()
   password?: string;
+}
+
+export type ConfirmActionDto = 'allow' | 'deny' | 'always_allow';
+
+export class ConfirmResponseRequestDto {
+  @IsString()
+  request_id!: string;
+
+  @IsIn(['allow', 'deny', 'always_allow'])
+  action!: ConfirmActionDto;
+
+  @IsOptional()
+  @IsString()
+  session_id?: string;
+}
+
+export class UserInputResponseRequestDto {
+  @IsString()
+  request_id!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  selected?: string[];
+
+  @IsOptional()
+  @IsString()
+  text?: string;
+
+  @IsOptional()
+  @IsString()
+  session_id?: string;
 }

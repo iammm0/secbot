@@ -19,8 +19,10 @@ import {
   ChatRequestDto,
   ChatSessionHistoryQueryDto,
   ChatSessionsQueryDto,
+  ConfirmResponseRequestDto,
   PatchChatSessionDto,
   RootResponseRequestDto,
+  UserInputResponseRequestDto,
 } from './dto/chat.dto';
 
 @Controller('api/chat')
@@ -95,6 +97,16 @@ export class ChatController {
   @Post('root-response')
   rootResponse(@Body() body: RootResponseRequestDto) {
     return this.chatService.rootResponse(body);
+  }
+
+  @Post('confirm-response')
+  confirmResponse(@Body() body: ConfirmResponseRequestDto) {
+    return this.chatService.confirmResponse(body);
+  }
+
+  @Post('user-input-response')
+  userInputResponse(@Body() body: UserInputResponseRequestDto) {
+    return this.chatService.userInputResponse(body);
   }
 
   @Post('sync')

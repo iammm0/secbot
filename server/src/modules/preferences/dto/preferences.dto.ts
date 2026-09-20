@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class SetInstructionsDto {
   @IsString()
@@ -20,4 +20,30 @@ export class AddMcpServerDto {
   @IsOptional()
   @IsString()
   cwd?: string;
+}
+
+export class SetExecGoConfigDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  auditActions?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  fallbackLocal?: boolean;
+
+  @IsOptional()
+  @IsString()
+  url?: string;
+
+  @IsOptional()
+  @IsString()
+  runtimeUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  cliPath?: string;
 }

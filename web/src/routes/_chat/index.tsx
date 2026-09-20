@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { nanoid } from 'nanoid'
 import { ChatInput } from '@/components/ChatInput'
+import { InitQuote } from '@/components/InitQuote'
 import { useSessionStore } from '@/hooks/useSessionStore'
 import { sessionBelongsToWorkspace, useWorkspaceStore } from '@/hooks/useWorkspaceStore'
 import { MESSAGE_PLACEHOLDER, NEW_CHAT, RECENT_CHATS } from '@/lib/copy'
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/_chat/')({
   component: HomeView,
 })
 
@@ -31,7 +32,7 @@ function HomeView() {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 pt-12 md:pt-0">
-      <p className="mb-6 text-sm text-text-dim">智能安全自动化 · 同一会话里可以连续聊</p>
+      <InitQuote className="mb-8" seed={`home:${workspaces.activeId}`} />
       <div className="w-full max-w-2xl">
         <ChatInput
           onSubmit={handleSubmit}

@@ -32,6 +32,7 @@ export class TaskExecutor {
     clientShell?: ClientShellPayload,
     contextBlock?: string,
     abortSignal?: AbortSignal,
+    sessionId?: string,
   ): Promise<{ summary: string; cancelledCount: number }> {
     const layers = this.planner.getExecutionOrder(this.plan.todos);
     const results: string[] = [];
@@ -87,6 +88,7 @@ export class TaskExecutor {
             client_shell: clientShell,
             contextBlock,
             abortSignal,
+            sessionId,
           })) as {
             success?: boolean;
             error?: string;

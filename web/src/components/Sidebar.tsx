@@ -11,7 +11,6 @@ import { DEFAULT_WORKSPACE_ID, type Workspace, type WorkspaceNode } from '@/lib/
 
 interface Props {
   onClear?: () => void
-  onOpenSettings?: () => void
 }
 
 function collapseIfMobile(setCollapsed: (value: boolean) => void) {
@@ -32,7 +31,7 @@ function statusDot(status: WorkspaceNode['status']): string {
   return 'bg-text-dim/40'
 }
 
-export function Sidebar({ onClear, onOpenSettings }: Props) {
+export function Sidebar({ onClear }: Props) {
   const [collapsed, setCollapsed] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false,
   )
@@ -42,7 +41,7 @@ export function Sidebar({ onClear, onOpenSettings }: Props) {
   const [hostOpen, setHostOpen] = useState(false)
   const navigate = useNavigate()
   const params = useParams({ strict: false }) as { id?: string }
-  const { sessions, addSession, removeSession, hydrateFromServer } = useSessionStore()
+  const { sessions, addSession, removeSession, renameSession, reorderSessions, hydrateFromServer } = useSessionStore()
   const workspaces = useWorkspaceStore()
 
   useEffect(() => {
@@ -88,6 +87,18 @@ export function Sidebar({ onClear, onOpenSettings }: Props) {
     setChatOpen(false)
   }
 
+  const handleRemoveSession = (id: string) => {
+    const remaining = workspaceSessions.filter((session) => session.id !== id)
+    removeSession(id)
+    if (params.id === id) {
+      if (remaining[0]) {
+        navigate({ to: '/session/$id', params: { id: remaining[0].id } })
+      } else {
+        navigate({ to: '/' })
+      }
+    }
+  }
+
   const selectWorkspace = (workspace: Workspace) => {
     workspaces.setActiveId(workspace.id)
     setWorkspaceOpen(false)
@@ -126,14 +137,8 @@ export function Sidebar({ onClear, onOpenSettings }: Props) {
       >
         <div className="flex items-center justify-between border-b border-border px-3 py-3">
           <div className={`flex min-w-0 items-center ${collapsed ? 'justify-center' : 'gap-2'}`}>
-            <img
-              src="/secbot-icon.png"
-              alt=""
-              aria-hidden="true"
-              className="h-7 w-7 shrink-0 object-contain"
-            />
             <span className={`text-sm font-bold font-mono text-primary ${labelMotion}`}>
-              SecBot
+              SECBOT
             </span>
           </div>
           <button
@@ -246,7 +251,9 @@ export function Sidebar({ onClear, onOpenSettings }: Props) {
               collapsed={collapsed}
               labelMotion={labelMotion}
               onSelect={selectSession}
-              onRemove={removeSession}
+              onRename={renameSession}
+              onRemove={handleRemoveSession}
+              onReorder={reorderSessions}
             />
           ))}
 
@@ -301,10 +308,13 @@ export function Sidebar({ onClear, onOpenSettings }: Props) {
           ) : null}
         </div>
 
-        <div className="space-y-2 border-t border-border p-2">
+        <div className="flex h-10 shrink-0 items-center border-t border-border px-2">
           <button
-            onClick={onOpenSettings}
-            className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs text-text-dim transition-colors duration-200 hover:bg-hover hover:text-text"
+            onClick={() => {
+              void navigate({ to: '/settings' })
+              collapseIfMobile(setCollapsed)
+            }}
+            className="flex h-8 w-full items-center gap-2 rounded px-2 text-xs text-text-dim transition-colors duration-200 hover:bg-hover hover:text-text"
             title="设置"
           >
             <Icon name="setting-2" className="shrink-0" />
@@ -313,11 +323,11 @@ export function Sidebar({ onClear, onOpenSettings }: Props) {
           {onClear && (
             <button
               onClick={onClear}
-              className={`w-full rounded px-2 py-1 text-xs text-text-dim transition-[colors,opacity] duration-200 hover:bg-hover hover:text-text ${
-                collapsed ? 'pointer-events-none h-0 overflow-hidden p-0 opacity-0' : 'opacity-100'
+              className={`ml-1 shrink-0 rounded px-2 py-1 text-xs text-text-dim transition-[colors,opacity] duration-200 hover:bg-hover hover:text-text ${
+                collapsed ? 'pointer-events-none w-0 overflow-hidden p-0 opacity-0' : 'opacity-100'
               }`}
             >
-              清空历史
+              清空
             </button>
           )}
         </div>
@@ -442,26 +452,98 @@ function SessionRow({
   collapsed,
   labelMotion,
   onSelect,
+  onRename,
   onRemove,
+  onReorder,
 }: {
   session: SessionEntry
   active: boolean
   collapsed: boolean
   labelMotion: string
   onSelect: (id: string) => void
+  onRename: (id: string, label: string) => void
   onRemove: (id: string) => void
+  onReorder: (draggedId: string, targetId: string) => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(session.label)
+  const [dragging, setDragging] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!editing) setDraft(session.label)
+  }, [session.label, editing])
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
+
+  const commitRename = () => {
+    const next = draft.trim()
+    setEditing(false)
+    if (!next || next === session.label) {
+      setDraft(session.label)
+      return
+    }
+    onRename(session.id, next)
+  }
+
   return (
     <div
+      draggable={!collapsed && !editing}
+      onDragStart={(event) => {
+        if (collapsed || editing) {
+          event.preventDefault()
+          return
+        }
+        setDragging(true)
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('text/plain', session.id)
+      }}
+      onDragEnd={() => {
+        setDragging(false)
+        setDragOver(false)
+      }}
+      onDragOver={(event) => {
+        if (collapsed || editing) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+        setDragOver(true)
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(event) => {
+        event.preventDefault()
+        setDragOver(false)
+        const draggedId = event.dataTransfer.getData('text/plain')
+        if (draggedId) onReorder(draggedId, session.id)
+      }}
       className={`group flex cursor-pointer items-center rounded px-2 py-1.5 font-mono text-xs transition-colors duration-200 ${
         collapsed ? 'justify-center' : 'gap-1'
       } ${
         active
           ? 'bg-primary/10 text-primary'
           : 'text-text-dim hover:bg-hover hover:text-text'
-      }`}
-      onClick={() => onSelect(session.id)}
+      } ${dragging ? 'opacity-40' : ''} ${dragOver ? 'ring-1 ring-primary/40' : ''}`}
+      onClick={() => {
+        if (!editing) onSelect(session.id)
+      }}
+      onDoubleClick={(event) => {
+        if (collapsed) return
+        event.stopPropagation()
+        setDraft(session.label)
+        setEditing(true)
+      }}
     >
+      {!collapsed ? (
+        <span
+          className="shrink-0 cursor-grab text-text-dim opacity-0 transition-opacity group-hover:opacity-70 active:cursor-grabbing"
+          title="拖动排序"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <Icon name="row-vertical" size={12} />
+        </span>
+      ) : null}
       <span
         className={`shrink-0 text-center transition-opacity duration-200 ${
           collapsed ? 'opacity-100' : 'w-0 overflow-hidden opacity-0'
@@ -469,8 +551,47 @@ function SessionRow({
       >
         <Icon name="message-text" size={14} />
       </span>
-      <span className={`flex-1 truncate ${labelMotion}`}>{session.label}</span>
+      {editing && !collapsed ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commitRename}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commitRename()
+            } else if (event.key === 'Escape') {
+              event.preventDefault()
+              setDraft(session.label)
+              setEditing(false)
+            }
+          }}
+          className="min-w-0 flex-1 rounded border border-primary/40 bg-bg px-1.5 py-0.5 text-xs text-text outline-none"
+        />
+      ) : (
+        <span className={`flex-1 truncate ${labelMotion}`} title="双击重命名">
+          {session.label}
+        </span>
+      )}
+      {!collapsed && !editing ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            setDraft(session.label)
+            setEditing(true)
+          }}
+          className="text-text-dim opacity-0 transition-opacity duration-200 hover:text-text group-hover:opacity-100"
+          aria-label="重命名会话"
+          title="重命名"
+        >
+          <Icon name="edit-2" size={12} />
+        </button>
+      ) : null}
       <button
+        type="button"
         onClick={(event) => {
           event.stopPropagation()
           onRemove(session.id)
@@ -481,9 +602,11 @@ function SessionRow({
             : 'opacity-0 group-hover:opacity-100'
         }`}
         aria-label="删除会话"
+        title="删除"
       >
         <Icon name="close-circle" size={14} />
       </button>
     </div>
   )
 }
+

@@ -12,6 +12,7 @@ import type {
   AuditRecord,
   ScanResult,
 } from './entities';
+import { setActionAuditWriter } from '../chat/action-audit';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -27,9 +28,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.db.pragma('journal_mode = WAL');
     this.initDatabase();
     this.syncYamlToSqlite();
+    setActionAuditWriter((rec) => {
+      this.saveAuditRecord(rec);
+    });
   }
 
   onModuleDestroy() {
+    setActionAuditWriter(null);
     try {
       this.db?.close();
     } catch {
@@ -563,8 +568,57 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     ).map((r) => this.mapAuditRecord(r));
   }
 
-  deleteAuditTrail(sessionId: string): number {
-    return this.db.prepare('DELETE FROM audit_records WHERE session_id = ?').run(sessionId).changes;
+  listAuditRecords(opts: {
+    sessionId?: string;
+    agent?: string;
+    stepType?: string;
+    q?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): { total: number; records: AuditRecord[] } {
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (opts.sessionId?.trim()) {
+      clauses.push('session_id = ?');
+      params.push(opts.sessionId.trim());
+    }
+    if (opts.agent?.trim()) {
+      clauses.push('agent = ?');
+      params.push(opts.agent.trim());
+    }
+    if (opts.stepType?.trim()) {
+      clauses.push('step_type = ?');
+      params.push(opts.stepType.trim());
+    }
+    if (opts.q?.trim()) {
+      clauses.push('(content LIKE ? OR metadata LIKE ? OR session_id LIKE ?)');
+      const like = `%${opts.q.trim()}%`;
+      params.push(like, like, like);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const total = (
+      this.db.prepare(`SELECT COUNT(*) AS c FROM audit_records ${where}`).get(...params) as {
+        c: number;
+      }
+    ).c;
+    const limit = Math.min(Math.max(opts.limit ?? 80, 1), 500);
+    const offset = Math.max(opts.offset ?? 0, 0);
+    const records = (
+      this.db
+        .prepare(
+          `SELECT * FROM audit_records ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
+        )
+        .all(...params, limit, offset) as Array<Record<string, unknown>>
+    ).map((r) => this.mapAuditRecord(r));
+    return { total, records };
+  }
+
+  deleteAuditTrail(sessionId?: string): number {
+    if (sessionId?.trim()) {
+      return this.db.prepare('DELETE FROM audit_records WHERE session_id = ?').run(sessionId.trim())
+        .changes;
+    }
+    return this.db.prepare('DELETE FROM audit_records').run().changes;
   }
 
   /* ---- ScanResult ---- */

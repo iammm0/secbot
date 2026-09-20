@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import type { ChatMessage } from '../../common/types';
 import type { LLMProvider } from '../../common/llm/llm.interface';
 import type { ToolProgressCallback, ToolResult } from '../tools/core/base-tool';
+import { recordActionAudit, summarizeForAudit } from './action-audit';
 
 export type TraceKind = 'stage' | 'llm' | 'tool';
 
@@ -46,7 +47,8 @@ export class WorkflowTracer {
 
   constructor(
     private readonly emit: EmitFn,
-    private readonly sessionId: string,
+    readonly sessionId: string,
+    readonly agent: string = 'hackbot',
   ) {}
 
   start(kind: TraceKind, name: string, detail?: string, meta?: Record<string, unknown>): WorkflowSpan {
@@ -79,6 +81,7 @@ export class WorkflowTracer {
       logger.log(this.formatLine('END', span));
     }
     this.emitTrace('end', span);
+    this.persistSpan(span);
   }
 
   fail(span: WorkflowSpan, error: unknown): void {
@@ -89,6 +92,7 @@ export class WorkflowTracer {
     span.error = error instanceof Error ? error.message : String(error);
     logger.error(this.formatLine('FAIL', span));
     this.emitTrace('end', span);
+    this.persistSpan(span);
   }
 
   async stage<T>(name: string, fn: () => Promise<T>, detail?: string): Promise<T> {
@@ -139,6 +143,27 @@ export class WorkflowTracer {
     const leaf = this.longestOf('llm') ?? this.longestOf('tool');
     if (leaf) return leaf;
     return this.longestOf('stage');
+  }
+
+  private persistSpan(span: WorkflowSpan): void {
+    const detail = span.detail ? ` · ${span.detail}` : '';
+    const err = span.error ? ` · ${span.error}` : '';
+    recordActionAudit({
+      sessionId: this.sessionId,
+      agent: this.agent,
+      stepType: span.kind,
+      content: `${span.kind}:${span.name}${detail} · ${span.status}${err}`,
+      metadata: JSON.stringify({
+        span_id: span.id,
+        name: span.name,
+        detail: span.detail ?? null,
+        status: span.status,
+        error: span.error ?? null,
+        duration_ms: span.durationMs ?? null,
+        meta: summarizeForAudit(span.meta ?? {}),
+      }),
+      timestamp: new Date(span.endedAt ?? Date.now()).toISOString(),
+    });
   }
 
   private totalMs(): number {
@@ -300,17 +325,54 @@ class TracedLlm implements LLMProvider {
 export async function traceToolRun(
   toolName: string,
   run: () => Promise<ToolResult>,
+  params?: Record<string, unknown>,
 ): Promise<ToolResult> {
   const tracer = getWorkflowTracer();
-  const span = tracer?.start('tool', toolName);
+  const span = tracer?.start('tool', toolName, undefined, {
+    params: summarizeForAudit(params ?? {}),
+  });
   try {
     const result = await run();
     if (span) {
-      tracer?.end(span, { success: result.success });
+      tracer?.end(span, {
+        success: result.success,
+        error: result.error ?? null,
+        result: summarizeForAudit(result.result),
+      });
+    } else {
+      recordActionAudit({
+        sessionId: 'api',
+        agent: 'tools',
+        stepType: 'tool',
+        content: `tool:${toolName} · ${result.success ? 'ok' : 'error'}${result.error ? ` · ${result.error}` : ''}`,
+        metadata: JSON.stringify({
+          name: toolName,
+          status: result.success ? 'ok' : 'error',
+          error: result.error ?? null,
+          params: summarizeForAudit(params ?? {}),
+          result: summarizeForAudit(result.result),
+        }),
+        timestamp: new Date().toISOString(),
+      });
     }
     return result;
   } catch (error) {
     if (span) tracer?.fail(span, error);
+    else {
+      recordActionAudit({
+        sessionId: 'api',
+        agent: 'tools',
+        stepType: 'tool',
+        content: `tool:${toolName} · error · ${error instanceof Error ? error.message : String(error)}`,
+        metadata: JSON.stringify({
+          name: toolName,
+          status: 'error',
+          error: error instanceof Error ? error.message : String(error),
+          params: summarizeForAudit(params ?? {}),
+        }),
+        timestamp: new Date().toISOString(),
+      });
+    }
     throw error;
   }
 }

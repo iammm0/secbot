@@ -18,7 +18,6 @@ fn main() {
         .manage(BackendState(Mutex::new(None)))
         .setup(|app| {
             let handle = app.handle().clone();
-            let port = backend::backend_port();
 
             // 非远程模式下拉起本地 secbot-server（dev: 系统 node；prod: sidecar）
             if !backend::use_remote() {
@@ -32,24 +31,30 @@ fn main() {
                     }
                 }
             } else {
-                eprintln!("[secbot-desktop] 远程模式：跳过本地后端启动，连接 :{port}");
+                eprintln!(
+                    "[secbot-desktop] 远程模式：跳过本地后端启动，连接 :{}",
+                    backend::backend_port()
+                );
             }
 
-            // 后台线程等待端口就绪，再把主窗口导航到后端托管的 web 前端
+            // 后台线程等待后端（及可选 Vite）就绪，再导航到前端
             std::thread::spawn(move || {
-                if backend::wait_for_port(port, Duration::from_secs(60)) {
-                    if let Some(win) = handle.get_webview_window("main") {
-                        match Url::parse(&format!("http://localhost:{port}")) {
-                            Ok(url) => {
-                                if let Err(err) = win.navigate(url) {
-                                    eprintln!("[secbot-desktop] 导航到后端失败: {err}");
+                match backend::resolve_frontend_url(Duration::from_secs(60)) {
+                    Some(target) => {
+                        if let Some(win) = handle.get_webview_window("main") {
+                            match Url::parse(&target) {
+                                Ok(url) => {
+                                    if let Err(err) = win.navigate(url) {
+                                        eprintln!("[secbot-desktop] 导航到前端失败: {err}");
+                                    }
                                 }
+                                Err(err) => eprintln!("[secbot-desktop] URL 解析失败: {err}"),
                             }
-                            Err(err) => eprintln!("[secbot-desktop] URL 解析失败: {err}"),
                         }
                     }
-                } else {
-                    eprintln!("[secbot-desktop] 后端在超时时间内未就绪，保留加载页");
+                    None => {
+                        eprintln!("[secbot-desktop] 后端在超时时间内未就绪，保留加载页");
+                    }
                 }
             });
 

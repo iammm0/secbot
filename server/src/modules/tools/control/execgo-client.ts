@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import { getExecGoRuntimeConfig } from './execgo-config.js';
+import { resolveExecGoCliPath } from './execgo-paths.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -44,6 +46,7 @@ interface ExecGoProcessResult {
 }
 
 export function execGoEnabled(value: unknown = process.env.SECBOT_EXECGO_ENABLED): boolean {
+  if (getExecGoRuntimeConfig().enabled) return true;
   if (typeof value === 'boolean') return value;
   if (typeof value !== 'string') return false;
   const normalized = value.trim().toLowerCase();
@@ -53,8 +56,8 @@ export function execGoEnabled(value: unknown = process.env.SECBOT_EXECGO_ENABLED
 export class ExecGoClient {
   private readonly cli: string;
 
-  constructor(cli = process.env.EXECGO_EXECGOCLI || 'execgocli') {
-    this.cli = cli;
+  constructor(cli?: string) {
+    this.cli = resolveExecGoCliPath(cli || getExecGoRuntimeConfig().cliPath);
   }
 
   async health(timeoutMs = 10_000): Promise<JsonObject> {
@@ -147,14 +150,16 @@ export class ExecGoClient {
     stdin: string | undefined,
     timeoutMs: number,
   ): Promise<ExecGoProcessResult> {
+    const config = getExecGoRuntimeConfig();
     return new Promise((resolve, reject) => {
       const child = spawn(this.cli, args, {
         shell: false,
         windowsHide: true,
         env: {
           ...process.env,
-          EXECGO_URL: process.env.EXECGO_URL || 'http://127.0.0.1:8080',
-          EXECGO_RUNTIME_URL: process.env.EXECGO_RUNTIME_URL || 'http://127.0.0.1:18080',
+          EXECGO_URL: config.url || process.env.EXECGO_URL || 'http://127.0.0.1:8080',
+          EXECGO_RUNTIME_URL:
+            config.runtimeUrl || process.env.EXECGO_RUNTIME_URL || 'http://127.0.0.1:18080',
         },
       });
 

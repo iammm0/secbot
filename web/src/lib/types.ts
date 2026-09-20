@@ -103,3 +103,30 @@ export interface HistoryItem {
   completedAt: number | null
   paused?: boolean
 }
+
+export interface HitlConfirmRequest {
+  request_id: string
+  kind: string
+  tool: string
+  params: Record<string, unknown>
+  risk_summary: string
+  session_id?: string
+}
+
+export interface HitlUserInputOption {
+  id: string
+  label: string
+}
+
+export interface HitlUserInputRequest {
+  request_id: string
+  prompt: string
+  input_type: 'single_select' | 'multi_select' | 'text'
+  options: HitlUserInputOption[]
+  allow_free_text: boolean
+  session_id?: string
+}
+
+export type HitlPending =
+  | { kind: 'confirm'; request: HitlConfirmRequest }
+  | { kind: 'user_input'; request: HitlUserInputRequest }

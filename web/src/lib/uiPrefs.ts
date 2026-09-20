@@ -6,7 +6,10 @@ function emitPrefs() {
 }
 
 export function getShowPet(): boolean {
-  return localStorage.getItem(PET_STORAGE_KEY) === '1'
+  const raw = localStorage.getItem(PET_STORAGE_KEY)
+  // unset → default show floating pet
+  if (raw === null) return true
+  return raw === '1'
 }
 
 export function setShowPet(show: boolean) {

@@ -1,13 +1,14 @@
 //! secbot-server 后端进程的拉起、就绪探测与退出清理，区分两种运行模式：
 //!
-//! - **开发（debug 构建 / `tauri dev`）**：用系统 `node` 直接运行仓库内
-//!   `../../server/dist/main.js`，依赖仓库已构建产物，便于本地迭代。
+//! - **开发（debug 构建 / `tauri dev`）**：用系统 `node --watch` 运行仓库内
+//!   `../../server/dist/main.js`；前端优先加载 Vite（`127.0.0.1:5173`）以支持 HMR，
+//!   未启动 Vite 时回退到后端托管的 `web/dist`。
 //! - **发布（release 构建 / `tauri build`）**：用随包的 Node 运行时（Tauri
 //!   externalBin sidecar `secbot-node`）运行打进 resources 的
 //!   `backend/server/dist/main.js`，实现自包含、可分发。
 //!
-//! 后端会同时托管 web 前端（`web/dist`）与 `/api/*`，窗口随后 navigate 到
-//! `http://localhost:<port>`，同源、零 CORS 地复用 web。
+//! 发布模式下窗口 navigate 到 `http://localhost:<port>`（同源静态前端）。
+//! 开发模式下默认 navigate 到 Vite，`/api` 由 Vite 代理到后端。
 
 use std::net::TcpStream;
 use std::path::PathBuf;
@@ -45,12 +46,66 @@ pub fn backend_port() -> u16 {
         .unwrap_or(8000)
 }
 
+/// Vite 开发服务器端口。可用 `SECBOT_DESKTOP_VITE_PORT` 覆盖，默认 5173。
+pub fn vite_port() -> u16 {
+    std::env::var("SECBOT_DESKTOP_VITE_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(5173)
+}
+
 /// 是否跳过拉起本地后端（连接远程 / 已运行实例）。
 pub fn use_remote() -> bool {
     matches!(
         std::env::var("SECBOT_DESKTOP_REMOTE").ok().as_deref(),
         Some("1") | Some("true")
     )
+}
+
+/// 开发模式下是否强制使用后端静态 `web/dist`（关闭 Vite HMR）。
+fn force_static_frontend() -> bool {
+    matches!(
+        std::env::var("SECBOT_DESKTOP_STATIC").ok().as_deref(),
+        Some("1") | Some("true")
+    )
+}
+
+/// 窗口最终加载的前端 URL。
+///
+/// - 可用 `SECBOT_DESKTOP_FRONTEND_URL` 强制指定；
+/// - debug：默认等 Vite 就绪后用 `http://127.0.0.1:<vite>`，否则回退后端；
+/// - release：始终用后端端口。
+pub fn resolve_frontend_url(backend_ready_timeout: Duration) -> Option<String> {
+    if let Ok(url) = std::env::var("SECBOT_DESKTOP_FRONTEND_URL") {
+        let trimmed = url.trim();
+        if !trimmed.is_empty() {
+            eprintln!("[secbot-desktop] 使用 SECBOT_DESKTOP_FRONTEND_URL={trimmed}");
+            return Some(trimmed.to_string());
+        }
+    }
+
+    let port = backend_port();
+    if !wait_for_port(port, backend_ready_timeout) {
+        return None;
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        if !force_static_frontend() {
+            let vite = vite_port();
+            // Vite 通常已由 `npm run dev` 提前拉起；给一点缓冲等待 HMR 端口。
+            if wait_for_port(vite, Duration::from_secs(20)) {
+                let url = format!("http://127.0.0.1:{vite}");
+                eprintln!("[secbot-desktop][dev] 前端热加载: {url} （API → :{port}）");
+                return Some(url);
+            }
+            eprintln!(
+                "[secbot-desktop][dev] 未检测到 Vite :{vite}，回退后端静态前端 http://localhost:{port}"
+            );
+        }
+    }
+
+    Some(format!("http://localhost:{port}"))
 }
 
 /// 开发模式下的后端入口：相对本 crate 的 `../../server/dist/main.js`。
@@ -105,7 +160,7 @@ fn bundled_backend_dir(app: &AppHandle) -> PathBuf {
 }
 
 /// 启动后端子进程：
-/// - debug 构建：系统 `node` + 仓库路径；
+/// - debug 构建：系统 `node --watch` + 仓库路径；
 /// - release 构建：sidecar `secbot-node` + resources 内 `backend/server/dist/main.js`。
 pub fn spawn_backend(app: &AppHandle) -> Result<BackendProcess, String> {
     let port = backend_port();
@@ -114,12 +169,13 @@ pub fn spawn_backend(app: &AppHandle) -> Result<BackendProcess, String> {
         let entry = dev_server_entry();
         let node = std::env::var("SECBOT_NODE_BIN").unwrap_or_else(|_| "node".into());
         eprintln!(
-            "[secbot-desktop][dev] 启动后端: {} {} (PORT={})",
+            "[secbot-desktop][dev] 启动后端: {} --watch {} (PORT={})",
             node,
             entry.display(),
             port
         );
         let child = std::process::Command::new(node)
+            .arg("--watch")
             .arg(&entry)
             .env("PORT", port.to_string())
             .spawn()
