@@ -41,6 +41,17 @@ export class WorkspacesController {
     return this.workspaces.connectNode(id, nodeId);
   }
 
+  @Post(':id/nodes/:nodeId/probe')
+  async probeNode(@Param('id') id: string, @Param('nodeId') nodeId: string) {
+    const node = await this.workspaces.probeNode(id, nodeId);
+    return this.workspaces.getNodeSurface(id, node.id);
+  }
+
+  @Get(':id/nodes/:nodeId/surface')
+  getNodeSurface(@Param('id') id: string, @Param('nodeId') nodeId: string) {
+    return this.workspaces.getNodeSurface(id, nodeId);
+  }
+
   @Delete(':id/nodes/:nodeId')
   removeNode(@Param('id') id: string, @Param('nodeId') nodeId: string) {
     return this.workspaces.removeNode(id, nodeId);

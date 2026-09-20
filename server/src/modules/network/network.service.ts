@@ -396,15 +396,52 @@ export class NetworkService {
   }
 
   private async discoverHost(ip: string): Promise<HostInfoDto | null> {
-    const openPorts = await this.scanCommonPorts(ip);
-    if (openPorts.length === 0) {
+    const surface = await this.probeHostSurface(ip);
+    if (surface.openPorts.length === 0) {
       return null;
     }
 
+    return {
+      ip: surface.ip,
+      hostname: surface.hostname ?? 'Unknown',
+      macAddress: surface.macAddress ?? 'Unknown',
+      openPorts: surface.openPorts,
+      services: surface.services,
+      authorized: this.isAuthorized(ip),
+      osType: surface.osType,
+      status: 'online',
+      discoveredAt: surface.probedAt,
+    };
+  }
+
+  /**
+   * Probe a single host for common open ports / services.
+   * Unlike LAN discover, always returns a surface even when no ports are open.
+   */
+  async probeHostSurface(ip: string): Promise<{
+    ip: string;
+    openPorts: number[];
+    services: Record<number, string>;
+    hostname?: string;
+    macAddress?: string;
+    osType?: string;
+    probedAt: string;
+  }> {
+    const target = (ip || '').trim();
+    if (!target) {
+      return {
+        ip: '',
+        openPorts: [],
+        services: {},
+        probedAt: new Date().toISOString(),
+      };
+    }
+
+    const openPorts = await this.scanCommonPorts(target);
     const [hostname, macAddress, osType] = await Promise.all([
-      this.resolveHostname(ip),
-      this.getMacAddress(ip),
-      this.detectOsType(ip, openPorts),
+      this.resolveHostname(target),
+      this.getMacAddress(target),
+      this.detectOsType(target, openPorts),
     ]);
 
     const services: Record<number, string> = {};
@@ -413,15 +450,13 @@ export class NetworkService {
     }
 
     return {
-      ip,
-      hostname,
-      macAddress: macAddress ?? 'Unknown',
+      ip: target,
       openPorts,
       services,
-      authorized: this.isAuthorized(ip),
+      hostname: hostname === 'Unknown' ? undefined : hostname,
+      macAddress: macAddress ?? undefined,
       osType,
-      status: 'online',
-      discoveredAt: new Date().toISOString(),
+      probedAt: new Date().toISOString(),
     };
   }
 

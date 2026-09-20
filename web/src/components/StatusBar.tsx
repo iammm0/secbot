@@ -1,13 +1,16 @@
+import { ContextUsageMeter } from '@/components/ContextUsageMeter'
 import { formatElapsed } from '@/lib/formatElapsed'
+import type { ContextUsageSnapshot } from '@/lib/types'
 
 interface Props {
   phase?: string
   elapsedMs?: number
   busy?: boolean
+  contextUsage?: ContextUsageSnapshot | null
 }
 
 /** Keep in sync with Sidebar settings footer (`h-10`) so the dividers align. */
-export function StatusBar({ phase, elapsedMs = 0, busy = false }: Props) {
+export function StatusBar({ phase, elapsedMs = 0, busy = false, contextUsage = null }: Props) {
   return (
     <div className="flex h-10 shrink-0 items-center justify-between border-t border-border px-4 text-xs text-text-dim font-mono">
       <div className="flex items-center gap-3">
@@ -18,6 +21,7 @@ export function StatusBar({ phase, elapsedMs = 0, busy = false }: Props) {
           </span>
         ) : null}
       </div>
+      <ContextUsageMeter usage={contextUsage} compact />
     </div>
   )
 }

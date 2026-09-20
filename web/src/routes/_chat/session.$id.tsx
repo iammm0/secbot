@@ -180,7 +180,6 @@ function SessionView() {
           streaming={streaming}
           paused={paused}
           elapsedMs={taskElapsedMs}
-          contextUsage={streamState?.contextUsage ?? null}
           placeholder={placeholder}
         />
       </div>
@@ -188,6 +187,7 @@ function SessionView() {
         phase={paused ? 'paused' : streamState?.phase}
         elapsedMs={taskElapsedMs}
         busy={streaming}
+        contextUsage={streamState?.contextUsage ?? null}
       />
     </div>
   )

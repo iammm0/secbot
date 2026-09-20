@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@/components/Icon'
 import { InputModelPicker } from '@/components/InputModelPicker'
-import { ContextUsageMeter } from '@/components/ContextUsageMeter'
 import { SlashMenu } from '@/components/SlashMenu'
 import { MESSAGE_PLACEHOLDER } from '@/lib/copy'
 import { formatElapsed } from '@/lib/formatElapsed'
 import { emitSlash, fetchCommandCatalog, filterSlashCommands, resolveSlash, SLASH_COMMANDS, type SlashCommand } from '@/lib/slashCommands'
-import type { ContextUsageSnapshot } from '@/lib/types'
-
 interface Props {
   onSubmit: (message: string) => void
   onStop?: () => void
@@ -17,7 +14,6 @@ interface Props {
   streaming?: boolean
   paused?: boolean
   elapsedMs?: number
-  contextUsage?: ContextUsageSnapshot | null
 }
 
 type ActionMode = 'send' | 'stop' | 'continue'
@@ -31,7 +27,6 @@ export function ChatInput({
   streaming = false,
   paused = false,
   elapsedMs = 0,
-  contextUsage = null,
 }: Props) {
   const [value, setValue] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -195,7 +190,6 @@ export function ChatInput({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <ContextUsageMeter usage={contextUsage} compact />
             <button
             type="button"
             onClick={handleAction}

@@ -14,6 +14,24 @@ export interface WorkspaceNode {
   createdAt: string
   hostname?: string
   error?: string
+  ip?: string
+  username?: string
+  openPorts?: number[]
+  services?: Record<string, string>
+  osType?: string
+  probedAt?: string
+}
+
+export interface AttackChainStep {
+  id: string
+  label: string
+  detail: string
+  status: 'done' | 'active' | 'preview' | 'blocked'
+}
+
+export interface NodeSurfacePreview {
+  node: WorkspaceNode
+  attackChain: AttackChainStep[]
 }
 
 export interface Workspace {
@@ -83,6 +101,27 @@ export async function connectWorkspaceNode(workspaceId: string, nodeId: string):
     { method: 'POST' },
   )
   return readApi<WorkspaceNode>(response, '连接主机节点失败')
+}
+
+export async function probeWorkspaceNode(
+  workspaceId: string,
+  nodeId: string,
+): Promise<NodeSurfacePreview> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/workspaces/${encodeURIComponent(workspaceId)}/nodes/${encodeURIComponent(nodeId)}/probe`,
+    { method: 'POST' },
+  )
+  return readApi<NodeSurfacePreview>(response, '探测主机节点失败')
+}
+
+export async function fetchNodeSurface(
+  workspaceId: string,
+  nodeId: string,
+): Promise<NodeSurfacePreview> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/workspaces/${encodeURIComponent(workspaceId)}/nodes/${encodeURIComponent(nodeId)}/surface`,
+  )
+  return readApi<NodeSurfacePreview>(response, '加载节点拓扑失败')
 }
 
 export async function removeWorkspaceNode(workspaceId: string, nodeId: string): Promise<void> {

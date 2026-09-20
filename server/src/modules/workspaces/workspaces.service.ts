@@ -24,6 +24,25 @@ export interface WorkspaceNodeView {
   createdAt: string;
   hostname?: string;
   error?: string;
+  /** Resolved probe target IP / host */
+  ip?: string;
+  username?: string;
+  openPorts?: number[];
+  services?: Record<string, string>;
+  osType?: string;
+  probedAt?: string;
+}
+
+export interface AttackChainStepView {
+  id: string;
+  label: string;
+  detail: string;
+  status: 'done' | 'active' | 'preview' | 'blocked';
+}
+
+export interface NodeSurfacePreview {
+  node: WorkspaceNodeView;
+  attackChain: AttackChainStepView[];
 }
 
 export interface WorkspaceView {
@@ -143,12 +162,15 @@ export class WorkspacesService implements OnModuleInit {
     }
     if (node.kind === 'local') {
       this.refreshLocalNode();
-      return this.toNodeView(this.db.getWorkspaceNode(nodeId)!);
+      return this.probeNode(workspaceId, nodeId);
     }
     if (node.kind === 'secbot') {
       const probed = await this.probeSecbot(node.address);
       const meta = JSON.stringify({ hostname: probed.hostname ?? '', error: probed.error ?? '' });
       this.db.updateWorkspaceNodeStatus(nodeId, probed.ok ? 'online' : 'offline', meta);
+      if (probed.ok) {
+        return this.probeNode(workspaceId, nodeId);
+      }
       return this.toNodeView(this.db.getWorkspaceNode(nodeId)!);
     }
 
@@ -181,7 +203,58 @@ export class WorkspacesService implements OnModuleInit {
         error: ok ? '' : String(result.error ?? 'SSH 连接失败'),
       }),
     );
+    if (ok) {
+      return this.probeNode(workspaceId, nodeId);
+    }
     return this.toNodeView(this.db.getWorkspaceNode(nodeId)!);
+  }
+
+  /**
+   * Probe a workspace node: resolve IP, scan common ports, persist surface, return attack-chain preview.
+   */
+  async probeNode(workspaceId: string, nodeId: string): Promise<WorkspaceNodeView> {
+    const node = this.db.getWorkspaceNode(nodeId);
+    if (!node || node.workspaceId !== workspaceId) {
+      throw new NotFoundException('主机节点不存在');
+    }
+
+    const meta = this.readMeta(node.meta);
+    const ip = this.resolveProbeIp(node.kind, node.address, meta);
+    const username = this.resolveUsername(node.kind, meta);
+    const surface = await this.network.probeHostSurface(ip);
+    const nextMeta = {
+      ...meta,
+      ip: surface.ip || ip,
+      username,
+      hostname: surface.hostname || meta.hostname || node.name,
+      openPorts: surface.openPorts,
+      services: surface.services,
+      osType: surface.osType ?? meta.osType,
+      probedAt: surface.probedAt,
+      error: meta.error ?? '',
+    };
+    const status =
+      node.kind === 'local'
+        ? 'online'
+        : node.status === 'online' || node.status === 'offline'
+          ? (node.status as 'online' | 'offline')
+          : surface.openPorts.length > 0
+            ? 'online'
+            : 'unknown';
+    this.db.updateWorkspaceNodeStatus(nodeId, status, JSON.stringify(nextMeta));
+    return this.toNodeView(this.db.getWorkspaceNode(nodeId)!);
+  }
+
+  getNodeSurface(workspaceId: string, nodeId: string): NodeSurfacePreview {
+    const node = this.db.getWorkspaceNode(nodeId);
+    if (!node || node.workspaceId !== workspaceId) {
+      throw new NotFoundException('主机节点不存在');
+    }
+    const view = this.toNodeView(node);
+    return {
+      node: view,
+      attackChain: this.buildAttackChainPreview(view),
+    };
   }
 
   removeNode(workspaceId: string, nodeId: string): { ok: true } {
@@ -217,14 +290,23 @@ export class WorkspacesService implements OnModuleInit {
 
   private refreshLocalNode(): void {
     const hostname = os.hostname();
+    const ip = this.primaryLocalIpv4() || '127.0.0.1';
+    const username = os.userInfo().username;
+    const existing = this.db.getWorkspaceNode(LOCAL_NODE_ID);
+    const prev = existing ? this.readMeta(existing.meta) : {};
     this.db.upsertWorkspaceNode({
       id: LOCAL_NODE_ID,
       workspaceId: DEFAULT_WORKSPACE_ID,
       name: hostname || 'localhost',
       kind: 'local',
-      address: hostname || 'localhost',
+      address: ip,
       status: 'online',
-      meta: JSON.stringify({ hostname }),
+      meta: JSON.stringify({
+        ...prev,
+        hostname,
+        ip,
+        username,
+      }),
     });
   }
 
@@ -241,6 +323,18 @@ export class WorkspacesService implements OnModuleInit {
     const meta = this.readMeta(node.meta);
     const status =
       node.status === 'online' || node.status === 'offline' ? node.status : 'unknown';
+    const openPorts = Array.isArray(meta.openPorts)
+      ? meta.openPorts.map((item) => Number(item)).filter((n) => Number.isFinite(n))
+      : undefined;
+    const servicesRaw =
+      meta.services && typeof meta.services === 'object'
+        ? (meta.services as Record<string, unknown>)
+        : undefined;
+    const services = servicesRaw
+      ? Object.fromEntries(
+          Object.entries(servicesRaw).map(([port, name]) => [String(port), String(name)]),
+        )
+      : undefined;
     return {
       id: node.id,
       workspaceId: node.workspaceId,
@@ -249,9 +343,120 @@ export class WorkspacesService implements OnModuleInit {
       address: node.address,
       status,
       createdAt: node.createdAt,
-      hostname: typeof meta.hostname === 'string' ? meta.hostname : undefined,
+      hostname:
+        typeof meta.hostname === 'string' && meta.hostname
+          ? meta.hostname
+          : undefined,
       error: typeof meta.error === 'string' && meta.error ? meta.error : undefined,
+      ip:
+        typeof meta.ip === 'string' && meta.ip
+          ? meta.ip
+          : typeof meta.host === 'string'
+            ? meta.host
+            : node.address || undefined,
+      username: typeof meta.username === 'string' && meta.username ? meta.username : undefined,
+      openPorts,
+      services,
+      osType: typeof meta.osType === 'string' ? meta.osType : undefined,
+      probedAt: typeof meta.probedAt === 'string' ? meta.probedAt : undefined,
     };
+  }
+
+  private resolveProbeIp(
+    kind: string,
+    address: string,
+    meta: Record<string, unknown>,
+  ): string {
+    if (typeof meta.ip === 'string' && meta.ip.trim()) return meta.ip.trim();
+    if (kind === 'local') return this.primaryLocalIpv4() || '127.0.0.1';
+    if (kind === 'ssh') {
+      if (typeof meta.host === 'string' && meta.host.trim()) return meta.host.trim();
+      return parseSshHost(address).host;
+    }
+    if (kind === 'secbot') {
+      try {
+        return new URL(parseSecbotOrigin(address)).hostname;
+      } catch {
+        return address.replace(/^https?:\/\//, '').split('/')[0]?.split(':')[0] || address;
+      }
+    }
+    return address;
+  }
+
+  private resolveUsername(kind: string, meta: Record<string, unknown>): string {
+    if (typeof meta.username === 'string' && meta.username.trim()) return meta.username.trim();
+    if (kind === 'local') {
+      try {
+        return os.userInfo().username;
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  }
+
+  private primaryLocalIpv4(): string | null {
+    const nets = os.networkInterfaces();
+    for (const entries of Object.values(nets)) {
+      for (const item of entries ?? []) {
+        const family = String(item.family);
+        if ((family === 'IPv4' || family === '4') && !item.internal) return item.address;
+      }
+    }
+    return null;
+  }
+
+  private buildAttackChainPreview(node: WorkspaceNodeView): AttackChainStepView[] {
+    const ports = node.openPorts ?? [];
+    const services = node.services ?? {};
+    const surface =
+      ports.length > 0
+        ? ports.map((port) => `${port}/${services[String(port)] ?? 'svc'}`).join(', ')
+        : '尚未探测到开放端口';
+
+    const entryHints: string[] = [];
+    if (ports.includes(22)) entryHints.push('SSH 认证面');
+    if (ports.includes(80) || ports.includes(443)) entryHints.push('Web 服务面');
+    if (ports.includes(3389)) entryHints.push('RDP 桌面面');
+    if (ports.includes(445) || ports.includes(139)) entryHints.push('SMB 文件面');
+    if (ports.includes(5985) || ports.includes(5986)) entryHints.push('WinRM 管理面');
+    if (entryHints.length === 0 && ports.length > 0) entryHints.push('未归类服务面');
+
+    return [
+      {
+        id: 'asset',
+        label: '资产锚定',
+        detail: `${node.ip || node.address}${node.username ? ` · ${node.username}` : ''}`,
+        status: 'done',
+      },
+      {
+        id: 'probe',
+        label: '节点探测',
+        detail: node.probedAt ? `最近探测 ${node.probedAt}` : '点击「探测」刷新开放端口',
+        status: node.probedAt ? 'done' : 'active',
+      },
+      {
+        id: 'surface',
+        label: '攻击面',
+        detail: surface,
+        status: ports.length > 0 ? 'done' : 'preview',
+      },
+      {
+        id: 'entry',
+        label: '模拟入口',
+        detail:
+          entryHints.length > 0
+            ? entryHints.join(' / ')
+            : '探测到开放服务后生成入口预览（仅模拟，不执行攻击）',
+        status: entryHints.length > 0 ? 'preview' : 'blocked',
+      },
+      {
+        id: 'pivot',
+        label: '横向扩展',
+        detail: '当前仅单主机；添加更多节点后可预览跳板与扩散路径',
+        status: 'blocked',
+      },
+    ];
   }
 
   private readMeta(raw: string): Record<string, unknown> {
