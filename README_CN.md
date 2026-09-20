@@ -18,10 +18,37 @@
 - 确保遵守所有适用的法律法规
 - 负责任和道德地使用
 
+## 产品演示
+
+当前产品以桌面端为主界面（`release` 分支）：
+
+![Secbot 桌面端](assets/secbot-demo.gif)
+
+| 首页 | 工具 |
+| --- | --- |
+| ![首页](assets/demos/web-home.gif) | ![内置工具](assets/demos/web-tools.gif) |
+| 设置 | 模型与主题 |
+| ![设置](assets/demos/web-settings.gif) | ![模型配置](assets/demos/web-model.gif) |
+
+## 维护分支
+
+**只维护 [`release`](https://github.com/iammm0/secbot/tree/release)。** 新功能、文档、CI 与 GitHub Releases 都落在这条分支（NestJS + Ink TUI + Web / 桌面端）。
+
+| 分支 | 状态 |
+| --- | --- |
+| **[`release`](https://github.com/iammm0/secbot/tree/release)** | 当前产品，唯一活跃维护线 |
+| [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) | **已冻结** 的 Python v1 归档（只读，不再加功能） |
+| [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) | **已冻结** 的 Go 实验分支（只读，不再加功能） |
+
 ## 功能特性
 
 ### 核心能力
 
+- **桌面端（Tauri）**: 带版本号的安装包（`desktop-app-v*`），设置 → 关于可查看版本并检查更新
+- **ExecGo 运行时**: 设置里启用后自动拉起/关闭本机 `execgo` / `execgo-runtime` 后台进程，可作为默认命令执行后端
+- **操作审计**: 每个对话的阶段 / 模型调用 / 工具执行落库，设置 → 审计可按会话追溯
+- **节点探测与攻击链预览**: 主机节点展示 IP、用户名、开放端口，并给出模拟入口面路径（仅预览，不执行攻击）
+- **人机协同（HITL）**: Hackbot 敏感工具需确认；任务中途 `ask_user` 可暂停等待输入
 - **多种智能体模式**: ReAct、Plan-Execute、多智能体协调、工具调用、记忆增强
 - **AI Web 研究子智能体**: 独立的 WebResearchAgent，基于 ReAct 自动完成联网搜索、网页提取、多页爬取和 API 调用
 - **持久化终端会话**: 为智能体提供专用终端，会话内多步命令执行与系统信息收集
@@ -29,7 +56,7 @@
 - **记忆子系统**: 短期 / 情景 / 长期记忆管理，向量存储与语义检索
 - **漏洞数据库**: 统一漏洞 schema，适配 CVE / NVD / Exploit-DB / MITRE ATT&CK
 - **意图路由与探索**: **`IntentRouter`** 单次分类用户意图；可选 **`ExploreAgent`** 在规划前用 **`vuln_db_query`**、**`browser_session`**（遵守 robots、可读性提取）补全上下文。
-- **上下文预算**: **`ContextAssemblerService`** 按模型窗口装配历史与记忆；SSE **`context_usage`** 供 TUI 右下角用量展示。
+- **上下文预算**: **`ContextAssemblerService`** 按模型窗口装配历史与记忆；SSE **`context_usage`** 供底栏用量展示。
 
 ### 渗透测试
 
@@ -64,11 +91,14 @@ flowchart LR
   subgraph FrontendClients["前端 / Clients"]
     user[用户]
     tui["terminal-ui (Ink)"]
+    web["Web / Desktop"]
   end
 
   user --> tui
+  user --> web
 
   tui -->|HTTP / SSE| api["NestJS /api/chat"]
+  web -->|HTTP / SSE| api
 
   subgraph BackendRouter["会话编排"]
     api --> chatSvc["ChatService"]
@@ -168,6 +198,7 @@ flowchart LR
 ```bash
 git clone https://github.com/iammm0/secbot.git
 cd secbot
+# 默认分支即为唯一维护中的 `release`
 ```
 
 ### 2. 安装依赖
@@ -208,6 +239,7 @@ npm run start:stack
 # 或分步启动
 npm run dev           # 后端开发模式（热重载）
 npm run start:tui     # 另一终端启动 TUI（默认自动拉起本地后端子进程）
+cd desktop && npm run dev   # 桌面端热开发（Vite + Nest + Tauri）
 
 # 仅连接已有后端（服务模式，可选）
 SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
@@ -215,6 +247,8 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 # 兼容别名（remote 等同于 service）
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
+
+桌面安装包也可从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载（标签形如 `desktop-app-v0.0.2-beta`）。详见 [`desktop/README.md`](desktop/README.md)。
 
 ### 5.（可选）安装 Ollama 本地模型
 
@@ -238,6 +272,8 @@ npm start
 # 终端 TUI（默认子进程模式）
 npm run start:tui
 
+# 桌面端热开发
+cd desktop && npm run dev
 ```
 
 ### 常用环境变量

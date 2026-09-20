@@ -6,7 +6,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-24%2B-339933.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
-[![Version](https://img.shields.io/badge/version-2.0.0--b1-brightgreen.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-2.0.0--b2-brightgreen.svg)](package.json)
 [![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/iammm0/secbot/releases)
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E.svg)](https://nestjs.com/)
@@ -19,6 +19,22 @@ English | [中文](README_CN.md)
 
 > **Security Warning**: This tool is **for authorized security testing only**. Unauthorized use for network attacks is illegal. See [Security Warning](docs/SECURITY_WARNING.md).
 
+## Product demos
+
+Desktop app on the maintained `release` branch (Chinese UI):
+
+![Secbot desktop](assets/secbot-demo.gif)
+
+| Home | Tools |
+| --- | --- |
+| ![Home](assets/demos/web-home.gif) | ![Built-in tools](assets/demos/web-tools.gif) |
+| Settings | Model & theme |
+| ![Settings](assets/demos/web-settings.gif) | ![Model config](assets/demos/web-model.gif) |
+
+## Branch policy
+
+**Only [`release`](https://github.com/iammm0/secbot/tree/release) is maintained.** Features, docs, CI, and GitHub Releases all land on this branch (NestJS + Ink TUI + Web / Desktop). Python (`pypi-release`) and Go (`pure-go`) are **frozen** read-only archives.
+
 ---
 
 ## Features
@@ -26,12 +42,17 @@ English | [中文](README_CN.md)
 ### Core Capabilities
 
 - **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent Coordination, Tool-Using, Memory-Augmented
+- **Desktop (Tauri)**: Versioned installers (`desktop-app-v*`); Settings → About shows version and checks for updates
+- **ExecGo runtime**: Optional default execution backend; Settings enable/disable starts/stops local `execgo` / `execgo-runtime` processes
+- **Action audit trail**: Stage / LLM / tool calls persisted per conversation; Settings → Audit for traceability
+- **Host probe + attack-chain preview**: Workspace nodes show IP, username, open ports, and a simulated entry-surface path (preview only)
+- **HITL**: Hackbot requires approval for sensitive tools; mid-task `ask_user` pauses over SSE
 - **AI Web Research Agent**: Independent WebResearchAgent with ReAct loop for smart search, page extraction, multi-page crawling, and API interaction
 - **Persistent Terminal Sessions**: Agent-controlled dedicated shell for multi-step command execution
 - **Memory Subsystem**: Short-term / episodic / long-term memory with vector storage and semantic retrieval
 - **Vulnerability Database**: Unified vulnerability schema with CVE / NVD / Exploit-DB / MITRE ATT&CK adapters
 - **Intent routing & explore**: One-shot **`IntentRouter`** classifies each turn; optional **`ExploreAgent`** enriches context via **`vuln_db_query`** and **`browser_session`** (robots-aware browsing + readability) before planning or single-agent ReAct.
-- **Context budget & TUI telemetry**: **`ContextAssemblerService`** packs history, memory, and pinned facts under a model-specific window; SSE **`context_usage`** drives the terminal footer usage widget.
+- **Context budget & UI telemetry**: **`ContextAssemblerService`** packs history, memory, and pinned facts under a model-specific window; SSE **`context_usage`** drives the bottom status-bar usage widget.
 
 ### Penetration Testing
 
@@ -64,9 +85,11 @@ English | [中文](README_CN.md)
 flowchart LR
   subgraph Clients["Frontend Clients"]
     tui["terminal-ui (Ink)"]
+    web["Web / Desktop"]
   end
 
   tui --> api["NestJS /api/*"]
+  web --> api
 
   api --> chat["ChatModule / ChatService"]
   chat --> intent["IntentRouter\n(single classify)"]
@@ -132,6 +155,7 @@ npx ./opensec-secbot-2.0.0-b2.tgz
 
 ```bash
 git clone https://github.com/iammm0/secbot.git
+# default branch is `release` — the only maintained line
 cd secbot
 npm install
 ```
@@ -169,6 +193,7 @@ npm run start:stack
 # Or step by step
 npm run dev           # Start backend (dev mode with hot-reload)
 npm run start:tui     # Start TUI in another terminal (default: spawn local backend)
+cd desktop && npm run dev   # Desktop hot-dev (Vite + Nest + Tauri)
 
 # Optional service mode: connect existing backend only
 SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
@@ -177,6 +202,8 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
+Desktop installers are also published on [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.2-beta`). See [`desktop/README.md`](desktop/README.md).
+
 ### Common Development Commands
 
 ```bash
@@ -184,6 +211,7 @@ npm run dev           # Backend dev mode
 npm run build         # Production build
 npm start             # Start production server
 npm run start:tui     # Terminal TUI (default: spawn local backend)
+cd desktop && npm run dev   # Desktop hot-dev
 ```
 
 ### Environment Variables
