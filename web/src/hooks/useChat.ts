@@ -94,6 +94,7 @@ export function useChat(sessionId: string) {
   const [taskElapsedMs, setTaskElapsedMs] = useState(0)
   const [hitlPending, setHitlPending] = useState<HitlPending | null>(null)
   const [hitlBusy, setHitlBusy] = useState(false)
+  const hitlPendingRef = useRef<HitlPending | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const streamStateRef = useRef<StreamState>(initialStreamState)
@@ -299,18 +300,32 @@ export function useChat(sessionId: string) {
       taskElapsedMsRef.current = 0
       setTaskElapsedMs(0)
     }
-    setHitlPending(null)
-    setHitlBusy(false)
+    // Keep HITL card if we were waiting on the user — stream end must not hide the prompt.
+    // Real cancel paths (stop / paused) clear hitlPending before calling finishTurn.
+    if (pausedNow || !hitlPendingRef.current) {
+      hitlPendingRef.current = null
+      setHitlPending(null)
+      setHitlBusy(false)
+    }
     setStreamState((s) => {
       if (requestGen !== requestGenRef.current) return s
       const snapshot = s
       const userMessage = currentUserMessageRef.current
+      const keepHitl = Boolean(hitlPendingRef.current) && !pausedNow
       queueMicrotask(() => {
         if (requestGen !== requestGenRef.current) return
         currentUserMessageRef.current = userMessage
         streamStateRef.current = snapshot
         commitCurrentTurn({ paused: pausedNow }, snapshot)
         currentUserMessageRef.current = ''
+        if (keepHitl) {
+          setStreamState((prev) => ({
+            ...resetStreamState(prev),
+            phase: 'awaiting_user',
+            detail: snapshot.detail || '等待你的决策',
+          }))
+          return
+        }
         setStreamState((prev) => resetStreamState(prev))
       })
       return s
@@ -362,6 +377,7 @@ export function useChat(sessionId: string) {
 
     setStreamState({ ...resetStreamState(streamStateRef.current), currentUserMessage: message })
     setStreaming(true)
+    hitlPendingRef.current = null
     setHitlPending(null)
     setHitlBusy(false)
 
@@ -742,7 +758,7 @@ export function useChat(sessionId: string) {
           case 'confirm_required': {
             const requestId = String(data.request_id ?? '')
             if (!requestId) break
-            setHitlPending({
+            const pending: HitlPending = {
               kind: 'confirm',
               request: {
                 request_id: requestId,
@@ -754,7 +770,9 @@ export function useChat(sessionId: string) {
                 risk_summary: String(data.risk_summary ?? ''),
                 session_id: typeof data.session_id === 'string' ? data.session_id : sessionId,
               },
-            })
+            }
+            hitlPendingRef.current = pending
+            setHitlPending(pending)
             setHitlBusy(false)
             setStreamState((s) => ({
               ...s,
@@ -786,17 +804,19 @@ export function useChat(sessionId: string) {
               inputTypeRaw === 'multi_select' || inputTypeRaw === 'text'
                 ? inputTypeRaw
                 : 'single_select'
-            setHitlPending({
+            const pending: HitlPending = {
               kind: 'user_input',
               request: {
                 request_id: requestId,
-                prompt: String(data.prompt ?? '请确认下一步'),
+                prompt: String(data.prompt ?? data.question ?? '请确认下一步'),
                 input_type,
                 options,
-                allow_free_text: Boolean(data.allow_free_text),
+                allow_free_text: Boolean(data.allow_free_text) || input_type === 'text',
                 session_id: typeof data.session_id === 'string' ? data.session_id : sessionId,
               },
-            })
+            }
+            hitlPendingRef.current = pending
+            setHitlPending(pending)
             setHitlBusy(false)
             setStreamState((s) => ({
               ...s,
@@ -806,10 +826,36 @@ export function useChat(sessionId: string) {
             break
           }
 
+          case 'clarify': {
+            const question = String(data.question ?? data.prompt ?? '').trim()
+            if (!question) break
+            const pending: HitlPending = {
+              kind: 'user_input',
+              request: {
+                request_id: `clarify-${Date.now()}`,
+                prompt: question,
+                input_type: 'text',
+                options: [],
+                allow_free_text: true,
+                session_id: sessionId,
+              },
+            }
+            hitlPendingRef.current = pending
+            setHitlPending(pending)
+            setHitlBusy(false)
+            setStreamState((s) => ({
+              ...s,
+              phase: 'awaiting_user',
+              detail: '等待你补充信息',
+            }))
+            break
+          }
+
           case 'paused': {
             const original = typeof data.original_message === 'string' ? data.original_message : ''
             if (original) pausedOriginalRef.current = original
             userPausedRef.current = true
+            hitlPendingRef.current = null
             setHitlPending(null)
             setPaused(true)
             setStreamState((s) => ({ ...s, paused: true, phase: 'paused', detail: '任务已暂停，可继续原任务' }))
@@ -817,8 +863,11 @@ export function useChat(sessionId: string) {
           }
 
           case 'done':
-            if (data.paused) userPausedRef.current = true
-            setHitlPending(null)
+            if (data.paused) {
+              userPausedRef.current = true
+              hitlPendingRef.current = null
+              setHitlPending(null)
+            }
             break
           default: break
         }
@@ -850,6 +899,7 @@ export function useChat(sessionId: string) {
   const stopStream = useCallback(() => {
     userPausedRef.current = true
     pausedRef.current = true
+    hitlPendingRef.current = null
     setHitlPending(null)
     abortRef.current?.abort()
     finishTurn(true, requestGenRef.current)
@@ -857,7 +907,7 @@ export function useChat(sessionId: string) {
 
   const respondConfirm = useCallback(
     async (action: 'allow' | 'deny' | 'always_allow') => {
-      const pending = hitlPending
+      const pending = hitlPendingRef.current
       if (!pending || pending.kind !== 'confirm') return
       setHitlBusy(true)
       try {
@@ -871,7 +921,9 @@ export function useChat(sessionId: string) {
           }),
         })
         if (!response.ok) throw new Error(`确认失败 HTTP ${response.status}`)
+        hitlPendingRef.current = null
         setHitlPending(null)
+        setHitlBusy(false)
       } catch (err) {
         setHitlBusy(false)
         setStreamState((s) => ({
@@ -880,14 +932,24 @@ export function useChat(sessionId: string) {
         }))
       }
     },
-    [hitlPending, sessionId],
+    [sessionId],
   )
 
   const respondUserInput = useCallback(
     async (payload: { selected: string[]; text: string }) => {
-      const pending = hitlPending
+      const pending = hitlPendingRef.current
       if (!pending || pending.kind !== 'user_input') return
       setHitlBusy(true)
+
+      if (pending.request.request_id.startsWith('clarify-')) {
+        const answer = payload.text.trim() || payload.selected.join('、')
+        hitlPendingRef.current = null
+        setHitlPending(null)
+        setHitlBusy(false)
+        if (answer) sendMessage(answer)
+        return
+      }
+
       try {
         const response = await fetch('/api/chat/user-input-response', {
           method: 'POST',
@@ -900,7 +962,9 @@ export function useChat(sessionId: string) {
           }),
         })
         if (!response.ok) throw new Error(`提交失败 HTTP ${response.status}`)
+        hitlPendingRef.current = null
         setHitlPending(null)
+        setHitlBusy(false)
       } catch (err) {
         setHitlBusy(false)
         setStreamState((s) => ({
@@ -909,7 +973,7 @@ export function useChat(sessionId: string) {
         }))
       }
     },
-    [hitlPending, sessionId],
+    [sessionId, sendMessage],
   )
 
   return {

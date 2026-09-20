@@ -29,6 +29,7 @@ export class ExecuteCommandTool extends BaseTool {
         'Windows: always via cmd.exe /d /s /c (CMD syntax). ' +
         'Unix: via login shell -lc (POSIX). Command must match that environment; see also terminal_session. ' +
         'Set SECBOT_EXECGO_ENABLED=1, enable ExecGo in settings, or pass execgo=true to route through ExecGo.',
+      true,
     );
   }
 

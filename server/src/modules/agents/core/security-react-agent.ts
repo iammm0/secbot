@@ -653,6 +653,14 @@ export class SecurityReActAgent extends BaseAgent {
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       let settled = false;
+      const emitAwaiting = () => {
+        ctx.onEvent?.({
+          type: EventType.TASK_PHASE,
+          data: { phase: 'awaiting_user', detail },
+          timestamp: new Date(),
+          iteration: ctx.iteration,
+        });
+      };
       const onAbort = () => {
         if (settled) return;
         settled = true;
@@ -665,14 +673,10 @@ export class SecurityReActAgent extends BaseAgent {
       }
       ctx.abortSignal?.addEventListener('abort', onAbort, { once: true });
 
-      const beat = setInterval(() => {
-        ctx.onEvent?.({
-          type: EventType.TASK_PHASE,
-          data: { phase: 'awaiting_user', detail },
-          timestamp: new Date(),
-          iteration: ctx.iteration,
-        });
-      }, 8_000);
+      // Immediate phase so the client flushes UI / stall timers right after
+      // confirm_required / user_input_required (don't wait for the first interval).
+      emitAwaiting();
+      const beat = setInterval(emitAwaiting, 8_000);
 
       promise
         .then((value) => {
