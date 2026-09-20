@@ -9,7 +9,7 @@
     "dev": "node scripts/dev-hot.mjs",
     "dev:static": "npm run build:deps && tauri dev",
     "build": "npm run build:deps && npm run prepare-backend && tauri build --bundles app",
-    "build:ci": "npm run build:deps && npm run prepare-backend && tauri build --bundles all",
+    "build:ci": "npm run build:deps && npm run prepare-backend && tauri build --ci",
     "icon": "tauri icon ../assets/secbot-main.png",
     "version:set": "node ../scripts/set-desktop-version.mjs",
     "tauri": "tauri"

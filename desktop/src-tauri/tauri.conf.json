@@ -26,9 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app"
-    ],
+    "targets": "all",
     "externalBin": [
       "binaries/secbot-node"
     ],
