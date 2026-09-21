@@ -1,6 +1,6 @@
 {
   "name": "secbot-desktop",
-  "version": "0.0.2-beta",
+  "version": "0.0.3-beta",
   "private": true,
   "description": "Secbot 桌面端（Tauri v2，复用 web 前端 + 本地 secbot-server sidecar）",
   "scripts": {
