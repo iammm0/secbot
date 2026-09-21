@@ -27,16 +27,21 @@ function fillColor(ratio: number): string {
 }
 
 interface Props {
-  usage: ContextUsageSnapshot
+  usage: ContextUsageSnapshot | null
+  compact?: boolean
 }
 
-export function ContextUsageMeter({ usage }: Props) {
+export function ContextUsageMeter({ usage, compact = false }: Props) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  const pct = Math.round(Math.min(1, Math.max(0, usage.ratio)) * 100)
-  const windowSize = usage.contextWindow > 0 ? usage.contextWindow : usage.promptBudget
-  const parts = usage.parts ?? []
-  const used = parts.reduce((sum, part) => sum + part.tokens, 0) || usage.usedTokens
+  const pct = usage ? Math.round(Math.min(1, Math.max(0, usage.ratio)) * 100) : null
+  const windowSize = usage
+    ? usage.contextWindow > 0
+      ? usage.contextWindow
+      : usage.promptBudget
+    : 0
+  const parts = usage?.parts ?? []
+  const used = parts.reduce((sum, part) => sum + part.tokens, 0) || usage?.usedTokens || 0
 
   useEffect(() => {
     if (!open) return
@@ -59,46 +64,59 @@ export function ContextUsageMeter({ usage }: Props) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2 rounded px-1 py-0.5 text-left transition-colors hover:bg-hover"
+        className={`flex items-center gap-1.5 rounded-full border border-border/80 bg-hover/60 font-mono text-[10px] text-text-dim transition-colors hover:border-primary/30 hover:text-text ${
+          compact ? 'px-2 py-1' : 'px-1.5 py-0.5'
+        }`}
         aria-expanded={open}
         title="查看上下文组成"
       >
-        <span>{usage.model ?? '未知'}</span>
-        <StackedBar parts={parts} ratio={usage.ratio} compact />
-        <span>{pct}%</span>
+        <span className="hidden sm:inline">{usage?.model ? shortModel(usage.model) : 'ctx'}</span>
+        <StackedBar parts={parts} ratio={usage?.ratio ?? 0} compact />
+        <span className="tabular-nums">{pct == null ? '--' : `${pct}%`}</span>
       </button>
       {open ? (
-        <div className="absolute right-0 bottom-full z-30 mb-2 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-4 shadow-xl">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium text-text">Context Usage</div>
-              <div className="mt-0.5 text-[11px] text-text-dim">{pct}% Full</div>
-            </div>
-            <div className="font-mono text-[11px] text-text-dim">
-              ~{formatTokenCount(used)} / {formatTokenCount(windowSize)} Tokens
-            </div>
-          </div>
-          <StackedBar parts={parts} ratio={usage.ratio} />
-          {parts.length > 0 ? (
-            <ul className="mt-3 space-y-1.5">
-              {parts.map((part, index) => (
-                <li key={part.id} className="flex items-center gap-2 text-[12px] text-text">
-                  <span
-                    className="h-2 w-2 shrink-0 rounded-sm"
-                    style={{ background: partColor(part.id, index) }}
-                  />
-                  <span className="min-w-0 flex-1 truncate">{part.label}</span>
-                  <span className="font-mono text-text-dim">{formatTokenCount(part.tokens)}</span>
-                </li>
-              ))}
-            </ul>
+        <div className="absolute right-0 bottom-full z-40 mb-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-border bg-popover p-4 shadow-xl animate-fade-in-up">
+          {usage ? (
+            <>
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-text">Context Usage</div>
+                  <div className="mt-0.5 text-[11px] text-text-dim">{pct}% Full</div>
+                </div>
+                <div className="font-mono text-[11px] text-text-dim">
+                  ~{formatTokenCount(used)} / {formatTokenCount(windowSize)} Tokens
+                </div>
+              </div>
+              <StackedBar parts={parts} ratio={usage.ratio} />
+              {parts.length > 0 ? (
+                <ul className="mt-3 space-y-1.5">
+                  {parts.map((part, index) => (
+                    <li key={part.id} className="flex items-center gap-2 text-[12px] text-text">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-sm"
+                        style={{ background: partColor(part.id, index) }}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{part.label}</span>
+                      <span className="font-mono text-text-dim">{formatTokenCount(part.tokens)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-[12px] text-text-dim">本轮尚未拆出分段用量。</p>
+              )}
+            </>
           ) : (
-            <p className="mt-3 text-[12px] text-text-dim">本轮尚未拆出分段用量。</p>
+            <p className="text-[12px] text-text-dim">发送消息后会显示本轮上下文占用。</p>
           )}
         </div>
       ) : null}
     </div>
   )
+}
+
+function shortModel(name: string): string {
+  if (name.length <= 16) return name
+  return `${name.slice(0, 8)}…${name.slice(-6)}`
 }
 
 function StackedBar({
@@ -114,7 +132,7 @@ function StackedBar({
   const usedWidth = `${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%`
   return (
     <div
-      className={`overflow-hidden rounded-full bg-hover ${compact ? 'h-1.5 w-16' : 'h-2 w-full'}`}
+      className={`overflow-hidden rounded-full bg-hover ${compact ? 'h-1.5 w-12' : 'h-2 w-full'}`}
     >
       {parts.length > 0 && total > 0 ? (
         <div className="flex h-full" style={{ width: usedWidth }}>

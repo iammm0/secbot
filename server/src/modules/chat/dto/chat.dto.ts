@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -138,4 +139,36 @@ export class RootResponseRequestDto {
   @IsOptional()
   @IsString()
   password?: string;
+}
+
+export type ConfirmActionDto = 'allow' | 'deny' | 'always_allow';
+
+export class ConfirmResponseRequestDto {
+  @IsString()
+  request_id!: string;
+
+  @IsIn(['allow', 'deny', 'always_allow'])
+  action!: ConfirmActionDto;
+
+  @IsOptional()
+  @IsString()
+  session_id?: string;
+}
+
+export class UserInputResponseRequestDto {
+  @IsString()
+  request_id!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  selected?: string[];
+
+  @IsOptional()
+  @IsString()
+  text?: string;
+
+  @IsOptional()
+  @IsString()
+  session_id?: string;
 }

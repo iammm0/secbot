@@ -11,6 +11,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "^1.93.0",
+    "@tauri-apps/api": "^2.11.1",
     "highlight.js": "^11.12.0",
     "iconsax": "^0.1.1",
     "nanoid": "^5.1.5",

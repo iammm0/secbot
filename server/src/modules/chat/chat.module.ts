@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ChatController } from './chat.controller';
+import { AuditController } from './audit.controller';
 import { ChatService } from './chat.service';
 import { ToolsModule } from '../tools/tools.module';
 import { DatabaseModule } from '../database/database.module';
@@ -12,7 +13,7 @@ import { AgentFactoryService } from './agent-factory.service';
 
 @Module({
   imports: [ToolsModule, DatabaseModule, MemoryModule, PreferencesModule, WorkspacesModule],
-  controllers: [ChatController],
+  controllers: [ChatController, AuditController],
   providers: [ChatService, ContextAssemblerService, ContextStoreService, AgentFactoryService],
   exports: [ChatService],
 })

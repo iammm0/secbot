@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
-import { AddMcpServerDto, SetInstructionsDto } from './dto/preferences.dto';
+import { AddMcpServerDto, SetExecGoConfigDto, SetInstructionsDto } from './dto/preferences.dto';
 import { PreferencesService } from './preferences.service';
 
 @Controller('api/settings')
@@ -11,12 +11,45 @@ export class PreferencesController {
     return {
       custom_instructions: this.preferences.getCustomInstructions(),
       mcp_servers: this.preferences.listMcpServers(),
+      execgo: this.preferences.getExecGoConfig(),
     };
   }
 
   @Put('instructions')
   setInstructions(@Body() body: SetInstructionsDto) {
     return { custom_instructions: this.preferences.setCustomInstructions(body.instructions ?? '') };
+  }
+
+  @Get('execgo')
+  getExecGo() {
+    return this.preferences.probeExecGo();
+  }
+
+  @Put('execgo')
+  async setExecGo(@Body() body: SetExecGoConfigDto) {
+    return this.preferences.setExecGoConfig({
+      enabled: body.enabled,
+      auditActions: body.auditActions,
+      fallbackLocal: body.fallbackLocal,
+      url: body.url,
+      runtimeUrl: body.runtimeUrl,
+      cliPath: body.cliPath,
+    });
+  }
+
+  @Post('execgo/probe')
+  probeExecGo() {
+    return this.preferences.probeExecGo();
+  }
+
+  @Post('execgo/start')
+  async startExecGo() {
+    return this.preferences.setExecGoConfig({ enabled: true });
+  }
+
+  @Post('execgo/stop')
+  async stopExecGo() {
+    return this.preferences.setExecGoConfig({ enabled: false });
   }
 
   @Get('mcp')

@@ -116,6 +116,29 @@ export function forwardAgentEvent(event: BusEvent, emit: SSEEmit): void {
       iteration,
       step_key: sseStepKey(d, iteration),
     });
+  } else if (t === EventType.CONFIRM_REQUIRED) {
+    emit('confirm_required', {
+      request_id: d['request_id'] ?? '',
+      kind: d['kind'] ?? 'sensitive_tool',
+      tool: d['tool'] ?? '',
+      params: d['params'] ?? {},
+      risk_summary: d['risk_summary'] ?? '',
+      session_id: d['session_id'] ?? '',
+    });
+  } else if (t === EventType.USER_INPUT_REQUIRED) {
+    emit('user_input_required', {
+      request_id: d['request_id'] ?? '',
+      prompt: d['prompt'] ?? '',
+      input_type: d['input_type'] ?? 'single_select',
+      options: d['options'] ?? [],
+      allow_free_text: Boolean(d['allow_free_text']),
+      session_id: d['session_id'] ?? '',
+    });
+  } else if (t === EventType.TASK_PHASE) {
+    emit('phase', {
+      phase: d['phase'] ?? '',
+      detail: d['detail'] ?? '',
+    });
   }
 }
 

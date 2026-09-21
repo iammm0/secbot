@@ -46,6 +46,11 @@ import {
   throwIfAborted,
   TaskPausedError,
 } from './paused-task';
+import {
+  rejectSessionHumanRequests,
+  resolveConfirmRequest,
+  resolveUserInputRequest,
+} from './human-input-bridge';
 import { usagePart, type ContextUsagePart } from './context-usage';
 import { approxTokens } from './model-context-window';
 import { runWithWorkflowTracer, WorkflowTracer } from './workflow-trace';
@@ -118,7 +123,7 @@ export class ChatService {
         this.getOrCreateSession(sessionId, agentType);
         this.appendSessionMessage(sessionId, MessageRole.USER, message);
         const session = this.getOrCreateSession(sessionId, agentType);
-        const tracer = new WorkflowTracer(emit, sessionId);
+        const tracer = new WorkflowTracer(emit, sessionId, agentType || 'hackbot');
 
         emit('connected', { message: 'stream started' });
 
@@ -358,11 +363,19 @@ export class ChatService {
           client_shell: clientShell,
           contextBlock: context.contextBlock,
           abortSignal,
+          sessionId,
         });
       };
       const runExecutor = async (plan: PlanResult, prompt: string) => {
         const executor = new TaskExecutor(plan, selectedAgent!, this.eventBus);
-        return executor.run(prompt, onAgentEvent, clientShell, context.contextBlock, abortSignal);
+        return executor.run(
+          prompt,
+          onAgentEvent,
+          clientShell,
+          context.contextBlock,
+          abortSignal,
+          sessionId,
+        );
       };
 
       const remainingFromPause = resuming && paused ? this.todosFromPausedSnapshot(paused) : [];
@@ -572,6 +585,29 @@ export class ChatService {
     return {};
   }
 
+  confirmResponse(body: {
+    request_id: string;
+    action: 'allow' | 'deny' | 'always_allow';
+    session_id?: string;
+  }) {
+    const ok = resolveConfirmRequest(body.request_id, body.action, body.session_id);
+    return { ok, request_id: body.request_id };
+  }
+
+  userInputResponse(body: {
+    request_id: string;
+    selected?: string[];
+    text?: string;
+    session_id?: string;
+  }) {
+    const ok = resolveUserInputRequest(
+      body.request_id,
+      { selected: body.selected, text: body.text },
+      body.session_id,
+    );
+    return { ok, request_id: body.request_id };
+  }
+
   listPersistedSessions(query: { limit?: number; offset?: number }) {
     return this.databaseService.listConversationSessions(query);
   }
@@ -765,6 +801,7 @@ export class ChatService {
     emit: (name: string, data: Record<string, unknown>) => void;
   }): string {
     const { sessionId, userMessage, agentType, emit } = params;
+    rejectSessionHumanRequests(sessionId, '任务已暂停');
     const snapshot = mergePausedSnapshot(params.snapshot, {
       originalMessage: params.snapshot.originalMessage || userMessage,
     });

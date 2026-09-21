@@ -91,6 +91,7 @@ export function useSessionStore() {
     void deleteChatSession(id).catch(() => undefined)
   }, [])
 
+  /** Auto-title from first message — only if still default */
   const updateLabel = useCallback((id: string, label: string) => {
     const next = sessions.map((item) => {
       if (item.id !== id) return item
@@ -104,6 +105,28 @@ export function useSessionStore() {
     }
   }, [])
 
+  /** Manual rename — always applies */
+  const renameSession = useCallback((id: string, label: string) => {
+    const trimmed = label.trim().slice(0, 48) || DEFAULT_SESSION_LABEL
+    writeCache(
+      sessions.map((item) =>
+        item.id === id ? { ...item, label: trimmed, updatedAt: Date.now(), ephemeral: false } : item,
+      ),
+    )
+    void patchChatSession(id, trimmed).catch(() => undefined)
+  }, [])
+
+  const reorderSessions = useCallback((draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return
+    const from = sessions.findIndex((item) => item.id === draggedId)
+    const to = sessions.findIndex((item) => item.id === targetId)
+    if (from < 0 || to < 0) return
+    const next = [...sessions]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    writeCache(next)
+  }, [])
+
   const updateMode = useCallback((id: string, mode: ChatMode) => {
     writeCache(sessions.map((item) => (item.id === id ? { ...item, mode } : item)))
   }, [])
@@ -113,19 +136,42 @@ export function useSessionStore() {
   }, [])
 
   const hydrateFromServer = useCallback((remote: Array<{ sessionId: string; title: string; createdAt: string; updatedAt: string }>) => {
-    const ephemeral = sessions.filter((item) => item.ephemeral)
-    const byId = new Map<string, SessionEntry>()
+    const remoteById = new Map<string, SessionEntry>()
     for (const session of remote) {
       const id = session.sessionId.trim() || 'default'
       const title = session.title.trim().slice(0, 48) || DEFAULT_SESSION_LABEL
       const createdAt = Date.parse(session.createdAt) || Date.now()
       const updatedAt = Date.parse(session.updatedAt) || createdAt
-      byId.set(id, { id, label: title, mode: 'agent', createdAt, updatedAt })
+      remoteById.set(id, { id, label: title, mode: 'agent', createdAt, updatedAt })
     }
-    for (const local of ephemeral) {
-      if (!byId.has(local.id)) byId.set(local.id, local)
+
+    const ordered: SessionEntry[] = []
+    const seen = new Set<string>()
+
+    // Preserve local drag order; refresh metadata from server when present
+    for (const local of sessions) {
+      const remoteItem = remoteById.get(local.id)
+      if (remoteItem) {
+        const keepLocalTitle =
+          !isDefaultSessionLabel(local.label) && local.label !== remoteItem.label
+        ordered.push({
+          ...remoteItem,
+          label: keepLocalTitle ? local.label : remoteItem.label,
+          ephemeral: false,
+        })
+        seen.add(local.id)
+        remoteById.delete(local.id)
+      } else if (local.ephemeral) {
+        ordered.push(local)
+        seen.add(local.id)
+      }
     }
-    writeCache([...byId.values()].sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt)))
+
+    // New remote sessions (not in local order) — newest first
+    const leftovers = [...remoteById.values()].sort(
+      (a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt),
+    )
+    writeCache([...leftovers.filter((item) => !seen.has(item.id)), ...ordered])
   }, [])
 
   const refreshFromServer = useCallback(async () => {
@@ -133,5 +179,16 @@ export function useSessionStore() {
     hydrateFromServer(payload.sessions ?? [])
   }, [hydrateFromServer])
 
-  return { sessions: list, addSession, removeSession, updateLabel, updateMode, touchSession, hydrateFromServer, refreshFromServer }
+  return {
+    sessions: list,
+    addSession,
+    removeSession,
+    updateLabel,
+    renameSession,
+    reorderSessions,
+    updateMode,
+    touchSession,
+    hydrateFromServer,
+    refreshFromServer,
+  }
 }

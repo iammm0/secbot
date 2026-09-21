@@ -31,6 +31,11 @@ Desktop app on the maintained `release` branch (Chinese UI):
 ## Why This Package
 
 - End-to-end TypeScript architecture (`NestJS + Ink TUI + Web / Desktop + SQLite`).
+- Tauri desktop app with versioned installers (`desktop-app-v*`) and in-app update checks.
+- Optional **ExecGo** execution runtime: enable in Settings to start/stop local control-plane + runtime processes.
+- **Action audit trail**: every conversation stage / LLM / tool call is persisted and browsable in Settings → Audit.
+- **Host probe + attack-chain preview**: workspace nodes show IP / username / open ports and a simulated entry-surface path (preview only).
+- Hackbot / SuperHackbot HITL: sensitive-tool approval and mid-task `ask_user` prompts over SSE.
 - `secbot` binary that starts terminal UI with local spawned backend by default.
 - `secbot-server` binary for backend-only API scenarios.
 - `secbot-mcp` binary that exposes Secbot tools as a stdio MCP server.
@@ -49,6 +54,14 @@ From the repository checkout, `ChatService` routes each turn through **`IntentRo
 - Optional: Ollama for local model serving
 
 ## Install
+
+### Desktop app (recommended UI)
+
+Download the latest **Secbot Desktop** installer from [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.2-beta`), install for your OS, then open Secbot. Settings → About shows the current version and can check for updates.
+
+More detail: [`desktop/README.md`](desktop/README.md).
+
+### npm CLI / TUI package
 
 Download the latest `.tgz` from [GitHub Releases](https://github.com/iammm0/secbot/releases) (currently **v2.0.0-b2**), then:
 
@@ -94,6 +107,14 @@ DEEPSEEK_MODEL=deepseek-chat
 
 ```bash
 secbot
+```
+
+### 2b. Start desktop app from source (optional)
+
+```bash
+cd desktop
+npm ci
+npm run dev          # Vite HMR + Nest watch + Tauri window
 ```
 
 ### 3. Start backend only (optional)
@@ -191,6 +212,9 @@ npm run dev:watch
 # TUI (in another terminal, default: spawn local backend)
 npm run start:tui
 
+# Desktop hot-dev (Vite :5173 + backend :8000 + Tauri)
+cd desktop && npm run dev
+
 # TUI service mode (connect existing backend only)
 SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
@@ -203,6 +227,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 | `npm run build:terminal-ui` | Build the Ink terminal UI |
 | `npm run build:web` | Build the web frontend bundle |
 | `npm run typecheck` | Type-check server code |
+| `npm --prefix desktop run build` | Build the macOS/Windows/Linux desktop app locally |
 | `npm run lint` | Run ESLint |
 | `npm run format:check` | Check Prettier formatting |
 | `npm test` | Run tests |

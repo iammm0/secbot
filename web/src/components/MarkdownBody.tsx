@@ -1,8 +1,9 @@
-import { Children, createContext, isValidElement, useContext, type ComponentProps, type ReactNode } from 'react'
+import { Children, createContext, isValidElement, useContext, useRef, useState, type ComponentProps, type MouseEvent, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark.css'
+import { addToChat } from '@/lib/chatQuote'
 
 interface Props {
   children: string
@@ -56,20 +57,59 @@ function Code({
   )
 }
 
+function nodeText(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(nodeText).join('')
+  if (isValidElement<{ children?: ReactNode }>(node)) return nodeText(node.props.children)
+  return ''
+}
+
 function Pre({
   children,
   node: _node,
   ...props
 }: ComponentProps<'pre'> & { node?: unknown }) {
+  const [selected, setSelected] = useState(false)
+  const selectedRef = useRef(false)
+  selectedRef.current = selected
   let language: string | undefined
   Children.forEach(children, (child) => {
     if (isValidElement<{ className?: string }>(child)) {
       language = languageFromClassName(child.props.className) ?? language
     }
   })
+  const code = nodeText(children).replace(/\n$/, '')
+
+  const toggle = (event: MouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('button')) return
+    const selection = window.getSelection()?.toString() ?? ''
+    if (selection.trim()) return
+    setSelected(!selectedRef.current)
+  }
+
   return (
-    <div className="md-code">
-      {language ? <div className="md-code-lang">{language}</div> : null}
+    <div
+      className={`md-code${selected ? ' md-code-selected' : ''}`}
+      onClick={toggle}
+    >
+      {language || selected ? (
+        <div className="md-code-lang">
+          <span>{language}</span>
+          {selected ? (
+            <button
+              type="button"
+              className="md-code-add"
+              onClick={(event) => {
+                event.stopPropagation()
+                addToChat({ language, code })
+                setSelected(false)
+              }}
+            >
+              Add to chat
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <pre className="md-pre" {...props}>
         <InPreContext.Provider value={true}>{children}</InPreContext.Provider>
       </pre>

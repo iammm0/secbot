@@ -248,7 +248,7 @@ export class ExploreAgent extends BaseAgent {
 
         let observation: string;
         try {
-          const result = await traceToolRun(action.tool, () => tool.run(action.params));
+          const result = await traceToolRun(action.tool, () => tool.run(action.params), action.params);
           observation = result.success
             ? this.formatObservation(result.result)
             : `[错误] ${result.error ?? '未知错误'}`;

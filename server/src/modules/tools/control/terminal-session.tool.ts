@@ -22,8 +22,12 @@ const sleep = async (ms: number): Promise<void> => {
 class TerminalSession {
   private process: ChildProcessWithoutNullStreams | null = null;
   private outputBuffer = '';
+  /** Rolling transcript for the inspector; not consumed by read()/exec drain. */
+  private transcript = '';
   private queue: Promise<unknown> = Promise.resolve();
   private shellProfile!: ShellExecutionProfile;
+  private resolvedCwd?: string;
+  private lastCommand = '';
   lastActive = Date.now();
 
   constructor(
@@ -45,6 +49,7 @@ class TerminalSession {
 
   async start(): Promise<string> {
     const resolvedCwd = await TerminalSession.resolveCwd(this.cwd);
+    this.resolvedCwd = resolvedCwd;
     const shell = this.getShellSpec();
     this.shellProfile = shellProfile(shell.kind, shell.label);
 
@@ -72,6 +77,7 @@ class TerminalSession {
         throw new Error('Terminal session is not active');
       }
       this.lastActive = Date.now();
+      this.lastCommand = command.trim().slice(0, 240);
       this.drainBuffer();
 
       const marker = `${OUTPUT_SENTINEL}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -151,10 +157,28 @@ class TerminalSession {
     });
   }
 
+  snapshot(): TerminalSnapshot {
+    const shell = this.shellProfile;
+    return {
+      session_id: this.sessionId,
+      alive: this.alive,
+      idle_seconds: Math.round((Date.now() - this.lastActive) / 100) / 10,
+      pid: this.pid,
+      cwd: this.resolvedCwd,
+      shell: shell ? `${shell.label} (${shell.kind})` : undefined,
+      last_command: this.lastCommand || undefined,
+      preview: this.transcript.slice(-8_000),
+    };
+  }
+
   private appendOutput(chunk: string): void {
     this.outputBuffer += chunk;
+    this.transcript += chunk;
     if (this.outputBuffer.length > 200_000) {
       this.outputBuffer = this.outputBuffer.slice(-100_000);
+    }
+    if (this.transcript.length > 80_000) {
+      this.transcript = this.transcript.slice(-40_000);
     }
   }
 
@@ -209,6 +233,37 @@ class TerminalSession {
       throw new Error(`Working directory does not exist: ${resolved}`);
     }
   }
+}
+
+export type TerminalSnapshot = {
+  session_id: string;
+  alive: boolean;
+  idle_seconds: number;
+  pid: number | null;
+  cwd?: string;
+  shell?: string;
+  last_command?: string;
+  preview: string;
+};
+
+export function listTerminalSnapshots(): TerminalSnapshot[] {
+  cleanupIdleSessions();
+  return [...sessions.values()].map((session) => session.snapshot());
+}
+
+export function getTerminalSnapshot(sessionId: string): TerminalSnapshot | null {
+  const session = sessions.get(sessionId.trim());
+  if (!session) return null;
+  return session.snapshot();
+}
+
+export async function closeTerminalSession(sessionId: string): Promise<boolean> {
+  const id = sessionId.trim();
+  const session = sessions.get(id);
+  if (!session) return false;
+  sessions.delete(id);
+  await session.close();
+  return true;
 }
 
 function cleanupIdleSessions(): void {

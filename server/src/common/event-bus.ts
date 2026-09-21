@@ -30,6 +30,7 @@ export enum EventType {
   TASK_PHASE = 'task_phase',
 
   CONFIRM_REQUIRED = 'confirm_required',
+  USER_INPUT_REQUIRED = 'user_input_required',
   ROOT_REQUIRED = 'root_required',
 
   SESSION_UPDATE = 'session_update',

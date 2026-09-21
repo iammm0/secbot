@@ -17,6 +17,8 @@ import { SkillsService } from '../skills/skills.service';
 import { createSkillsTools } from './skills';
 import { createMcpTools } from './mcp';
 import { PreferencesService } from '../preferences/preferences.service';
+import { wrapToolsForExecGoAudit } from './control/audited-tool';
+import { traceToolRun } from '../chat/workflow-trace';
 
 @Injectable()
 export class ToolsService {
@@ -54,7 +56,8 @@ export class ToolsService {
       { id: 'mcp', name: 'MCP', tools: mcpTools },
       { id: 'vuln_db', name: 'Vulnerability DB', tools: [this.vulnDbQueryTool] },
     ];
-    this.allTools = this.uniqueTools(this.categories.flatMap((c) => c.tools));
+    // Wrap once — AuditedTool checks live ExecGo config on each run
+    this.allTools = wrapToolsForExecGoAudit(this.uniqueTools(this.categories.flatMap((c) => c.tools)));
     this.toolsMap = new Map(this.allTools.map((t) => [t.name, t]));
   }
 
@@ -122,7 +125,7 @@ export class ToolsService {
         error: `Tool not found: ${name}`,
       };
     }
-    return await tool.run(params);
+    return await traceToolRun(name, () => tool.run(params), params);
   }
 
   private uniqueTools(tools: BaseTool[]): BaseTool[] {

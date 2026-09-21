@@ -1,23 +1,27 @@
-import type { ContextUsageSnapshot } from '@/lib/types'
 import { ContextUsageMeter } from '@/components/ContextUsageMeter'
+import { formatElapsed } from '@/lib/formatElapsed'
+import type { ContextUsageSnapshot } from '@/lib/types'
 
 interface Props {
-  contextUsage: ContextUsageSnapshot | null
   phase?: string
+  elapsedMs?: number
+  busy?: boolean
+  contextUsage?: ContextUsageSnapshot | null
 }
 
-export function StatusBar({ contextUsage, phase }: Props) {
+/** Keep in sync with Sidebar settings footer (`h-10`) so the dividers align. */
+export function StatusBar({ phase, elapsedMs = 0, busy = false, contextUsage = null }: Props) {
   return (
-    <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-text-dim font-mono">
+    <div className="flex h-10 shrink-0 items-center justify-between border-t border-border px-4 text-xs text-text-dim font-mono">
       <div className="flex items-center gap-3">
-        <img
-          src="/secbot-icon.png"
-          alt="SecBot"
-          className="h-4 w-4 object-contain"
-        />
-        {phase && <span className="text-secondary">{phase}</span>}
+        {phase ? <span className="text-secondary">{phase}</span> : <span>ready</span>}
+        {(busy || elapsedMs > 0) && elapsedMs > 0 ? (
+          <span className={`tabular-nums ${busy ? 'text-warning' : 'text-text-dim'}`}>
+            {formatElapsed(elapsedMs)}
+          </span>
+        ) : null}
       </div>
-      {contextUsage ? <ContextUsageMeter usage={contextUsage} /> : null}
+      <ContextUsageMeter usage={contextUsage} compact />
     </div>
   )
 }

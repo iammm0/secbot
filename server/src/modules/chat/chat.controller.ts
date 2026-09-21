@@ -19,8 +19,10 @@ import {
   ChatRequestDto,
   ChatSessionHistoryQueryDto,
   ChatSessionsQueryDto,
+  ConfirmResponseRequestDto,
   PatchChatSessionDto,
   RootResponseRequestDto,
+  UserInputResponseRequestDto,
 } from './dto/chat.dto';
 
 @Controller('api/chat')
@@ -58,6 +60,8 @@ export class ChatController {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
+    // Push headers immediately so proxies/clients treat this as a live SSE stream.
+    res.flushHeaders?.();
 
     const abort = new AbortController();
     const onDisconnect = () => {
@@ -68,7 +72,18 @@ export class ChatController {
 
     const send = (event: string, data: Record<string, unknown>) => {
       if (res.writableEnded) return;
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      try {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      } catch (err) {
+        this.logger.warn(
+          `SSE write failed (${event}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return;
+      }
+      // HITL events must reach the client before we block on user input;
+      // flush any compression / proxy buffers when available.
+      const flushable = res as Response & { flush?: () => void };
+      flushable.flush?.();
     };
 
     try {
@@ -95,6 +110,16 @@ export class ChatController {
   @Post('root-response')
   rootResponse(@Body() body: RootResponseRequestDto) {
     return this.chatService.rootResponse(body);
+  }
+
+  @Post('confirm-response')
+  confirmResponse(@Body() body: ConfirmResponseRequestDto) {
+    return this.chatService.confirmResponse(body);
+  }
+
+  @Post('user-input-response')
+  userInputResponse(@Body() body: UserInputResponseRequestDto) {
+    return this.chatService.userInputResponse(body);
   }
 
   @Post('sync')
