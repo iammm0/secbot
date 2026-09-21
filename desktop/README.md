@@ -89,7 +89,7 @@ npm run dev          # 先构建 server + web，再 tauri dev
 npm run build        # build:deps → prepare-backend → tauri build --bundles app
 ```
 
-CI 使用 `npm run build:ci`（`tauri build --ci`，按 `tauri.conf.json` 的 `bundle.targets: "all"` 打各平台安装包）。
+CI 使用 `npm run build:ci`（`tauri build --ci`）。`bundle.targets` 不含 `msi`：WiX 不接受 `0.0.3-beta` 这种非数字预发布号，Windows 只打 NSIS。
 
 安装 macOS `.app`：
 
