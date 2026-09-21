@@ -125,6 +125,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
+            libfuse2 \
             build-essential curl wget file \
             libxdo-dev libssl-dev \
             libayatana-appindicator3-dev \
@@ -143,6 +144,10 @@ jobs:
         env:
           SECBOT_TARGET_TRIPLE: ${{ matrix.target }}
           VITE_SECBOT_DESKTOP_VERSION: ${{ needs.prepare.outputs.version }}
+          # linuxdeploy is an AppImage; GitHub runners have no FUSE, and its bundled strip
+          # rejects modern .relr.dyn sections.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          NO_STRIP: "1"
         run: npm --prefix desktop run build:ci
 
       - name: 上传安装包到 Release
