@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ToolsController } from './tools.controller';
+import { TerminalsController } from './terminals.controller';
 import { ToolsService } from './tools.service';
 import { VulnDbModule } from '../vuln-db/vuln-db.module';
 import { SkillsModule } from '../skills/skills.module';
@@ -7,7 +8,7 @@ import { PreferencesModule } from '../preferences/preferences.module';
 
 @Module({
   imports: [VulnDbModule, SkillsModule, PreferencesModule],
-  controllers: [ToolsController],
+  controllers: [ToolsController, TerminalsController],
   providers: [ToolsService],
   exports: [ToolsService],
 })

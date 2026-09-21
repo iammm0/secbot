@@ -34,9 +34,11 @@ function TurnThread({ item }: { item: HistoryItem }) {
   return (
     <section className="space-y-3 border-b border-border pb-6 last:border-b-0">
       <UserMessageBlock message={item.userMessage} durationMs={durationMs} />
-      {item.streamState.timeline.map((block) => (
-        <BlockRouter key={block.id} item={block} />
-      ))}
+      <div className="space-y-0.5">
+        {item.streamState.timeline.map((block) => (
+          <BlockRouter key={block.id} item={block} />
+        ))}
+      </div>
       {item.streamState.error ? <ErrorBlock message={item.streamState.error} /> : null}
     </section>
   )
@@ -52,9 +54,11 @@ function LiveTurn({ state }: { state: StreamState }) {
   return (
     <section className="space-y-3">
       {state.currentUserMessage ? <UserMessageBlock message={state.currentUserMessage} /> : null}
-      {state.timeline.map((block) => (
-        <BlockRouter key={block.id} item={block} />
-      ))}
+      <div className="space-y-0.5">
+        {state.timeline.map((block) => (
+          <BlockRouter key={block.id} item={block} />
+        ))}
+      </div>
       {state.report ? (
         <ReportBlock item={{ id: 'report', type: 'final', title: '报告', body: state.report }} />
       ) : null}

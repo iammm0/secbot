@@ -2,13 +2,12 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { nanoid } from 'nanoid'
 import { Icon } from '@/components/Icon'
-import { AddHostDialog } from '@/components/workspace/AddHostDialog'
 import { CreateWorkspaceDialog } from '@/components/workspace/CreateWorkspaceDialog'
-import { NodeSurfacePanel } from '@/components/workspace/NodeSurfacePanel'
 import { useSessionStore, type SessionEntry } from '@/hooks/useSessionStore'
 import { sessionBelongsToWorkspace, useWorkspaceStore } from '@/hooks/useWorkspaceStore'
 import { fetchChatSessions } from '@/lib/chatApi'
-import { DEFAULT_WORKSPACE_ID, type Workspace, type WorkspaceNode } from '@/lib/workspaceApi'
+import { DEFAULT_WORKSPACE_ID, type Workspace } from '@/lib/workspaceApi'
+import { requestAddHost } from '@/lib/rightRail'
 
 interface Props {
   onClear?: () => void
@@ -20,18 +19,6 @@ function collapseIfMobile(setCollapsed: (value: boolean) => void) {
   }
 }
 
-function nodeIcon(kind: WorkspaceNode['kind']): string {
-  if (kind === 'local') return 'monitor'
-  if (kind === 'ssh') return 'link'
-  return 'global'
-}
-
-function statusDot(status: WorkspaceNode['status']): string {
-  if (status === 'online') return 'bg-primary'
-  if (status === 'offline') return 'bg-error'
-  return 'bg-text-dim/40'
-}
-
 export function Sidebar({ onClear }: Props) {
   const [collapsed, setCollapsed] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false,
@@ -39,8 +26,6 @@ export function Sidebar({ onClear }: Props) {
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
-  const [hostOpen, setHostOpen] = useState(false)
-  const [surfaceNode, setSurfaceNode] = useState<WorkspaceNode | null>(null)
   const navigate = useNavigate()
   const params = useParams({ strict: false }) as { id?: string }
   const { sessions, addSession, removeSession, renameSession, reorderSessions, hydrateFromServer } = useSessionStore()
@@ -189,7 +174,7 @@ export function Sidebar({ onClear }: Props) {
               <Icon name="add" size={14} />
               新建工作空间
             </MenuItem>
-            <MenuItem onClick={() => { setWorkspaceOpen(false); setHostOpen(true) }}>
+            <MenuItem onClick={() => { setWorkspaceOpen(false); requestAddHost() }}>
               <Icon name="monitor" size={14} />
               添加主机节点
             </MenuItem>
@@ -258,78 +243,6 @@ export function Sidebar({ onClear }: Props) {
               onReorder={reorderSessions}
             />
           ))}
-
-          {!collapsed && (workspaces.active?.nodes.length ?? 0) > 0 ? (
-            <div className="mt-3 space-y-1 px-1 pb-2">
-              <div className="flex items-center justify-between px-1">
-                <div className="font-mono text-[10px] uppercase tracking-wider text-text-dim">主机节点</div>
-                <button
-                  type="button"
-                  className="font-mono text-[10px] text-text-dim hover:text-primary"
-                  onClick={() => {
-                    const active =
-                      workspaces.active?.nodes.find((item) => item.id === workspaces.activeNodeId) ??
-                      workspaces.active?.nodes[0]
-                    if (active) setSurfaceNode(active)
-                  }}
-                >
-                  拓扑
-                </button>
-              </div>
-              {workspaces.active?.nodes.map((node) => {
-                const selected = workspaces.activeNodeId === node.id
-                return (
-                  <div
-                    key={node.id}
-                    className={`flex w-full items-center gap-1 rounded px-1 py-0.5 ${
-                      selected ? 'bg-primary/15 text-primary' : 'text-text-dim'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left text-[11px] transition-colors hover:bg-hover hover:text-text"
-                      title={
-                        node.kind === 'ssh'
-                          ? '远程命令执行（仅 execute_command 走 SSH）'
-                          : node.error || node.address
-                      }
-                      onClick={() => {
-                        workspaces.setActiveNodeId(node.id)
-                        if (params.id) void workspaces.bindSession(params.id, workspaces.activeId, node.id)
-                      }}
-                      onDoubleClick={() => setSurfaceNode(node)}
-                    >
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDot(node.status)}`} />
-                      <Icon name={nodeIcon(node.kind)} size={12} />
-                      <span className="min-w-0 flex-1 truncate">{node.name}</span>
-                      {node.openPorts && node.openPorts.length > 0 ? (
-                        <span className="shrink-0 text-[9px] text-text-dim">{node.openPorts.length}p</span>
-                      ) : null}
-                    </button>
-                    <button
-                      type="button"
-                      className="shrink-0 rounded p-1 hover:bg-hover hover:text-text"
-                      title="节点探测与攻击链预览"
-                      onClick={() => setSurfaceNode(node)}
-                      aria-label={`查看 ${node.name} 拓扑`}
-                    >
-                      <Icon name="hierarchy" size={12} />
-                    </button>
-                    {node.kind !== 'local' ? (
-                      <button
-                        type="button"
-                        className="shrink-0 rounded p-1 hover:bg-hover hover:text-text"
-                        onClick={() => void workspaces.connectNode(workspaces.activeId, node.id)}
-                        aria-label={`重新连接 ${node.name}`}
-                      >
-                        <Icon name="link" size={12} />
-                      </button>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
-          ) : null}
         </div>
 
         <div className="flex h-10 shrink-0 items-center border-t border-border px-2">
@@ -361,23 +274,6 @@ export function Sidebar({ onClear }: Props) {
         <CreateWorkspaceDialog
           onClose={() => setCreateOpen(false)}
           onCreate={(name) => workspaces.create(name).then(() => undefined)}
-        />
-      ) : null}
-      {hostOpen ? (
-        <AddHostDialog
-          onClose={() => setHostOpen(false)}
-          onSubmit={(body) => workspaces.addNode(workspaces.activeId, body).then(() => undefined)}
-        />
-      ) : null}
-      {surfaceNode ? (
-        <NodeSurfacePanel
-          workspaceId={workspaces.activeId}
-          node={surfaceNode}
-          onClose={() => setSurfaceNode(null)}
-          onProbed={(next) => {
-            setSurfaceNode(next)
-            void workspaces.refresh()
-          }}
         />
       ) : null}
     </>

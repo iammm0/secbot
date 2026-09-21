@@ -11,11 +11,13 @@ import {
 interface Props {
   workspaceId: string
   node: WorkspaceNode
-  onClose: () => void
+  onClose?: () => void
   onProbed?: (node: WorkspaceNode) => void
+  /** Render inside the right rail instead of a modal overlay. */
+  embedded?: boolean
 }
 
-export function NodeSurfacePanel({ workspaceId, node, onClose, onProbed }: Props) {
+export function NodeSurfacePanel({ workspaceId, node, onClose, onProbed, embedded = false }: Props) {
   const [preview, setPreview] = useState<NodeSurfacePreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [probing, setProbing] = useState(false)
@@ -75,15 +77,17 @@ export function NodeSurfacePanel({ workspaceId, node, onClose, onProbed }: Props
   }, [ports, services])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/40 backdrop-blur-[1px]">
-      <button type="button" className="flex-1 cursor-default" aria-label="关闭" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-xl flex-col border-l border-border bg-bg shadow-2xl">
-        <header className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div>
+    <div className={embedded ? 'flex h-full min-h-0 flex-col' : 'fixed inset-0 z-50 flex items-stretch justify-end bg-black/40 backdrop-blur-[1px]'}>
+      {embedded ? null : (
+        <button type="button" className="flex-1 cursor-default" aria-label="关闭" onClick={onClose} />
+      )}
+      <aside className={embedded ? 'flex min-h-0 flex-1 flex-col' : 'flex h-full w-full max-w-xl flex-col border-l border-border bg-bg shadow-2xl'}>
+        <header className={`flex items-center justify-between border-b border-border ${embedded ? 'px-3 py-2' : 'px-5 py-4'}`}>
+          <div className="min-w-0">
             <div className="font-mono text-sm text-text">节点探测 · 攻击链预览</div>
-            <div className="mt-0.5 font-mono text-[11px] text-text-dim">{current.name}</div>
+            <div className="mt-0.5 truncate font-mono text-[11px] text-text-dim">{current.name}</div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               disabled={probing}
@@ -92,18 +96,20 @@ export function NodeSurfacePanel({ workspaceId, node, onClose, onProbed }: Props
             >
               {probing ? '探测中…' : '探测'}
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border px-2 py-1.5 text-text-dim hover:bg-hover hover:text-text"
-              aria-label="关闭面板"
-            >
-              <Icon name="close-circle" size={16} />
-            </button>
+            {!embedded && onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-border px-2 py-1.5 text-text-dim hover:bg-hover hover:text-text"
+                aria-label="关闭面板"
+              >
+                <Icon name="close-circle" size={16} />
+              </button>
+            ) : null}
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 space-y-6">
+        <div className={`min-h-0 flex-1 overflow-y-auto space-y-6 ${embedded ? 'px-3 py-3' : 'px-5 py-5'}`}>
           {loading ? (
             <div className="font-mono text-xs text-text-dim">加载拓扑…</div>
           ) : (
@@ -112,7 +118,7 @@ export function NodeSurfacePanel({ workspaceId, node, onClose, onProbed }: Props
                 <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-text-dim">
                   主机状态
                 </div>
-                <div className="relative mx-auto h-[280px] w-[320px]">
+                <div className={`relative mx-auto h-[240px] w-full max-w-[320px] ${embedded ? '' : 'h-[280px]'}`}>
                   <svg viewBox="0 0 320 280" className="h-full w-full overflow-visible">
                     <defs>
                       <radialGradient id="hostGlow" cx="50%" cy="50%" r="50%">

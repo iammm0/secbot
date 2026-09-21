@@ -385,15 +385,12 @@ body {
   border-radius: 0.3rem;
 }
 
-.md-code {
-  margin: 0.85rem 0;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 0.7rem;
-  background: var(--color-bg-card);
-}
-
 .md-code-lang {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 1.7rem;
   padding: 0.35rem 0.75rem;
   font-family: var(--font-mono);
   font-size: 0.68rem;
@@ -402,6 +399,36 @@ body {
   color: var(--color-text-dim);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-card);
+}
+
+.md-code {
+  margin: 0.85rem 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 0.7rem;
+  background: var(--color-bg-card);
+  cursor: pointer;
+}
+
+.md-code-selected {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+.md-code-add {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.md-code-add:hover {
+  text-decoration: underline;
 }
 
 .md-pre {

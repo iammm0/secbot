@@ -5,6 +5,7 @@ import { SlashMenu } from '@/components/SlashMenu'
 import { MESSAGE_PLACEHOLDER } from '@/lib/copy'
 import { formatElapsed } from '@/lib/formatElapsed'
 import { emitSlash, fetchCommandCatalog, filterSlashCommands, resolveSlash, SLASH_COMMANDS, type SlashCommand } from '@/lib/slashCommands'
+import { registerChatQuote, type ChatQuote } from '@/lib/chatQuote'
 interface Props {
   onSubmit: (message: string) => void
   onStop?: () => void
@@ -29,13 +30,14 @@ export function ChatInput({
   elapsedMs = 0,
 }: Props) {
   const [value, setValue] = useState('')
+  const [quotes, setQuotes] = useState<Array<ChatQuote & { id: string }>>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [catalog, setCatalog] = useState<SlashCommand[]>(SLASH_COMMANDS)
   const [burst, setBurst] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)
 
   const suggestions = useMemo(() => filterSlashCommands(value, catalog), [value, catalog])
-  const hasText = value.trim().length > 0
+  const hasText = value.trim().length > 0 || quotes.length > 0
 
   const actionMode: ActionMode = streaming ? 'stop' : paused ? 'continue' : 'send'
   const actionEnabled =
@@ -52,6 +54,18 @@ export function ChatInput({
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    registerChatQuote((quote) => {
+      setQuotes((current) => {
+        if (current.some((item) => item.code === quote.code && item.language === quote.language)) return current
+        const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+        return [...current, { ...quote, id }]
+      })
+      ref.current?.focus()
+    })
+    return () => registerChatQuote(null)
   }, [])
 
   useEffect(() => {
@@ -79,9 +93,11 @@ export function ChatInput({
       if (selected && runCommand(selected)) return
     }
     if (trimmed.startsWith('/') && runCommand(trimmed)) return
-    if (!trimmed && !paused) return
-    onSubmit(trimmed || '继续任务')
+    if (!trimmed && quotes.length === 0 && !paused) return
+    const cited = quotes.map((quote) => fenceQuote(quote.language, quote.code)).join('\n\n')
+    onSubmit([cited, trimmed].filter(Boolean).join('\n\n') || '继续任务')
     setValue('')
+    setQuotes([])
     setBurst(true)
     window.setTimeout(() => setBurst(false), 420)
   }
@@ -144,6 +160,27 @@ export function ChatInput({
           streaming ? 'border-warning/25' : paused ? 'border-primary/25' : ''
         }`}
       >
+        {quotes.length > 0 ? (
+          <div className="mb-2 flex flex-wrap gap-1.5 px-1">
+            {quotes.map((quote) => (
+              <span
+                key={quote.id}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-hover/70 px-2 py-1 font-mono text-[11px] text-text"
+              >
+                <span className="shrink-0 uppercase tracking-wide text-text-dim">{quote.language || 'code'}</span>
+                <span className="min-w-0 truncate">{quote.code.replace(/\s+/g, ' ')}</span>
+                <button
+                  type="button"
+                  aria-label="移除引用"
+                  className="shrink-0 text-text-dim hover:text-text"
+                  onClick={() => setQuotes((current) => current.filter((item) => item.id !== quote.id))}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
         <textarea
           ref={ref}
           value={value}
@@ -219,4 +256,10 @@ export function ChatInput({
       </div>
     </div>
   )
+}
+
+function fenceQuote(language: string | undefined, code: string): string {
+  const run = code.match(/`+/g)?.reduce((longest, ticks) => Math.max(longest, ticks.length), 0) ?? 0
+  const fence = '`'.repeat(Math.max(3, run + 1))
+  return `${fence}${language ?? ''}\n${code}\n${fence}`
 }
