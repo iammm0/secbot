@@ -1,13 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-  unlinkSync,
-  openSync,
-  closeSync,
-} from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, unlinkSync, openSync, closeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
@@ -88,7 +80,10 @@ function cleanupFiles(name: string): void {
   }
 }
 
-function listenHostPort(url: string, fallbackPort: number): { host: string; port: number; addr: string } {
+function listenHostPort(
+  url: string,
+  fallbackPort: number,
+): { host: string; port: number; addr: string } {
   try {
     const parsed = new URL(url.includes('://') ? url : `http://${url}`);
     const port = parsed.port ? Number(parsed.port) : fallbackPort;

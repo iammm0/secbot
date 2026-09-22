@@ -570,14 +570,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     ).map((r) => this.mapAuditRecord(r));
   }
 
-  listAuditRecords(opts: {
-    sessionId?: string;
-    agent?: string;
-    stepType?: string;
-    q?: string;
-    limit?: number;
-    offset?: number;
-  } = {}): { total: number; records: AuditRecord[] } {
+  listAuditRecords(
+    opts: {
+      sessionId?: string;
+      agent?: string;
+      stepType?: string;
+      q?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): { total: number; records: AuditRecord[] } {
     const clauses: string[] = [];
     const params: unknown[] = [];
     if (opts.sessionId?.trim()) {
@@ -607,9 +609,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const offset = Math.max(opts.offset ?? 0, 0);
     const records = (
       this.db
-        .prepare(
-          `SELECT * FROM audit_records ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
-        )
+        .prepare(`SELECT * FROM audit_records ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
         .all(...params, limit, offset) as Array<Record<string, unknown>>
     ).map((r) => this.mapAuditRecord(r));
     return { total, records };

@@ -57,7 +57,9 @@ export class ToolsService {
       { id: 'vuln_db', name: 'Vulnerability DB', tools: [this.vulnDbQueryTool] },
     ];
     // Wrap once — AuditedTool checks live ExecGo config on each run
-    this.allTools = wrapToolsForExecGoAudit(this.uniqueTools(this.categories.flatMap((c) => c.tools)));
+    this.allTools = wrapToolsForExecGoAudit(
+      this.uniqueTools(this.categories.flatMap((c) => c.tools)),
+    );
     this.toolsMap = new Map(this.allTools.map((t) => [t.name, t]));
   }
 

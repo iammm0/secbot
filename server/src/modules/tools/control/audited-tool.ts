@@ -22,7 +22,8 @@ export class AuditedTool extends BaseTool {
     onProgress?: ToolProgressCallback,
   ): Promise<ToolResult> {
     const config = getExecGoRuntimeConfig();
-    const shouldAudit = config.enabled && config.auditActions && this.inner.name !== 'execgo_action';
+    const shouldAudit =
+      config.enabled && config.auditActions && this.inner.name !== 'execgo_action';
     const started = Date.now();
 
     if (shouldAudit) {

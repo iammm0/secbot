@@ -70,11 +70,7 @@ function siblingExecGoRuntimeCandidates(binary: string): string[] {
 
 function siblingExecGoRoots(): string[] {
   const cwd = process.cwd();
-  return [
-    resolve(cwd, '..', 'execgo'),
-    resolve(cwd, 'execgo'),
-    resolve(cwd, '..', '..', 'execgo'),
-  ];
+  return [resolve(cwd, '..', 'execgo'), resolve(cwd, 'execgo'), resolve(cwd, '..', '..', 'execgo')];
 }
 
 function siblingExecGoRuntimeRoots(): string[] {
