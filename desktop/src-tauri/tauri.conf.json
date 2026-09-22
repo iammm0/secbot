@@ -26,7 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis", "deb", "rpm", "appimage"],
+    "targets": ["app", "dmg", "nsis", "deb", "rpm"],
     "externalBin": [
       "binaries/secbot-node"
     ],

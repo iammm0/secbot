@@ -92,9 +92,6 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             label: macos-arm64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            label: macos-x64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             label: windows-x64
@@ -102,6 +99,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             label: linux-x64
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -125,7 +123,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            libfuse2 \
             build-essential curl wget file \
             libxdo-dev libssl-dev \
             libayatana-appindicator3-dev \
@@ -144,10 +141,6 @@ jobs:
         env:
           SECBOT_TARGET_TRIPLE: ${{ matrix.target }}
           VITE_SECBOT_DESKTOP_VERSION: ${{ needs.prepare.outputs.version }}
-          # linuxdeploy is an AppImage; GitHub runners have no FUSE, and its bundled strip
-          # rejects modern .relr.dyn sections.
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-          NO_STRIP: "1"
         run: npm --prefix desktop run build:ci
 
       - name: 上传安装包到 Release

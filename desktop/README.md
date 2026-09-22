@@ -89,7 +89,7 @@ npm run dev          # 先构建 server + web，再 tauri dev
 npm run build        # build:deps → prepare-backend → tauri build --bundles app
 ```
 
-CI 使用 `npm run build:ci`（`tauri build --ci`）。`bundle.targets` 不含 `msi`：WiX 不接受 `0.0.3-beta` 这种非数字预发布号，Windows 只打 NSIS。
+CI 使用 `npm run build:ci`（`tauri build --ci`）。发布矩阵当前是 macOS arm64（dmg）、Windows x64（NSIS，不含 MSI：WiX 不接受 `0.0.3-beta` 这类非数字预发布号）、Linux x64（deb/rpm；AppImage 在 GitHub runner 上的 linuxdeploy 仍会失败，暂不打）。macOS Intel 的 `macos-13` runner 已不可用，CI 暂不产出 x64 Mac 包。
 
 安装 macOS `.app`：
 
