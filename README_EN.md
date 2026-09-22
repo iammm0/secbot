@@ -202,7 +202,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-Desktop installers are also published on [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.2-beta`). See [`desktop/README.md`](desktop/README.md).
+Desktop installers are also published on [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.3-beta`). See [`desktop/README.md`](desktop/README.md).
 
 ### Common Development Commands
 

@@ -57,7 +57,7 @@ From the repository checkout, `ChatService` routes each turn through **`IntentRo
 
 ### Desktop app (recommended UI)
 
-Download the latest **Secbot Desktop** installer from [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.2-beta`), install for your OS, then open Secbot. Settings → About shows the current version and can check for updates.
+Download the latest **Secbot Desktop** installer from [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.3-beta`), install for your OS, then open Secbot. Settings → About shows the current version and can check for updates.
 
 More detail: [`desktop/README.md`](desktop/README.md).
 

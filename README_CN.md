@@ -248,7 +248,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-桌面安装包也可从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载（标签形如 `desktop-app-v0.0.2-beta`）。详见 [`desktop/README.md`](desktop/README.md)。
+桌面安装包也可从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载（标签形如 `desktop-app-v0.0.3-beta`）。详见 [`desktop/README.md`](desktop/README.md)。
 
 ### 5.（可选）安装 Ollama 本地模型
 
