@@ -49,7 +49,8 @@
     "pack:npm": "npm pack",
     "release:build": "npm run clean && npm run build",
     "release:pack": "npm run release:build && npm pack",
-    "release:verify": "node scripts/verify_release_package.js"
+    "release:verify": "node scripts/verify_release_package.js",
+    "pack:tui": "node scripts/pack-tui-dist.mjs"
   },
   "engines": {
     "node": ">=24"

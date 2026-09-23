@@ -67,10 +67,7 @@ export class SkillsService {
   async createSkill(input: CreateSkillRequestDto): Promise<SkillDetailDto> {
     const slug = this.slugify(input.name);
     const dirPath = path.join(this.getSkillsRoot(), 'custom', slug);
-    const relativeDir = path
-      .relative(this.getWorkspaceRoot(), dirPath)
-      .split(path.sep)
-      .join('/');
+    const relativeDir = path.relative(this.getWorkspaceRoot(), dirPath).split(path.sep).join('/');
     const filePath = path.join(dirPath, SKILL_FILE_NAME);
 
     await fs.mkdir(dirPath, { recursive: true });
@@ -139,10 +136,7 @@ export class SkillsService {
     const { frontmatter, body } = this.splitFrontmatter(raw);
     const parsed = this.parseFrontmatter(frontmatter);
     const skillDir = path.dirname(filePath);
-    const relativeDir = path
-      .relative(this.getWorkspaceRoot(), skillDir)
-      .split(path.sep)
-      .join('/');
+    const relativeDir = path.relative(this.getWorkspaceRoot(), skillDir).split(path.sep).join('/');
     const relativeToSkills = path
       .relative(this.getSkillsRoot(), skillDir)
       .split(path.sep)

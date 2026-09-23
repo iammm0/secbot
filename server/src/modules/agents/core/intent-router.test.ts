@@ -150,9 +150,11 @@ describe('IntentRouter Jev gate', () => {
   it('still asks the LLM to write a meta reply after Jev classifies', async () => {
     enableJev();
     const llm = {
-      chat: vi.fn().mockResolvedValue(
-        JSON.stringify({ direct_response: '我是 Secbot。', clarify_question: null }),
-      ),
+      chat: vi
+        .fn()
+        .mockResolvedValue(
+          JSON.stringify({ direct_response: '我是 Secbot。', clarify_question: null }),
+        ),
       chatStream: vi.fn(),
     };
     const jev = {

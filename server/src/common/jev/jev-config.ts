@@ -60,10 +60,15 @@ export function defaultJevRuntimeConfig(): JevRuntimeConfig {
     reactStop: envTruthy(process.env.SECBOT_JEV_REACT_STOP),
     context: envTruthy(process.env.SECBOT_JEV_CONTEXT),
     apiKey: (process.env.TYPESAFE_API_KEY ?? process.env.JEV_API_KEY ?? '').trim(),
-    baseUrl: (process.env.TYPESAFE_BASE_URL ?? process.env.JEV_BASE_URL ?? DEFAULT_BASE_URL).trim() ||
+    baseUrl:
+      (process.env.TYPESAFE_BASE_URL ?? process.env.JEV_BASE_URL ?? DEFAULT_BASE_URL).trim() ||
       DEFAULT_BASE_URL,
-    model: (process.env.SECBOT_JEV_MODEL ?? process.env.TYPESAFE_DEFAULT_MODEL ?? DEFAULT_MODEL).trim() ||
-      DEFAULT_MODEL,
+    model:
+      (
+        process.env.SECBOT_JEV_MODEL ??
+        process.env.TYPESAFE_DEFAULT_MODEL ??
+        DEFAULT_MODEL
+      ).trim() || DEFAULT_MODEL,
     confidenceMin: parseUnit(process.env.SECBOT_JEV_CONFIDENCE_MIN, DEFAULT_CONFIDENCE_MIN),
     reactStopMin: parseUnit(process.env.SECBOT_JEV_REACT_STOP_MIN, DEFAULT_REACT_STOP_MIN),
   };
@@ -131,7 +136,9 @@ export function clearJevEnv(): void {
   for (const key of keys) delete process.env[key];
 }
 
-export function toPublicJevConfig(config: JevRuntimeConfig = getJevRuntimeConfig()): JevPublicConfig {
+export function toPublicJevConfig(
+  config: JevRuntimeConfig = getJevRuntimeConfig(),
+): JevPublicConfig {
   return {
     enabled: config.enabled,
     intent: config.intent,

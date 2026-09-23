@@ -54,7 +54,8 @@
 ### 核心能力
 
 - **桌面端（Tauri）**: 带版本号的安装包（`desktop-app-v*`），设置 → 关于可查看版本并检查更新；界面源码在 `web/`
-- **终端 TUI（Ink）**: `secbot` / `npm run start:stack`；与桌面端共用后端与 SSE，产品能力应对齐
+- **终端 TUI（Ink）**: `secbot` / `npm run start:stack`；与桌面端同一 Release 发布自包含包（`secbot-tui-*`），产品能力应对齐
+- **发布平台**: macOS Apple Silicon、Windows x64、Ubuntu x64（不再支持 macOS Intel）
 - **ExecGo 运行时**: 设置里启用后自动拉起/关闭本机 `execgo` / `execgo-runtime` 后台进程，可作为默认命令执行后端
 - **操作审计**: 每个对话的阶段 / 模型调用 / 工具执行落库，设置 → 审计可按会话追溯
 - **节点探测与攻击链预览**: 主机节点展示 IP、用户名、开放端口，并给出模拟入口面路径（仅预览，不执行攻击）
@@ -271,7 +272,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-桌面安装包也可从 [GitHub Releases](https://github.com/iammm0/secbot/releases) 下载（标签形如 `desktop-app-v0.0.3-beta`）。详见 [`desktop/README.md`](desktop/README.md)。
+桌面安装包与终端 TUI 自包含发行包都在 [GitHub Releases](https://github.com/iammm0/secbot/releases)（标签形如 `desktop-app-v0.0.3-beta`）。支持 **macOS Apple Silicon / Windows x64 / Ubuntu x64**，不含 macOS Intel。TUI 解压后运行 `./secbot` 或 `secbot.cmd`。详见 [`desktop/README.md`](desktop/README.md)、[`terminal-ui/README.md`](terminal-ui/README.md)。
 
 ### 5.（可选）安装 Ollama 本地模型
 

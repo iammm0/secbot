@@ -1,11 +1,14 @@
-name: Desktop Release
+name: Desktop & TUI Release
 
-# 仅发布桌面安装包到 GitHub Release。
+# 同一 GitHub Release 同时发布：
+#   - 桌面安装包（Tauri）
+#   - 终端 TUI 自包含发行包（随包 Node + 后端）
 # Tag 约定：desktop-app-v0.0.1-beta / desktop-app-v0.0.2 / desktop-app-v1.0.0
+# 平台：macOS Apple Silicon、Windows x64、Ubuntu x64（不再支持 macOS Intel）。
 #
 # 触发：
 #   git tag desktop-app-v0.0.1-beta && git push origin desktop-app-v0.0.1-beta
-#   或 Actions → Desktop Release → Run workflow
+#   或 Actions → Desktop & TUI Release → Run workflow
 
 on:
   push:
@@ -14,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "桌面版本号，如 0.0.1-beta（不要带 desktop-app-v 前缀）"
+        description: "版本号，如 0.0.4-beta（不要带 desktop-app-v 前缀；桌面端与 TUI 共用）"
         required: true
         type: string
       prerelease:
@@ -79,8 +82,8 @@ jobs:
             FLAGS=""
             if [ "${{ steps.ver.outputs.prerelease }}" = "true" ]; then FLAGS="--prerelease"; fi
             gh release create "$TAG" $FLAGS \
-              --title "Secbot Desktop ${{ steps.ver.outputs.version }}" \
-              --notes "桌面端安装包（macOS / Windows / Linux）。Tag: \`${TAG}\`。"
+              --title "Secbot Desktop & TUI ${{ steps.ver.outputs.version }}" \
+              --notes "桌面端安装包与终端 TUI 发行包。平台：macOS Apple Silicon、Windows x64、Ubuntu x64（不含 macOS Intel）。Tag: \`${TAG}\`。"
           fi
 
   desktop:
@@ -194,3 +197,64 @@ jobs:
             desktop/src-tauri/target/release/bundle/**/*.rpm
             dist-upload/**
           if-no-files-found: warn
+
+  tui:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: macos-arm64
+          - os: windows-latest
+            label: windows-x64
+          - os: ubuntu-22.04
+            label: linux-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: 安装依赖
+        run: |
+          npm ci
+          npm run install:web
+
+      - name: 构建 server / TUI / web
+        run: npm run build && npm run build:terminal-ui && npm run build:web
+
+      - name: 打包自包含 TUI 发行包
+        id: pack
+        run: node scripts/pack-tui-dist.mjs "${{ needs.prepare.outputs.version }}" "${{ matrix.label }}"
+
+      - name: 上传 TUI 发行包到 Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.prepare.outputs.tag }}"
+          ARTIFACT="${{ steps.pack.outputs.artifact }}"
+          shopt -s nullglob
+          if [ -z "${ARTIFACT:-}" ] || [ ! -f "$ARTIFACT" ]; then
+            matches=(dist/tui/secbot-tui-*.tar.gz dist/tui/secbot-tui-*.zip)
+            ARTIFACT="${matches[0]:-}"
+          fi
+          if [ -z "${ARTIFACT:-}" ] || [ ! -f "$ARTIFACT" ]; then
+            echo "::error::未找到 TUI 发行包: ${{ steps.pack.outputs.artifact }}"
+            ls -la dist/tui || true
+            exit 1
+          fi
+          echo "将上传：$ARTIFACT"
+          gh release upload "$TAG" "$ARTIFACT" --clobber
+
+      - name: 存档 TUI 构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: tui-${{ matrix.label }}-${{ needs.prepare.outputs.version }}
+          path: dist/tui/secbot-tui-*
+          if-no-files-found: error

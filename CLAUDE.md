@@ -13,7 +13,7 @@ This file helps AI coding agents work effectively in this repository. It summari
   - **Desktop**: Tauri shell (`desktop/`) loads **`web/`** (backend serves `web/dist`).
 - **No LangChain / LangGraph**: agent loops are hand-written TypeScript (`SecurityReActAgent`, `ExploreAgent`, `TaskExecutor`, etc.).
 
-Binaries (npm package): `secbot` (TUI + optional spawned backend), `secbot-server` (API only). Desktop installers are separate GitHub Release assets (`desktop-app-v*`).
+Binaries (npm package): `secbot` (TUI + optional spawned backend), `secbot-server` (API only). GitHub Release tags `desktop-app-v*` ship **Desktop installers and self-contained TUI archives** for macOS Apple Silicon, Windows x64, and Ubuntu x64 (no macOS Intel).
 
 ## Repository layout
 

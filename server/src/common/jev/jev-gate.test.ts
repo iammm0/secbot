@@ -34,10 +34,16 @@ function mockClient(answers: JevSystemOneResponse['answers']): JevClient {
 describe('jev-gate', () => {
   it('accepts a high-confidence choice and rejects a low one', () => {
     expect(
-      acceptChoice({ type: 'choice', choice: 'qa', probabilities: { qa: 0.9 }, confidence: 0.9 }, 0.85),
+      acceptChoice(
+        { type: 'choice', choice: 'qa', probabilities: { qa: 0.9 }, confidence: 0.9 },
+        0.85,
+      ),
     ).toBe('qa');
     expect(
-      acceptChoice({ type: 'choice', choice: 'qa', probabilities: { qa: 0.5 }, confidence: 0.4 }, 0.85),
+      acceptChoice(
+        { type: 'choice', choice: 'qa', probabilities: { qa: 0.5 }, confidence: 0.4 },
+        0.85,
+      ),
     ).toBeNull();
   });
 
@@ -85,7 +91,9 @@ describe('jev-gate', () => {
   });
 
   it('fail-opens adaptive replan when Jev errors', async () => {
-    const client = { systemOne: vi.fn().mockRejectedValue(new Error('down')) } as unknown as JevClient;
+    const client = {
+      systemOne: vi.fn().mockRejectedValue(new Error('down')),
+    } as unknown as JevClient;
     await expect(shouldSkipAdaptiveReplan('x', 1, client, enabled)).resolves.toBe(false);
   });
 
@@ -95,7 +103,11 @@ describe('jev-gate', () => {
       can_stop: { type: 'noul', noul: 0.96 },
     });
     await expect(
-      shouldNudgeReactStop({ userGoal: 'scan', observation: 'ports open', tool: 'nmap_scan' }, client, enabled),
+      shouldNudgeReactStop(
+        { userGoal: 'scan', observation: 'ports open', tool: 'nmap_scan' },
+        client,
+        enabled,
+      ),
     ).resolves.toBe(true);
 
     const weak = mockClient({
@@ -103,7 +115,11 @@ describe('jev-gate', () => {
       can_stop: { type: 'noul', noul: 0.96 },
     });
     await expect(
-      shouldNudgeReactStop({ userGoal: 'scan', observation: 'timeout', tool: 'nmap_scan' }, weak, enabled),
+      shouldNudgeReactStop(
+        { userGoal: 'scan', observation: 'timeout', tool: 'nmap_scan' },
+        weak,
+        enabled,
+      ),
     ).resolves.toBe(false);
   });
 

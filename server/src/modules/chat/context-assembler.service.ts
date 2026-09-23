@@ -19,11 +19,7 @@ import {
   computePromptBudget,
   getModelWindow,
 } from './model-context-window';
-import {
-  createJevClient,
-  filterContextSnippetsWithJev,
-  type JevClient,
-} from '../../common/jev';
+import { createJevClient, filterContextSnippetsWithJev, type JevClient } from '../../common/jev';
 
 const VECTOR_DIMENSION = 128;
 
@@ -322,7 +318,9 @@ export class ContextAssemblerService {
     focusKeywords: string[],
     candidates: ContextItem[],
   ): Promise<ContextItem[]> {
-    const scored = candidates.filter((item) => item.source === 'vector' || item.source === 'sqlite');
+    const scored = candidates.filter(
+      (item) => item.source === 'vector' || item.source === 'sqlite',
+    );
     if (scored.length === 0) return candidates;
     const keep = await filterContextSnippetsWithJev(
       {

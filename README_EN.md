@@ -51,6 +51,8 @@ Desktop demos on the maintained `release` branch (Chinese UI):
 ### Core Capabilities
 
 - **Desktop (Tauri)**: Versioned installers (`desktop-app-v*`); Settings → About shows version and checks for updates; UI source is `web/`
+- **Terminal TUI**: Self-contained archives (`secbot-tui-*`) on the same GitHub Release as Desktop
+- **Release platforms**: macOS Apple Silicon, Windows x64, Ubuntu x64 (macOS Intel is not supported)
 - **Terminal TUI (Ink)**: `secbot` / `npm run start:stack`; shares backend + SSE with Desktop — keep capabilities aligned
 - **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent Coordination, Tool-Using, Memory-Augmented
 - **ExecGo runtime**: Optional default execution backend; Settings enable/disable starts/stops local `execgo` / `execgo-runtime` processes
@@ -146,7 +148,9 @@ flowchart LR
 
 ### Option A: Install from GitHub Releases
 
-Download the latest `.tgz` from [Releases](https://github.com/iammm0/secbot/releases) (currently **v2.0.0-b2**), then:
+Prefer the **Desktop installer** or **self-contained TUI archive** on tags like `desktop-app-v*` (macOS Apple Silicon, Windows x64, Ubuntu x64).
+
+Alternatively, download the latest npm `.tgz` from [Releases](https://github.com/iammm0/secbot/releases) (currently **v2.0.0-b2**), then:
 
 ```bash
 npm install -g ./opensec-secbot-2.0.0-b2.tgz
@@ -225,7 +229,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-Desktop installers are also published on [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.3-beta`). See [`desktop/README.md`](desktop/README.md).
+Desktop installers and self-contained TUI archives are published on the same [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.3-beta`). Platforms: **macOS Apple Silicon / Windows x64 / Ubuntu x64** (no macOS Intel). Extract the TUI archive and run `./secbot` or `secbot.cmd`. See [`desktop/README.md`](desktop/README.md) and [`terminal-ui/README.md`](terminal-ui/README.md).
 
 ### Common Development Commands
 

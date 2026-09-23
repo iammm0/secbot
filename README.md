@@ -32,6 +32,7 @@ Desktop app on the maintained `release` branch (Chinese UI):
 
 - End-to-end TypeScript architecture (`NestJS + Ink TUI + Web / Desktop + SQLite`).
 - Tauri desktop app with versioned installers (`desktop-app-v*`) and in-app update checks.
+- Self-contained TUI archives on the same GitHub Release (`secbot-tui-*`): macOS Apple Silicon, Windows x64, Ubuntu x64 (no macOS Intel).
 - Optional **ExecGo** execution runtime: enable in Settings to start/stop local control-plane + runtime processes.
 - **Action audit trail**: every conversation stage / LLM / tool call is persisted and browsable in Settings → Audit.
 - **Host probe + attack-chain preview**: workspace nodes show IP / username / open ports and a simulated entry-surface path (preview only).
@@ -59,7 +60,13 @@ From the repository checkout, `ChatService` routes each turn through **`IntentRo
 
 Download the latest **Secbot Desktop** installer from [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.3-beta`), install for your OS, then open Secbot. Settings → About shows the current version and can check for updates.
 
+Supported desktop/TUI platforms: **macOS Apple Silicon**, **Windows x64**, **Ubuntu x64**. macOS Intel is not supported.
+
 More detail: [`desktop/README.md`](desktop/README.md).
+
+### Terminal TUI (self-contained archive)
+
+On the same `desktop-app-v*` Release, download `secbot-tui-<version>-macos-arm64.tar.gz`, `secbot-tui-<version>-linux-x64.tar.gz`, or `secbot-tui-<version>-windows-x64.zip`. Extract and run `./secbot` (or `secbot.cmd` on Windows). Node.js is bundled; the TUI spawns the local backend by default.
 
 ### npm CLI / TUI package
 
@@ -232,6 +239,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 | `npm run build:web` | Build the web frontend bundle |
 | `npm run typecheck` | Type-check server code |
 | `npm --prefix desktop run build` | Build the macOS/Windows/Linux desktop app locally |
+| `npm run pack:tui` | Pack a self-contained TUI archive for the current platform |
 | `npm run lint` | Run ESLint |
 | `npm run format:check` | Check Prettier formatting |
 | `npm test` | Run tests |

@@ -4,6 +4,18 @@ Ink + React TUI for Secbot. Talks to the NestJS backend over HTTP + SSE. Peer cl
 
 User-facing product docs: [https://secbot.site](https://secbot.site).
 
+## Packaged releases
+
+CI (same workflow as Desktop) publishes self-contained TUI archives on `desktop-app-v*` GitHub Releases:
+
+| Archive | Platform |
+| --- | --- |
+| `secbot-tui-<version>-macos-arm64.tar.gz` | macOS Apple Silicon |
+| `secbot-tui-<version>-linux-x64.tar.gz` | Ubuntu x64 |
+| `secbot-tui-<version>-windows-x64.zip` | Windows x64 |
+
+macOS Intel is not supported. Extract and run `./secbot` or `secbot.cmd` (Node is bundled; default spawn local backend).
+
 ## Requirements
 
 - Node.js 24+

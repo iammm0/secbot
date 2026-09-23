@@ -89,7 +89,9 @@ npm run dev          # 先构建 server + web，再 tauri dev
 npm run build        # build:deps → prepare-backend → tauri build --bundles app
 ```
 
-CI 使用 `npm run build:ci`（`tauri build --ci`）。发布矩阵当前是 macOS arm64（dmg）、Windows x64（NSIS，不含 MSI：WiX 不接受 `0.0.3-beta` 这类非数字预发布号）、Linux x64（deb/rpm；AppImage 在 GitHub runner 上的 linuxdeploy 仍会失败，暂不打）。macOS Intel 的 `macos-13` runner 已不可用，CI 暂不产出 x64 Mac 包。
+CI 使用 `npm run build:ci`（`tauri build --ci`）。发布矩阵（与 TUI 相同）是 **macOS Apple Silicon**（dmg）、**Windows x64**（NSIS，不含 MSI：WiX 不接受 `0.0.3-beta` 这类非数字预发布号）、**Ubuntu x64**（deb/rpm；AppImage 在 GitHub runner 上的 linuxdeploy 仍会失败，暂不打）。**不再支持 macOS Intel。**
+
+同一 `desktop-app-v*` Release 还会上传自包含 TUI 发行包：`secbot-tui-<version>-macos-arm64.tar.gz` / `linux-x64.tar.gz` / `windows-x64.zip`。
 
 安装 macOS `.app`：
 
@@ -130,7 +132,12 @@ sidecar `secbot-node` 通过 shell 插件按 target triple 解析。
 
 ## CI / 自动发布
 
-仓库根 `.github/workflows/release.yml` 提供手动触发的发布流水线：
+仓库根 `.github/workflows/desktop-release.yml` 提供桌面端与 TUI 同一条发布流水线（tag `desktop-app-v*` 或手动 Run workflow）：
+
+- 桌面安装包：macOS Apple Silicon / Windows x64 / Ubuntu x64
+- TUI 自包含发行包：同一三个平台（随包 Node 运行时，无需目标机安装 Node）
+
+另有 `.github/workflows/release-pipeline.yml`（`rp-v*` / 手动）会同时发 npm 包到 GitHub Packages，并打桌面 + TUI 产物。
 
 - **测试版**（默认，`release_type=test`）：版本号自动生成 `X.Y.Z-beta.<run_number>`，
   npm 包打 `beta` dist-tag，GitHub Release 标记 pre-release。
@@ -138,10 +145,10 @@ sidecar `secbot-node` 通过 shell 插件按 target triple 解析。
   npm 包打 `latest`，Release 为正式发布。
 
 产线：① npm 包 `@<owner>/secbot`（含 server + TUI + web + CLI）→ GitHub Packages；
-② 桌面安装包（macOS arm64/x64、Windows x64、Linux x64 矩阵）→ 附加到同一 Release。
+② 桌面安装包 + TUI 发行包（macOS Apple Silicon、Windows x64、Ubuntu x64）→ 附加到同一 Release。
 
-> 桌面矩阵在每个 OS 上**原生**执行 `prepare-backend`，因此各平台的原生模块与 Node
-> 运行时都与目标平台匹配。
+> 矩阵在每个 OS 上**原生**执行 `prepare-backend` / `pack-tui-dist`，因此各平台的原生模块与 Node
+> 运行时都与目标平台匹配。不构建 macOS Intel。
 
 ## 未签名安装（macOS Gatekeeper）
 

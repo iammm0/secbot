@@ -5,11 +5,7 @@ function clipText(text: string, maxChars: number): string {
   if (value.length <= maxChars) return value;
   return `${value.slice(0, Math.max(0, maxChars - 1))}…`;
 }
-import {
-  getJevRuntimeConfig,
-  isJevStageEnabled,
-  type JevRuntimeConfig,
-} from './jev-config';
+import { getJevRuntimeConfig, isJevStageEnabled, type JevRuntimeConfig } from './jev-config';
 import {
   createJevClient,
   type JevAnswer,
@@ -58,10 +54,7 @@ export function noulDecisionConfidence(noul: number): number {
   return Math.max(noul, 1 - noul);
 }
 
-export function acceptChoice(
-  answer: JevAnswer | undefined,
-  minConfidence: number,
-): string | null {
+export function acceptChoice(answer: JevAnswer | undefined, minConfidence: number): string | null {
   const choice = asChoice(answer);
   if (!choice) return null;
   if (choice.confidence < minConfidence) return null;
@@ -78,11 +71,7 @@ export function acceptNoulYes(
   return noul.noul >= 0.5;
 }
 
-export function noulInUncertainBand(
-  noul: number,
-  low = 0.35,
-  high = 0.65,
-): boolean {
+export function noulInUncertainBand(noul: number, low = 0.35, high = 0.65): boolean {
   return noul >= low && noul <= high;
 }
 
@@ -123,8 +112,7 @@ export async function classifyIntentWithJev(
         },
         needs_report: {
           type: 'noul',
-          instructions:
-            'After this task, should Secbot produce a structured SummaryAgent report?',
+          instructions: 'After this task, should Secbot produce a structured SummaryAgent report?',
           criteria: {
             true: 'Complex work that benefits from a written report.',
             false: 'Simple/one-step task, QA, or chat.',

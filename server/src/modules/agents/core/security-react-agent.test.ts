@@ -49,14 +49,7 @@ describe('SecurityReActAgent Jev stop nudge', () => {
         .mockResolvedValueOnce('Thought: done\nFinal Answer: 主机存活'),
       chatStream: vi.fn(),
     };
-    const agent = new SecurityReActAgent(
-      'test',
-      'sys',
-      [new PingTool()],
-      false,
-      5,
-      jev as never,
-    );
+    const agent = new SecurityReActAgent('test', 'sys', [new PingTool()], false, 5, jev as never);
     Object.defineProperty(agent, 'llm', { value: llm, configurable: true });
 
     const answer = await agent.process('ping 10.0.0.8');
@@ -98,14 +91,7 @@ describe('SecurityReActAgent Jev stop nudge', () => {
         .mockResolvedValueOnce('Thought: still going\nFinal Answer: 继续观察后结束'),
       chatStream: vi.fn(),
     };
-    const agent = new SecurityReActAgent(
-      'test',
-      'sys',
-      [new PingTool()],
-      false,
-      5,
-      jev as never,
-    );
+    const agent = new SecurityReActAgent('test', 'sys', [new PingTool()], false, 5, jev as never);
     Object.defineProperty(agent, 'llm', { value: llm, configurable: true });
     await agent.process('ping 10.0.0.8');
     const second = llm.chat.mock.calls[1][0] as Array<{ content: string }>;

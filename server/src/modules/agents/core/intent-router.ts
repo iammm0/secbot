@@ -258,7 +258,10 @@ export class IntentRouter {
   }
 
   private buildJevState(args: IntentRouteArgs): string {
-    return this.buildUserPrompt(args).replace(/\n\n请结合以上 Secbot 全局信息与会话上下文分类，并按 JSON 输出。$/, '');
+    return this.buildUserPrompt(args).replace(
+      /\n\n请结合以上 Secbot 全局信息与会话上下文分类，并按 JSON 输出。$/,
+      '',
+    );
   }
 
   private async writeIntentReply(
