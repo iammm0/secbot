@@ -54,6 +54,7 @@ import {
 import { usagePart, type ContextUsagePart } from './context-usage';
 import { approxTokens } from './model-context-window';
 import { runWithWorkflowTracer, WorkflowTracer } from './workflow-trace';
+import { shouldSkipAdaptiveReplan } from '../../common/jev';
 
 @Injectable()
 export class ChatService {
@@ -442,22 +443,33 @@ export class ChatService {
             process.env.SECBOT_ADAPTIVE_REPLAN === 'true';
 
           if (adaptiveOn && firstRun.cancelledCount > 0) {
-            throwIfAborted(abortSignal, {
-              originalMessage: originalGoal,
-              todos: snapshotTodos(todosForSummary),
-            });
-            emit('phase', { phase: 'planning', detail: '穿插规划：根据未成功子任务补充方案…' });
-            const adaptivePrompt = `${workingMessage}\n\n【穿插规划】上一阶段有 ${firstRun.cancelledCount} 个子任务未成功。请仅输出需要补充执行的新子任务 JSON 数组（新 id 建议 followup-1、followup-2）；若无须补充则输出 []。\n\n阶段摘要（节选）：\n${firstRun.summary.slice(0, 4000)}`;
-            const subPlan = await withStage(
-              'plan',
-              () => this.plannerAgent.plan(adaptivePrompt),
-              'adaptive',
+            const skipReplan = await shouldSkipAdaptiveReplan(
+              firstRun.summary,
+              firstRun.cancelledCount,
             );
-            if (subPlan.todos.length > 0 && !subPlan.directResponse) {
-              emitPlanningSse(emit, subPlan.planSummary, subPlan.todos, 'adaptive');
-              todosForSummary = [...todosForSummary, ...subPlan.todos];
-              emit('phase', { phase: 'executing', detail: '执行穿插任务…' });
-              await withStage('execute', () => runExecutor(subPlan, workingMessage), 'followup');
+            if (skipReplan) {
+              emit('phase', {
+                phase: 'executing',
+                detail: 'Jev 判断失败子任务不值得再规划，跳过穿插规划',
+              });
+            } else {
+              throwIfAborted(abortSignal, {
+                originalMessage: originalGoal,
+                todos: snapshotTodos(todosForSummary),
+              });
+              emit('phase', { phase: 'planning', detail: '穿插规划：根据未成功子任务补充方案…' });
+              const adaptivePrompt = `${workingMessage}\n\n【穿插规划】上一阶段有 ${firstRun.cancelledCount} 个子任务未成功。请仅输出需要补充执行的新子任务 JSON 数组（新 id 建议 followup-1、followup-2）；若无须补充则输出 []。\n\n阶段摘要（节选）：\n${firstRun.summary.slice(0, 4000)}`;
+              const subPlan = await withStage(
+                'plan',
+                () => this.plannerAgent.plan(adaptivePrompt),
+                'adaptive',
+              );
+              if (subPlan.todos.length > 0 && !subPlan.directResponse) {
+                emitPlanningSse(emit, subPlan.planSummary, subPlan.todos, 'adaptive');
+                todosForSummary = [...todosForSummary, ...subPlan.todos];
+                emit('phase', { phase: 'executing', detail: '执行穿插任务…' });
+                await withStage('execute', () => runExecutor(subPlan, workingMessage), 'followup');
+              }
             }
           }
         } else {

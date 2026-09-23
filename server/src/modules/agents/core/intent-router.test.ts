@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { IntentRouter } from './intent-router';
 import { SECBOT_GLOBAL_BRIEF } from './secbot-profile';
 import type { ChatMessage } from '../../../common/types';
+import { clearJevEnv, setJevRuntimeConfig } from '../../../common/jev';
 
 function intentJson(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
@@ -93,5 +94,123 @@ describe('IntentRouter context sync', () => {
     expect(decision.intent).toBe('small_talk');
     expect(decision.needsExplore).toBe(false);
     expect(llm.chat).not.toHaveBeenCalled();
+  });
+});
+
+describe('IntentRouter Jev gate', () => {
+  afterEach(() => {
+    clearJevEnv();
+  });
+
+  function enableJev(): void {
+    setJevRuntimeConfig({
+      enabled: true,
+      intent: true,
+      qaLive: false,
+      adaptive: false,
+      reactStop: false,
+      context: false,
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.typesafe.ai',
+      model: 'jev-latest',
+      confidenceMin: 0.85,
+      reactStopMin: 0.92,
+    });
+  }
+
+  it('skips the classify LLM for a high-confidence Jev task_simple', async () => {
+    enableJev();
+    const llm = { chat: vi.fn(), chatStream: vi.fn() };
+    const jev = {
+      systemOne: vi.fn().mockResolvedValue({
+        model: 'jev-latest',
+        answers: {
+          intent: {
+            type: 'choice',
+            choice: 'task_simple',
+            probabilities: { task_simple: 0.93 },
+            confidence: 0.93,
+          },
+          needs_explore: { type: 'noul', noul: 0.05 },
+          needs_report: { type: 'noul', noul: 0.04 },
+        },
+      }),
+    };
+    const router = new IntentRouter(llm as never, jev as never);
+    const decision = await router.classify({
+      userInput: '对 10.0.0.8 ping 一下',
+      recentMessages: [],
+    });
+    expect(decision.intent).toBe('task_simple');
+    expect(decision.rationale).toBe('jev');
+    expect(llm.chat).not.toHaveBeenCalled();
+    expect(jev.systemOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('still asks the LLM to write a meta reply after Jev classifies', async () => {
+    enableJev();
+    const llm = {
+      chat: vi.fn().mockResolvedValue(
+        JSON.stringify({ direct_response: '我是 Secbot。', clarify_question: null }),
+      ),
+      chatStream: vi.fn(),
+    };
+    const jev = {
+      systemOne: vi.fn().mockResolvedValue({
+        model: 'jev-latest',
+        answers: {
+          intent: {
+            type: 'choice',
+            choice: 'meta',
+            probabilities: { meta: 0.91 },
+            confidence: 0.91,
+          },
+          needs_explore: { type: 'noul', noul: 0.02 },
+          needs_report: { type: 'noul', noul: 0.01 },
+        },
+      }),
+    };
+    const router = new IntentRouter(llm as never, jev as never);
+    const decision = await router.classify({
+      userInput: '你能做什么？',
+      recentMessages: [],
+      toolCatalog: 'nmap_scan',
+    });
+    expect(decision.intent).toBe('meta');
+    expect(decision.directResponse).toContain('Secbot');
+    expect(llm.chat).toHaveBeenCalledTimes(1);
+    const messages = llm.chat.mock.calls[0][0] as ChatMessage[];
+    expect(messages[0].content).toContain('意图已经判定');
+    expect(messages[messages.length - 1].content).toContain('intent=meta');
+  });
+
+  it('falls back to LLM classify when Jev confidence is low', async () => {
+    enableJev();
+    const llm = {
+      chat: vi.fn().mockResolvedValue(intentJson({ intent: 'qa', direct_response: null })),
+      chatStream: vi.fn(),
+    };
+    const jev = {
+      systemOne: vi.fn().mockResolvedValue({
+        model: 'jev-latest',
+        answers: {
+          intent: {
+            type: 'choice',
+            choice: 'qa',
+            probabilities: { qa: 0.4 },
+            confidence: 0.4,
+          },
+          needs_explore: { type: 'noul', noul: 0.5 },
+          needs_report: { type: 'noul', noul: 0.5 },
+        },
+      }),
+    };
+    const router = new IntentRouter(llm as never, jev as never);
+    const decision = await router.classify({
+      userInput: 'SSRF 怎么测',
+      recentMessages: [],
+    });
+    expect(decision.intent).toBe('qa');
+    expect(llm.chat).toHaveBeenCalledTimes(1);
   });
 });

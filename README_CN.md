@@ -238,6 +238,19 @@ DEEPSEEK_MODEL=deepseek-chat
 # SECBOT_CONTEXT_DEBUG=1
 # SECBOT_ADAPTIVE_REPLAN=1
 # NVD_API_KEY=your-nvd-key
+
+# 可选：Jev System One 判断层（默认全关；打开后高置信才采纳，失败回退原逻辑）
+# SECBOT_JEV_ENABLED=1
+# SECBOT_JEV_INTENT=1
+# SECBOT_JEV_QA_LIVE=1
+# SECBOT_JEV_ADAPTIVE=1
+# SECBOT_JEV_REACT_STOP=1
+# SECBOT_JEV_CONTEXT=1
+# TYPESAFE_API_KEY=your-typesafe-key
+# TYPESAFE_BASE_URL=https://api.typesafe.ai
+# SECBOT_JEV_MODEL=jev-latest
+# SECBOT_JEV_CONFIDENCE_MIN=0.85
+# SECBOT_JEV_REACT_STOP_MIN=0.92
 ```
 
 ### 4. 启动
@@ -297,12 +310,15 @@ cd desktop && npm run dev
 | `OLLAMA_MODEL` | Ollama 默认模型 | `llama3.2` |
 | `PORT` | 后端监听端口 | `8000` |
 | `SECBOT_TUI_BACKEND` | TUI 后端模式：`spawn`/`service`/`remote`/`auto` | 默认优先 `spawn`，连接已有后端时请显式使用 `service`/`remote` |
+| `SECBOT_JEV_ENABLED` | Jev 判断层主开关（默认关） | 关 |
+| `TYPESAFE_API_KEY` | TypeSafe Jev API Key | 无 |
 
 ### 常见斜杠命令（TUI 内使用）
 
 | 命令 | 说明 |
 |------|------|
 | `/model` | 选择推理后端、模型、API Key、Base URL |
+| `/jev` | 配置 Jev 判断层（主开关、五个环节、API Key） |
 | `/agent` | 切换 `secbot-cli` / `superhackbot` |
 | `/list-agents` | 查看当前可用智能体 |
 | `/system-info` | 查看系统信息 |

@@ -22,6 +22,12 @@ import {
   type ConfirmAction,
   type UserInputPayload,
 } from '../../chat/human-input-bridge';
+import {
+  createJevClient,
+  JEV_REACT_STOP_NUDGE,
+  shouldNudgeReactStop,
+  type JevClient,
+} from '../../../common/jev';
 
 interface ReActStep {
   type: 'thought' | 'action' | 'observation';
@@ -50,6 +56,8 @@ export class SecurityReActAgent extends BaseAgent {
   private readonly requireSensitiveApproval: boolean;
   private readonly maxIterations: number;
   private _reactHistory: ReActStep[] = [];
+  private _jevStopNudged = false;
+  private readonly _jev?: JevClient;
 
   get llm(): LLMProvider {
     return createLLM();
@@ -61,10 +69,12 @@ export class SecurityReActAgent extends BaseAgent {
     tools: BaseTool[],
     requireSensitiveApproval = true,
     maxIterations = Infinity,
+    jev?: JevClient,
   ) {
     super(name, systemPrompt, tools);
     this.requireSensitiveApproval = requireSensitiveApproval;
     this.maxIterations = maxIterations;
+    this._jev = jev;
   }
 
   get reactHistory(): ReadonlyArray<ReActStep> {
@@ -77,6 +87,7 @@ export class SecurityReActAgent extends BaseAgent {
     const sessionId = String(options?.sessionId ?? '');
 
     this._reactHistory = [];
+    this._jevStopNudged = false;
     this.addMessage('user', userInput);
 
     const clientShell = options?.client_shell as ClientShellPayload | undefined;
@@ -287,6 +298,18 @@ export class SecurityReActAgent extends BaseAgent {
         role: 'user',
         content: `Observation: ${observation}`,
       });
+
+      if (
+        result.success &&
+        !this._jevStopNudged &&
+        (await shouldNudgeReactStop(
+          { userGoal: userInput, observation, tool: action.tool },
+          this._jev ?? createJevClient(),
+        ))
+      ) {
+        this._jevStopNudged = true;
+        messages.push({ role: 'user', content: JEV_REACT_STOP_NUDGE });
+      }
     }
 
     const fallback =

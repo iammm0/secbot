@@ -188,6 +188,19 @@ DEEPSEEK_MODEL=deepseek-chat
 # SECBOT_CONTEXT_DEBUG=1
 # SECBOT_ADAPTIVE_REPLAN=1
 # NVD_API_KEY=your-nvd-key
+
+# Optional: Jev System One gates (all off by default; high-confidence accept, fail-open)
+# SECBOT_JEV_ENABLED=1
+# SECBOT_JEV_INTENT=1
+# SECBOT_JEV_QA_LIVE=1
+# SECBOT_JEV_ADAPTIVE=1
+# SECBOT_JEV_REACT_STOP=1
+# SECBOT_JEV_CONTEXT=1
+# TYPESAFE_API_KEY=your-typesafe-key
+# TYPESAFE_BASE_URL=https://api.typesafe.ai
+# SECBOT_JEV_MODEL=jev-latest
+# SECBOT_JEV_CONFIDENCE_MIN=0.85
+# SECBOT_JEV_REACT_STOP_MIN=0.92
 ```
 
 ---
@@ -235,12 +248,15 @@ cd desktop && npm run dev   # Desktop hot-dev
 | `OLLAMA_MODEL` | Ollama model | `llama3.2` |
 | `PORT` | Backend listen port | `8000` |
 | `SECBOT_TUI_BACKEND` | TUI backend mode: `spawn` / `service` / `remote` / `auto` | prefer `spawn`; use `service`/`remote` explicitly for existing backends |
+| `SECBOT_JEV_ENABLED` | Jev decision-layer master switch (off by default) | off |
+| `TYPESAFE_API_KEY` | TypeSafe Jev API key | none |
 
 ### Slash Commands (inside TUI)
 
 | Command | Description |
 |---------|-------------|
 | `/model` | Select inference backend, model, API key |
+| `/jev` | Configure the optional Jev decision layer |
 | `/agent` | Switch between `secbot-cli` / `superhackbot` |
 | `/list-agents` | List available agents |
 | `/system-info` | View system information |

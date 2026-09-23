@@ -58,6 +58,13 @@ export const COMMAND_CATALOG: CommandCatalogItem[] = [
     clients: ['tui', 'web', 'desktop'],
   },
   {
+    slash: '/jev',
+    title: 'Jev 判断层',
+    category: '设置',
+    kind: 'client',
+    clients: ['tui', 'web', 'desktop'],
+  },
+  {
     slash: '/tools',
     title: '内置工具',
     category: 'REST',

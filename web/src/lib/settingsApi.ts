@@ -123,6 +123,47 @@ export async function probeExecGo() {
   return readApi<ExecGoProbeResult>(response, '探测 ExecGo 失败')
 }
 
+export interface JevPublicConfig {
+  enabled: boolean
+  intent: boolean
+  qaLive: boolean
+  adaptive: boolean
+  reactStop: boolean
+  context: boolean
+  baseUrl: string
+  model: string
+  confidenceMin: number
+  reactStopMin: number
+  hasApiKey: boolean
+}
+
+export interface JevSettingsPayload {
+  config: JevPublicConfig
+  healthy?: boolean
+  noul?: number
+  model?: string
+  error?: string
+}
+
+export async function fetchJevSettings() {
+  const response = await fetch(`${API_BASE_URL}/api/settings/jev`)
+  return readApi<JevSettingsPayload>(response, '加载 Jev 设置失败')
+}
+
+export async function saveJevSettings(input: Partial<JevPublicConfig> & { apiKey?: string }) {
+  const response = await fetch(`${API_BASE_URL}/api/settings/jev`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return readApi<{ config: JevPublicConfig }>(response, '保存 Jev 设置失败')
+}
+
+export async function probeJev() {
+  const response = await fetch(`${API_BASE_URL}/api/settings/jev/probe`, { method: 'POST' })
+  return readApi<JevSettingsPayload>(response, '探测 Jev 失败')
+}
+
 export interface AuditRecordView {
   id: number
   session_id: string

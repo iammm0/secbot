@@ -15,6 +15,15 @@ import {
   type ExecGoRuntimeConfig,
 } from '../tools/control/execgo-config';
 import {
+  createJevClient,
+  defaultJevRuntimeConfig,
+  JEV_PROBE_STATE,
+  setJevRuntimeConfig,
+  toPublicJevConfig,
+  type JevPublicConfig,
+  type JevRuntimeConfig,
+} from '../../common/jev';
+import {
   resolveExecGoCliPath,
   resolveExecGoRuntimePath,
   resolveExecGoServerPath,
@@ -30,6 +39,7 @@ import {
 const INSTRUCTIONS_KEY = 'custom_instructions';
 const MCP_KEY = 'mcp_servers';
 const EXECGO_KEY = 'execgo_runtime';
+const JEV_KEY = 'jev_runtime';
 
 @Injectable()
 export class PreferencesService implements OnModuleInit {
@@ -39,6 +49,7 @@ export class PreferencesService implements OnModuleInit {
 
   onModuleInit(): void {
     this.loadExecGoIntoRuntime();
+    this.loadJevIntoRuntime();
     const config = this.getExecGoConfig();
     if (config.enabled) {
       void this.syncManagedProcesses(true).catch((error) => {
@@ -138,6 +149,82 @@ export class PreferencesService implements OnModuleInit {
     }
   }
 
+  getJevConfig(): JevRuntimeConfig {
+    const stored = this.readStoredJev();
+    return setJevRuntimeConfig({
+      ...defaultJevRuntimeConfig(),
+      ...stored,
+    });
+  }
+
+  getJevPublicConfig(): JevPublicConfig {
+    return toPublicJevConfig(this.getJevConfig());
+  }
+
+  getJevSettings(): { config: JevPublicConfig } {
+    return { config: this.getJevPublicConfig() };
+  }
+
+  setJevConfig(input: Partial<JevRuntimeConfig> & { apiKey?: string }): {
+    config: JevPublicConfig;
+  } {
+    const current = this.getJevConfig();
+    const next = setJevRuntimeConfig({
+      enabled: input.enabled ?? current.enabled,
+      intent: input.intent ?? current.intent,
+      qaLive: input.qaLive ?? current.qaLive,
+      adaptive: input.adaptive ?? current.adaptive,
+      reactStop: input.reactStop ?? current.reactStop,
+      context: input.context ?? current.context,
+      apiKey: input.apiKey?.trim() ? input.apiKey.trim() : current.apiKey,
+      baseUrl: input.baseUrl ?? current.baseUrl,
+      model: input.model ?? current.model,
+      confidenceMin: input.confidenceMin ?? current.confidenceMin,
+      reactStopMin: input.reactStopMin ?? current.reactStopMin,
+    });
+    this.database.saveConfig(JEV_KEY, JSON.stringify(next), 'jev', 'Jev System One 判断层');
+    return { config: toPublicJevConfig(next) };
+  }
+
+  async probeJev(): Promise<{
+    config: JevPublicConfig;
+    healthy: boolean;
+    noul?: number;
+    model?: string;
+    error?: string;
+  }> {
+    const config = this.getJevConfig();
+    const publicConfig = toPublicJevConfig(config);
+    if (!config.apiKey) {
+      return { config: publicConfig, healthy: false, error: '尚未配置 TypeSafe API Key' };
+    }
+    try {
+      const result = await createJevClient().systemOne({
+        state: JEV_PROBE_STATE,
+        questions: {
+          urgency: {
+            type: 'noul',
+            instructions: 'Does this message express urgency?',
+          },
+        },
+      });
+      const answer = result.answers.urgency;
+      const noul = answer && answer.type === 'noul' ? answer.noul : undefined;
+      return {
+        config: publicConfig,
+        healthy: typeof noul === 'number',
+        noul,
+        model: result.model,
+      };
+    } catch (error) {
+      return {
+        config: publicConfig,
+        healthy: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   listMcpServers(): McpServerConfig[] {
     const raw = this.database.getConfig(MCP_KEY)?.value;
     if (!raw) return [];
@@ -220,11 +307,30 @@ export class PreferencesService implements OnModuleInit {
     applyExecGoEnv(next);
   }
 
+  private loadJevIntoRuntime(): void {
+    const stored = this.readStoredJev();
+    setJevRuntimeConfig({
+      ...defaultJevRuntimeConfig(),
+      ...stored,
+    });
+  }
+
   private readStoredExecGo(): Partial<ExecGoRuntimeConfig> {
     const raw = this.database.getConfig(EXECGO_KEY)?.value;
     if (!raw) return {};
     try {
       const parsed = JSON.parse(raw) as Partial<ExecGoRuntimeConfig>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private readStoredJev(): Partial<JevRuntimeConfig> {
+    const raw = this.database.getConfig(JEV_KEY)?.value;
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw) as Partial<JevRuntimeConfig>;
       return parsed && typeof parsed === 'object' ? parsed : {};
     } catch {
       return {};

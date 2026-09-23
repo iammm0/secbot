@@ -8,6 +8,7 @@ import { ExecGoConfig } from './settings/ExecGoConfig'
 import { AuditConfig } from './settings/AuditConfig'
 import { HelpTools } from './settings/HelpTools'
 import { AboutConfig } from './settings/AboutConfig'
+import { JevConfig } from './settings/JevConfig'
 import { type SettingsTabId } from '@/lib/slashCommands'
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 
 const TAB_META: Array<{ id: SettingsTabId; label: string; icon: string }> = [
   { id: 'model', label: '模型', icon: 'cpu' },
+  { id: 'jev', label: 'Jev', icon: 'setting-2' },
   { id: 'appearance', label: '外观', icon: 'colorfilter' },
   { id: 'instructions', label: '指令', icon: 'document-text' },
   { id: 'mcp', label: 'MCP', icon: 'hierarchy' },
@@ -58,6 +60,7 @@ export function SettingsPanel({ tab, onTabChange, onClose }: Props) {
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
           <div className="mx-auto w-full max-w-3xl">
             {tab === 'model' && <ModelConfig />}
+            {tab === 'jev' && <JevConfig />}
             {tab === 'appearance' && <AppearanceConfig />}
             {tab === 'instructions' && <InstructionsConfig />}
             {tab === 'mcp' && <McpConfig />}

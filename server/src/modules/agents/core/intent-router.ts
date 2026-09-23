@@ -1,6 +1,7 @@
 import { ChatMessage, Intent, IntentDecision } from '../../../common/types';
 import { LLMProvider, createLLM } from '../../../common/llm';
 import { SECBOT_GLOBAL_BRIEF, clipText } from './secbot-profile';
+import { classifyIntentWithJev, createJevClient, type JevClient } from '../../../common/jev';
 
 const VALID_INTENTS: Intent[] = [
   'small_talk',
@@ -40,6 +41,18 @@ const INTENT_SYSTEM_PROMPT =
   '  "direct_response": null,\n' +
   '  "clarify_question": null,\n' +
   '  "rationale": ""\n' +
+  '}';
+
+const INTENT_REPLY_SYSTEM_PROMPT =
+  '你是 Secbot 的回复写手。意图已经判定，不要重新分类，不要执行工具，不要编造扫描/利用结果。\n\n' +
+  SECBOT_GLOBAL_BRIEF +
+  '\n\n根据给定 intent 只填一个字段：\n' +
+  '- meta：direct_response 必填，给用户看的完整回复（可短 Markdown）；必须使用本次同步的能力、工具目录、pinned/focus/暂停任务和用户指令。\n' +
+  '- clarify_needed：clarify_question 必填，一个具体追问并点名还缺哪项（目标/范围/授权）。\n\n' +
+  '严格 JSON 输出：\n' +
+  '{\n' +
+  '  "direct_response": null,\n' +
+  '  "clarify_question": null\n' +
   '}';
 
 const SMALL_TALK_HINTS = [
@@ -116,19 +129,61 @@ export interface IntentRouteArgs {
 
 export class IntentRouter {
   private readonly _llm?: LLMProvider;
+  private readonly _jev?: JevClient;
 
   private get llm(): LLMProvider {
     return this._llm ?? createLLM();
   }
 
-  constructor(llm?: LLMProvider) {
+  private get jev(): JevClient {
+    return this._jev ?? createJevClient();
+  }
+
+  constructor(llm?: LLMProvider, jev?: JevClient) {
     this._llm = llm;
+    this._jev = jev;
   }
 
   async classify(args: IntentRouteArgs): Promise<IntentDecision> {
     const heuristic = this.heuristic(args.userInput);
     const fast = this.fastPath(heuristic);
     if (fast) return fast;
+
+    const jevDecision = await classifyIntentWithJev(this.buildJevState(args), this.jev);
+    if (jevDecision) {
+      if (jevDecision.intent === 'meta' || jevDecision.intent === 'clarify_needed') {
+        const written = await this.writeIntentReply(args, jevDecision.intent);
+        return this.mergeWithHeuristic(
+          {
+            intent: jevDecision.intent,
+            confidence: jevDecision.confidence,
+            needsExplore: jevDecision.needsExplore,
+            needsReport: jevDecision.needsReport,
+            focus: heuristic.focus,
+            directResponse: written.directResponse,
+            clarifyQuestion: written.clarifyQuestion,
+            rationale: 'jev + llm reply',
+          },
+          heuristic,
+          args,
+        );
+      }
+      return this.mergeWithHeuristic(
+        {
+          intent: jevDecision.intent,
+          confidence: jevDecision.confidence,
+          needsExplore: jevDecision.needsExplore,
+          needsReport: jevDecision.needsReport,
+          focus: heuristic.focus,
+          directResponse:
+            jevDecision.intent === 'small_talk' ? '收到～有需要执行的安全任务随时说。' : null,
+          clarifyQuestion: null,
+          rationale: 'jev',
+        },
+        heuristic,
+        args,
+      );
+    }
 
     const recentSliced = (args.recentMessages ?? []).slice(-6).map((m) => ({
       role: m.role,
@@ -200,6 +255,40 @@ export class IntentRouter {
     }
     parts.push('请结合以上 Secbot 全局信息与会话上下文分类，并按 JSON 输出。');
     return parts.join('\n\n');
+  }
+
+  private buildJevState(args: IntentRouteArgs): string {
+    return this.buildUserPrompt(args).replace(/\n\n请结合以上 Secbot 全局信息与会话上下文分类，并按 JSON 输出。$/, '');
+  }
+
+  private async writeIntentReply(
+    args: IntentRouteArgs,
+    intent: 'meta' | 'clarify_needed',
+  ): Promise<{ directResponse: string | null; clarifyQuestion: string | null }> {
+    const recentSliced = (args.recentMessages ?? []).slice(-6).map((m) => ({
+      role: m.role,
+      content: clipText(m.content, 480),
+    }));
+    const messages: ChatMessage[] = [
+      { role: 'system', content: INTENT_REPLY_SYSTEM_PROMPT },
+      ...recentSliced,
+      {
+        role: 'user',
+        content: `${this.buildUserPrompt(args)}\n\n已判定 intent=${intent}。只写回复字段。`,
+      },
+    ];
+    try {
+      const raw = await this.llm.chat(messages);
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) return { directResponse: null, clarifyQuestion: null };
+      const obj = JSON.parse(match[0]) as Record<string, unknown>;
+      return {
+        directResponse: toNullableString(obj.direct_response),
+        clarifyQuestion: toNullableString(obj.clarify_question),
+      };
+    } catch {
+      return { directResponse: null, clarifyQuestion: null };
+    }
   }
 
   private parse(raw: string): IntentDecision | null {

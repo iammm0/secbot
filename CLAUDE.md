@@ -61,6 +61,7 @@ Besides `thought_*`, `action_*`, `planning`, `report`, `response`, `done`, `erro
 | `SECBOT_EXPLORE_MAX_ITERS` | Max ReAct iterations for `ExploreAgent` (default 6) |
 | `SECBOT_CONTEXT_DEBUG` | `1` / `true` → emit `context_debug` SSE |
 | `SECBOT_ADAPTIVE_REPLAN` | `1` / `true` → enable adaptive replan after cancelled todos |
+| `SECBOT_JEV_ENABLED`, `SECBOT_JEV_INTENT` / `QA_LIVE` / `ADAPTIVE` / `REACT_STOP` / `CONTEXT`, `TYPESAFE_API_KEY` | Optional Jev System One gates (`server/src/common/jev/`). All off by default; high-confidence accept, fail-open. Thresholds are starting points, not calibrated on Secbot data. |
 | `SECBOT_TUI_BACKEND`, `SECBOT_API_URL` | TUI connects to spawned vs remote backend |
 
 ## Commands (from repo root)

@@ -28,6 +28,7 @@ import {
 import { inkKeyToParsedKey, isInkEscape } from "../contexts/KeybindContext.js";
 import { streamStateToBlocks } from "../chat/contentBlocks.js";
 import { ModelConfigDialog } from "../components/ModelConfigDialog.js";
+import { JevConfigDialog } from "../components/JevConfigDialog.js";
 import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
@@ -631,6 +632,11 @@ export function SessionView({
           if (result.fetchThen) {
             if (cmd === "/model") {
               dialog.replace(<ModelConfigDialog />);
+              setInputValue("");
+              return;
+            }
+            if (cmd === "/jev") {
+              dialog.replace(<JevConfigDialog />);
               setInputValue("");
               return;
             }

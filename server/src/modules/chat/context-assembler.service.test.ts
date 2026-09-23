@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { ContextAssemblerService } from './context-assembler.service';
 import { ContextStoreService } from './context-store.service';
 import { MessageRole, createSession } from '../../common/types';
+import { clearJevEnv, setJevRuntimeConfig } from '../../common/jev';
 
 describe('ContextAssemblerService', () => {
+  afterEach(() => {
+    clearJevEnv();
+  });
   it('融合会话、SQLite 与向量上下文并输出统计', async () => {
     const memoryService = {
       search_vector_memories: vi.fn().mockResolvedValue([
@@ -138,5 +142,60 @@ describe('ContextAssemblerService', () => {
 
     expect(memoryService.remember).toHaveBeenCalledTimes(2);
     expect(memoryService.add_vector_memory).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops off-topic vector hits when the Jev context stage is on', async () => {
+    setJevRuntimeConfig({
+      enabled: true,
+      intent: false,
+      qaLive: false,
+      adaptive: false,
+      reactStop: false,
+      context: true,
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.typesafe.ai',
+      model: 'jev-latest',
+      confidenceMin: 0.85,
+      reactStopMin: 0.92,
+    });
+    const memoryService = {
+      search_vector_memories: vi.fn().mockResolvedValue([
+        {
+          similarity: 0.91,
+          item: { id: 'keep', content: '目标 10.0.0.5 开放 22', metadata: { sessionId: 's-1' } },
+        },
+        {
+          similarity: 0.88,
+          item: { id: 'drop', content: 'unrelated cooking recipe', metadata: { sessionId: 's-1' } },
+        },
+      ]),
+      remember: vi.fn(),
+      add_vector_memory: vi.fn(),
+    };
+    const jev = {
+      systemOne: vi.fn().mockResolvedValue({
+        model: 'jev-latest',
+        answers: {
+          item_0: { type: 'noul', noul: 0.92 },
+          item_1: { type: 'noul', noul: 0.08 },
+        },
+      }),
+    };
+    const service = new ContextAssemblerService(
+      memoryService as never,
+      { getConversations: vi.fn().mockReturnValue([]) } as never,
+      new ContextStoreService(),
+      { getCustomInstructions: vi.fn().mockReturnValue('') } as never,
+    );
+    service.jevClient = jev as never;
+    const session = createSession({ id: 's-1' });
+    const result = await service.build({
+      query: '扫描 10.0.0.5',
+      session,
+      sessionId: 's-1',
+      agentType: 'hackbot',
+    });
+    expect(result.contextBlock).toContain('10.0.0.5');
+    expect(result.contextBlock).not.toContain('cooking recipe');
   });
 });

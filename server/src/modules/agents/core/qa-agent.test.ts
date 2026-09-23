@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { QAAgent, extractCveId, isLiveSecurityQuery } from './qa-agent';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { QAAgent, extractCveId, isLiveSecurityQuery, shouldRetrieveLive } from './qa-agent';
 import type { ChatMessage } from '../../../common/types';
+import { clearJevEnv, setJevRuntimeConfig } from '../../../common/jev';
 
 describe('QAAgent live retrieval helpers', () => {
   it('detects freshness-sensitive security questions', () => {
@@ -14,6 +15,41 @@ describe('QAAgent live retrieval helpers', () => {
   it('extracts CVE ids case-insensitively', () => {
     expect(extractCveId('帮我看看 cve-2025-12345')).toBe('CVE-2025-12345');
     expect(extractCveId('没有编号')).toBeNull();
+  });
+});
+
+describe('shouldRetrieveLive', () => {
+  afterEach(() => {
+    clearJevEnv();
+  });
+
+  it('uses keywords when Jev is off', async () => {
+    await expect(shouldRetrieveLive('最新出的零日')).resolves.toBe(true);
+    await expect(shouldRetrieveLive('什么是零日漏洞')).resolves.toBe(false);
+  });
+
+  it('uses Jev noul when the QA live stage is on', async () => {
+    setJevRuntimeConfig({
+      enabled: true,
+      intent: false,
+      qaLive: true,
+      adaptive: false,
+      reactStop: false,
+      context: false,
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.typesafe.ai',
+      model: 'jev-latest',
+      confidenceMin: 0.85,
+      reactStopMin: 0.92,
+    });
+    const jev = {
+      systemOne: vi.fn().mockResolvedValue({
+        model: 'jev-latest',
+        answers: { live: { type: 'noul', noul: 0.9 } },
+      }),
+    };
+    await expect(shouldRetrieveLive('有没有刚出的 Exchange 洞', jev as never)).resolves.toBe(true);
+    expect(jev.systemOne).toHaveBeenCalledTimes(1);
   });
 });
 

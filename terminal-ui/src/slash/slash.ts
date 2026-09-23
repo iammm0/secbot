@@ -142,6 +142,17 @@ export function parseSlash(
       },
     };
   }
+  if (cmd === '/jev') {
+    return {
+      handled: true,
+      fetchThen: async () => {
+        const r = await api.get<{
+          config: { enabled: boolean; hasApiKey: boolean; model: string };
+        }>('/api/settings/jev');
+        return `Jev: ${r.config.enabled ? '开' : '关'} · model ${r.config.model} · key ${r.config.hasApiKey ? '已配置' : '未配置'}`;
+      },
+    };
+  }
   if (cmd === '/tools') {
     return {
       handled: true,

@@ -12,6 +12,7 @@ import { Dialog } from './components/Dialog.js';
 import { CommandPanel } from './components/CommandPanel.js';
 import { StartupAnimation } from './components/StartupAnimation.js';
 import { ModelConfigDialog } from './components/ModelConfigDialog.js';
+import { JevConfigDialog } from './components/JevConfigDialog.js';
 import { LogLevelDialog } from './components/LogLevelDialog.js';
 import { RestResultDialog } from './components/RestResultDialog.js';
 import { AgentSelectDialog } from './components/AgentSelectDialog.js';
@@ -181,6 +182,16 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         onSelect: ({ close }) => {
           close();
           dialog.replace(<ModelConfigDialog />);
+        },
+      }),
+      register({
+        title: 'Jev 判断层（/jev）',
+        value: '/jev',
+        category: 'REST',
+        slash: '/jev',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(<JevConfigDialog />);
         },
       }),
       register({

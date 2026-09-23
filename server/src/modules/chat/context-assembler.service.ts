@@ -19,6 +19,11 @@ import {
   computePromptBudget,
   getModelWindow,
 } from './model-context-window';
+import {
+  createJevClient,
+  filterContextSnippetsWithJev,
+  type JevClient,
+} from '../../common/jev';
 
 const VECTOR_DIMENSION = 128;
 
@@ -81,6 +86,9 @@ export class ContextAssemblerService {
     private readonly contextStore: ContextStoreService,
     private readonly preferences: PreferencesService,
   ) {}
+
+  /** Test seam for an injected Jev client. */
+  jevClient?: JevClient;
 
   /** 把 ExploreAgent 产出的 patch 写入对应 session 的上下文池 */
   applyPatch(sessionId: string, patch: ContextPatch): void {
@@ -248,8 +256,10 @@ export class ContextAssemblerService {
       }
     }
 
+    const filtered = await this.filterWithJev(query, focusKeywords, candidates);
+
     // 5) 去重 + 按预算切片
-    const { selected, dropped, usedTokens } = packByBudget(candidates, budget);
+    const { selected, dropped, usedTokens } = packByBudget(filtered, budget);
     const parts = partsFromContextItems(selected);
 
     const sections = renderSections(selected);
@@ -305,6 +315,28 @@ export class ContextAssemblerService {
     }
     /** 每轮结束做 turn 级清理 */
     this.contextStore.endTurn(sessionId);
+  }
+
+  private async filterWithJev(
+    query: string,
+    focusKeywords: string[],
+    candidates: ContextItem[],
+  ): Promise<ContextItem[]> {
+    const scored = candidates.filter((item) => item.source === 'vector' || item.source === 'sqlite');
+    if (scored.length === 0) return candidates;
+    const keep = await filterContextSnippetsWithJev(
+      {
+        query,
+        focus: focusKeywords,
+        items: scored.map((item) => ({ id: item.id, content: item.content })),
+      },
+      this.jevClient ?? createJevClient(),
+    );
+    if (!keep) return candidates;
+    return candidates.filter((item) => {
+      if (item.source !== 'vector' && item.source !== 'sqlite') return true;
+      return keep.has(item.id);
+    });
   }
 
   /**

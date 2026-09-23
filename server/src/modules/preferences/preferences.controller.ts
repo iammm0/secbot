@@ -1,5 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
-import { AddMcpServerDto, SetExecGoConfigDto, SetInstructionsDto } from './dto/preferences.dto';
+import {
+  AddMcpServerDto,
+  SetExecGoConfigDto,
+  SetInstructionsDto,
+  SetJevConfigDto,
+} from './dto/preferences.dto';
 import { PreferencesService } from './preferences.service';
 
 @Controller('api/settings')
@@ -12,6 +17,7 @@ export class PreferencesController {
       custom_instructions: this.preferences.getCustomInstructions(),
       mcp_servers: this.preferences.listMcpServers(),
       execgo: this.preferences.getExecGoConfig(),
+      jev: this.preferences.getJevPublicConfig(),
     };
   }
 
@@ -50,6 +56,21 @@ export class PreferencesController {
   @Post('execgo/stop')
   async stopExecGo() {
     return this.preferences.setExecGoConfig({ enabled: false });
+  }
+
+  @Get('jev')
+  getJev() {
+    return this.preferences.getJevSettings();
+  }
+
+  @Put('jev')
+  setJev(@Body() body: SetJevConfigDto) {
+    return this.preferences.setJevConfig(body);
+  }
+
+  @Post('jev/probe')
+  probeJev() {
+    return this.preferences.probeJev();
   }
 
   @Get('mcp')

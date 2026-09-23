@@ -101,6 +101,10 @@ DEEPSEEK_MODEL=deepseek-chat
 # SECBOT_CONTEXT_DEBUG=1
 # SECBOT_ADAPTIVE_REPLAN=1
 # NVD_API_KEY=your-nvd-key
+
+# Optional: Jev System One gates (all off by default)
+# SECBOT_JEV_ENABLED=1
+# TYPESAFE_API_KEY=your-typesafe-key
 ```
 
 ### 2. Start full product mode (backend + TUI)

@@ -3,6 +3,7 @@ import { ChatMessage } from '../../../common/types';
 import { LLMProvider, createLLM } from '../../../common/llm';
 import { SmartSearchTool } from '../../tools/web-research/smart-search.tool';
 import { CveLookupTool } from '../../tools/utility/cve-lookup.tool';
+import { createJevClient, shouldRetrieveLiveWithJev, type JevClient } from '../../../common/jev';
 
 interface RuleMatch {
   patterns: RegExp[];
@@ -150,6 +151,15 @@ export function isLiveSecurityQuery(input: string): boolean {
   return includesAny(lower, LIVE_RECENCY_HINTS) && includesAny(lower, LIVE_SECURITY_HINTS);
 }
 
+export async function shouldRetrieveLive(
+  input: string,
+  jev: JevClient = createJevClient(),
+): Promise<boolean> {
+  const judged = await shouldRetrieveLiveWithJev(input, jev);
+  if (judged != null) return judged;
+  return isLiveSecurityQuery(input);
+}
+
 type SmartSearchResult = {
   query?: string;
   total?: number;
@@ -183,15 +193,17 @@ type CveLookupResult = {
 export class QAAgent extends BaseAgent {
   private smartSearchTool: Pick<SmartSearchTool, 'run'>;
   private cveLookupTool: Pick<CveLookupTool, 'run'>;
+  private readonly _jev?: JevClient;
 
   get llm(): LLMProvider {
     return createLLM();
   }
 
-  constructor() {
+  constructor(jev?: JevClient) {
     super('QA', QA_SYSTEM_PROMPT);
     this.smartSearchTool = new SmartSearchTool();
     this.cveLookupTool = new CveLookupTool();
+    this._jev = jev;
   }
 
   async process(userInput: string, options?: Record<string, unknown>): Promise<string> {
@@ -263,7 +275,7 @@ export class QAAgent extends BaseAgent {
       return this.answerSpecificCve(userInput, conversationHistory, contextBlock, cveId);
     }
 
-    if (isLiveSecurityQuery(userInput)) {
+    if (await shouldRetrieveLive(userInput, this._jev ?? createJevClient())) {
       return this.answerLatestSecurityQuery(userInput, conversationHistory, contextBlock);
     }
 

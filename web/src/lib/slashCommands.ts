@@ -1,6 +1,6 @@
 import { readApi } from './api'
 
-export const SETTINGS_TABS = ['model', 'appearance', 'instructions', 'mcp', 'skills', 'execgo', 'audit', 'about', 'help'] as const
+export const SETTINGS_TABS = ['model', 'jev', 'appearance', 'instructions', 'mcp', 'skills', 'execgo', 'audit', 'about', 'help'] as const
 export type SettingsTabId = (typeof SETTINGS_TABS)[number]
 
 export interface SlashCommand {
@@ -41,6 +41,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { slash: '/help', title: '帮助（集成安全工具）', category: 'REST' },
   { slash: '/list-agents', title: '列出智能体', category: 'REST' },
   { slash: '/model', title: '模型配置', category: '设置' },
+  { slash: '/jev', title: 'Jev 判断层', category: '设置' },
   { slash: '/tools', title: '内置工具', category: 'REST' },
   { slash: '/skills', title: '列出 Skills', category: 'REST' },
   { slash: '/skill', title: '查看 Skill 详情', category: 'REST' },
@@ -61,6 +62,7 @@ export type SlashRun =
 
 const OPEN_SETTINGS: Record<string, SettingsTabId> = {
   '/model': 'model',
+  '/jev': 'jev',
   '/mcp': 'mcp',
   '/theme': 'appearance',
   '/instructions': 'instructions',
