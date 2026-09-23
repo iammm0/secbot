@@ -4,15 +4,7 @@
 
 ## 当前存在的内容
 
-仓库保留了静态提示词模板目录：
-
-```text
-prompts/
-└── templates/
-    └── hackbot_security.yaml
-```
-
-该 YAML 文件用于保存 Hackbot 角色、能力边界和行为准则等提示词内容。当前后端 Agent 的系统提示词主要写在 TypeScript 类中，例如：
+仓库不再保留独立的静态提示词模板目录。当前后端 Agent 的系统提示词主要写在 TypeScript 类中，例如：
 
 - `server/src/modules/agents/core/base-agent.ts`
 - `server/src/modules/agents/core/hackbot-agent.ts`
@@ -21,7 +13,7 @@ prompts/
 - `server/src/modules/agents/core/qa-agent.ts`
 - `server/src/modules/agents/core/summary-agent.ts`
 
-如果需要修改当前运行时提示词，请优先查看这些文件，而不是只修改 `prompts/templates/`。
+如果需要修改当前运行时提示词，请直接编辑上述文件。
 
 ## `prompt_chains` 数据表
 

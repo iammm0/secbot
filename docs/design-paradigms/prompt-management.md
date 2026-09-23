@@ -4,7 +4,7 @@
 
 ## 1. 模板目录与加载
 
-- **目录约定**：集中放在如 `prompts/templates/`，按用途或角色命名文件（如 `assistant`、`expert`、`hackbot_security`）。管理器启动时扫描或显式注册，得到 `templates: Dict[str, str]`（名字 → 模板正文）。
+- **目录约定**：若重新引入文件模板，建议放在如 `server/src/modules/agents/core/prompts/templates/`（与 Agent 核心编排同层），按用途或角色命名文件（如 `assistant`、`expert`、`hackbot_security`）。管理器启动时扫描或显式注册，得到 `templates: Dict[str, str]`（名字 → 模板正文）。当前仓库以 Agent 类内联 `systemPrompt` 为准，未保留独立模板目录。
 - **格式**：模板为纯文本或 Markdown；若需变量，使用占位符（如 `{{name}}`）或约定格式，由调用方传入上下文后替换。
 - **默认模板**：在代码里内联若干「默认」模板（如 assistant、expert、technical），保证无外部文件时也能运行；文件模板可覆盖默认。
 
