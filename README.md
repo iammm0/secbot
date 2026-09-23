@@ -1,4 +1,4 @@
-# @opensec/secbot (TypeScript) — v2.0.0-b2
+# @opensec/secbot
 
 [![GitHub Release](https://img.shields.io/github/v/release/iammm0/secbot?include_prereleases&label=release)](https://github.com/iammm0/secbot/releases)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D24-339933.svg)](https://nodejs.org/)
@@ -68,21 +68,13 @@ More detail: [`desktop/README.md`](desktop/README.md).
 
 On the same `desktop-app-v*` Release, download `secbot-tui-<version>-macos-arm64.tar.gz`, `secbot-tui-<version>-linux-x64.tar.gz`, or `secbot-tui-<version>-windows-x64.zip`. Extract and run `./secbot` (or `secbot.cmd` on Windows). Node.js is bundled; the TUI spawns the local backend by default.
 
-### npm CLI / TUI package
-
-Download the latest `.tgz` from [GitHub Releases](https://github.com/iammm0/secbot/releases) (currently **v2.0.0-b2**), then:
-
-### Global install (recommended)
+### From source
 
 ```bash
-npm install -g ./opensec-secbot-2.0.0-b2.tgz
-secbot
-```
-
-### One-off run
-
-```bash
-npx ./opensec-secbot-2.0.0-b2.tgz
+git clone https://github.com/iammm0/secbot.git
+cd secbot
+npm ci
+npm run start:stack
 ```
 
 ## Quick Start

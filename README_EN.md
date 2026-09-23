@@ -6,7 +6,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-24%2B-339933.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
-[![Version](https://img.shields.io/badge/version-2.0.0--b2-brightgreen.svg)](package.json)
+[![GitHub Release](https://img.shields.io/github/v/release/iammm0/secbot?include_prereleases&label=release)](https://github.com/iammm0/secbot/releases)
 [![License](https://img.shields.io/badge/license-Custom-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/iammm0/secbot/releases)
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E.svg)](https://nestjs.com/)
@@ -150,20 +150,7 @@ flowchart LR
 
 Prefer the **Desktop installer** or **self-contained TUI archive** on tags like `desktop-app-v*` (macOS Apple Silicon, Windows x64, Ubuntu x64).
 
-Alternatively, download the latest npm `.tgz` from [Releases](https://github.com/iammm0/secbot/releases) (currently **v2.0.0-b2**), then:
-
-```bash
-npm install -g ./opensec-secbot-2.0.0-b2.tgz
-secbot
-```
-
-One-off run:
-
-```bash
-npx ./opensec-secbot-2.0.0-b2.tgz
-```
-
-> **Note:** This project is **not published to npmjs**. The tarball uses `@opensec/secbot` as internal package metadata only.
+> This project is **not published to npmjs**. Use the GitHub Release archives or build from source.
 
 ### Option B: Build from Source
 
