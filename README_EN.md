@@ -229,7 +229,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-Desktop installers and self-contained TUI archives are published on the same [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.3-beta`). Platforms: **macOS Apple Silicon / Windows x64 / Ubuntu x64** (no macOS Intel). Extract the TUI archive and run `./secbot` or `secbot.cmd`. See [`desktop/README.md`](desktop/README.md) and [`terminal-ui/README.md`](terminal-ui/README.md).
+Desktop installers and self-contained TUI archives are published on the same [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.4-beta`). Platforms: **macOS Apple Silicon / Windows x64 / Ubuntu x64** (no macOS Intel). Extract the TUI archive and run `./secbot` or `secbot.cmd`. See [`desktop/README.md`](desktop/README.md) and [`terminal-ui/README.md`](terminal-ui/README.md).
 
 ### Common Development Commands
 

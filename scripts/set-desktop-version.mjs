@@ -92,10 +92,28 @@ export const GITHUB_REPO = 'iammm0/secbot'
   console.log(`[ok] web/public/desktop-version.json -> ${version}`)
 }
 
+function updateReadmeExamples() {
+  const tag = `${TAG_PREFIX}${version}`
+  const tagRe = /desktop-app-v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/g
+  for (const rel of ['README.md', 'README_CN.md', 'README_EN.md']) {
+    const p = join(root, rel)
+    if (!existsSync(p)) continue
+    const src = readFileSync(p, 'utf8')
+    const out = src.replace(tagRe, tag)
+    if (out === src) {
+      console.warn(`[skip] ${rel} 中没有 desktop-app-v* 示例`)
+      continue
+    }
+    writeFileSync(p, out)
+    console.log(`[ok] ${rel} -> ${tag}`)
+  }
+}
+
 setJsonVersion('desktop/package.json')
 setJsonVersion('desktop/src-tauri/tauri.conf.json')
 setCargoVersion('desktop/src-tauri/Cargo.toml')
 writeWebArtifacts()
+updateReadmeExamples()
 
 console.log(`\n桌面端版本已设置为 ${version}`)
 console.log(`对应 Git 标签: ${TAG_PREFIX}${version}`)

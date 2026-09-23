@@ -89,7 +89,7 @@ npm run dev          # 先构建 server + web，再 tauri dev
 npm run build        # build:deps → prepare-backend → tauri build --bundles app
 ```
 
-CI 使用 `npm run build:ci`（`tauri build --ci`）。发布矩阵（与 TUI 相同）是 **macOS Apple Silicon**（dmg）、**Windows x64**（NSIS，不含 MSI：WiX 不接受 `0.0.3-beta` 这类非数字预发布号）、**Ubuntu x64**（deb/rpm；AppImage 在 GitHub runner 上的 linuxdeploy 仍会失败，暂不打）。**不再支持 macOS Intel。**
+CI 使用 `npm run build:ci`（`tauri build --ci`）。发布矩阵（与 TUI 相同）是 **macOS Apple Silicon**（dmg）、**Windows x64**（NSIS，不含 MSI：WiX 不接受 `0.0.4-beta` 这类非数字预发布号）、**Ubuntu x64**（deb/rpm；AppImage 在 GitHub runner 上的 linuxdeploy 仍会失败，暂不打）。**不再支持 macOS Intel。**
 
 同一 `desktop-app-v*` Release 还会上传自包含 TUI 发行包：`secbot-tui-<version>-macos-arm64.tar.gz` / `linux-x64.tar.gz` / `windows-x64.zip`。
 

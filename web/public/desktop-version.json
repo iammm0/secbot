@@ -1,6 +1,6 @@
 {
-  "version": "0.0.3-beta",
+  "version": "0.0.4-beta",
   "tagPrefix": "desktop-app-v",
-  "releaseTag": "desktop-app-v0.0.3-beta",
+  "releaseTag": "desktop-app-v0.0.4-beta",
   "githubRepo": "iammm0/secbot"
 }

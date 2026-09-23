@@ -1,6 +1,6 @@
 [package]
 name = "secbot-desktop"
-version = "0.0.3-beta"
+version = "0.0.4-beta"
 description = "Secbot 桌面端（Tauri v2）"
 authors = ["Secbot"]
 edition = "2021"
