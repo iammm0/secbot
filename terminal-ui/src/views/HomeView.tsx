@@ -11,14 +11,14 @@ import { useKeybind, inkKeyToParsedKey, isInkEscape } from '../contexts/KeybindC
 import { useRoute } from '../contexts/RouteContext.js';
 import { useCommand, useExit } from '../contexts/index.js';
 import { SlashSuggestions } from '../components/SlashSuggestions.js';
-import { APP_VERSION } from '../version.js';
-import { getBaseUrl } from '../config.js';
+import { APP_VERSION } from '../lib/version.js';
+import { getBaseUrl } from '../api/config.js';
 import {
   HOME_CHROME,
   HOME_HINT,
   LOCAL_WORKSPACE,
   MESSAGE_PLACEHOLDER,
-} from '../copy.js';
+} from '../render/copy.js';
 
 /** 标题式 ASCII 艺术字 — 纯绿色粗体 Logo */
 const TITLE_ASCII = (() => {

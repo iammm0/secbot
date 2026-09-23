@@ -9,12 +9,12 @@ import React, {
   useRef,
 } from "react";
 import { Box, Text, useInput } from "ink";
-import { MainContent } from "../MainContent.js";
-import type { FoldableBlockInfo } from "../MainContent.js";
+import { MainContent } from "../components/MainContent.js";
+import type { FoldableBlockInfo } from "../components/MainContent.js";
 import { SlashSuggestions } from "../components/SlashSuggestions.js";
 import { useMouseScroll } from "../hooks/useMouseScroll.js";
 import { getMouseEmitter, sanitizeInputValue } from "../hooks/mouseFilter.js";
-import { parseSlash, getAgentFromState } from "../slash.js";
+import { parseSlash, getAgentFromState } from "../slash/slash.js";
 import {
   useSync,
   useLocal,
@@ -26,7 +26,7 @@ import {
   useExit,
 } from "../contexts/index.js";
 import { inkKeyToParsedKey, isInkEscape } from "../contexts/KeybindContext.js";
-import { streamStateToBlocks } from "../contentBlocks.js";
+import { streamStateToBlocks } from "../chat/contentBlocks.js";
 import { ModelConfigDialog } from "../components/ModelConfigDialog.js";
 import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
@@ -42,13 +42,13 @@ import {
   buildTaskPanelSnapshot,
   TaskPanel,
 } from "../components/TaskPanel.js";
-import { getBaseUrl } from "../config.js";
-import { APP_VERSION } from "../version.js";
+import { getBaseUrl } from "../api/config.js";
+import { APP_VERSION } from "../lib/version.js";
 import {
   MESSAGE_PLACEHOLDER,
   PAUSE_HINT,
   PAUSED_PLACEHOLDER,
-} from "../copy.js";
+} from "../render/copy.js";
 
 const TASK_PANEL_MIN_COLUMNS = 112;
 const TASK_PANEL_WIDE_COLUMNS = 132;

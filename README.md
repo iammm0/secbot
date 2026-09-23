@@ -177,7 +177,7 @@ GET  /api/skills/:name
 POST /api/skills
 ```
 
-Created skills are scaffolded under `skills/custom/<slug>/SKILL.md` and can also be reached through the internal `list_skills`, `get_skill`, and `create_skill` tools.
+Created skills are scaffolded under `server/skills/custom/<slug>/SKILL.md` and can also be reached through the internal `list_skills`, `get_skill`, and `create_skill` tools.
 
 ## MCP Integration
 
@@ -236,16 +236,12 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 
 ## Documentation
 
-- **Wiki**: [GitHub Wiki](https://github.com/iammm0/secbot/wiki) · [源文件 `docs/wiki/`](docs/wiki/)
-- **[CLAUDE.md](CLAUDE.md)** — contributor / AI coding agent guide (orchestration, SSE, env vars)
-- [Quickstart](docs/QUICKSTART.md)
-- [API Reference](docs/API.md)
-- [LLM Providers](docs/LLM_PROVIDERS.md)
-- [Ollama Setup](docs/OLLAMA_SETUP.md)
-- [UI Interaction Design](docs/UI-DESIGN-AND-INTERACTION.md)
-- [Tool Extension](docs/TOOL_EXTENSION.md)
-- [Release Guide](docs/RELEASE.md)
-- [Security Warning](docs/SECURITY_WARNING.md)
+- **Website (user docs)**: [https://secbot.site](https://secbot.site)
+- **[CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md)** — contributor / AI coding agent guide (orchestration, SSE, env vars)
+- **[SECURITY_WARNING.md](SECURITY_WARNING.md)** — legal / authorized-use notice (shipped with the package)
+- **[desktop/README.md](desktop/README.md)** — desktop develop / package (keep TUI ↔ Desktop/Web UX aligned)
+
+User-facing guides (quickstart, API, LLM setup, etc.) are maintained on the website, not in this repository.
 
 ## Links
 

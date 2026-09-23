@@ -6,22 +6,23 @@
   "private": false,
   "main": "server/dist/main.js",
   "bin": {
-    "secbot": "npm-bin/secbot.js",
-    "secbot-server": "npm-bin/secbot-server.js",
-    "secbot-mcp": "npm-bin/secbot-mcp.js"
+    "secbot": "bin/secbot.js",
+    "secbot-server": "bin/secbot-server.js",
+    "secbot-mcp": "bin/secbot-mcp.js"
   },
   "files": [
+    "bin",
     "server/dist",
+    "server/skills",
     "terminal-ui/dist",
     "terminal-ui/package.json",
     "scripts/run-product.js",
-    "skills",
     "web/dist",
     "README.md",
     "README_CN.md",
     "README_EN.md",
     "LICENSE",
-    "docs/SECURITY_WARNING.md"
+    "SECURITY_WARNING.md"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('server/dist',{recursive:true,force:true})\"",

@@ -1,7 +1,7 @@
 /**
  * 判别器池 — 支持多个判别器链式/并行处理，加快批量判别
  */
-import type { ContentBlock } from '../types.js';
+import type { ContentBlock } from '../chat/types.js';
 import type { BlockDiscriminator, BlockRenderType } from './types.js';
 import {
   byTypeDiscriminator,

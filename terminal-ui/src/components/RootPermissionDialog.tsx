@@ -6,7 +6,7 @@ import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { isInkEscape } from '../contexts/KeybindContext.js';
 import { useTheme } from '../contexts/ThemeContext.js';
-import { api } from '../api.js';
+import { api } from '../api/api.js';
 
 type RootAction = 'run_once' | 'always_allow' | 'deny';
 

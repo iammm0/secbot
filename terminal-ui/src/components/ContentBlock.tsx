@@ -2,7 +2,7 @@
  * 单块内容：委托 BlockRenderer 按类型渲染 secbot 各输出部分
  */
 import React from 'react';
-import type { ContentBlock as ContentBlockType } from '../types.js';
+import type { ContentBlock as ContentBlockType } from '../chat/types.js';
 import { BlockRenderer } from './blocks/BlockRenderer.js';
 
 interface ContentBlockProps {

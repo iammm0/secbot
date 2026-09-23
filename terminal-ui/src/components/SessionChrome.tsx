@@ -2,7 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
 import { useTheme } from "../contexts/ThemeContext.js";
-import type { ContextUsageSnapshot } from "../types.js";
+import type { ContextUsageSnapshot } from "../chat/types.js";
 import {
   COMMANDS,
   EXPAND_HINT,
@@ -15,7 +15,7 @@ import {
   TASKS_OFF,
   TASKS_ON,
   localizePhase,
-} from "../copy.js";
+} from "../render/copy.js";
 
 function formatTokenCount(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0";

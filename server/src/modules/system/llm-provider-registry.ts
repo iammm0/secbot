@@ -1,9 +1,15 @@
 /**
- * 与 docs/LLM_PROVIDERS.md 对齐的推理后端注册表，供 listProviders 与默认 Base URL 解析共用。
+ * 推理后端注册表，供 listProviders 与默认 Base URL 解析共用（对外说明见 https://secbot.site）。
  * API Key / Base URL 在 SQLite 中的键名为 `{id}_api_key`、`{id}_base_url`；环境变量见各字段。
  */
 /** 厂商分组类别 */
 export type LlmProviderGroup = 'overseas' | 'china' | 'relay' | 'local';
+
+/** 配置流程大类：在线云端 API vs 本机推理 */
+export type LlmInferenceMode = 'online' | 'local';
+
+/** 未配置时默认走在线推理（DeepSeek） */
+export const DEFAULT_LLM_PROVIDER = 'deepseek';
 
 export interface LlmProviderRegistryEntry {
   id: string;
@@ -26,16 +32,18 @@ export interface LlmProviderRegistryEntry {
   defaultOpenAICompatBaseUrl?: string;
 }
 
-/** 顺序与文档表格一致，便于对照 */
+/** 顺序：在线厂商优先，本地 Ollama 放后；与文档表格大类一致 */
 export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
   {
-    id: 'ollama',
-    name: 'Ollama (本地)',
-    needsApiKey: false,
+    id: 'deepseek',
+    name: 'DeepSeek',
+    needsApiKey: true,
+    /** 官方 API 域名为固定公开地址，中转/自建时才需改 Base URL */
     needsBaseUrl: false,
-    group: 'local',
-    baseUrlEnv: 'OLLAMA_BASE_URL',
-    defaultOpenAICompatBaseUrl: undefined,
+    group: 'china',
+    apiKeyEnv: 'DEEPSEEK_API_KEY',
+    baseUrlEnv: 'DEEPSEEK_BASE_URL',
+    defaultOpenAICompatBaseUrl: 'https://api.deepseek.com',
   },
   {
     id: 'groq',
@@ -58,17 +66,6 @@ export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
     apiKeyEnv: 'OPENROUTER_API_KEY',
     baseUrlEnv: 'OPENROUTER_BASE_URL',
     defaultOpenAICompatBaseUrl: 'https://openrouter.ai/api',
-  },
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    needsApiKey: true,
-    /** 官方 API 域名为固定公开地址，中转/自建时才需改 Base URL */
-    needsBaseUrl: false,
-    group: 'china',
-    apiKeyEnv: 'DEEPSEEK_API_KEY',
-    baseUrlEnv: 'DEEPSEEK_BASE_URL',
-    defaultOpenAICompatBaseUrl: 'https://api.deepseek.com',
   },
   {
     id: 'openai',
@@ -325,9 +322,27 @@ export const LLM_PROVIDER_REGISTRY: LlmProviderRegistryEntry[] = [
     baseUrlEnv: 'CODEX_BASE_URL',
     defaultOpenAICompatBaseUrl: undefined,
   },
+  {
+    id: 'ollama',
+    name: 'Ollama (本地)',
+    needsApiKey: false,
+    needsBaseUrl: false,
+    group: 'local',
+    baseUrlEnv: 'OLLAMA_BASE_URL',
+    defaultOpenAICompatBaseUrl: undefined,
+  },
 ];
 
 const REGISTRY_BY_ID = new Map(LLM_PROVIDER_REGISTRY.map((e) => [e.id, e]));
+
+/** 本地推理：仅 Ollama 等 group=local；其余为在线 / 中转 */
+export function isLocalLlmProvider(providerId: string): boolean {
+  return getLlmProviderMeta(providerId)?.group === 'local';
+}
+
+export function getLlmInferenceMode(providerId: string): LlmInferenceMode {
+  return isLocalLlmProvider(providerId) ? 'local' : 'online';
+}
 
 /** 是否在注册表中（含 ollama、custom 等） */
 export function getLlmProviderMeta(id: string): LlmProviderRegistryEntry | undefined {

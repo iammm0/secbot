@@ -3,7 +3,7 @@
  * 每个消息块先经 blockDiscriminators 判别，再交由对应渲染组件
  */
 import React from "react";
-import type { ContentBlock as ContentBlockType } from "../../types.js";
+import type { ContentBlock as ContentBlockType } from "../../chat/types.js";
 import { defaultPool } from "../../blockDiscriminators/index.js";
 import { ApiBlock } from "./ApiBlock.js";
 import { PhaseBlock } from "./PhaseBlock.js";

@@ -32,7 +32,24 @@ function buildDefaultBody(name: string, description: string, triggers: string[])
 
 @Injectable()
 export class SkillsService {
-  private readonly workspaceRoot = process.env.SECBOT_WORKSPACE_ROOT?.trim() || process.cwd();
+  /**
+   * Skill 文件根目录：`server/skills`（相对编译产物 `dist/modules/skills`）。
+   * 可用 `SECBOT_SKILLS_DIR` 覆盖。
+   */
+  private getSkillsRoot(): string {
+    const fromEnv = process.env.SECBOT_SKILLS_DIR?.trim();
+    if (fromEnv) return path.resolve(fromEnv);
+    return path.resolve(__dirname, '..', '..', '..', 'skills');
+  }
+
+  /** 用于 relativeDir 展示与兼容旧环境变量；默认取 skills 的上两级（包根 / 仓库根）。 */
+  private getWorkspaceRoot(): string {
+    return (
+      process.env.SECBOT_WORKSPACE_ROOT?.trim() ||
+      process.env.SECBOT_PACKAGE_ROOT?.trim() ||
+      path.resolve(this.getSkillsRoot(), '..', '..')
+    );
+  }
 
   async listSkills(): Promise<SkillSummaryDto[]> {
     const records = await this.loadAllSkills();
@@ -49,8 +66,11 @@ export class SkillsService {
 
   async createSkill(input: CreateSkillRequestDto): Promise<SkillDetailDto> {
     const slug = this.slugify(input.name);
-    const relativeDir = path.posix.join('skills', 'custom', slug);
-    const dirPath = path.join(this.workspaceRoot, relativeDir);
+    const dirPath = path.join(this.getSkillsRoot(), 'custom', slug);
+    const relativeDir = path
+      .relative(this.getWorkspaceRoot(), dirPath)
+      .split(path.sep)
+      .join('/');
     const filePath = path.join(dirPath, SKILL_FILE_NAME);
 
     await fs.mkdir(dirPath, { recursive: true });
@@ -90,7 +110,7 @@ export class SkillsService {
     if (record.scope !== 'custom') {
       throw new BadRequestException('只能删除自定义技能');
     }
-    await fs.rm(path.join(this.workspaceRoot, record.relativeDir), {
+    await fs.rm(path.join(this.getWorkspaceRoot(), record.relativeDir), {
       recursive: true,
       force: true,
     });
@@ -98,7 +118,7 @@ export class SkillsService {
   }
 
   private async loadAllSkills(): Promise<SkillRecord[]> {
-    const root = path.join(this.workspaceRoot, 'skills');
+    const root = this.getSkillsRoot();
     if (!(await this.exists(root))) {
       return [];
     }
@@ -118,13 +138,18 @@ export class SkillsService {
     const raw = await fs.readFile(filePath, 'utf8');
     const { frontmatter, body } = this.splitFrontmatter(raw);
     const parsed = this.parseFrontmatter(frontmatter);
+    const skillDir = path.dirname(filePath);
     const relativeDir = path
-      .relative(this.workspaceRoot, path.dirname(filePath))
+      .relative(this.getWorkspaceRoot(), skillDir)
       .split(path.sep)
       .join('/');
-    const parts = relativeDir.split('/');
+    const relativeToSkills = path
+      .relative(this.getSkillsRoot(), skillDir)
+      .split(path.sep)
+      .join('/');
+    const parts = relativeToSkills.split('/').filter(Boolean);
     const slug = this.slugify(parsed.name || parts[parts.length - 1] || 'skill');
-    const scope = parts[1] || 'custom';
+    const scope = parts[0] || 'custom';
 
     return {
       ...parsed,

@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useDialog } from '../contexts/DialogContext.js';
-import { api } from '../api.js';
+import { api } from '../api/api.js';
 
 interface Tool {
   name: string;

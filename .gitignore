@@ -3,10 +3,12 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.npm-cache/
 
-# TypeScript 构建产物
+# TypeScript / frontend 构建产物（发包时由 prepack / CI 生成）
 server/dist/
 terminal-ui/dist/
+web/dist/
 /dist/
 desktop/dist/
 *.tsbuildinfo
@@ -21,11 +23,10 @@ desktop/dist/
 *.swo
 *~
 
-# 环境变量
+# 环境变量与本地密钥备份（勿入库）
 .env
-.env.local
-
-# npm 本地登录（含 //registry.../:_authToken）；勿入库。CI 使用 secrets.NPM_TOKEN，见 release 工作流
+.env.*
+!.env.example
 .npmrc
 
 # 日志
@@ -39,11 +40,15 @@ logs/
 agents.db
 
 # 数据目录（包含 SQLite 数据库和运行时数据）
-data/
+data/*
 !data/.gitkeep
+desktop/data/
 
-# 缓存
+# 缓存与生成物
 .cache/
+coverage/
+.nyc_output/
+web/.tanstack/
 
 # Python 字节码与打包元数据（仓库中仍有脚本时）
 __pycache__/
@@ -53,7 +58,7 @@ __pycache__/
 # 子包构建产物
 packages/**/dist/
 
-# Expo
+# Expo（历史遗留路径）
 app/.expo/
 
 # Tauri
@@ -61,13 +66,13 @@ desktop/src-tauri/target/
 
 # 报告输出（含敏感扫描结果）
 reports/
+test-reports/
 
 # 个人文档（不进入开源仓库）
-docs/personal/
+# docs/ 已移除；用户文档在 https://secbot.site
 
-# 可执行文件
+# 可执行文件（原生构建产物）；npm CLI 入口在仓库根目录 bin/，勿忽略
 *.exe
-bin/
 
 # 发布产物
 *.tgz
@@ -77,7 +82,7 @@ bin/
 .plan
 .plan.md
 skills/custom/demo-skill/
+server/skills/custom/demo-skill/
 *.bak
 *.tmp
 commit_msg.txt
-test-reports/

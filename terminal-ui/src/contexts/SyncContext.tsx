@@ -9,13 +9,13 @@
  */
 import React from "react";
 import { createSimpleContext } from "./helper.js";
-import { useChat } from "../useChat.js";
-import type { StreamState, ChatMode } from "../types.js";
+import { useChat } from "../chat/useChat.js";
+import type { StreamState, ChatMode } from "../chat/types.js";
 import type {
   PendingRootRequest,
   HistoryItem,
   SessionListEntry,
-} from "../useChat.js";
+} from "../chat/useChat.js";
 
 export interface SyncContextValue {
   streaming: boolean;

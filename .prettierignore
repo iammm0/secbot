@@ -1,6 +1,8 @@
 node_modules/
+.npm-cache/
 server/dist/
 terminal-ui/dist/
+web/dist/
 desktop/dist/
 desktop/src-tauri/
 app/.expo/

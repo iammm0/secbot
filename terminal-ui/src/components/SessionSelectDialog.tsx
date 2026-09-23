@@ -7,7 +7,7 @@ import { useDialog } from "../contexts/DialogContext.js";
 import { isInkEscape } from "../contexts/KeybindContext.js";
 import { useTheme } from "../contexts/ThemeContext.js";
 import { useToast } from "../contexts/ToastContext.js";
-import type { SessionListEntry } from "../useChat.js";
+import type { SessionListEntry } from "../chat/useChat.js";
 
 interface SessionSelectDialogProps {
   sessions: SessionListEntry[];

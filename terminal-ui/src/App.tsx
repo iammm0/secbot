@@ -5,8 +5,8 @@ import path from 'node:path';
 import { useCommand, useToast, useRoute, useSync, useLocal, useKeybind } from './contexts/index.js';
 import { inkKeyToParsedKey } from './contexts/KeybindContext.js';
 import { useDialog } from './contexts/DialogContext.js';
-import { api } from './api.js';
-import { tuiEvents } from './events.js';
+import { api } from './api/api.js';
+import { tuiEvents } from './lib/events.js';
 import { Toast } from './components/Toast.js';
 import { Dialog } from './components/Dialog.js';
 import { CommandPanel } from './components/CommandPanel.js';
@@ -17,10 +17,10 @@ import { RestResultDialog } from './components/RestResultDialog.js';
 import { AgentSelectDialog } from './components/AgentSelectDialog.js';
 import { SessionSelectDialog } from './components/SessionSelectDialog.js';
 import { ToolsDialog } from './components/ToolsDialog.js';
-import { HELP_TOOLS_TEXT } from './slash.js';
+import { HELP_TOOLS_TEXT } from './slash/slash.js';
 import { HomeView } from './views/HomeView.js';
 import { SessionView } from './views/SessionView.js';
-import { NO_SKILLS } from './copy.js';
+import { NO_SKILLS } from './render/copy.js';
 
 interface AppProps {
   columns?: number;

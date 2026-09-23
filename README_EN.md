@@ -17,11 +17,20 @@ English | [中文](README_CN.md)
 
 ---
 
-> **Security Warning**: This tool is **for authorized security testing only**. Unauthorized use for network attacks is illegal. See [Security Warning](docs/SECURITY_WARNING.md).
+> **Security Warning**: This tool is **for authorized security testing only**. Unauthorized use for network attacks is illegal. See [Security Warning](SECURITY_WARNING.md).
 
 ## Product demos
 
-Desktop app on the maintained `release` branch (Chinese UI):
+Two user-facing clients share the same NestJS backend and SSE API:
+
+| Client | Paths | Notes |
+| --- | --- | --- |
+| **Desktop** | `desktop/` + `web/` | Tauri shell; UI is `web/` (served as `web/dist` by the backend) |
+| **TUI** | `terminal-ui/` | Ink terminal UI; default entry via `secbot` / `npm run start:stack` |
+
+Keep product capabilities and chat UX aligned: when you change SSE events, conversation blocks, model/settings, HITL, etc., **update Desktop (`web/`) and TUI (`terminal-ui/`) together** (or explicitly scope the change to one client and document that).
+
+Desktop demos on the maintained `release` branch (Chinese UI):
 
 ![Secbot desktop](assets/secbot-demo.gif)
 
@@ -41,8 +50,9 @@ Desktop app on the maintained `release` branch (Chinese UI):
 
 ### Core Capabilities
 
+- **Desktop (Tauri)**: Versioned installers (`desktop-app-v*`); Settings → About shows version and checks for updates; UI source is `web/`
+- **Terminal TUI (Ink)**: `secbot` / `npm run start:stack`; shares backend + SSE with Desktop — keep capabilities aligned
 - **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent Coordination, Tool-Using, Memory-Augmented
-- **Desktop (Tauri)**: Versioned installers (`desktop-app-v*`); Settings → About shows version and checks for updates
 - **ExecGo runtime**: Optional default execution backend; Settings enable/disable starts/stops local `execgo` / `execgo-runtime` processes
 - **Action audit trail**: Stage / LLM / tool calls persisted per conversation; Settings → Audit for traceability
 - **Host probe + attack-chain preview**: Workspace nodes show IP, username, open ports, and a simulated entry-surface path (preview only)
@@ -218,7 +228,7 @@ cd desktop && npm run dev   # Desktop hot-dev
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `LLM_PROVIDER` | Inference backend | `ollama` |
+| `LLM_PROVIDER` | Inference backend | `deepseek` |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | — |
 | `DEEPSEEK_MODEL` | DeepSeek model | `deepseek-chat` |
 | `OLLAMA_BASE_URL` | Ollama service URL | `http://localhost:11434` |
@@ -243,6 +253,7 @@ cd desktop && npm run dev   # Desktop hot-dev
 ```
 secbot/
 ├── server/                 # NestJS backend (TypeScript)
+│   ├── skills/             # Agent skill definitions (base/ + custom/)
 │   └── src/
 │       ├── main.ts         # Application entry point
 │       ├── app.module.ts   # Root module (imports 12 business modules)
@@ -260,12 +271,13 @@ secbot/
 │           ├── system/     # System info & config
 │           ├── crawler/    # Crawler scheduling
 │           └── health/     # Health checks
-├── npm-bin/                # npm CLI entry wrappers
-├── terminal-ui/            # Ink terminal frontend (TypeScript)
+├── bin/                    # npm CLI entry wrappers
+├── terminal-ui/            # Ink terminal frontend (TUI)
+├── web/                    # Web UI (desktop app’s real UI)
+├── desktop/                # Tauri desktop shell (spawns backend, loads web)
 ├── scripts/                # Launch and build scripts
-├── tools/                  # Tool capability documentation
-├── skills/                 # Agent skill definitions
-└── docs/                   # Project documentation
+├── CLAUDE.md / AGENTS.md   # Contributor / AI agent conventions
+└── SECURITY_WARNING.md     # Legal notice (shipped with the package)
 ```
 
 ---
@@ -299,18 +311,12 @@ npm run release:pack
 
 | Document | Description |
 |----------|-------------|
-| [CLAUDE.md](CLAUDE.md) | Contributor / AI agent guide (orchestration, SSE, env vars) |
-| [Quick Start](docs/QUICKSTART.md) | Installation and getting started |
-| [API Reference](docs/API.md) | REST + SSE endpoint documentation |
-| [LLM Providers](docs/LLM_PROVIDERS.md) | Multi-vendor model configuration |
-| [Ollama Setup](docs/OLLAMA_SETUP.md) | Local model configuration |
-| [UI Design](docs/UI-DESIGN-AND-INTERACTION.md) | TUI architecture and interaction |
-| [Deployment](docs/DEPLOYMENT.md) | Production deployment guide |
-| [Release Guide](docs/RELEASE.md) | Release packaging and distribution |
-| [Database Guide](docs/DATABASE_GUIDE.md) | SQLite structure and operations |
-| [Tool Extension](docs/TOOL_EXTENSION.md) | Custom tool development |
-| [Skills & Memory](docs/SKILLS_AND_MEMORY.md) | Skill injection and memory management |
-| [Security Warning](docs/SECURITY_WARNING.md) | Legal use declaration |
+| [https://secbot.site](https://secbot.site) | **User documentation site** (install, API, LLM setup, …) |
+| [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) | Contributor / AI agent guide (orchestration, SSE, env vars) |
+| [SECURITY_WARNING.md](SECURITY_WARNING.md) | Legal use declaration (shipped with the npm package) |
+| [desktop/README.md](desktop/README.md) | Desktop develop / package (keep TUI ↔ Desktop/Web aligned) |
+
+Long-form user manuals are not kept in this repository; the website is the source of truth.
 
 ---
 

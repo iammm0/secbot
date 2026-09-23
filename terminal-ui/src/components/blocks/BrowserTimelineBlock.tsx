@@ -11,7 +11,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { useTheme } from "../../contexts/ThemeContext.js";
-import type { BrowserStep, ContentBlock } from "../../types.js";
+import type { BrowserStep, ContentBlock } from "../../chat/types.js";
 
 interface BrowserTimelineBlockProps {
   block: ContentBlock;

@@ -7,9 +7,9 @@ import TextInput from 'ink-text-input';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useDialog } from '../contexts/DialogContext.js';
 import { isInkEscape } from '../contexts/KeybindContext.js';
-import { api } from '../api.js';
-import type { ProviderApiKeyStatus } from '../model-config-types.js';
-import { mergeProviderListFromApi, buildGroupedRows } from '../llm-provider-ui-fallback.js';
+import { api } from '../api/api.js';
+import type { ProviderApiKeyStatus } from '../model/model-config-types.js';
+import { mergeProviderListFromApi, buildGroupedRows, filterProvidersByMode, type InferenceMode } from '../model/llm-provider-ui-fallback.js';
 
 interface Config {
   llm_provider: string;
@@ -21,14 +21,22 @@ interface Config {
   current_provider_base_url?: string;
 }
 
-type ProviderId = 'current' | 'ollama' | 'deepseek' | 'switch_provider' | 'configured_list' | 'api_key';
+type ProviderId =
+  | 'current'
+  | 'ollama'
+  | 'deepseek'
+  | 'switch_online'
+  | 'switch_local'
+  | 'configured_list'
+  | 'api_key';
 
-/** 首屏菜单顺序：先选后端 → 配 Key → 看当前 → 管理多后端（对齐常见 CLI 模型向导） */
+/** 首屏菜单：在线 / 本地配置流程分开，默认引导在线 */
 const PROVIDERS: { id: ProviderId; label: string; hint: string }[] = [
-  { id: 'switch_provider', label: '切换推理后端', hint: 'Ollama 或云端厂商' },
-  { id: 'api_key', label: '配置 API Key', hint: '云端必填；部分需 Base URL' },
+  { id: 'switch_online', label: '配置在线推理', hint: '云端 API（默认）' },
+  { id: 'switch_local', label: '配置本地推理', hint: 'Ollama 等本机模型' },
+  { id: 'api_key', label: '配置在线 API Key', hint: '云端必填；部分需 Base URL' },
   { id: 'current', label: '当前推理后端', hint: '摘要与编辑（M 模型 / B 地址）' },
-  { id: 'configured_list', label: '已配置的推理后端', hint: '已保存 Key 的厂商列表' },
+  { id: 'configured_list', label: '已配置的推理后端', hint: '已保存 Key / 本地后端' },
 ];
 
 /** API JSON 在极端情况下可能为非字符串；Ink <Text> 子节点若为对象会触发 componentDidCatch → exit(1) */
@@ -48,7 +56,7 @@ function normalizeSystemConfig(raw: Record<string, unknown>): Config {
     return str(v);
   };
   return {
-    llm_provider: str(raw.llm_provider, 'ollama'),
+    llm_provider: str(raw.llm_provider, 'deepseek'),
     ollama_model: str(raw.ollama_model, ''),
     ollama_base_url: str(raw.ollama_base_url, ''),
     deepseek_model: opt(raw.deepseek_model),
@@ -74,6 +82,7 @@ export function ModelConfigDialog() {
   const [apiKeyMessage, setApiKeyMessage] = useState<string | null>(null);
   const [apiKeyStep, setApiKeyStep] = useState<'key' | 'base_url'>('key');
   const [allProvidersForSwitch, setAllProvidersForSwitch] = useState<ProviderApiKeyStatus[]>([]);
+  const [providerSwitchMode, setProviderSwitchMode] = useState<InferenceMode>('online');
   const [allProvidersForList, setAllProvidersForList] = useState<ProviderApiKeyStatus[]>([]);
   const [providerSwitchListIndex, setProviderSwitchListIndex] = useState(0);
   const [confirmSwitchProvider, setConfirmSwitchProvider] = useState<{ id: string; name: string } | null>(null);
@@ -164,7 +173,13 @@ export function ModelConfigDialog() {
     if (view === 'api_key_list' || view === 'api_key_input') {
       api
         .get<{ providers: ProviderApiKeyStatus[] }>('/api/system/config/providers')
-        .then((r) => setApiKeyProviders(mergeProviderListFromApi(r.providers).filter((p) => p.needs_api_key)))
+        .then((r) =>
+          setApiKeyProviders(
+            filterProvidersByMode(mergeProviderListFromApi(r.providers), 'online').filter(
+              (p) => p.needs_api_key,
+            ),
+          ),
+        )
         .catch(() => setApiKeyProviders([]));
     }
   }, [view]);
@@ -173,10 +188,18 @@ export function ModelConfigDialog() {
     if (view === 'provider_switch_list' || view === 'confirm_switch') {
       api
         .get<{ providers: ProviderApiKeyStatus[] }>('/api/system/config/providers')
-        .then((r) => setAllProvidersForSwitch(mergeProviderListFromApi(r.providers)))
-        .catch(() => setAllProvidersForSwitch(mergeProviderListFromApi(undefined)));
+        .then((r) =>
+          setAllProvidersForSwitch(
+            filterProvidersByMode(mergeProviderListFromApi(r.providers), providerSwitchMode),
+          ),
+        )
+        .catch(() =>
+          setAllProvidersForSwitch(
+            filterProvidersByMode(mergeProviderListFromApi(undefined), providerSwitchMode),
+          ),
+        );
     }
-  }, [view]);
+  }, [view, providerSwitchMode]);
 
   useEffect(() => {
     if (view === 'list' || view === 'configured_list') {
@@ -410,7 +433,7 @@ export function ModelConfigDialog() {
       return;
     }
     if (view === 'list') {
-      if (/^[1-4]$/.test(input) && !key.ctrl && !key.meta) {
+      if (/^[1-5]$/.test(input) && !key.ctrl && !key.meta) {
         const n = Number(input) - 1;
         if (n >= 0 && n < PROVIDERS.length) setSelectedIndex(n);
         return;
@@ -427,7 +450,8 @@ export function ModelConfigDialog() {
           setApiKeyListIndex(0);
         } else if (id === 'configured_list') {
           setView('configured_list');
-        } else if (id === 'switch_provider') {
+        } else if (id === 'switch_online' || id === 'switch_local') {
+          setProviderSwitchMode(id === 'switch_local' ? 'local' : 'online');
           setView('provider_switch_list');
           setProviderSwitchListIndex(0);
           setSwitchSuccessMessage(null);
@@ -641,11 +665,11 @@ export function ModelConfigDialog() {
     const grouped = buildGroupedRows(list);
     return (
       <Box flexDirection="column" paddingX={1} paddingY={0}>
-        <Text bold color={theme.primary}>配置 API Key — 选择厂商</Text>
+        <Text bold color={theme.primary}>配置在线 API Key — 选择厂商</Text>
         <Text color={theme.textMuted}>↑↓ 选择 · Enter 配置 · Esc 返回</Text>
         <Box marginTop={0}>
           <Text color={theme.textMuted}>
-            提示：部分厂商（如 Azure OpenAI、xAI、澜舟、面壁、自定义中转）需先填 API Key，保存后会再提示输入 Base URL。
+            仅在线厂商。部分（如 Azure OpenAI、自定义中转）保存 Key 后还会要求 Base URL。本地 Ollama 无需 Key，请走「配置本地推理」。
           </Text>
         </Box>
         <Box flexDirection="column" marginTop={1}>
@@ -747,9 +771,10 @@ export function ModelConfigDialog() {
     const safeIdx = Math.min(providerSwitchListIndex, Math.max(0, list.length - 1));
     const currentId = config?.llm_provider ?? '';
     const grouped = buildGroupedRows(list);
+    const modeLabel = providerSwitchMode === 'local' ? '本地推理' : '在线推理';
     return (
       <Box flexDirection="column" paddingX={1} paddingY={0}>
-        <Text bold color={theme.primary}>切换推理后端</Text>
+        <Text bold color={theme.primary}>切换{modeLabel}后端</Text>
         <Text color={theme.textMuted}>↑↓ 选择 · Enter 确认切换 · Esc 返回</Text>
         {switchSuccessMessage && (
           <Box marginTop={0}>
@@ -758,7 +783,9 @@ export function ModelConfigDialog() {
         )}
         <Box flexDirection="column" marginTop={1}>
           {list.length === 0 ? (
-            <Text color={theme.textMuted}>加载中…</Text>
+            <Text color={theme.textMuted}>
+              {providerSwitchMode === 'local' ? '暂无本地后端（当前仅支持 Ollama）' : '加载中…'}
+            </Text>
           ) : (
             grouped.map((row, ri) => {
               if (row.type === 'header') {
@@ -1078,10 +1105,10 @@ export function ModelConfigDialog() {
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
-        <Text bold color={theme.text}>上手 3 步</Text>
-        <Text color={theme.textMuted}>  ① 用「切换推理后端」选定 Ollama 或云端厂商</Text>
-        <Text color={theme.textMuted}>  ② 云端厂商到「配置 API Key」（保存后会自动探测可用模型；部分还会再要 Base URL）</Text>
-        <Text color={theme.textMuted}>  ③ 在「当前推理后端」按 M 从探测列表选择模型，按 B 修改地址</Text>
+        <Text bold color={theme.text}>上手 3 步（默认在线）</Text>
+        <Text color={theme.textMuted}>  ① 「配置在线推理」选云端厂商，或「配置本地推理」选 Ollama</Text>
+        <Text color={theme.textMuted}>  ② 在线厂商到「配置在线 API Key」（保存后自动探测模型；部分还需 Base URL）</Text>
+        <Text color={theme.textMuted}>  ③ 在「当前推理后端」按 M 选模型，按 B 改地址</Text>
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
@@ -1089,7 +1116,7 @@ export function ModelConfigDialog() {
         {PROVIDERS.map((p, i) => {
           const isSelected = i === selectedIndex;
           const value =
-            p.id === 'api_key' || p.id === 'switch_provider'
+            p.id === 'api_key' || p.id === 'switch_online' || p.id === 'switch_local'
               ? null
               : p.id === 'current'
                 ? null

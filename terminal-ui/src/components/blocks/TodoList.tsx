@@ -11,7 +11,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { useTheme } from "../../contexts/ThemeContext.js";
-import type { TodoItemData } from "../../types.js";
+import type { TodoItemData } from "../../chat/types.js";
 
 interface TodoListProps {
   items: TodoItemData[];

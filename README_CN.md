@@ -20,7 +20,16 @@
 
 ## 产品演示
 
-当前产品以桌面端为主界面（`release` 分支）：
+当前有两套面向用户的客户端，共用同一 NestJS 后端与 SSE：
+
+| 客户端 | 路径 | 说明 |
+| --- | --- | --- |
+| **Desktop** | `desktop/` + `web/` | Tauri 桌面端；主界面是 `web/`（后端托管 `web/dist`） |
+| **TUI** | `terminal-ui/` | Ink 终端 UI；`secbot` / `npm run start:stack` 默认入口 |
+
+产品能力与聊天体验应对齐：改 SSE 事件、会话块、模型/设置、HITL 等时，**Desktop（`web/`）与 TUI（`terminal-ui/`）应一并更新**（或明确只改一端并写进说明）。
+
+桌面端演示（`release` 分支）：
 
 ![Secbot 桌面端](assets/secbot-demo.gif)
 
@@ -44,7 +53,8 @@
 
 ### 核心能力
 
-- **桌面端（Tauri）**: 带版本号的安装包（`desktop-app-v*`），设置 → 关于可查看版本并检查更新
+- **桌面端（Tauri）**: 带版本号的安装包（`desktop-app-v*`），设置 → 关于可查看版本并检查更新；界面源码在 `web/`
+- **终端 TUI（Ink）**: `secbot` / `npm run start:stack`；与桌面端共用后端与 SSE，产品能力应对齐
 - **ExecGo 运行时**: 设置里启用后自动拉起/关闭本机 `execgo` / `execgo-runtime` 后台进程，可作为默认命令执行后端
 - **操作审计**: 每个对话的阶段 / 模型调用 / 工具执行落库，设置 → 审计可按会话追溯
 - **节点探测与攻击链预览**: 主机节点展示 IP、用户名、开放端口，并给出模拟入口面路径（仅预览，不执行攻击）
@@ -280,7 +290,7 @@ cd desktop && npm run dev
 
 | 变量 | 用途 | 默认值 |
 |------|------|--------|
-| `LLM_PROVIDER` | 当前推理后端 | `ollama` |
+| `LLM_PROVIDER` | 当前推理后端 | `deepseek` |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | 无 |
 | `DEEPSEEK_MODEL` | DeepSeek 默认模型 | `deepseek-chat` |
 | `OLLAMA_BASE_URL` | Ollama 服务地址 | `http://localhost:11434` |
@@ -303,6 +313,7 @@ cd desktop && npm run dev
 ```text
 secbot/
 ├── server/                 # NestJS 后端（TypeScript）
+│   ├── skills/             # Agent 技能定义（base/ + custom/）
 │   └── src/
 │       ├── main.ts         # 应用入口
 │       ├── app.module.ts   # 根模块（引入 12 个业务模块）
@@ -320,12 +331,13 @@ secbot/
 │           ├── system/     # 系统信息与配置
 │           ├── crawler/    # 爬虫调度
 │           └── health/     # 健康检查
-├── npm-bin/                # npm CLI 入口
-├── terminal-ui/            # Ink 终端前端（TypeScript）
+├── bin/                    # npm CLI 入口
+├── terminal-ui/            # Ink 终端前端（TUI）
+├── web/                    # Web UI（桌面端实际界面）
+├── desktop/                # Tauri 桌面壳（拉起后端并加载 web）
 ├── scripts/                # 启动与构建脚本
-├── tools/                  # 工具能力说明文档
-├── skills/                 # Agent 技能定义
-└── docs/                   # 项目文档
+├── CLAUDE.md / AGENTS.md   # 贡献者 / AI agent 约定
+└── SECURITY_WARNING.md     # 法律声明（随包分发）
 ```
 
 ## 开发
@@ -355,18 +367,12 @@ npm run release:pack
 
 | 文档 | 说明 |
 |------|------|
-| [CLAUDE.md](CLAUDE.md) | 给 AI / 贡献者的编排说明、SSE、环境变量与目录索引 |
-| [快速开始指南](docs/QUICKSTART.md) | 安装与启动 |
-| [API 文档](docs/API.md) | REST + SSE 接口说明 |
-| [LLM 厂商配置](docs/LLM_PROVIDERS.md) | 多厂商模型后端与配置 |
-| [Ollama 设置](docs/OLLAMA_SETUP.md) | 本地模型配置 |
-| [UI 设计与交互](docs/UI-DESIGN-AND-INTERACTION.md) | TUI 架构说明 |
-| [部署指南](docs/DEPLOYMENT.md) | 后端部署 |
-| [发布说明](docs/RELEASE.md) | 发布与打包 |
-| [数据库指南](docs/DATABASE_GUIDE.md) | SQLite 结构与操作 |
-| [工具扩展](docs/TOOL_EXTENSION.md) | 自定义工具开发 |
-| [技能与记忆](docs/SKILLS_AND_MEMORY.md) | 技能注入与记忆管理 |
-| [安全警告](docs/SECURITY_WARNING.md) | 法律与使用声明 |
+| [https://secbot.site](https://secbot.site) | **用户文档官网**（安装、API、模型配置等） |
+| [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) | 给 AI / 贡献者的编排说明、SSE、环境变量与目录索引 |
+| [SECURITY_WARNING.md](SECURITY_WARNING.md) | 法律与使用声明（随 npm 包分发） |
+| [desktop/README.md](desktop/README.md) | 桌面端开发与打包（TUI 与 Desktop/Web 应对齐更新） |
+
+本仓库不再维护长篇用户手册；以官网为文档真源。
 
 ## 贡献
 

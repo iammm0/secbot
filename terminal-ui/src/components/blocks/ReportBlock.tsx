@@ -4,7 +4,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { useTheme } from "../../contexts/ThemeContext.js";
-import { renderMarkdown } from "../../renderMarkdown.js";
+import { renderMarkdown } from "../../render/renderMarkdown.js";
 
 interface ReportBlockProps {
   title?: string;

@@ -9,13 +9,13 @@ import {
   PLAN,
   TASKS,
   TOOLS,
-} from "../copy.js";
+} from "../render/copy.js";
 import type {
   ContextUsageSnapshot,
   StreamState,
   StreamTimelineItem,
   TodoItemData,
-} from "../types.js";
+} from "../chat/types.js";
 
 type PanelStatus = "pending" | "success" | "error" | "warning" | "info";
 

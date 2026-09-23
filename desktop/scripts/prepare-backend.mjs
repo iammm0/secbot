@@ -4,6 +4,7 @@
  *
  *  desktop/src-tauri/backend/            → 作为 Tauri resources 打进安装包
  *    ├── server/dist/main.js             → NestJS 后端入口
+ *    ├── server/skills/                   → Agent skill 定义（随包）
  *    ├── web/dist/                        → 前端静态资源（后端 ServeStatic 托管）
  *    ├── node_modules/                    → 仅生产依赖（含当前平台原生 better-sqlite3）
  *    └── package.json                     → 供 node 解析
@@ -56,8 +57,9 @@ function assembleBackend() {
   rmSync(backendDir, { recursive: true, force: true });
   mkdirSync(backendDir, { recursive: true });
 
-  log('复制 server/dist 与 web/dist');
+  log('复制 server/dist、server/skills 与 web/dist');
   cpSync(join(repoRoot, 'server', 'dist'), join(backendDir, 'server', 'dist'), { recursive: true });
+  cpSync(join(repoRoot, 'server', 'skills'), join(backendDir, 'server', 'skills'), { recursive: true });
   cpSync(join(repoRoot, 'web', 'dist'), join(backendDir, 'web', 'dist'), { recursive: true });
 
   log('复制 package.json / package-lock.json');

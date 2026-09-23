@@ -3,5 +3,6 @@
 # 本地开发 / 发包：
 #   - 使用 `npm login`（凭据写入用户目录 ~/.npmrc，不要复制到本仓库根目录）
 #   - CI：`NODE_AUTH_TOKEN` ← GitHub Secret `NPM_TOKEN`（见 .github/workflows/release.yml）
+#   - 项目内 `.npm-cache/` 仅作本地缓存，已在 .gitignore，勿提交
 #
 # 若团队需要无密钥的共享配置，可在此改名提交为其它文件名，或仅使用 package.json 的 publishConfig。

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { api } from '../api.js';
+import { api } from '../api/api.js';
 import { useTheme } from '../contexts/ThemeContext.js';
 import { useDialog } from '../contexts/DialogContext.js';
 import { isInkEscape } from '../contexts/KeybindContext.js';

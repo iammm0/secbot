@@ -1,7 +1,7 @@
 /**
  * 消息块类型判别模块 — 类型定义
  */
-import type { ContentBlock } from '../types.js';
+import type { ContentBlock } from '../chat/types.js';
 
 export type BlockRenderType = ContentBlock['type'];
 

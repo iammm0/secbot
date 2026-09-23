@@ -1,7 +1,7 @@
 /**
  * 消息块类型判别器 — 多种策略，可组合使用
  */
-import type { ContentBlock } from '../types.js';
+import type { ContentBlock } from '../chat/types.js';
 import type { BlockDiscriminator, BlockRenderType } from './types.js';
 
 /** 已知类型直接透传，最快路径 */

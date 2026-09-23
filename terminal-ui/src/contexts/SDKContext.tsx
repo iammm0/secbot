@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from 'react';
-import { getBaseUrl } from '../config.js';
-import { connectSSE } from '../sse.js';
-import type { SSECallbacks } from '../sse.js';
+import { getBaseUrl } from '../api/config.js';
+import { connectSSE } from '../api/sse.js';
+import type { SSECallbacks } from '../api/sse.js';
 
 interface SDKContextValue {
   baseUrl: string;
