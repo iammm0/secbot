@@ -10,6 +10,7 @@ import { InitQuote } from '@/components/InitQuote'
 import { BlockRouter, ErrorBlock, ReportBlock } from '@/components/blocks/BlockRouter'
 import { UserMessageBlock } from '@/components/blocks/UserMessageBlock'
 import { MESSAGE_PLACEHOLDER, PAUSED_BANNER, PAUSED_PLACEHOLDER, THINKING_PLACEHOLDER } from '@/lib/copy'
+import { ChatEditProvider, MessageEditScope } from '@/lib/chatResubmit'
 import type { HistoryItem, StreamState } from '@/lib/types'
 
 type SessionSearch = { prompt?: string }
@@ -32,6 +33,7 @@ function TurnThread({ item }: { item: HistoryItem }) {
       ? item.completedAt - item.sentAt
       : null
   return (
+    <MessageEditScope turnKey={item.id || `local-${item.sentAt}`} conversationId={item.conversationId}>
     <section className="space-y-3 border-b border-border pb-6 last:border-b-0">
       <UserMessageBlock message={item.userMessage} durationMs={durationMs} />
       <div className="space-y-0.5">
@@ -41,6 +43,7 @@ function TurnThread({ item }: { item: HistoryItem }) {
       </div>
       {item.streamState.error ? <ErrorBlock message={item.streamState.error} /> : null}
     </section>
+    </MessageEditScope>
   )
 }
 
@@ -52,6 +55,7 @@ function LiveTurn({ state }: { state: StreamState }) {
     Boolean(state.error)
   if (!hasLive) return null
   return (
+    <MessageEditScope turnKey="live">
     <section className="space-y-3">
       {state.currentUserMessage ? <UserMessageBlock message={state.currentUserMessage} /> : null}
       <div className="space-y-0.5">
@@ -64,6 +68,7 @@ function LiveTurn({ state }: { state: StreamState }) {
       ) : null}
       {state.error ? <ErrorBlock message={state.error} /> : null}
     </section>
+    </MessageEditScope>
   )
 }
 
@@ -71,13 +76,14 @@ function SessionView() {
   const { id } = Route.useParams()
   const { prompt } = Route.useSearch()
   const navigate = useNavigate()
-  const { addSession, updateLabel, touchSession } = useSessionStore()
+  const { addSession, updateLabel, renameSession, touchSession, sessions } = useSessionStore()
   const {
     streaming,
     paused,
     streamState,
     history,
     sendMessage,
+    editMessage,
     stopStream,
     taskElapsedMs,
     hitlPending,
@@ -130,6 +136,14 @@ function SessionView() {
   const empty = history.length === 0 && !streamState?.currentUserMessage && !streamState?.timeline.length
 
   return (
+    <ChatEditProvider onEdit={(target, next, previous) => {
+      editMessage(target, next, previous)
+      if (target.role !== 'user') return
+      const label = sessions.find((session) => session.id === id)?.label ?? ''
+      if (label === previous.trim().slice(0, 30) || label === previous.trim().slice(0, 48)) {
+        renameSession(id, next.trim().slice(0, 48))
+      }
+    }}>
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden pt-12 md:pt-0">
       {streaming && (
         <LoadingBar
@@ -194,5 +208,6 @@ function SessionView() {
         contextUsage={streamState?.contextUsage ?? null}
       />
     </div>
+    </ChatEditProvider>
   )
 }

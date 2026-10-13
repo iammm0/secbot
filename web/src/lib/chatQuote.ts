@@ -1,6 +1,8 @@
 export interface ChatQuote {
   language?: string
   code: string
+  kind?: 'code' | 'message'
+  label?: string
 }
 
 type QuoteHandler = (quote: ChatQuote) => void
@@ -14,5 +16,5 @@ export function registerChatQuote(next: QuoteHandler | null) {
 export function addToChat(quote: ChatQuote) {
   const code = quote.code.replace(/\n$/, '').trim()
   if (!code) return
-  handler?.({ language: quote.language, code })
+  handler?.({ ...quote, code })
 }

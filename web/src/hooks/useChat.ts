@@ -3,16 +3,39 @@ import { connectSSE } from '@/lib/sse'
 import { TYPEWRITER_CHARS_PER_TICK, TYPEWRITER_INTERVAL_MS } from '@/lib/constants'
 import { TRANSIENT_TOOLS } from '@/lib/streamConstants'
 import { buildObservationBody } from '@/lib/toolObservation'
-import { conversationToHistoryItem, fetchSessionHistory } from '@/lib/chatApi'
+import {
+  conversationToHistoryItem,
+  fetchSessionHistory,
+  isTitleOnlyPlaceholder,
+  mergeHistory,
+  patchChatMessage,
+} from '@/lib/chatApi'
+import type { MessageEditTarget } from '@/lib/chatResubmit'
 import { getActiveNodeId, getActiveWorkspaceId } from '@/hooks/useWorkspaceStore'
 import { parseContextUsageParts } from '@/lib/formatTokens'
 import { setTaskActivity } from '@/lib/taskActivity'
 import type { ChatMode, HitlPending, SSEEvent, StreamState, StreamTimelineItem, BrowserStep, HistoryItem } from '@/lib/types'
+import { formatElapsed } from '@/lib/formatElapsed'
+import { normalizeToolProgress, progressStatusLabel } from '@/lib/toolProgress'
+import { failureEnding, normalizePlanTodos, withPlanTodos, withSettledPlan } from '@/lib/planTodos'
 
 const initialStreamState: StreamState = {
   phase: '', detail: '', planning: null, thought: null,
   thoughtChunks: new Map(), actions: [], content: '', report: '',
   error: null, response: null, timeline: [], contextUsage: null,
+}
+
+function applyMessageEdit(state: StreamState, target: MessageEditTarget, text: string, previous: string): StreamState {
+  if (target.role === 'user') return { ...state, currentUserMessage: text }
+  const replacesResponse = target.blockId === 'final-summary'
+    || target.blockId?.startsWith('persisted-final')
+    || state.response === previous
+  return {
+    ...state,
+    response: replacesResponse ? text : state.response,
+    report: target.blockId === 'report' || state.report === previous ? text : state.report,
+    timeline: state.timeline.map((block) => block.id === target.blockId ? { ...block, body: text } : block),
+  }
 }
 
 function resetStreamState(prev?: StreamState | null): StreamState {
@@ -54,7 +77,15 @@ function loadHistory(sessionId: string): HistoryItem[] {
     for (const item of items) {
       if (item.streamState) item.streamState.thoughtChunks = new Map()
     }
-    return items
+    return items.filter((item) => {
+      const state = item.streamState
+      return Boolean(
+        state?.timeline?.length ||
+        state?.response?.trim() ||
+        state?.report?.trim() ||
+        state?.error,
+      )
+    })
   } catch { return [] }
 }
 
@@ -113,6 +144,7 @@ export function useChat(sessionId: string) {
   const streamingRef = useRef(false)
   const requestGenRef = useRef(0)
   const lastReplyRef = useRef('')
+  const turnFailedRef = useRef(false)
   const taskTickStartedAtRef = useRef<number | null>(null)
   const taskElapsedOffsetRef = useRef(0)
   const taskElapsedMsRef = useRef(0)
@@ -171,8 +203,12 @@ export function useChat(sessionId: string) {
         const payload = await fetchSessionHistory(sessionId)
         if (cancelled) return
         setHistory((prev) => {
-          const remote = (payload.conversations ?? []).map(conversationToHistoryItem)
-          const next = streamingRef.current && prev.length > remote.length ? prev : remote
+          const remote = (payload.conversations ?? [])
+            .filter((record) => !isTitleOnlyPlaceholder(record))
+            .map(conversationToHistoryItem)
+          const next = streamingRef.current && prev.length > remote.length
+            ? prev
+            : mergeHistory(remote, prev)
           if (!streamingRef.current) {
             const lastItem = next[next.length - 1]
             const pausedNow = Boolean(lastItem?.paused)
@@ -377,6 +413,7 @@ export function useChat(sessionId: string) {
 
     setStreamState({ ...resetStreamState(streamStateRef.current), currentUserMessage: message })
     setStreaming(true)
+    turnFailedRef.current = false
     hitlPendingRef.current = null
     setHitlPending(null)
     setHitlBusy(false)
@@ -401,8 +438,7 @@ export function useChat(sessionId: string) {
 
           case 'planning': {
             const text = ((data.content as string) || (data.summary as string) || '')
-            const todosRaw = (data.todos as Array<{ content: string; status?: string }>) ?? []
-            const todos = todosRaw.map((t) => ({ content: t.content, status: t.status }))
+            const todos = normalizePlanTodos(data.todos)
             const scopeRaw = String(data.scope ?? 'master').toLowerCase()
             const planScope: 'master' | 'adaptive' = scopeRaw === 'adaptive' ? 'adaptive' : 'master'
             const title = planScope === 'adaptive' ? '穿插规划' : '规划'
@@ -479,6 +515,31 @@ export function useChat(sessionId: string) {
               actions: [...s.actions, { tool: toolName, params, viewType: ((data.view_type as string) ?? 'raw') as 'raw' | 'summary' }],
               timeline: [...s.timeline, { id: actionId, type: 'action', title: `工具调用 · ${toolName || '未知'}`, body, tool: toolName, params, status: 'running' }],
             }))
+            break
+          }
+
+          case 'action_progress': {
+            const toolName = (data.tool as string) ?? ''
+            const progress = normalizeToolProgress(data)
+            const label = progressStatusLabel(progress.status)
+            const elapsed = progress.elapsedMs != null ? formatElapsed(progress.elapsedMs) : ''
+            setStreamState((s) => {
+              const timeline = [...s.timeline]
+              const reversed = [...timeline].reverse().findIndex((item) => {
+                if (item.type !== 'action' || item.status === 'done') return false
+                return !toolName || item.tool === toolName
+              })
+              if (reversed < 0) return s
+              const index = timeline.length - 1 - reversed
+              const prev = timeline[index]
+              timeline[index] = { ...prev, progress, status: 'running' }
+              return {
+                ...s,
+                phase: toolName || s.phase,
+                detail: [label, elapsed, progress.message].filter(Boolean).join(' · '),
+                timeline,
+              }
+            })
             break
           }
 
@@ -587,6 +648,14 @@ export function useChat(sessionId: string) {
           case 'report':
             setStreamState((s) => ({ ...s, report: (data.content as string) ?? '' }))
             break
+
+          case 'plan_progress':
+          case 'plan_complete': {
+            const todos = normalizePlanTodos(data.todos)
+            if (!todos.length) break
+            setStreamState((s) => withPlanTodos(s, todos))
+            break
+          }
 
           case 'phase':
             setStreamState((s) => ({ ...s, phase: (data.phase as string) ?? '', detail: (data.detail as string) ?? '' }))
@@ -744,6 +813,8 @@ export function useChat(sessionId: string) {
 
           case 'error': {
             const base = (data.error as string)?.trim() || '未知错误'
+            turnFailedRef.current = true
+            setStreamState((s) => withSettledPlan(s, failureEnding(base)))
             const code = String((data as { code?: string }).code ?? '')
             let message = base
             if (code === 'LLM_AUTH_FAILED') {
@@ -858,6 +929,8 @@ export function useChat(sessionId: string) {
             hitlPendingRef.current = null
             setHitlPending(null)
             setPaused(true)
+            const pausedTodos = normalizePlanTodos(data.todos)
+            setStreamState((s) => withSettledPlan(pausedTodos.length ? withPlanTodos(s, pausedTodos) : s, 'paused'))
             setStreamState((s) => ({ ...s, paused: true, phase: 'paused', detail: '任务已暂停，可继续原任务' }))
             break
           }
@@ -867,6 +940,9 @@ export function useChat(sessionId: string) {
               userPausedRef.current = true
               hitlPendingRef.current = null
               setHitlPending(null)
+              setStreamState((s) => withSettledPlan(s, 'paused'))
+            } else if (!turnFailedRef.current) {
+              setStreamState((s) => withSettledPlan(s, 'success'))
             }
             break
           default: break
@@ -976,12 +1052,35 @@ export function useChat(sessionId: string) {
     [sessionId, sendMessage],
   )
 
+  const editMessage = useCallback((target: MessageEditTarget, next: string, previous: string) => {
+    const text = next.trim()
+    const from = previous.trim()
+    if (!text || text === from) return
+    if (target.turnKey === 'live') {
+      setStreamState((state) => applyMessageEdit(state, target, text, from))
+    } else {
+      setHistory((items) => items.map((item) => {
+        if ((item.id ?? '') !== target.turnKey) return item
+        if (target.role === 'user') return { ...item, userMessage: text }
+        return { ...item, streamState: applyMessageEdit(item.streamState, target, text, from) }
+      }))
+    }
+    void patchChatMessage(sessionId, {
+      role: target.role,
+      from,
+      to: text,
+      conversationId: target.conversationId,
+      blockId: target.blockId,
+    }).catch(() => undefined)
+  }, [sessionId])
+
   return {
     streaming,
     paused,
     streamState,
     history,
     sendMessage,
+    editMessage,
     stopStream,
     taskElapsedMs,
     hitlPending,

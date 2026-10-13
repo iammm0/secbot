@@ -127,6 +127,26 @@ export class PatchChatSessionDto {
   title?: string;
 }
 
+export class EditChatMessageDto {
+  @IsIn(['user', 'assistant'])
+  role!: 'user' | 'assistant';
+
+  @IsString()
+  from!: string;
+
+  @IsString()
+  to!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  conversationId?: number;
+
+  @IsOptional()
+  @IsString()
+  blockId?: string;
+}
+
 export type RootAction = 'run_once' | 'always_allow' | 'deny';
 
 export class RootResponseRequestDto {

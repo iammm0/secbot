@@ -398,6 +398,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return row ? this.mapConversation(row) : null;
   }
 
+  updateConversationContent(
+    id: number,
+    patch: { userMessage: string; assistantMessage: string; metadata: string },
+  ): boolean {
+    const info = this.db
+      .prepare(
+        'UPDATE conversations SET user_message = ?, assistant_message = ?, metadata = ? WHERE id = ?',
+      )
+      .run(patch.userMessage, patch.assistantMessage, patch.metadata, id);
+    return info.changes > 0;
+  }
+
   updateConversationMetadata(id: number, metadata: string): boolean {
     const info = this.db
       .prepare('UPDATE conversations SET metadata = ? WHERE id = ?')
@@ -409,14 +421,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const trimmed = title.trim().slice(0, 80);
     const latest = this.getLatestConversation(sessionId);
     if (!latest?.id) {
-      this.saveConversation({
-        agentType: 'hackbot',
-        userMessage: trimmed,
-        assistantMessage: '',
-        sessionId,
-        timestamp: new Date().toISOString(),
-        metadata: JSON.stringify({ title: trimmed, paused: null, timeline: [] }),
-      });
+      // 新会话的标题会随首个完整 turn 一起持久化。这里插入空回复记录会被历史页
+      // 误认为一轮真实对话，造成“截断用户消息 + 无助手回复”的重复气泡。
       return true;
     }
     let meta: Record<string, unknown> = {};

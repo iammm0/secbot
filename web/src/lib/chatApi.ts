@@ -75,6 +75,21 @@ export async function fetchSessionHistory(sessionId: string): Promise<PersistedC
   return unwrapData<PersistedChatSessionHistoryResponse>(await response.json())
 }
 
+export async function patchChatMessage(
+  sessionId: string,
+  body: { role: 'user' | 'assistant'; from: string; to: string; conversationId?: number; blockId?: string },
+): Promise<void> {
+  const encoded = encodeURIComponent(sessionId)
+  const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${encoded}/messages`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new Error(`更新消息失败（HTTP ${response.status}）`)
+  }
+}
+
 export async function patchChatSession(sessionId: string, title: string): Promise<void> {
   const encoded = encodeURIComponent(sessionId)
   const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${encoded}`, {
@@ -95,10 +110,29 @@ export async function deleteChatSession(sessionId: string): Promise<void> {
   }
 }
 
+export function isTitleOnlyPlaceholder(record: PersistedConversationRecord): boolean {
+  if (record.assistantMessage.trim()) return false
+  try {
+    const meta = JSON.parse(record.metadata || '{}') as {
+      title?: string
+      paused?: unknown
+      timeline?: unknown[]
+    }
+    return (
+      !meta.paused &&
+      (!Array.isArray(meta.timeline) || meta.timeline.length === 0) &&
+      Boolean(meta.title?.trim()) &&
+      record.userMessage.trim() === meta.title?.trim()
+    )
+  } catch {
+    return false
+  }
+}
+
 export function conversationToHistoryItem(record: PersistedConversationRecord): HistoryItem {
   const timestamp = Date.parse(record.timestamp)
   const completedAt = Number.isFinite(timestamp) ? timestamp : Date.now()
-  let meta: { paused?: { originalMessage?: string } | null; timeline?: Array<{ id?: string; type?: string; title?: string; body?: string; tool?: string }> } = {}
+  let meta: { paused?: { originalMessage?: string } | null; timeline?: Array<{ id?: string; type?: string; title?: string; body?: string; tool?: string; planScope?: 'master' | 'adaptive'; todos?: Array<{ id?: string; content: string; status?: string }> }> } = {}
   try {
     meta = JSON.parse(record.metadata || '{}') as typeof meta
   } catch {
@@ -112,21 +146,29 @@ export function conversationToHistoryItem(record: PersistedConversationRecord): 
     title: item.title || item.tool || item.type || '',
     body: item.body || '',
     tool: item.tool,
+    planScope: item.planScope,
+    todos: item.todos,
     status: 'done' as const,
   }))
-  const timeline = timelineFromMeta.length > 0
-    ? timelineFromMeta
-    : record.assistantMessage
+  const assistantMessage = record.assistantMessage.trim()
+  const hasPersistedReply = timelineFromMeta.some(
+    (item) => item.type === 'final' && item.body.trim() === assistantMessage,
+  )
+  const timeline = [
+    ...timelineFromMeta,
+    ...(assistantMessage && !hasPersistedReply
       ? [{
           id: `persisted-final-${record.id ?? completedAt}`,
           type: 'final' as const,
-          title: paused ? '任务已暂停' : '',
+          title: paused ? '任务已暂停' : '最终总结',
           body: record.assistantMessage,
           status: 'done' as const,
         }]
-      : []
+      : []),
+  ]
   return {
     id,
+    conversationId: record.id,
     userMessage: record.userMessage,
     sentAt: completedAt,
     completedAt: paused ? null : completedAt,
@@ -188,6 +230,7 @@ export function mergeHistory(remote: HistoryItem[], local: HistoryItem[]): Histo
         ...remoteItem,
         ...pickRicher(localItem, remoteItem),
         id: localItem.id ?? remoteItem.id,
+        conversationId: remoteItem.conversationId ?? localItem.conversationId,
         userMessage: localItem.userMessage,
       })
     } else {

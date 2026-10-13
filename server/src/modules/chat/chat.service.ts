@@ -16,8 +16,9 @@ import {
 } from '../../common/types';
 import { SecurityReActAgent, REACT_OPERATING_POLICY } from '../agents/core/security-react-agent';
 import { TaskExecutor } from '../agents/core/task-executor';
-import { ChatRequestDto, ChatResponseDto } from './dto/chat.dto';
+import { ChatRequestDto, ChatResponseDto, EditChatMessageDto } from './dto/chat.dto';
 import { DatabaseService } from '../database/database.service';
+import type { Conversation } from '../database/entities';
 import { ContextAssemblerService } from './context-assembler.service';
 import { AgentFactoryService } from './agent-factory.service';
 import { PreferencesService } from '../preferences/preferences.service';
@@ -30,6 +31,7 @@ import {
   type SlimTimelineItem,
 } from './conversation-meta';
 import { mapExceptionToClientBody } from '../../common/errors/map-exception-to-client';
+import { finalizePublicTodos, toPublicTodos, type PublicTodo } from './plan-todo-status';
 import {
   forwardAgentEvent,
   forwardExploreEvent,
@@ -274,6 +276,7 @@ export class ChatService {
 
     let selectedAgent: SecurityReActAgent | undefined;
     let todosForSummary: TodoItem[] = [];
+    let publishedPlan: PublicTodo[] = [];
 
     try {
       /** 4) needs_explore：先跑 ExploreAgent，把事实注入 ContextStore */
@@ -392,9 +395,16 @@ export class ChatService {
         };
         emitPlanningSse(emit, resumePlan.planSummary, resumePlan.todos, 'master');
         if (remainingFromPause.length > 1) {
-          await withStage('execute', () => runExecutor(resumePlan, workingMessage), 'resume-todos');
+          const resumed = await withStage(
+            'execute',
+            () => runExecutor(resumePlan, workingMessage),
+            'resume-todos',
+          );
+          todosForSummary = resumed.todos;
+          publishedPlan = resumed.publicTodos;
         } else {
           await withStage('execute', () => runProcess(workingMessage), 'resume-react');
+          publishedPlan = finalizePublicTodos(toPublicTodos(remainingFromPause), true);
         }
       } else if (
         intent.intent === 'task_simple' ||
@@ -437,6 +447,8 @@ export class ChatService {
             () => runExecutor(planResult, workingMessage),
             'todos',
           );
+          todosForSummary = firstRun.todos;
+          publishedPlan = firstRun.publicTodos;
 
           const adaptiveOn =
             process.env.SECBOT_ADAPTIVE_REPLAN === '1' ||
@@ -466,14 +478,20 @@ export class ChatService {
               );
               if (subPlan.todos.length > 0 && !subPlan.directResponse) {
                 emitPlanningSse(emit, subPlan.planSummary, subPlan.todos, 'adaptive');
-                todosForSummary = [...todosForSummary, ...subPlan.todos];
                 emit('phase', { phase: 'executing', detail: '执行穿插任务…' });
-                await withStage('execute', () => runExecutor(subPlan, workingMessage), 'followup');
+                const followRun = await withStage(
+                  'execute',
+                  () => runExecutor(subPlan, workingMessage),
+                  'followup',
+                );
+                todosForSummary = [...todosForSummary, ...followRun.todos];
+                publishedPlan = [...publishedPlan, ...followRun.publicTodos];
               }
             }
           }
         } else {
           await withStage('execute', () => runProcess(workingMessage), 'react');
+          publishedPlan = finalizePublicTodos(toPublicTodos(planResult.todos), true);
         }
       }
 
@@ -515,6 +533,7 @@ export class ChatService {
           assistantMessage: fullResponse,
           agentType: agentType || 'hackbot',
           agent: selectedAgent,
+          planTodos: publishedPlan,
         });
         return streamPayload.response;
       }
@@ -529,6 +548,7 @@ export class ChatService {
         assistantMessage: tail,
         agentType: agentType || 'hackbot',
         agent: selectedAgent,
+        planTodos: publishedPlan,
       });
       return tail;
     } catch (error) {
@@ -626,6 +646,22 @@ export class ChatService {
 
   getPersistedSessionHistory(sessionId: string, query: { limit?: number; offset?: number }) {
     return this.databaseService.getConversationHistoryPage(sessionId, query);
+  }
+
+  editPersistedMessage(sessionId: string, body: EditChatMessageDto) {
+    const from = body.from.trim();
+    const to = body.to.trim();
+    if (!from || !to || from === to) return { ok: true };
+    const rows = this.databaseService.getConversations({ sessionId: sessionId.trim(), limit: 200 });
+    const row = body.conversationId
+      ? rows.find((item) => item.id === body.conversationId)
+      : rows.find((item) => conversationMatchesEdit(item, body.role, from, body.blockId));
+    if (!row?.id) return { ok: false };
+    const next = applyConversationEdit(row, body.role, from, to, body.blockId);
+    const saved = this.databaseService.updateConversationContent(row.id, next);
+    if (!saved) return { ok: false };
+    this.replaceSessionMessage(sessionId.trim(), body.role, from, to);
+    return { ok: true };
   }
 
   patchPersistedSession(sessionId: string, body: { title?: string }) {
@@ -855,6 +891,28 @@ export class ChatService {
     }
   }
 
+  private replaceSessionMessage(
+    sessionId: string,
+    role: 'user' | 'assistant',
+    from: string,
+    to: string,
+  ): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    const messageRole = role === 'user' ? MessageRole.USER : MessageRole.ASSISTANT;
+    const index = [...session.messages].reverse().findIndex((message) => {
+      if (message.role !== messageRole) return false;
+      return message.content === from || message.content.includes(from);
+    });
+    if (index < 0) return;
+    const realIndex = session.messages.length - 1 - index;
+    const current = session.messages[realIndex];
+    const content = current.content === from ? to : current.content.replace(from, to);
+    const messages = session.messages.slice();
+    messages[realIndex] = { ...current, content };
+    this.sessions.set(sessionId, { ...session, messages });
+  }
+
   private getOrCreateSession(sessionId: string, agentType?: string): Session {
     let session = this.sessions.get(sessionId);
     if (!session) {
@@ -911,6 +969,7 @@ export class ChatService {
     assistantMessage: string;
     agentType: string;
     agent?: SecurityReActAgent;
+    planTodos?: PublicTodo[];
   }): void {
     const { sessionId, userMessage, assistantMessage, agentType } = params;
     this.appendSessionMessage(sessionId, MessageRole.ASSISTANT, assistantMessage);
@@ -928,7 +987,18 @@ export class ChatService {
         metadata: stringifyConversationMeta({
           title,
           paused,
-          timeline: this.slimTimeline(params.agent),
+          timeline: [
+            ...(params.planTodos?.length
+              ? [{
+                  id: 'plan',
+                  type: 'planning',
+                  title: '规划',
+                  planScope: 'master' as const,
+                  todos: params.planTodos,
+                }]
+              : []),
+            ...this.slimTimeline(params.agent),
+          ],
         }),
       });
       void this.contextAssembler.rememberTurn({
@@ -941,6 +1011,51 @@ export class ChatService {
       console.error('Failed to save conversation:', error);
     }
   }
+}
+
+function conversationMatchesEdit(
+  row: Conversation,
+  role: 'user' | 'assistant',
+  from: string,
+  blockId?: string,
+): boolean {
+  if (role === 'user') return row.userMessage.trim() === from;
+  if (row.assistantMessage.trim() === from || row.assistantMessage.includes(from)) return true;
+  return parseConversationMeta(row.metadata).timeline?.some(
+    (item) => (blockId && item.id === blockId) || item.body === from,
+  ) ?? false;
+}
+
+function applyConversationEdit(
+  row: Conversation,
+  role: 'user' | 'assistant',
+  from: string,
+  to: string,
+  blockId?: string,
+): { userMessage: string; assistantMessage: string; metadata: string } {
+  const meta = parseConversationMeta(row.metadata);
+  if (role === 'user') {
+    const title = meta.title?.trim();
+    if (!title || title === from.slice(0, 48) || title === from.slice(0, 30)) {
+      meta.title = to.slice(0, 48);
+    }
+    return {
+      userMessage: to,
+      assistantMessage: row.assistantMessage,
+      metadata: stringifyConversationMeta(meta),
+    };
+  }
+  let assistantMessage = row.assistantMessage;
+  if (assistantMessage.trim() === from) assistantMessage = to;
+  else if (assistantMessage.includes(from)) assistantMessage = assistantMessage.replace(from, to);
+  const timeline = (meta.timeline ?? []).map((item) => ({ ...item }));
+  const index = timeline.findIndex((item) => (blockId && item.id === blockId) || item.body === from);
+  if (index >= 0) timeline[index] = { ...timeline[index], body: to };
+  return {
+    userMessage: row.userMessage,
+    assistantMessage,
+    metadata: stringifyConversationMeta({ ...meta, timeline }),
+  };
 }
 
 function resolveAgentModelName(agent: unknown): string | undefined {

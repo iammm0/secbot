@@ -20,6 +20,7 @@ import {
   ChatSessionHistoryQueryDto,
   ChatSessionsQueryDto,
   ConfirmResponseRequestDto,
+  EditChatMessageDto,
   PatchChatSessionDto,
   RootResponseRequestDto,
   UserInputResponseRequestDto,
@@ -47,6 +48,11 @@ export class ChatController {
   @Patch('sessions/:sessionId')
   patchSession(@Param('sessionId') sessionId: string, @Body() body: PatchChatSessionDto) {
     return this.chatService.patchPersistedSession(sessionId, body);
+  }
+
+  @Patch('sessions/:sessionId/messages')
+  editMessage(@Param('sessionId') sessionId: string, @Body() body: EditChatMessageDto) {
+    return this.chatService.editPersistedMessage(sessionId, body);
   }
 
   @Delete('sessions/:sessionId')

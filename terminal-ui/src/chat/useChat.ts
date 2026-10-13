@@ -18,6 +18,7 @@ import { connectSSE } from "../api/sse.js";
 import { TRANSIENT_TOOLS } from "./streamConstants.js";
 import { buildObservationBody } from "./toolObservation.js";
 import { parseContextUsageParts } from "./contextUsage.js";
+import { failureEnding, normalizePlanTodos, withPlanTodos, withSettledPlan } from "./planTodos.js";
 import type {
   BrowserStep,
   ChatRequest,
@@ -126,6 +127,52 @@ function createPersistedHistoryItem(
   const completedAt = Number.isFinite(timestamp) ? timestamp : 0;
   const sentAt = completedAt;
   const paused = record.assistantMessage.trim() === "任务已暂停。发送消息即可从中断处继续原任务。";
+  let meta: {
+    timeline?: Array<{
+      id?: string;
+      type?: string;
+      title?: string;
+      body?: string;
+      tool?: string;
+      planScope?: "master" | "adaptive";
+      todos?: Array<{ id?: string; content: string; status?: string }>;
+    }>;
+  } = {};
+  try {
+    meta = JSON.parse(record.metadata || "{}") as typeof meta;
+  } catch {
+    meta = {};
+  }
+  const timelineFromMeta = (meta.timeline ?? []).map((item, index) => ({
+    id: item.id || `persisted-step-${record.id ?? completedAt}-${index}`,
+    type: (item.type as HistoryItem["streamState"]["timeline"][number]["type"]) || "final",
+    title: item.title || item.tool || item.type || "",
+    body: item.body || "",
+    tool: item.tool,
+    planScope: item.planScope,
+    todos: item.todos,
+    status: "done" as const,
+  }));
+  const assistantMessage = record.assistantMessage.trim();
+  const hasPersistedReply = timelineFromMeta.some(
+    (item) =>
+      item.type === "final" &&
+      item.body.trim() === assistantMessage,
+  );
+  const timeline = [
+    ...timelineFromMeta,
+    ...(assistantMessage && !hasPersistedReply
+      ? [
+          {
+            id: `persisted-final-${record.id ?? completedAt}`,
+            type: "final" as const,
+            title: paused ? "任务已暂停" : "最终总结",
+            body: record.assistantMessage,
+            status: "done" as const,
+          },
+        ]
+      : []),
+  ];
   return {
     userMessage: record.userMessage,
     sentAt,
@@ -135,27 +182,36 @@ function createPersistedHistoryItem(
     streamState: {
       ...initialStreamState,
       response: record.assistantMessage,
-      timeline: record.assistantMessage
-        ? [
-            {
-              id: `persisted-final-${Math.random().toString(36).slice(2, 10)}`,
-              type: "final",
-              title: "最终总结",
-              body: record.assistantMessage,
-              status: "done",
-            },
-          ]
-        : [],
+      timeline,
     },
   };
+}
+
+function isTitleOnlyPlaceholder(record: PersistedConversationRecord): boolean {
+  if (record.assistantMessage.trim()) return false;
+  try {
+    const meta = JSON.parse(record.metadata || "{}") as {
+      title?: string;
+      paused?: unknown;
+      timeline?: unknown[];
+    };
+    return (
+      !meta.paused &&
+      (!Array.isArray(meta.timeline) || meta.timeline.length === 0) &&
+      Boolean(meta.title?.trim()) &&
+      record.userMessage.trim() === meta.title?.trim()
+    );
+  } catch {
+    return false;
+  }
 }
 
 function createPersistedSessionSnapshot(
   records: PersistedConversationRecord[],
 ): ChatSessionSnapshot {
-  const sortedRecords = [...records].sort(
-    (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
-  );
+  const sortedRecords = records
+    .filter((record) => !isTitleOnlyPlaceholder(record))
+    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
   return takeSnapshot(
     sortedRecords.map(createPersistedHistoryItem),
     resetStreamState(),
@@ -187,6 +243,7 @@ interface PersistedConversationRecord {
   userMessage: string;
   assistantMessage: string;
   sessionId: string;
+  metadata?: string;
 }
 
 interface PersistedChatSessionRecord {
@@ -317,6 +374,7 @@ function buildActionProgressBody(
   }
   if (progress.message) lines.push(`消息: ${progress.message}`);
   if (progress.hint) lines.push(`提示: ${progress.hint}`);
+  if (progress.raw) lines.push(progress.raw);
   return lines.join("\n");
 }
 
@@ -347,6 +405,7 @@ export function useChat() {
   const streamingRef = useRef(false);
   const pausedRef = useRef(false);
   const userPausedRef = useRef(false);
+  const turnFailedRef = useRef(false);
   const taskGoalRef = useRef("");
   /** 当前轮次用户消息（异步 onDone/onError 回调中使用） */
   const currentUserMessageRef = useRef<string>("");
@@ -739,6 +798,7 @@ export function useChat() {
       const resumeFrom = shouldResume ? (taskGoalRef.current || undefined) : undefined;
       if (!shouldResume) taskGoalRef.current = message;
       userPausedRef.current = false;
+      turnFailedRef.current = false;
       pausedRef.current = false;
       setPaused(false);
 
@@ -785,15 +845,7 @@ export function useChat() {
                   ((data.content as string) ||
                     (data.summary as string) ||
                     "") ?? "";
-                const todosRaw =
-                  (data.todos as Array<{
-                    content: string;
-                    status?: string;
-                  }>) ?? [];
-                const todos = todosRaw.map((t) => ({
-                  content: t.content,
-                  status: t.status,
-                }));
+                const todos = normalizePlanTodos(data.todos);
                 const scopeRaw = String(data.scope ?? "master").toLowerCase();
                 const planScope: "master" | "adaptive" =
                   scopeRaw === "adaptive" ? "adaptive" : "master";
@@ -1334,9 +1386,18 @@ export function useChat() {
                 });
                 break;
 
+              case "plan_progress":
+              case "plan_complete": {
+                const todos = normalizePlanTodos(data.todos);
+                if (!todos.length) break;
+                setStreamState((s) => withPlanTodos(s, todos));
+                break;
+              }
+
               case "error": {
                 const base =
                   (data.error as string)?.trim() || "发生未知错误";
+                turnFailedRef.current = true;
                 const code = String((data as { code?: string }).code ?? "");
                 let message = base;
                 if (code === "LLM_AUTH_FAILED") {
@@ -1345,7 +1406,7 @@ export function useChat() {
                   message = `${base}\n\n请确认后端已启动且本机网络正常。`;
                 }
                 setStreamState((s) => ({
-                  ...s,
+                  ...withSettledPlan(s, failureEnding(base)),
                   error: message,
                 }));
                 break;
@@ -1422,11 +1483,22 @@ export function useChat() {
                 if (original) taskGoalRef.current = original;
                 userPausedRef.current = true;
                 setPaused(true);
+                const pausedTodos = normalizePlanTodos(data.todos);
+                setStreamState((s) => ({
+                  ...withSettledPlan(pausedTodos.length ? withPlanTodos(s, pausedTodos) : s, "paused"),
+                  phase: "paused",
+                  detail: "任务已暂停，可继续原任务",
+                }));
                 break;
               }
 
               case "done":
-                if (data.paused) userPausedRef.current = true;
+                if (data.paused) {
+                  userPausedRef.current = true;
+                  setStreamState((s) => withSettledPlan(s, "paused"));
+                } else if (!turnFailedRef.current) {
+                  setStreamState((s) => withSettledPlan(s, "success"));
+                }
                 break;
 
               default:

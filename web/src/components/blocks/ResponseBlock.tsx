@@ -1,12 +1,18 @@
 import type { StreamTimelineItem } from '@/lib/types'
 import { MarkdownBody } from '@/components/MarkdownBody'
+import { MessageActions } from '@/components/MessageActions'
 
 interface Props { item: StreamTimelineItem }
 
 export function ResponseBlock({ item }: Props) {
   return (
-    <div className="animate-fade-in-up">
+    <MessageActions
+      content={item.body}
+      quoteLabel="Secbot"
+      blockId={item.id}
+      className="animate-fade-in-up pb-2"
+    >
       <MarkdownBody>{item.body}</MarkdownBody>
-    </div>
+    </MessageActions>
   )
 }

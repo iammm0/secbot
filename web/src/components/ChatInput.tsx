@@ -59,7 +59,15 @@ export function ChatInput({
   useEffect(() => {
     registerChatQuote((quote) => {
       setQuotes((current) => {
-        if (current.some((item) => item.code === quote.code && item.language === quote.language)) return current
+        if (
+          current.some(
+            (item) =>
+              item.code === quote.code &&
+              item.language === quote.language &&
+              item.kind === quote.kind &&
+              item.label === quote.label,
+          )
+        ) return current
         const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
         return [...current, { ...quote, id }]
       })
@@ -94,7 +102,7 @@ export function ChatInput({
     }
     if (trimmed.startsWith('/') && runCommand(trimmed)) return
     if (!trimmed && quotes.length === 0 && !paused) return
-    const cited = quotes.map((quote) => fenceQuote(quote.language, quote.code)).join('\n\n')
+    const cited = quotes.map(formatQuote).join('\n\n')
     onSubmit([cited, trimmed].filter(Boolean).join('\n\n') || '继续任务')
     setValue('')
     setQuotes([])
@@ -167,7 +175,9 @@ export function ChatInput({
                 key={quote.id}
                 className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-hover/70 px-2 py-1 font-mono text-[11px] text-text"
               >
-                <span className="shrink-0 uppercase tracking-wide text-text-dim">{quote.language || 'code'}</span>
+                <span className="shrink-0 uppercase tracking-wide text-text-dim">
+                  {quote.kind === 'message' ? quote.label || '消息' : quote.language || 'code'}
+                </span>
                 <span className="min-w-0 truncate">{quote.code.replace(/\s+/g, ' ')}</span>
                 <button
                   type="button"
@@ -262,4 +272,10 @@ function fenceQuote(language: string | undefined, code: string): string {
   const run = code.match(/`+/g)?.reduce((longest, ticks) => Math.max(longest, ticks.length), 0) ?? 0
   const fence = '`'.repeat(Math.max(3, run + 1))
   return `${fence}${language ?? ''}\n${code}\n${fence}`
+}
+
+function formatQuote(quote: ChatQuote): string {
+  if (quote.kind !== 'message') return fenceQuote(quote.language, quote.code)
+  const header = `> 引用${quote.label ? `（${quote.label}）` : ''}`
+  return `${header}\n${quote.code.split('\n').map(line => `> ${line}`).join('\n')}`
 }
