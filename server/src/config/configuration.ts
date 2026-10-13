@@ -37,7 +37,7 @@ export default (): { app: AppConfig } => {
     app: {
       port: n('SERVER.PORT', 'PORT', 8000),
       env: p('LOG.ENV', 'NODE_ENV', 'development'),
-      llmProvider: p('LLM.PROVIDER', 'LLM_PROVIDER', 'ollama'),
+      llmProvider: p('LLM.PROVIDER', 'LLM_PROVIDER', 'deepseek'),
       ollamaModel: p('LLM.OLLAMA.MODEL', 'OLLAMA_MODEL', 'llama3.2'),
       ollamaBaseUrl: p('LLM.OLLAMA.BASE_URL', 'OLLAMA_BASE_URL', 'http://localhost:11434'),
       deepseekApiKey: p('LLM.DEEPSEEK.API_KEY', 'DEEPSEEK_API_KEY', ''),

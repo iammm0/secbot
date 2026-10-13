@@ -6,6 +6,7 @@ import {
   getDefaultOpenAICompatBaseUrl,
   getEnvBackedApiKey,
   getEnvBackedBaseUrl,
+  DEFAULT_LLM_PROVIDER,
 } from '../../modules/system/llm-provider-registry';
 import { deletePersistedConfig, getPersistedConfig } from '../config/persisted-config';
 import { wrapLlmWithTrace } from '../../modules/chat/workflow-trace';
@@ -54,7 +55,7 @@ function resolveProvider(explicit?: string): string {
     { value: getPersistedConfig('llm_provider'), source: 'sqlite', sqliteKey: 'llm_provider' },
     { value: explicit, source: 'explicit' },
     { value: process.env.LLM_PROVIDER, source: 'generic_env' },
-    { value: 'ollama', source: 'default' },
+    { value: DEFAULT_LLM_PROVIDER, source: 'default' },
   ]).value.toLowerCase();
 }
 
