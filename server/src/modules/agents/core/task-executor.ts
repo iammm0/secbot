@@ -3,6 +3,7 @@ import { PlannerAgent } from './planner-agent';
 import { EventBus, EventType, BusEvent } from '../../../common/event-bus';
 import {
   PlanResult,
+  TodoItem,
   TodoStatus,
   markTodoInProgress,
   markTodoCompleted,
@@ -15,6 +16,13 @@ import {
   throwIfAborted,
   TaskPausedError,
 } from '../../chat/paused-task';
+import {
+  classifyTodoFailure,
+  finalizePublicTodos,
+  toPublicTodos,
+  type PublicTodo,
+  type PublicTodoStatus,
+} from '../../chat/plan-todo-status';
 
 type OnEventCallback = (event: BusEvent) => void;
 
@@ -38,11 +46,25 @@ export class TaskExecutor {
     contextBlock?: string,
     abortSignal?: AbortSignal,
     sessionId?: string,
-  ): Promise<{ summary: string; cancelledCount: number }> {
+  ): Promise<{ summary: string; cancelledCount: number; todos: TodoItem[]; publicTodos: PublicTodo[] }> {
     const layers = this.planner.getExecutionOrder(this.plan.todos);
     const results: string[] = [];
     let currentTodos = [...this.plan.todos];
     let cancelledCount = 0;
+    const outcomes = new Map<string, PublicTodoStatus>();
+    const publish = (todoId = '', status = '') => {
+      if (todoId && status) outcomes.set(todoId, status as PublicTodoStatus);
+      onEvent?.({
+        type: EventType.PLAN_TODO,
+        data: {
+          todoId,
+          status,
+          todos: toPublicTodos(currentTodos, outcomes),
+        },
+        timestamp: new Date(),
+        iteration: 0,
+      });
+    };
 
     this.eventBus.emitSimple(EventType.PLAN_START, {
       totalTodos: currentTodos.length,
@@ -77,8 +99,11 @@ export class TaskExecutor {
 
       currentTodos = currentTodos.map((t) => {
         const inLayer = layer.find((lt) => lt.id === t.id);
-        return inLayer ? markTodoInProgress(t) : t;
+        if (!inLayer) return t;
+        outcomes.set(t.id, 'in_progress');
+        return markTodoInProgress(t);
       });
+      publish();
 
       const layerPromises = layer.map(async (todo) => {
         this.eventBus.emitSimple(EventType.EXEC_START, {
@@ -107,7 +132,9 @@ export class TaskExecutor {
 
           if (!ok) {
             cancelledCount += 1;
+            const failure = classifyTodoFailure(result.error ?? '子任务未成功完成');
             currentTodos = currentTodos.map((t) => (t.id === todo.id ? markTodoCancelled(t) : t));
+            publish(todo.id, failure);
             this.eventBus.emitSimple(EventType.ERROR, {
               todoId: todo.id,
               error: result.error ?? '子任务未成功完成',
@@ -118,6 +145,7 @@ export class TaskExecutor {
           currentTodos = currentTodos.map((t) =>
             t.id === todo.id ? markTodoCompleted(t, resultText) : t,
           );
+          publish(todo.id, 'completed');
 
           this.eventBus.emitSimple(EventType.EXEC_RESULT, {
             todoId: todo.id,
@@ -138,6 +166,7 @@ export class TaskExecutor {
           cancelledCount += 1;
 
           currentTodos = currentTodos.map((t) => (t.id === todo.id ? markTodoCancelled(t) : t));
+          publish(todo.id, classifyTodoFailure(errorMsg));
 
           this.eventBus.emitSimple(EventType.ERROR, {
             todoId: todo.id,
@@ -175,6 +204,8 @@ export class TaskExecutor {
 
     const summary =
       `执行完成：${completedCount}/${totalCount} 个任务成功\n\n` + results.join('\n\n---\n\n');
+    const clean = cancelledCount === 0 && completedCount === totalCount;
+    const publicTodos = finalizePublicTodos(toPublicTodos(currentTodos, outcomes), clean);
 
     this.eventBus.emitSimple(EventType.PLAN_COMPLETE, {
       completed: completedCount,
@@ -183,11 +214,11 @@ export class TaskExecutor {
 
     onEvent?.({
       type: EventType.PLAN_COMPLETE,
-      data: { completed: completedCount, total: totalCount, summary },
+      data: { completed: completedCount, total: totalCount, summary, todos: publicTodos },
       timestamp: new Date(),
       iteration: 0,
     });
 
-    return { summary, cancelledCount };
+    return { summary, cancelledCount, todos: currentTodos, publicTodos };
   }
 }

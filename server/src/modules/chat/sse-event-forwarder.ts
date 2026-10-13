@@ -134,6 +134,19 @@ export function forwardAgentEvent(event: BusEvent, emit: SSEEmit): void {
       allow_free_text: Boolean(d['allow_free_text']),
       session_id: d['session_id'] ?? '',
     });
+  } else if (t === EventType.PLAN_TODO) {
+    emit('plan_progress', {
+      todo_id: d['todoId'] ?? '',
+      status: d['status'] ?? '',
+      todos: d['todos'] ?? [],
+    });
+  } else if (t === EventType.PLAN_COMPLETE) {
+    emit('plan_complete', {
+      completed: d['completed'] ?? 0,
+      total: d['total'] ?? 0,
+      summary: d['summary'] ?? '',
+      todos: d['todos'] ?? [],
+    });
   } else if (t === EventType.TASK_PHASE) {
     emit('phase', {
       phase: d['phase'] ?? '',

@@ -64,7 +64,7 @@ export interface StreamTimelineItem {
   title: string;
   body: string;
   /** 规划块：待办列表（与 planning SSE 一致） */
-  todos?: Array<{ content: string; status?: string }>;
+  todos?: Array<{ id?: string; content: string; status?: string }>;
   /** master=首轮总规划；adaptive=执行过程中穿插的补充规划 */
   planScope?: "master" | "adaptive";
   iteration?: number;
@@ -144,7 +144,7 @@ export interface StreamState {
   detail: string;
   planning: {
     content: string;
-    todos: Array<{ content: string; status?: string }>;
+    todos: Array<{ id?: string; content: string; status?: string }>;
   } | null;
   thought: { iteration: number; content: string } | null;
   /** 推理流分片正文，键为后端 step_key（或 iter-N），避免并行子任务 iteration 重复时覆盖 */

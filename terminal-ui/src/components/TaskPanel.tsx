@@ -58,6 +58,12 @@ function toPanelStatus(status?: string): PanelStatus {
   if (lower === "done" || lower === "completed" || lower === "完成") {
     return "success";
   }
+  if (lower === "in_progress" || lower === "running" || lower === "进行中") {
+    return "info";
+  }
+  if (lower === "timed_out" || lower === "timeout" || lower === "超时" || lower === "paused" || lower === "暂停") {
+    return "warning";
+  }
   if (
     lower === "failed" ||
     lower === "error" ||

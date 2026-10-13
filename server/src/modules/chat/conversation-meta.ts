@@ -6,6 +6,8 @@ export interface SlimTimelineItem {
   title?: string;
   body?: string;
   tool?: string;
+  planScope?: 'master' | 'adaptive';
+  todos?: Array<{ id?: string; content: string; status?: string }>;
 }
 
 export interface ConversationTurnMeta {

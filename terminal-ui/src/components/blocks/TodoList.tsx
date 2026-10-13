@@ -19,21 +19,36 @@ interface TodoListProps {
   title?: string;
 }
 
-type TodoStatus = "pending" | "success" | "error";
+type TodoStatus = "pending" | "running" | "success" | "error" | "timeout" | "paused";
 
 function resolveStatus(s?: string): TodoStatus {
-  if (!s) return "pending";
-  const lower = s.toLowerCase();
-  if (lower === "done" || lower === "completed" || lower === "完成")
-    return "success";
-  if (lower === "failed" || lower === "失败") return "error";
+  const lower = (s ?? "").toLowerCase();
+  if (lower === "done" || lower === "completed" || lower === "success" || lower === "完成") return "success";
+  if (lower === "in_progress" || lower === "running" || lower === "进行中") return "running";
+  if (lower === "timed_out" || lower === "timeout" || lower === "超时") return "timeout";
+  if (lower === "paused" || lower === "暂停") return "paused";
+  if (lower === "failed" || lower === "error" || lower === "cancelled" || lower === "canceled" || lower === "失败") {
+    return "error";
+  }
   return "pending";
 }
 
 const TODO_ICONS: Record<TodoStatus, string> = {
   pending: "○",
+  running: "◐",
   success: "●",
   error: "✗",
+  timeout: "!",
+  paused: "‖",
+};
+
+const TODO_NOTE: Record<TodoStatus, string> = {
+  pending: "",
+  running: " 进行中",
+  success: "",
+  error: " 失败",
+  timeout: " 超时",
+  paused: " 已暂停",
 };
 
 export function TodoList({ items, noMargin, title }: TodoListProps) {
@@ -59,19 +74,22 @@ export function TodoList({ items, noMargin, title }: TodoListProps) {
             ? theme.success
             : status === "error"
               ? theme.error
-              : theme.textMuted;
+              : status === "timeout" || status === "paused"
+                ? theme.warning
+                : status === "running"
+                  ? theme.secondary
+                  : theme.textMuted;
 
         const isDim = status === "pending";
 
         return (
           <Box key={i} flexDirection="row">
-            {/* 状态图标：○ / ● / ✗，语义色 */}
             <Text color={color} dimColor={isDim}>
               {icon}{" "}
             </Text>
-            {/* 内容文字与图标同色 */}
             <Text color={color} dimColor={isDim}>
               {item.content}
+              {TODO_NOTE[status]}
             </Text>
           </Box>
         );
