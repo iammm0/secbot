@@ -12,6 +12,7 @@ import { useRoute } from '../contexts/RouteContext.js';
 import { useCommand, useExit } from '../contexts/index.js';
 import { SlashSuggestions } from '../components/SlashSuggestions.js';
 import { APP_VERSION } from '../lib/version.js';
+import { api } from '../api/api.js';
 import { getBaseUrl } from '../api/config.js';
 import {
   HOME_CHROME,
@@ -50,6 +51,7 @@ export function HomeView() {
   const exit = useExit();
   const [inputValue, setInputValue] = useState('');
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+  const [runtimeHint, setRuntimeHint] = useState('环境检测中…');
   const backendLabel = useMemo(() => formatBackend(getBaseUrl()), []);
   /** 刚从斜杠列表中选中的完整命令（如 '/agent'）；若下一次 handleSubmit 收到的是不完整斜杠（如 '/ag'）则忽略，避免 TextInput 的 Enter 覆盖跳转 */
   const justSubmittedSlashRef = useRef<string | null>(null);
@@ -63,6 +65,46 @@ export function HomeView() {
   useEffect(() => {
     setSlashSelectedIndex(0);
   }, [inputValue]);
+
+  const refreshRuntime = useCallback(async () => {
+    const report = await api.get<{ missing: string[]; ready: boolean }>('/api/system/runtime');
+    setRuntimeHint(
+      report.ready
+        ? '本机环境已就绪 · nmap / nuclei / nikto / ffuf'
+        : `缺少 ${report.missing.join('、')} · 输入「安装工具」并回车`,
+    );
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const report = await api.get<{ missing: string[]; ready: boolean }>('/api/system/runtime');
+        if (cancelled) return;
+        if (report.ready) {
+          setRuntimeHint('本机环境已就绪 · nmap / nuclei / nikto / ffuf');
+          return;
+        }
+        for (const tool of report.missing) {
+          if (cancelled) return;
+          setRuntimeHint(`正在安装 ${tool}…`);
+          const result = await api.post<{ success: boolean; error?: string }>('/api/system/runtime/install', {
+            tool,
+          });
+          if (!result.success) {
+            setRuntimeHint(result.error || `安装 ${tool} 失败 · 输入「安装工具」重试`);
+            return;
+          }
+        }
+        if (!cancelled) await refreshRuntime();
+      } catch {
+        if (!cancelled) setRuntimeHint('环境检测失败，可稍后重试');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshRuntime]);
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
@@ -101,6 +143,27 @@ export function HomeView() {
         justSubmittedSlashRef.current = null;
         return;
       }
+      if (trimmed === '安装工具') {
+        setInputValue('');
+        setRuntimeHint('正在安装缺失的本机程序…');
+        void (async () => {
+          const report = await api.get<{ missing: string[] }>('/api/system/runtime');
+          for (const tool of report.missing) {
+            setRuntimeHint(`正在安装 ${tool}…`);
+            const result = await api.post<{ success: boolean; error?: string }>('/api/system/runtime/install', {
+              tool,
+            });
+            if (!result.success) {
+              setRuntimeHint(result.error || `安装 ${tool} 失败`);
+              return;
+            }
+          }
+          await refreshRuntime();
+        })().catch((error: unknown) => {
+          setRuntimeHint(error instanceof Error ? error.message : '安装失败');
+        });
+        return;
+      }
       if (!trimmed) return;
       if (trimmed.startsWith('/')) {
         const match = commands.filter(
@@ -111,7 +174,7 @@ export function HomeView() {
       navigate({ type: 'session', initialPrompt: trimmed || undefined });
       setInputValue('');
     },
-    [navigate, commands, exit, inputValue]
+    [navigate, commands, exit, inputValue, refreshRuntime]
   );
 
   return (
@@ -182,6 +245,7 @@ export function HomeView() {
         <Box flexDirection="row" gap={1}>
           <Text color={theme.secondary}>{HOME_CHROME}</Text>
           <Text color={theme.textMuted}> · {backendLabel}</Text>
+          <Text color={theme.textMuted}> · {runtimeHint}</Text>
         </Box>
       </Box>
 

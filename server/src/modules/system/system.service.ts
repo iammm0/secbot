@@ -14,12 +14,19 @@ import {
 import { DatabaseService } from '../database/database.service';
 import {
   LLM_PROVIDER_REGISTRY,
+  DEFAULT_LLM_PROVIDER,
   getEnvBackedApiKey,
   getDefaultOpenAICompatBaseUrl,
   getLlmProviderMeta,
 } from './llm-provider-registry';
 import { loadYamlConfig, saveYamlConfig } from '../../config/yaml-config-loader.js';
 import { deleteYamlConfigKey } from '../../common/config/persisted-config';
+import {
+  installRuntimeTool as runRuntimeInstall,
+  isRequiredRuntimeTool,
+  probeRuntimeTools,
+  type RuntimeEnvironmentReport,
+} from './runtime-tools';
 
 const ROOT_DIR = process.cwd();
 
@@ -197,7 +204,8 @@ export class SystemService {
   }
 
   async config(): Promise<SystemConfigResponseDto> {
-    const llmProvider = this.resolveConfigSource('llm_provider', 'LLM_PROVIDER', null) ?? 'ollama';
+    const llmProvider =
+      this.resolveConfigSource('llm_provider', 'LLM_PROVIDER', null) ?? DEFAULT_LLM_PROVIDER;
     const ollamaModel =
       this.resolveConfigSource('ollama_model', 'OLLAMA_MODEL', null) ?? 'llama3.2';
     const ollamaBaseUrl =
@@ -465,5 +473,21 @@ export class SystemService {
       },
       disks: [],
     };
+  }
+
+  runtimeEnvironment(): Promise<RuntimeEnvironmentReport> {
+    return probeRuntimeTools();
+  }
+
+  installRuntimeTool(tool: string) {
+    const name = tool.trim().toLowerCase();
+    if (!isRequiredRuntimeTool(name)) {
+      return {
+        success: false,
+        result: null,
+        error: `不在初始化安装清单中: ${name}`,
+      };
+    }
+    return runRuntimeInstall(name);
   }
 }

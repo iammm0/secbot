@@ -1,5 +1,6 @@
 import { createRootRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
+import { BootEnvironment } from '@/components/BootEnvironment'
 import { SecbotPet } from '@/components/SecbotPet'
 import { SlashResultDialog } from '@/components/SlashResultDialog'
 import { UpdateBanner } from '@/components/UpdateBanner'
@@ -49,6 +50,7 @@ function RootLayout() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <BootEnvironment />
       <UpdateBanner />
       <div className="min-h-0 flex-1 overflow-hidden">
         <Outlet />

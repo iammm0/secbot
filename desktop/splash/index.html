@@ -103,10 +103,22 @@
         <div class="scan" aria-hidden="true"></div>
         欢迎使用 SECBOT
       </div>
-      <div class="hint" id="hint">SYSTEM BOOT · LOCAL SERVICE</div>
+      <div class="hint" id="hint">SYSTEM BOOT · ENVIRONMENT CHECK</div>
       <div class="err" id="err"></div>
     </div>
     <script>
+      const hints = [
+        "SYSTEM BOOT · LOCAL SERVICE",
+        "ENVIRONMENT CHECK · INSTALL NMAP",
+        "ENVIRONMENT CHECK · INSTALL NUCLEI",
+        "ENVIRONMENT CHECK · INSTALL NIKTO / FFUF",
+      ];
+      let hintIndex = 0;
+      setInterval(() => {
+        hintIndex = (hintIndex + 1) % hints.length;
+        const hint = document.getElementById("hint");
+        if (hint && hint.style.display !== "none") hint.textContent = hints[hintIndex];
+      }, 1400);
       setTimeout(() => {
         const h = document.getElementById("hint");
         const e = document.getElementById("err");

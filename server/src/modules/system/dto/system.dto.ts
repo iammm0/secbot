@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class SystemInfoResponseDto {
   @IsString()
@@ -207,6 +207,12 @@ export class DiskInfoDto {
 
   @IsNumber()
   percent!: number;
+}
+
+export class InstallRuntimeToolDto {
+  @IsString()
+  @IsNotEmpty()
+  tool!: string;
 }
 
 export class SystemStatusResponseDto {

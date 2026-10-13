@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { SystemService } from './system.service';
 import {
+  InstallRuntimeToolDto,
   ProviderSettingsRequestDto,
   SetApiKeyRequestDto,
   SetLlmProviderRequestDto,
@@ -93,5 +94,15 @@ export class SystemController {
   @Get('status')
   status() {
     return this.systemService.status();
+  }
+
+  @Get('runtime')
+  runtime() {
+    return this.systemService.runtimeEnvironment();
+  }
+
+  @Post('runtime/install')
+  installRuntime(@Body() body: InstallRuntimeToolDto) {
+    return this.systemService.installRuntimeTool(body.tool);
   }
 }

@@ -93,7 +93,7 @@ export class InstallToolTool extends BaseTool {
     }
 
     // Execute install
-    const result = await this.exec(method.cmd, method.args, 300);
+    const result = await this.exec(method.cmd, method.args, 900);
 
     if (result.code !== 0) {
       return {
