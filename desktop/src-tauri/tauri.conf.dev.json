@@ -1,0 +1,27 @@
+{
+  "productName": "Secbot Dev",
+  "identifier": "com.secbot.desktop.dev",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Secbot Dev",
+        "width": 1280,
+        "height": 832,
+        "minWidth": 960,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true
+      }
+    ]
+  },
+  "bundle": {
+    "icon": [
+      "icons-dev/32x32.png",
+      "icons-dev/128x128.png",
+      "icons-dev/128x128@2x.png",
+      "icons-dev/icon.icns",
+      "icons-dev/icon.ico"
+    ]
+  }
+}

@@ -109,8 +109,13 @@ async function main() {
   if (!viteReady) {
     throw new Error(`Vite 未在 :${vitePort} 就绪`)
   }
-  console.log('[dev-hot] Vite 就绪，启动 tauri dev')
-  run('npx', ['tauri', 'dev'], desktopDir, 'tauri')
+  console.log('[dev-hot] Vite 就绪，启动 tauri dev（Secbot Dev 图标）')
+  run(
+    'npx',
+    ['tauri', 'dev', '--config', 'src-tauri/tauri.conf.dev.json'],
+    desktopDir,
+    'tauri',
+  )
 }
 
 main().catch((err) => {
