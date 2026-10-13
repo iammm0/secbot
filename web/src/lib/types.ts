@@ -39,12 +39,25 @@ export interface BrowserStep {
   ts: number
 }
 
+export interface ToolProgressSnapshot {
+  status: 'running' | 'quiet' | 'possibly_stuck' | 'done' | 'failed' | 'timed_out'
+  phase?: string
+  progress?: number
+  elapsedMs?: number
+  lastOutputAgeMs?: number
+  message?: string
+  hint?: string
+  command?: string
+  raw?: string
+  receivedAt: number
+}
+
 export interface StreamTimelineItem {
   id: string
   type: TimelineItemType
   title: string
   body: string
-  todos?: Array<{ content: string; status?: string }>
+  todos?: Array<{ id?: string; content: string; status?: string }>
   planScope?: 'master' | 'adaptive'
   iteration?: number
   tool?: string
@@ -52,6 +65,7 @@ export interface StreamTimelineItem {
   error?: string
   result?: unknown
   status?: 'running' | 'done'
+  progress?: ToolProgressSnapshot
   params?: Record<string, unknown>
   viewType?: 'raw' | 'summary'
   browserSteps?: BrowserStep[]
@@ -81,7 +95,7 @@ export interface ContextUsageSnapshot {
 export interface StreamState {
   phase: string
   detail: string
-  planning: { content: string; todos: Array<{ content: string; status?: string }> } | null
+  planning: { content: string; todos: Array<{ id?: string; content: string; status?: string }> } | null
   thought: { iteration: number; content: string } | null
   thoughtChunks: Map<string, string>
   actions: Array<{ tool: string; params: Record<string, unknown>; result?: unknown; error?: string; success?: boolean; viewType?: 'raw' | 'summary' }>
@@ -97,6 +111,7 @@ export interface StreamState {
 
 export interface HistoryItem {
   id?: string
+  conversationId?: number
   userMessage: string
   sentAt: number
   streamState: StreamState

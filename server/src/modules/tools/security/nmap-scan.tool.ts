@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { BaseTool, ToolProgress, ToolProgressCallback, ToolResult } from '../core/base-tool';
+import { terminalTail } from '../core/spawn-terminal';
+import { resolveToolTimeout } from '../core/tool-timeouts';
 
 type ScanType = 'tcp_syn' | 'tcp_connect' | 'udp' | 'ping' | 'version' | 'os' | 'aggressive';
 
@@ -15,7 +17,7 @@ const SCAN_FLAGS: Record<ScanType, string[]> = {
 
 export class NmapScanTool extends BaseTool {
   constructor() {
-    super('nmap_scan', 'Nmap 扫描 — 调用 nmap 执行端口扫描、服务版本检测、OS 识别、NSE 脚本扫描等');
+    super('nmap_scan', 'Nmap 扫描。必填 params.target。service_version=true 时追加 -sV。默认超时 300 秒，上限 1800 秒。');
   }
 
   async run(
@@ -32,13 +34,22 @@ export class NmapScanTool extends BaseTool {
     const scripts = params.scripts ? String(params.scripts).trim() : undefined;
     const timing = params.timing ? String(params.timing).trim() : 'T4';
     const extraArgs = Array.isArray(params.extra_args) ? params.extra_args.map(String) : [];
-    const timeoutSec = Math.min(Number(params.timeout) || 120, 600);
+    const timeoutSec = resolveToolTimeout('nmap_scan', params.timeout);
 
     const args: string[] = ['-oX', '-', `-${timing}`];
     const defaultsApplied: string[] = params.timing ? [] : ['timing=T4'];
 
     const flags = SCAN_FLAGS[scanType] ?? SCAN_FLAGS.tcp_connect;
     args.push(...flags);
+    const wantsVersion = params.service_version === true || params.service_version === 'true';
+    const hasVersionFlag =
+      flags.includes('-sV') ||
+      flags.includes('-A') ||
+      extraArgs.some((arg) => arg === '-sV' || arg === '-A');
+    if (wantsVersion && !hasVersionFlag) {
+      args.push('-sV');
+      defaultsApplied.push('service_version=-sV');
+    }
 
     if (ports && scanType !== 'ping') {
       args.push('-p', ports);
@@ -138,23 +149,26 @@ export class NmapScanTool extends BaseTool {
             status: 'possibly_stuck',
             phase: lastProgress?.phase ?? 'waiting',
             progress: lastProgress?.progress,
-            message: 'no nmap output for over 2 minutes',
+            message: lastProgress?.message || 'no nmap output for over 2 minutes',
             hint: 'Process is still alive, but the scan may be blocked on network timeouts. Consider narrower ports, -Pn only when needed, or a lower timeout.',
+            raw: lastProgress?.raw,
           });
         } else if (outputAge > 30_000) {
           emitProgress({
             status: 'quiet',
             phase: lastProgress?.phase ?? 'waiting',
             progress: lastProgress?.progress,
-            message: 'nmap is quiet but still running',
+            message: lastProgress?.message || 'nmap is quiet but still running',
             hint: 'Quiet periods are common during filtered ports, UDP scans, DNS, and host discovery.',
+            raw: lastProgress?.raw,
           });
         } else {
           emitProgress({
             status: 'running',
             phase: lastProgress?.phase ?? 'running',
             progress: lastProgress?.progress,
-            message: 'nmap process is alive',
+            message: lastProgress?.message || 'nmap process is alive',
+            raw: lastProgress?.raw,
           });
         }
       }, 10_000);
@@ -168,9 +182,21 @@ export class NmapScanTool extends BaseTool {
       child.stderr.on('data', (c) => {
         stderr += c;
         lastOutputAt = Date.now();
+        const raw = terminalTail(stderr);
         const parsed = this.parseProgressChunk(String(c));
+        const lastLine = raw.split('\n').at(-1)?.trim();
         if (parsed) {
-          emitProgress(parsed);
+          emitProgress({ ...parsed, raw, message: parsed.message || lastLine });
+          return;
+        }
+        if (lastLine) {
+          emitProgress({
+            status: 'running',
+            phase: lastProgress?.phase ?? 'output',
+            progress: lastProgress?.progress,
+            message: lastLine,
+            raw,
+          });
         }
       });
 

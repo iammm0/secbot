@@ -433,7 +433,10 @@ export class ReportGeneratorTool extends BaseTool {
     if (total > 0) {
       return ['**Risk Level**: Low', 'Only low/info findings were detected.'];
     }
-    return ['**Risk Level**: Secure', 'No findings were reported.'];
+    return [
+      '**Risk Level**: Incomplete',
+      'No findings were supplied. This does not mean the target is secure.',
+    ];
   }
 
   private renderCvssSummary(findings: Finding[]): string[] {

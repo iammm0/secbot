@@ -5,6 +5,7 @@ interface Props {
   kind: string
   label?: string
   detail?: string
+  detailClassName?: string
   status?: 'running' | 'done'
   success?: boolean
   defaultOpen?: boolean
@@ -16,6 +17,7 @@ export function TraceBlock({
   kind,
   label,
   detail,
+  detailClassName,
   status = 'done',
   success = true,
   defaultOpen = true,
@@ -26,7 +28,7 @@ export function TraceBlock({
   const failed = !running && success === false
   const hasBody = Children.toArray(children).length > 0
   // The collapsed line is a preview of the body. Once open, that preview is the same text again.
-  const aside = running ? '进行中' : open && hasBody ? undefined : detail
+  const aside = running ? (detail || '进行中') : open && hasBody ? undefined : detail
 
   return (
     <div className="animate-fade-in-up">
@@ -44,7 +46,7 @@ export function TraceBlock({
         <span className="shrink-0 font-mono text-[11px] tracking-wide text-text-dim">{kind}</span>
         {label ? <span className="shrink-0 font-mono text-[12px] text-text/90">{label}</span> : null}
         {aside ? (
-          <span className={`min-w-0 flex-1 truncate font-mono text-[12px] ${failed ? 'text-error' : 'text-text-dim/80'}`}>
+          <span className={`min-w-0 flex-1 truncate font-mono text-[12px] ${failed ? 'text-error' : detailClassName || 'text-text-dim/80'}`}>
             {aside}
           </span>
         ) : null}

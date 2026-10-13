@@ -1,4 +1,5 @@
 import { BaseTool, ToolResult } from '../core/base-tool';
+import { firstString } from '../core/tool-params';
 
 const SECURITY_HEADERS = [
   'X-Frame-Options',
@@ -11,14 +12,14 @@ const SECURITY_HEADERS = [
 
 export class HeaderAnalyzerTool extends BaseTool {
   constructor() {
-    super('header_analyze', 'HTTP头分析 — 分析目标网站的HTTP安全头配置');
+    super('header_analyze', 'HTTP头分析。必填 params.url，也接受 params.target。');
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
     try {
-      const url = params.url as string;
+      const url = firstString(params, ['url', 'target']);
       if (!url) {
-        return { success: false, result: null, error: '缺少必要参数: url' };
+        return { success: false, result: null, error: '缺少必要参数: url（也接受 target）' };
       }
 
       const response = await fetch(url, { method: 'HEAD' });

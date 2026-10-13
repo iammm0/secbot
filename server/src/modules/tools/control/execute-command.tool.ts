@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { BaseTool, ToolResult } from '../core/base-tool';
+import { BaseTool, ToolProgressCallback, ToolResult } from '../core/base-tool';
+import { terminalTail } from '../core/spawn-terminal';
+import { resolveToolTimeout } from '../core/tool-timeouts';
 import { ExecGoActionRequest, ExecGoClient, execGoEnabled } from './execgo-client.js';
 import { getExecGoRuntimeConfig } from './execgo-config.js';
 import { executeCommandShellProfile, validateCommandAgainstShell } from './shell-command-guard.js';
@@ -33,10 +35,10 @@ export class ExecuteCommandTool extends BaseTool {
     );
   }
 
-  async run(params: Record<string, unknown>): Promise<ToolResult> {
+  async run(params: Record<string, unknown>, onProgress?: ToolProgressCallback): Promise<ToolResult> {
     const rawCommand = String(params.command ?? '').trim();
     const shell = params.shell === undefined ? true : Boolean(params.shell);
-    const timeoutSec = Number(params.timeout ?? 30);
+    const timeoutSec = resolveToolTimeout('execute_command', params.timeout);
     const timeoutMs = Math.max(1, Math.floor(timeoutSec * 1000));
     const cwd = params.cwd ? String(params.cwd) : undefined;
     const stdinData = params.stdin_data ? String(params.stdin_data) : undefined;
@@ -136,7 +138,7 @@ export class ExecuteCommandTool extends BaseTool {
         }
       }
 
-      const result = await this.execute(command, shell, timeoutMs, cwd, stdinData);
+      const result = await this.execute(command, shell, timeoutMs, cwd, stdinData, onProgress);
       return {
         success: result.returnCode === 0,
         result: {
@@ -236,6 +238,7 @@ export class ExecuteCommandTool extends BaseTool {
     timeoutMs: number,
     cwd?: string,
     stdinData?: string,
+    onProgress?: ToolProgressCallback,
   ): Promise<{ returnCode: number; stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
       const spawnSpec = this.buildSpawnSpec(command, shell);
@@ -249,14 +252,38 @@ export class ExecuteCommandTool extends BaseTool {
       let stdout = '';
       let stderr = '';
       let timedOut = false;
+      const startedAt = Date.now();
+      let lastOutputAt = startedAt;
+      let lastNoticeAt = 0;
+
+      const noteOutput = () => {
+        lastOutputAt = Date.now();
+        if (!onProgress || lastOutputAt - lastNoticeAt < 400) return;
+        lastNoticeAt = lastOutputAt;
+        const raw = terminalTail(`${stdout}\n${stderr}`);
+        const last = raw.split('\n').at(-1)?.trim();
+        onProgress({
+          status: 'running',
+          tool: 'execute_command',
+          command,
+          phase: 'output',
+          elapsed_ms: lastOutputAt - startedAt,
+          last_output_age_ms: 0,
+          message: last || '终端有新输出',
+          hint: `超时上限 ${Math.round(timeoutMs / 1000)} 秒`,
+          raw,
+        });
+      };
 
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
       child.stdout.on('data', (chunk) => {
         stdout += String(chunk);
+        noteOutput();
       });
       child.stderr.on('data', (chunk) => {
         stderr += String(chunk);
+        noteOutput();
       });
 
       child.on('error', (err) => {

@@ -1,5 +1,6 @@
 import { BaseAgent, AgentMessage } from './base-agent';
-import { BaseTool, ToolProgressCallback, ToolResult } from '../../tools/core/base-tool';
+import { BaseTool, ToolProgress, ToolProgressCallback, ToolResult } from '../../tools/core/base-tool';
+import { observeToolRun } from './tool-run-watch';
 import { EventType, BusEvent } from '../../../common/event-bus';
 import { ChatMessage } from '../../../common/types';
 import { LLMProvider, createLLM } from '../../../common/llm';
@@ -258,20 +259,7 @@ export class SecurityReActAgent extends BaseAgent {
         continue;
       }
 
-      const result = await this.executeTool(action.tool, action.params, (progress) => {
-        onEvent?.({
-          type: EventType.EXEC_PROGRESS,
-          data: {
-            agent: this.name,
-            iteration,
-            tool: action.tool,
-            params: action.params,
-            ...progress,
-          },
-          timestamp: new Date(),
-          iteration,
-        });
-      });
+      const result = await this.watchTool(action.tool, action.params, { iteration }, onEvent);
       const observation = this.formatObservation(result, action.tool);
 
       this._reactHistory.push({
@@ -327,6 +315,31 @@ export class SecurityReActAgent extends BaseAgent {
     return parseToolAction(thought);
   }
 
+  private watchTool(
+    toolName: string,
+    params: Record<string, unknown>,
+    meta: Record<string, unknown>,
+    onEvent?: OnEventCallback,
+  ): Promise<ToolResult> {
+    return observeToolRun(
+      (progress: ToolProgress) => {
+        onEvent?.({
+          type: EventType.EXEC_PROGRESS,
+          data: {
+            agent: this.name,
+            tool: toolName,
+            params,
+            ...meta,
+            ...progress,
+          },
+          timestamp: new Date(),
+          iteration: Number(meta.iteration ?? 0),
+        });
+      },
+      (onProgress) => this.executeTool(toolName, params, onProgress),
+    );
+  }
+
   async executeTool(
     toolName: string,
     params: Record<string, unknown>,
@@ -365,7 +378,13 @@ export class SecurityReActAgent extends BaseAgent {
           return `[错误] 命令: ${cmd}\n${result.error ?? '未知错误'}`;
         }
       }
-      return `[错误] ${result.error ?? '未知错误'}`;
+      const errorText = `[错误] ${result.error ?? '未知错误'}`;
+      if (result.result == null) return errorText;
+      try {
+        return `${errorText}\n${truncateMiddleText(JSON.stringify(result.result), 4_000, 1_500, 1_500)}`;
+      } catch {
+        return errorText;
+      }
     }
 
     if (toolName === 'execute_command' && result.result && typeof result.result === 'object') {
@@ -513,20 +532,12 @@ export class SecurityReActAgent extends BaseAgent {
       return { todoId: todo.id, success: false, error: gated.observation, tool: action.tool };
     }
 
-    const result = await this.executeTool(action.tool, action.params, (progress) => {
-      onEvent?.({
-        type: EventType.EXEC_PROGRESS,
-        data: {
-          agent: this.name,
-          todoId: todo.id,
-          tool: action.tool,
-          params: action.params,
-          ...progress,
-        },
-        timestamp: new Date(),
-        iteration: 0,
-      });
-    });
+    const result = await this.watchTool(
+      action.tool,
+      action.params,
+      { todoId: todo.id, iteration: 0 },
+      onEvent,
+    );
 
     onEvent?.({
       type: EventType.EXEC_RESULT,

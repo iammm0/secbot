@@ -1,12 +1,16 @@
-import { spawn } from 'node:child_process';
-import { BaseTool, ToolResult } from '../core/base-tool';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { BaseTool, ToolProgressCallback, ToolResult } from '../core/base-tool';
+import { spawnTerminal } from '../core/spawn-terminal';
+import { resolveToolTimeout } from '../core/tool-timeouts';
 
 export class NiktoScanTool extends BaseTool {
   constructor() {
-    super('nikto_scan', 'Nikto Web 漏扫 — 调用 nikto 对 Web 服务器执行综合漏洞扫描');
+    super('nikto_scan', 'Nikto Web 漏扫。必填 params.target（URL 或 host:port）。默认超时 600 秒，上限 1800 秒。');
   }
 
-  async run(params: Record<string, unknown>): Promise<ToolResult> {
+  async run(params: Record<string, unknown>, onProgress?: ToolProgressCallback): Promise<ToolResult> {
     const target = String(params.target ?? '').trim();
     if (!target) {
       return { success: false, result: null, error: '缺少必要参数: target (URL or host:port)' };
@@ -14,32 +18,55 @@ export class NiktoScanTool extends BaseTool {
 
     const tuning = params.tuning ? String(params.tuning).trim() : undefined;
     const plugins = params.plugins ? String(params.plugins).trim() : undefined;
-    const timeoutSec = Math.min(Number(params.timeout) || 180, 600);
+    const timeoutSec = resolveToolTimeout('nikto_scan', params.timeout);
     const extraArgs = Array.isArray(params.extra_args) ? params.extra_args.map(String) : [];
 
-    const args = ['-h', target, '-Format', 'json', '-output', '/dev/stdout', '-nointeractive'];
+    const outputDir = await mkdtemp(path.join(tmpdir(), 'secbot-nikto-'));
+    const outputPath = path.join(outputDir, 'nikto.json');
+    const args = ['-h', target, '-Format', 'json', '-output', outputPath, '-nointeractive'];
 
     if (tuning) args.push('-Tuning', tuning);
     if (plugins) args.push('-Plugins', plugins);
     args.push(...extraArgs);
 
-    const result = await this.exec(args, timeoutSec);
-    if (result.error) {
+    const command = `nikto ${args.join(' ')}`;
+    const result = await spawnTerminal({
+      command: 'nikto',
+      args,
+      timeoutSec,
+      tool: 'nikto_scan',
+      displayCommand: command,
+      onProgress,
+      missingMessage: 'nikto 未安装，请执行: brew install nikto 或参考 https://github.com/sullo/nikto',
+    });
+    const fileText = await readFile(outputPath, 'utf8').catch(() => '');
+    await rm(outputDir, { recursive: true, force: true });
+    const merged = fileText.trim() || result.stdout;
+    const failedWrite = /unable to open|operation not permitted/i.test(result.stderr);
+    if (result.error && !merged.trim()) {
       return { success: false, result: null, error: result.error };
     }
+    if ((result.code !== 0 || failedWrite) && !merged.trim()) {
+      return {
+        success: false,
+        result: null,
+        error: result.stderr.trim().slice(0, 500) || result.error || `nikto 退出码 ${result.code}`,
+      };
+    }
 
-    const findings = this.parseOutput(result.stdout);
-
-    return {
-      success: true,
-      result: {
-        target,
-        command: `nikto ${args.join(' ')}`,
-        findings_count: findings.length,
-        findings,
-        raw_stderr: result.stderr?.slice(0, 1000) || undefined,
-      },
+    const findings = this.parseOutput(merged);
+    const payload = {
+      target,
+      command,
+      findings_count: findings.length,
+      findings,
+      raw_stderr: result.stderr?.slice(0, 1000) || undefined,
     };
+    if (result.error) {
+      return { success: false, result: { ...payload, partial: true }, error: result.error };
+    }
+
+    return { success: true, result: payload };
   }
 
   private parseOutput(output: string): Array<Record<string, unknown>> {
@@ -81,50 +108,5 @@ export class NiktoScanTool extends BaseTool {
       const lines = output.split('\n').filter((l) => l.includes('+ '));
       return lines.slice(0, 50).map((l) => ({ description: l.replace(/^\+\s*/, '').trim() }));
     }
-  }
-
-  private exec(
-    args: string[],
-    timeoutSec: number,
-  ): Promise<{ code: number; stdout: string; stderr: string; error?: string }> {
-    return new Promise((resolve) => {
-      const child = spawn('nikto', args, { shell: false, windowsHide: true });
-      let stdout = '';
-      let stderr = '';
-      let done = false;
-
-      child.stdout.setEncoding('utf8');
-      child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => {
-        stdout += c;
-      });
-      child.stderr.on('data', (c) => {
-        stderr += c;
-      });
-
-      const timer = setTimeout(() => {
-        if (done) return;
-        done = true;
-        child.kill('SIGTERM');
-        resolve({ code: -1, stdout, stderr, error: `nikto 超时 (${timeoutSec}s)` });
-      }, timeoutSec * 1000);
-
-      child.on('error', (err) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        const msg = /ENOENT/.test(err.message)
-          ? 'nikto 未安装，请执行: brew install nikto 或参考 https://github.com/sullo/nikto'
-          : err.message;
-        resolve({ code: -1, stdout, stderr, error: msg });
-      });
-
-      child.on('close', (code) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        resolve({ code: code ?? 0, stdout, stderr });
-      });
-    });
   }
 }

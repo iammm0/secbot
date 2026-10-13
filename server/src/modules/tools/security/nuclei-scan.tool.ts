@@ -1,41 +1,61 @@
-import { spawn } from 'node:child_process';
-import { BaseTool, ToolResult } from '../core/base-tool';
+import { BaseTool, ToolProgressCallback, ToolResult } from '../core/base-tool';
+import { spawnTerminal } from '../core/spawn-terminal';
+import { stringList } from '../core/tool-params';
+import { resolveToolTimeout } from '../core/tool-timeouts';
 
 export class NucleiScanTool extends BaseTool {
   constructor() {
-    super('nuclei_scan', 'Nuclei 模板扫描 — 使用 nuclei 引擎对目标执行漏洞模板检测');
+    super(
+      'nuclei_scan',
+      'Nuclei 模板扫描。必填 params.target，或 params.targets 字符串数组。默认超时 1200 秒，上限 3600 秒。',
+    );
   }
 
-  async run(params: Record<string, unknown>): Promise<ToolResult> {
-    const target = String(params.target ?? '').trim();
-    if (!target) {
-      return { success: false, result: null, error: '缺少必要参数: target' };
+  async run(params: Record<string, unknown>, onProgress?: ToolProgressCallback): Promise<ToolResult> {
+    const targets = stringList(params, ['target', 'targets', 'url']);
+    if (targets.length === 0) {
+      return { success: false, result: null, error: '缺少必要参数: target（也接受 targets 数组）' };
     }
 
     const templates = params.templates ? String(params.templates).trim() : undefined;
     const severity = params.severity ? String(params.severity).trim() : undefined;
     const tags = params.tags ? String(params.tags).trim() : undefined;
-    const timeoutSec = Math.min(Number(params.timeout) || 180, 600);
+    const timeoutSec = resolveToolTimeout('nuclei_scan', params.timeout);
     const extraArgs = Array.isArray(params.extra_args) ? params.extra_args.map(String) : [];
 
-    const args = ['-target', target, '-jsonl', '-silent', '-no-color'];
+    const args = ['-jsonl', '-no-color', '-stats', '-si', '5', ...targets.flatMap((item) => ['-target', item])];
 
     if (templates) args.push('-t', templates);
     if (severity) args.push('-severity', severity);
     if (tags) args.push('-tags', tags);
     args.push(...extraArgs);
 
-    const result = await this.exec(args, timeoutSec);
-    if (result.error) {
-      return { success: false, result: null, error: result.error };
-    }
-
+    const command = `nuclei ${args.join(' ')}`;
+    const result = await spawnTerminal({
+      command: 'nuclei',
+      args,
+      timeoutSec,
+      tool: 'nuclei_scan',
+      displayCommand: command,
+      onProgress,
+      missingMessage: 'nuclei 未安装，请参考: https://github.com/projectdiscovery/nuclei#install',
+    });
     const findings = this.parseJsonLines(result.stdout);
+    if (result.error) {
+      return {
+        success: false,
+        result: findings.length
+          ? { target: targets[0], targets, command, findings_count: findings.length, findings, partial: true }
+          : null,
+        error: result.error,
+      };
+    }
 
     return {
       success: true,
       result: {
-        target,
+        target: targets[0],
+        targets,
         command: `nuclei ${args.join(' ')}`,
         findings_count: findings.length,
         findings,
@@ -69,50 +89,5 @@ export class NucleiScanTool extends BaseTool {
       }
     }
     return findings;
-  }
-
-  private exec(
-    args: string[],
-    timeoutSec: number,
-  ): Promise<{ code: number; stdout: string; stderr: string; error?: string }> {
-    return new Promise((resolve) => {
-      const child = spawn('nuclei', args, { shell: false, windowsHide: true });
-      let stdout = '';
-      let stderr = '';
-      let done = false;
-
-      child.stdout.setEncoding('utf8');
-      child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => {
-        stdout += c;
-      });
-      child.stderr.on('data', (c) => {
-        stderr += c;
-      });
-
-      const timer = setTimeout(() => {
-        if (done) return;
-        done = true;
-        child.kill('SIGTERM');
-        resolve({ code: -1, stdout, stderr, error: `nuclei 超时 (${timeoutSec}s)` });
-      }, timeoutSec * 1000);
-
-      child.on('error', (err) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        const msg = /ENOENT/.test(err.message)
-          ? 'nuclei 未安装，请参考: https://github.com/projectdiscovery/nuclei#install'
-          : err.message;
-        resolve({ code: -1, stdout, stderr, error: msg });
-      });
-
-      child.on('close', (code) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        resolve({ code: code ?? 0, stdout, stderr });
-      });
-    });
   }
 }

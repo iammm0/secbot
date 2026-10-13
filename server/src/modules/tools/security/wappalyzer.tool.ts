@@ -1,4 +1,5 @@
 import { BaseTool, ToolResult } from '../core/base-tool';
+import { firstString } from '../core/tool-params';
 
 interface TechRule {
   name: string;
@@ -123,12 +124,12 @@ const RULES: TechRule[] = [
 
 export class WappalyzerTool extends BaseTool {
   constructor() {
-    super('wappalyzer', '深度技术指纹 — 基于 Wappalyzer 规则识别 Web 技术栈');
+    super('wappalyzer', '深度技术指纹。必填 params.url，也接受 params.target。');
   }
 
   async run(params: Record<string, unknown>): Promise<ToolResult> {
-    const url = String(params.url ?? '').trim();
-    if (!url) return { success: false, result: null, error: '缺少必要参数: url' };
+    const url = firstString(params, ['url', 'target']);
+    if (!url) return { success: false, result: null, error: '缺少必要参数: url（也接受 target）' };
 
     const timeoutMs = Math.min(Number(params.timeout) || 15, 30) * 1000;
 
