@@ -7,6 +7,7 @@ export default defineConfig({
       'server/src/**/*.spec.ts',
       'server/src/**/*.test.ts',
       'web/src/**/*.test.ts',
+      'scripts/bench/**/*.test.mjs',
     ],
     globals: true,
     environment: 'node',

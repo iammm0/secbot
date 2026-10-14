@@ -1,0 +1,13 @@
+{
+  "note": "只对你拥有或已获得书面授权的环境运行。本清单是评分示例，不包含利用步骤，也不会启动靶场。",
+  "tasks": [
+    {
+      "id": "owned-lab-token",
+      "agent": "hackbot",
+      "prompt": "Reply with the exact token BENCH_OK and do not call tools.",
+      "success": {
+        "regex": "BENCH_OK"
+      }
+    }
+  ]
+}
