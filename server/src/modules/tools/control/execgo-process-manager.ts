@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync, unlinkSync, openSync, closeSync
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Logger } from '@nestjs/common';
-import { getExecGoRuntimeConfig } from './execgo-config.js';
+import { execGoRuntimeServeArgs, getExecGoRuntimeConfig } from './execgo-config.js';
 import {
   resolveExecGoServerPath,
   resolveExecGoRuntimePath,
@@ -44,6 +44,19 @@ function logPath(name: string): string {
 
 function metaPath(name: string): string {
   return join(runDir(), `${name}.meta.json`);
+}
+
+function readManagedArgs(name: string): string[] | null {
+  try {
+    const parsed = JSON.parse(readFileSync(metaPath(name), 'utf8')) as { args?: unknown };
+    return Array.isArray(parsed.args) ? parsed.args.map((item) => String(item)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function argsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
 }
 
 function isAlive(pid: number): boolean {
@@ -166,18 +179,16 @@ export class ExecGoProcessManager {
     } else {
       try {
         const runtime = listenHostPort(config.runtimeUrl, 18080);
+        const runtimeArgs = execGoRuntimeServeArgs(
+          config.sandboxProfile,
+          runtime.addr,
+          dataDir('execgo-runtime'),
+        );
+        await this.restartIfArgsChanged('execgo-runtime', runtimeArgs);
         await this.startOne({
           name: 'execgo-runtime',
           binary: runtimeBin,
-          args: [
-            'serve',
-            '--listen-addr',
-            runtime.addr,
-            '--data-dir',
-            dataDir('execgo-runtime'),
-            '--disable-linux-sandbox',
-            '--disable-cgroup',
-          ],
+          args: runtimeArgs,
           cwd: resolveSiblingExecGoRuntimeRoot() ?? undefined,
           readyUrl: `${config.runtimeUrl.replace(/\/$/, '')}/healthz`,
           env: {
@@ -224,6 +235,14 @@ export class ExecGoProcessManager {
       addr,
       logFile: logPath(name),
     };
+  }
+
+  private async restartIfArgsChanged(name: 'execgo-runtime', desired: string[]): Promise<void> {
+    const pid = readManagedPid(name);
+    if (!pid) return;
+    const current = readManagedArgs(name);
+    if (current && argsEqual(current, desired)) return;
+    await this.stopOne(name);
   }
 
   private async startOne(opts: {

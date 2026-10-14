@@ -28,8 +28,10 @@ export function formatExecuteCommandObservation(result: Record<string, unknown>)
       : [stdout, stderr].filter((s) => s.length > 0).join('\n--- stderr ---\n');
   const merged = primary.trim() || '(无输出)';
   const body = truncateMiddleText(merged, 12_000, 3_500, 3_500);
+  const executor = typeof result.executor === 'string' ? result.executor : 'unknown';
   return (
     `**执行的命令**\n\n\`${command}\`\n\n` +
+    `**执行器** ${executor}\n\n` +
     `**退出码** ${code ?? 'n/a'}\n\n` +
     `**输出**\n\n\`\`\`text\n${body}\n\`\`\``
   );

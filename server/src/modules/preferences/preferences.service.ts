@@ -11,8 +11,11 @@ import { McpServerConfig } from './preferences.types';
 import {
   applyExecGoEnv,
   defaultExecGoRuntimeConfig,
+  describeExecGoSandbox,
+  normalizeSandboxProfile,
   setExecGoRuntimeConfig,
   type ExecGoRuntimeConfig,
+  type ExecGoSandboxStatus,
 } from '../tools/control/execgo-config';
 import {
   createJevClient,
@@ -85,10 +88,13 @@ export class PreferencesService implements OnModuleInit {
     process_errors: string[];
   }> {
     const current = this.getExecGoConfig();
+    const sandboxProfile = normalizeSandboxProfile(input.sandboxProfile ?? current.sandboxProfile);
     const next = setExecGoRuntimeConfig({
       enabled: input.enabled ?? current.enabled,
       auditActions: input.auditActions ?? current.auditActions,
-      fallbackLocal: input.fallbackLocal ?? current.fallbackLocal,
+      fallbackLocal:
+        sandboxProfile === 'isolated' ? false : (input.fallbackLocal ?? current.fallbackLocal),
+      sandboxProfile,
       url: input.url ?? current.url,
       runtimeUrl: input.runtimeUrl ?? current.runtimeUrl,
       cliPath: resolveExecGoCliPath(input.cliPath ?? current.cliPath),
@@ -113,6 +119,8 @@ export class PreferencesService implements OnModuleInit {
     runtime_binary: string | null;
     healthy: boolean;
     health?: Record<string, unknown>;
+    capabilities?: Record<string, unknown> | null;
+    sandbox: ExecGoSandboxStatus;
     processes: ManagedProcessStatus[];
     error?: string;
   }> {
@@ -121,6 +129,8 @@ export class PreferencesService implements OnModuleInit {
     const siblingRoot = resolveSiblingExecGoRoot();
     const runtimeSiblingRoot = resolveSiblingExecGoRuntimeRoot();
     const processes = execGoProcessManager.status();
+    const capabilities = await readRuntimeCapabilities(config.runtimeUrl);
+    const sandbox = describeExecGoSandbox(config, capabilities);
     try {
       const health = await new ExecGoClient(cliPath).health(8_000);
       return {
@@ -132,6 +142,8 @@ export class PreferencesService implements OnModuleInit {
         runtime_binary: resolveExecGoRuntimePath(),
         healthy: true,
         health,
+        capabilities,
+        sandbox,
         processes,
       };
     } catch (error) {
@@ -143,6 +155,8 @@ export class PreferencesService implements OnModuleInit {
         server_binary: resolveExecGoServerPath(),
         runtime_binary: resolveExecGoRuntimePath(),
         healthy: false,
+        capabilities,
+        sandbox,
         processes,
         error: error instanceof Error ? error.message : String(error),
       };
@@ -358,5 +372,24 @@ export class PreferencesService implements OnModuleInit {
       args,
       cwd,
     };
+  }
+}
+
+async function readRuntimeCapabilities(
+  runtimeUrl: string,
+): Promise<Record<string, unknown> | null> {
+  const base = runtimeUrl.trim().replace(/\/$/, '');
+  if (!base) return null;
+  try {
+    const response = await fetch(`${base}/api/v1/runtime/capabilities`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as unknown;
+    return body && typeof body === 'object' && !Array.isArray(body)
+      ? (body as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
   }
 }

@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class SetInstructionsDto {
   @IsString()
@@ -46,6 +46,10 @@ export class SetExecGoConfigDto {
   @IsOptional()
   @IsString()
   cliPath?: string;
+
+  @IsOptional()
+  @IsIn(['process', 'isolated'])
+  sandboxProfile?: 'process' | 'isolated';
 }
 
 export class SetJevConfigDto {

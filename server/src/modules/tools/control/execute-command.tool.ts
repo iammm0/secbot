@@ -4,7 +4,11 @@ import { BaseTool, ToolProgressCallback, ToolResult } from '../core/base-tool';
 import { terminalTail } from '../core/spawn-terminal';
 import { resolveToolTimeout } from '../core/tool-timeouts';
 import { ExecGoActionRequest, ExecGoClient, execGoEnabled } from './execgo-client.js';
-import { getExecGoRuntimeConfig } from './execgo-config.js';
+import {
+  getExecGoRuntimeConfig,
+  isolatedRuntimeCommandFields,
+  localFallbackAllowed,
+} from './execgo-config.js';
 import { executeCommandShellProfile, validateCommandAgainstShell } from './shell-command-guard.js';
 import { getExecutionTarget, getSshCommandRunner } from '../../workspaces/execution-context';
 
@@ -35,7 +39,10 @@ export class ExecuteCommandTool extends BaseTool {
     );
   }
 
-  async run(params: Record<string, unknown>, onProgress?: ToolProgressCallback): Promise<ToolResult> {
+  async run(
+    params: Record<string, unknown>,
+    onProgress?: ToolProgressCallback,
+  ): Promise<ToolResult> {
     const rawCommand = String(params.command ?? '').trim();
     const shell = params.shell === undefined ? true : Boolean(params.shell);
     const timeoutSec = resolveToolTimeout('execute_command', params.timeout);
@@ -90,8 +97,7 @@ export class ExecuteCommandTool extends BaseTool {
     try {
       if (this.shouldUseExecGo(params)) {
         if (cwd || stdinData) {
-          const config = getExecGoRuntimeConfig();
-          if (!config.fallbackLocal) {
+          if (!localFallbackAllowed()) {
             return {
               success: false,
               result: {
@@ -131,8 +137,7 @@ export class ExecuteCommandTool extends BaseTool {
                     `ExecGo command failed with status ${result.status}`,
             };
           } catch (error) {
-            const config = getExecGoRuntimeConfig();
-            if (!config.fallbackLocal) throw error;
+            if (!localFallbackAllowed()) throw error;
             // fall through to local execute
           }
         }
@@ -199,6 +204,7 @@ export class ExecuteCommandTool extends BaseTool {
       limits: {
         wall_time_ms: timeoutMs,
       },
+      ...isolatedRuntimeCommandFields(),
     };
 
     const request: ExecGoActionRequest = {
