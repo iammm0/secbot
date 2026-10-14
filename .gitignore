@@ -43,6 +43,7 @@ agents.db
 data/*
 !data/.gitkeep
 desktop/data/
+desktop/src-tauri/data/
 
 # 缓存与生成物
 .cache/

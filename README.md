@@ -32,8 +32,9 @@ Desktop app on the maintained `release` branch (Chinese UI):
 
 - End-to-end TypeScript architecture (`NestJS + Ink TUI + Web / Desktop + SQLite`).
 - Tauri desktop app with versioned installers (`desktop-app-v*`) and in-app update checks.
-- Self-contained TUI archives on the same GitHub Release (`secbot-tui-*`): macOS Apple Silicon, Windows x64, Ubuntu x64 (no macOS Intel).
-- Optional **ExecGo** execution runtime: enable in Settings to start/stop local control-plane + runtime processes.
+- Optional **ExecGo** execution sandbox: configurable `process` or `isolated` (Linux Namespace isolation with fallback prevention); status visible on desktop and TUI status bars.
+- **MCP external tool integration**: dynamically connect external Python (`fastmcp`), C/Go/Rust tools via standard Stdio MCP servers with automatic HITL approval and audit trails.
+- **Automated benchmark harness**: evaluate agent performance (`npm run bench`) for Pass@1, tokens, tool rounds, elapsed time, and sandbox compliance.
 - **Action audit trail**: every conversation stage / LLM / tool call is persisted and browsable in Settings → Audit.
 - **Host probe + attack-chain preview**: workspace nodes show IP / username / open ports and a simulated entry-surface path (preview only).
 - Hackbot / SuperHackbot HITL: sensitive-tool approval and mid-task `ask_user` prompts over SSE.
@@ -235,6 +236,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 | `npm run lint` | Run ESLint |
 | `npm run format:check` | Check Prettier formatting |
 | `npm test` | Run tests |
+| `npm run bench` | Run automated benchmark harness |
 | `npm run release:pack` | Build and create npm package tarball |
 | `npm run release:verify` | Verify packaged npm release contents |
 

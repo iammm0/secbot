@@ -98,7 +98,9 @@ export function spawnTerminal(options: {
           code: -1,
           stdout,
           stderr,
-          error: tail ? `${command} 超时 (${timeoutSec}s)\n${tail}` : `${command} 超时 (${timeoutSec}s)`,
+          error: tail
+            ? `${command} 超时 (${timeoutSec}s)\n${tail}`
+            : `${command} 超时 (${timeoutSec}s)`,
         });
       }, 3000);
     }, timeoutSec * 1000);
@@ -117,7 +119,9 @@ export function spawnTerminal(options: {
           code: code ?? -1,
           stdout,
           stderr,
-          error: tail ? `${command} 超时 (${timeoutSec}s)\n${tail}` : `${command} 超时 (${timeoutSec}s)`,
+          error: tail
+            ? `${command} 超时 (${timeoutSec}s)\n${tail}`
+            : `${command} 超时 (${timeoutSec}s)`,
         });
         return;
       }

@@ -42,6 +42,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "bench": "node scripts/bench/run.mjs",
     "prepack": "npm run build && npm run build:terminal-ui && npm run install:web && npm run build:web",
     "build:terminal-ui": "tsc -p terminal-ui/tsconfig.json",
     "build:web": "npm --prefix web run build",

@@ -29,6 +29,9 @@ describe('finalizePublicTodos', () => {
   });
 
   it('does not rewrite a partial run', () => {
-    expect(finalizePublicTodos(todos, false).map((todo) => todo.status)).toEqual(['completed', 'failed']);
+    expect(finalizePublicTodos(todos, false).map((todo) => todo.status)).toEqual([
+      'completed',
+      'failed',
+    ]);
   });
 });

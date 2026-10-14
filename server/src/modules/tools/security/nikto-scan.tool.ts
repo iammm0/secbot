@@ -7,10 +7,16 @@ import { resolveToolTimeout } from '../core/tool-timeouts';
 
 export class NiktoScanTool extends BaseTool {
   constructor() {
-    super('nikto_scan', 'Nikto Web 漏扫。必填 params.target（URL 或 host:port）。默认超时 600 秒，上限 1800 秒。');
+    super(
+      'nikto_scan',
+      'Nikto Web 漏扫。必填 params.target（URL 或 host:port）。默认超时 600 秒，上限 1800 秒。',
+    );
   }
 
-  async run(params: Record<string, unknown>, onProgress?: ToolProgressCallback): Promise<ToolResult> {
+  async run(
+    params: Record<string, unknown>,
+    onProgress?: ToolProgressCallback,
+  ): Promise<ToolResult> {
     const target = String(params.target ?? '').trim();
     if (!target) {
       return { success: false, result: null, error: '缺少必要参数: target (URL or host:port)' };
@@ -37,7 +43,8 @@ export class NiktoScanTool extends BaseTool {
       tool: 'nikto_scan',
       displayCommand: command,
       onProgress,
-      missingMessage: 'nikto 未安装，请执行: brew install nikto 或参考 https://github.com/sullo/nikto',
+      missingMessage:
+        'nikto 未安装，请执行: brew install nikto 或参考 https://github.com/sullo/nikto',
     });
     const fileText = await readFile(outputPath, 'utf8').catch(() => '');
     await rm(outputDir, { recursive: true, force: true });

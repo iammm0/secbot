@@ -17,7 +17,10 @@ const SCAN_FLAGS: Record<ScanType, string[]> = {
 
 export class NmapScanTool extends BaseTool {
   constructor() {
-    super('nmap_scan', 'Nmap 扫描。必填 params.target。service_version=true 时追加 -sV。默认超时 300 秒，上限 1800 秒。');
+    super(
+      'nmap_scan',
+      'Nmap 扫描。必填 params.target。service_version=true 时追加 -sV。默认超时 300 秒，上限 1800 秒。',
+    );
   }
 
   async run(

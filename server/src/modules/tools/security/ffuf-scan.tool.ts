@@ -4,10 +4,16 @@ import { resolveToolTimeout } from '../core/tool-timeouts';
 
 export class FfufScanTool extends BaseTool {
   constructor() {
-    super('ffuf_scan', 'Ffuf 目录/参数爆破。必填 params.url（含 FUZZ）。默认超时 300 秒，上限 1200 秒。');
+    super(
+      'ffuf_scan',
+      'Ffuf 目录/参数爆破。必填 params.url（含 FUZZ）。默认超时 300 秒，上限 1200 秒。',
+    );
   }
 
-  async run(params: Record<string, unknown>, onProgress?: ToolProgressCallback): Promise<ToolResult> {
+  async run(
+    params: Record<string, unknown>,
+    onProgress?: ToolProgressCallback,
+  ): Promise<ToolResult> {
     const url = String(params.url ?? '').trim();
     if (!url) return { success: false, result: null, error: '缺少必要参数: url (含 FUZZ 占位符)' };
 
@@ -53,7 +59,9 @@ export class FfufScanTool extends BaseTool {
     if (result.error) {
       return {
         success: false,
-        result: findings.length ? { url, command, findings_count: findings.length, findings, partial: true } : null,
+        result: findings.length
+          ? { url, command, findings_count: findings.length, findings, partial: true }
+          : null,
         error: result.error,
       };
     }

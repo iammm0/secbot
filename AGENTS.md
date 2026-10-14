@@ -61,6 +61,7 @@ Besides `thought_*`, `action_*`, `planning`, `report`, `response`, `done`, `erro
 | `SECBOT_EXPLORE_MAX_ITERS` | Max ReAct iterations for `ExploreAgent` (default 6) |
 | `SECBOT_CONTEXT_DEBUG` | `1` / `true` → emit `context_debug` SSE |
 | `SECBOT_ADAPTIVE_REPLAN` | `1` / `true` → enable adaptive replan after cancelled todos |
+| `SECBOT_EXECGO_ENABLED`, `SECBOT_EXECGO_SANDBOX` | ExecGo runtime switch (`1`/`true`) and sandbox profile (`process` vs `isolated` with Linux namespace and fallback prevention) |
 | `SECBOT_JEV_ENABLED`, `SECBOT_JEV_INTENT` / `QA_LIVE` / `ADAPTIVE` / `REACT_STOP` / `CONTEXT`, `TYPESAFE_API_KEY` | Optional Jev System One gates (`server/src/common/jev/`). All off by default; high-confidence accept, fail-open. Thresholds are starting points, not calibrated on Secbot data. |
 | `SECBOT_TUI_BACKEND`, `SECBOT_API_URL` | TUI connects to spawned vs remote backend |
 
@@ -76,6 +77,7 @@ npm run typecheck        # Server TS
 npm run build:terminal-ui
 npm run build:web
 npm test                 # Vitest (includes parse-tool-action tests)
+npm run bench            # Automated benchmark evaluation harness
 npm run lint
 ```
 

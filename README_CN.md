@@ -56,7 +56,9 @@
 - **桌面端（Tauri）**: 带版本号的安装包（`desktop-app-v*`），设置 → 关于可查看版本并检查更新；界面源码在 `web/`
 - **终端 TUI（Ink）**: `secbot` / `npm run start:stack`；与桌面端同一 Release 发布自包含包（`secbot-tui-*`），产品能力应对齐
 - **发布平台**: macOS Apple Silicon、Windows x64、Ubuntu x64（不再支持 macOS Intel）
-- **ExecGo 运行时**: 设置里启用后自动拉起/关闭本机 `execgo` / `execgo-runtime` 后台进程，可作为默认命令执行后端
+- **ExecGo 沙箱隔离与运行时**: 支持 `process`（进程隔离）与 `isolated`（严格 Linux Namespace 隔离且禁用降级回退）；桌面端与 TUI 底栏实时展示当前沙箱状态
+- **MCP 外部工具扩展**: 遵循标准 Model Context Protocol (MCP)，在设置中挂载 Stdio MCP 服务即可无缝扩展 Python (`fastmcp`)、C/Go/Rust 工具，外部工具默认受 HITL 人机审核保护
+- **自动化基准测试 (Benchmark)**: 内置 `npm run bench` 评估脚手架，测量 Pass@1、Token 消耗、工具轮次与沙箱合规度
 - **操作审计**: 每个对话的阶段 / 模型调用 / 工具执行落库，设置 → 审计可按会话追溯
 - **节点探测与攻击链预览**: 主机节点展示 IP、用户名、开放端口，并给出模拟入口面路径（仅预览，不执行攻击）
 - **人机协同（HITL）**: Hackbot 敏感工具需确认；任务中途 `ask_user` 可暂停等待输入
@@ -311,6 +313,8 @@ cd desktop && npm run dev
 | `OLLAMA_MODEL` | Ollama 默认模型 | `llama3.2` |
 | `PORT` | 后端监听端口 | `8000` |
 | `SECBOT_TUI_BACKEND` | TUI 后端模式：`spawn`/`service`/`remote`/`auto` | 默认优先 `spawn`，连接已有后端时请显式使用 `service`/`remote` |
+| `SECBOT_EXECGO_ENABLED` | 是否启用 ExecGo 运行时（`1`/`true`） | 关 |
+| `SECBOT_EXECGO_SANDBOX` | ExecGo 沙箱 Profile：`process`（进程隔离）或 `isolated`（严格 Namespace 隔离） | `process` |
 | `SECBOT_JEV_ENABLED` | Jev 判断层主开关（默认关） | 关 |
 | `TYPESAFE_API_KEY` | TypeSafe Jev API Key | 无 |
 
@@ -319,11 +323,62 @@ cd desktop && npm run dev
 | 命令 | 说明 |
 |------|------|
 | `/model` | 选择推理后端、模型、API Key、Base URL |
+| `/execgo` | 查看 ExecGo 沙箱模式、生效隔离级别与运行时 Capabilities |
+| `/mcp` | 查看已挂载的外部 MCP 服务器及工具列表 |
 | `/jev` | 配置 Jev 判断层（主开关、五个环节、API Key） |
 | `/agent` | 切换 `secbot-cli` / `superhackbot` |
 | `/list-agents` | 查看当前可用智能体 |
 | `/system-info` | 查看系统信息 |
 | `/db-stats` | 查看 SQLite 统计 |
+
+---
+
+## 扩展与安全机制
+
+### 1. MCP 外部工具扩展（Python / C / Go / Rust）
+
+Secbot 支持通过标准 **Model Context Protocol (MCP)** 接入外部自定义工具，无需侵入核心代码或自造私有协议：
+
+- **无缝集成 Python 安全库**：使用 Python 官方 `fastmcp` 库，几行代码即可将 `impacket`、`scapy`、`pwntools` 封装为标准 MCP 工具；
+- **配置与挂载**：在桌面端「设置 → MCP」或通过设置接口添加 Stdio MCP 服务器（指定 `command`、`args`、`cwd`）；
+- **动态发现与安全守护**：
+  - Secbot 启动时自动发现远程工具并挂载至 Agent 工具池；
+  - 外部 MCP 工具默认标记为 **`sensitive: true`**，每次调用均触发 **HITL 人机确认**与**操作审计落库**；
+  - 设有 `MCP_TOOL_CAP` 上限，防止第三方工具列表过长撑爆 LLM 上下文预算。
+
+### 2. ExecGo 沙箱隔离机制
+
+针对高危渗透命令与 Payload 执行，Secbot 深度集成了 ExecGo 独立运行时：
+
+- **隔离分级（Sandbox Profiles）**：
+  - `process`：基础进程级隔离与守护；
+  - `isolated`：**严格 Linux Namespace 隔离**（Mount / PID / UTS / IPC 隔离与 cgroup 资源限制）。在该模式下**强制禁用本地降级回退（Fallback Local）**，若沙箱环境未就绪则直接拦截报错，坚决杜绝恶意逃逸。
+- **全链路状态自省与透明透出**：
+  - Secbot 会向运行时核验 `capabilities`（区分用户请求的 `requested` 与系统实际生效的 `reported` 状态）；
+  - **桌面端**底栏与**终端 TUI**底栏常驻显示当前沙箱状态（`ExecGo isolated` / `ExecGo process` / `ExecGo off`）；
+  - TUI 支持输入 `/execgo` 即时查看底层能力快照。
+
+### 3. 自动化基准测试（Benchmark Harness）
+
+Secbot 内置了标准化的打靶与评估脚手架（位于 `scripts/bench/`），用于自动化回归测试与性能背书验证：
+
+```bash
+# 运行基准测试（默认评估 tasks.example.json）
+npm run bench
+
+# 指定自定义靶场题目清单与结果输出文件
+node scripts/bench/run.mjs --tasks my_tasks.json --out bench_report.json --timeout-ms 180000
+```
+
+- **核心评估指标（Metrics）**：
+  - **`Pass@1`**：一次性拿 Flag / 达成目标的成功率；
+  - **`Tokens`**：基于 `context_usage` 统计模型消耗成本，量化规划效率；
+  - **`Tool Rounds`**：工具调用轮次，衡量 ReAct 决策收敛速度；
+  - **`Elapsed Time`**：端到端平均执行耗时；
+  - **`HITL Counts`**：人机介入审核次数；
+  - **`Fallback Local`**：记录是否发生未隔离的本地降级，量化安全合规度。
+
+---
 
 ## 目录结构
 
@@ -370,8 +425,9 @@ npm run lint:fix
 # 代码格式化
 npm run format
 
-# 运行测试
+# 运行测试与基准评测
 npm test
+npm run bench
 
 # 构建
 npm run build

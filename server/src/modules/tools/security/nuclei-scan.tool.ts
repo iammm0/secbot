@@ -11,7 +11,10 @@ export class NucleiScanTool extends BaseTool {
     );
   }
 
-  async run(params: Record<string, unknown>, onProgress?: ToolProgressCallback): Promise<ToolResult> {
+  async run(
+    params: Record<string, unknown>,
+    onProgress?: ToolProgressCallback,
+  ): Promise<ToolResult> {
     const targets = stringList(params, ['target', 'targets', 'url']);
     if (targets.length === 0) {
       return { success: false, result: null, error: '缺少必要参数: target（也接受 targets 数组）' };
@@ -23,7 +26,14 @@ export class NucleiScanTool extends BaseTool {
     const timeoutSec = resolveToolTimeout('nuclei_scan', params.timeout);
     const extraArgs = Array.isArray(params.extra_args) ? params.extra_args.map(String) : [];
 
-    const args = ['-jsonl', '-no-color', '-stats', '-si', '5', ...targets.flatMap((item) => ['-target', item])];
+    const args = [
+      '-jsonl',
+      '-no-color',
+      '-stats',
+      '-si',
+      '5',
+      ...targets.flatMap((item) => ['-target', item]),
+    ];
 
     if (templates) args.push('-t', templates);
     if (severity) args.push('-severity', severity);
@@ -45,7 +55,14 @@ export class NucleiScanTool extends BaseTool {
       return {
         success: false,
         result: findings.length
-          ? { target: targets[0], targets, command, findings_count: findings.length, findings, partial: true }
+          ? {
+              target: targets[0],
+              targets,
+              command,
+              findings_count: findings.length,
+              findings,
+              partial: true,
+            }
           : null,
         error: result.error,
       };

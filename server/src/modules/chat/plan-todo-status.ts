@@ -23,7 +23,8 @@ export function classifyTodoFailure(error: string): 'timed_out' | 'cancelled' | 
 }
 
 function statusFromEnum(status: TodoStatus | string): PublicTodoStatus {
-  if (status === TodoStatus.COMPLETED || status === 'completed' || status === 'done') return 'completed';
+  if (status === TodoStatus.COMPLETED || status === 'completed' || status === 'done')
+    return 'completed';
   if (status === TodoStatus.IN_PROGRESS || status === 'in_progress') return 'in_progress';
   if (status === TodoStatus.CANCELLED || status === 'cancelled') return 'cancelled';
   if (status === 'failed' || status === 'timed_out' || status === 'paused') return status;

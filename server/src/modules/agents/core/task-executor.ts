@@ -46,7 +46,12 @@ export class TaskExecutor {
     contextBlock?: string,
     abortSignal?: AbortSignal,
     sessionId?: string,
-  ): Promise<{ summary: string; cancelledCount: number; todos: TodoItem[]; publicTodos: PublicTodo[] }> {
+  ): Promise<{
+    summary: string;
+    cancelledCount: number;
+    todos: TodoItem[];
+    publicTodos: PublicTodo[];
+  }> {
     const layers = this.planner.getExecutionOrder(this.plan.todos);
     const results: string[] = [];
     let currentTodos = [...this.plan.todos];

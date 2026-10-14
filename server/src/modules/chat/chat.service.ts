@@ -989,13 +989,15 @@ export class ChatService {
           paused,
           timeline: [
             ...(params.planTodos?.length
-              ? [{
-                  id: 'plan',
-                  type: 'planning',
-                  title: '规划',
-                  planScope: 'master' as const,
-                  todos: params.planTodos,
-                }]
+              ? [
+                  {
+                    id: 'plan',
+                    type: 'planning',
+                    title: '规划',
+                    planScope: 'master' as const,
+                    todos: params.planTodos,
+                  },
+                ]
               : []),
             ...this.slimTimeline(params.agent),
           ],
@@ -1021,9 +1023,11 @@ function conversationMatchesEdit(
 ): boolean {
   if (role === 'user') return row.userMessage.trim() === from;
   if (row.assistantMessage.trim() === from || row.assistantMessage.includes(from)) return true;
-  return parseConversationMeta(row.metadata).timeline?.some(
-    (item) => (blockId && item.id === blockId) || item.body === from,
-  ) ?? false;
+  return (
+    parseConversationMeta(row.metadata).timeline?.some(
+      (item) => (blockId && item.id === blockId) || item.body === from,
+    ) ?? false
+  );
 }
 
 function applyConversationEdit(
@@ -1049,7 +1053,9 @@ function applyConversationEdit(
   if (assistantMessage.trim() === from) assistantMessage = to;
   else if (assistantMessage.includes(from)) assistantMessage = assistantMessage.replace(from, to);
   const timeline = (meta.timeline ?? []).map((item) => ({ ...item }));
-  const index = timeline.findIndex((item) => (blockId && item.id === blockId) || item.body === from);
+  const index = timeline.findIndex(
+    (item) => (blockId && item.id === blockId) || item.body === from,
+  );
   if (index >= 0) timeline[index] = { ...timeline[index], body: to };
   return {
     userMessage: row.userMessage,

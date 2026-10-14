@@ -26,9 +26,10 @@ describe('observeToolRun', () => {
     let finish = () => undefined as void;
     const pending = observeToolRun(
       (progress) => seen.push({ ...progress }),
-      () => new Promise<void>((resolve) => {
-        finish = resolve;
-      }),
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
     );
 
     await vi.advanceTimersByTimeAsync(0);

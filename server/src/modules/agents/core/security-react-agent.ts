@@ -1,5 +1,10 @@
 import { BaseAgent, AgentMessage } from './base-agent';
-import { BaseTool, ToolProgress, ToolProgressCallback, ToolResult } from '../../tools/core/base-tool';
+import {
+  BaseTool,
+  ToolProgress,
+  ToolProgressCallback,
+  ToolResult,
+} from '../../tools/core/base-tool';
 import { observeToolRun } from './tool-run-watch';
 import { EventType, BusEvent } from '../../../common/event-bus';
 import { ChatMessage } from '../../../common/types';

@@ -53,9 +53,10 @@ Desktop demos on the maintained `release` branch (Chinese UI):
 - **Desktop (Tauri)**: Versioned installers (`desktop-app-v*`); Settings → About shows version and checks for updates; UI source is `web/`
 - **Terminal TUI**: Self-contained archives (`secbot-tui-*`) on the same GitHub Release as Desktop
 - **Release platforms**: macOS Apple Silicon, Windows x64, Ubuntu x64 (macOS Intel is not supported)
-- **Terminal TUI (Ink)**: `secbot` / `npm run start:stack`; shares backend + SSE with Desktop — keep capabilities aligned
 - **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent Coordination, Tool-Using, Memory-Augmented
-- **ExecGo runtime**: Optional default execution backend; Settings enable/disable starts/stops local `execgo` / `execgo-runtime` processes
+- **ExecGo Execution Sandbox**: Configurable `process` (process-level) or `isolated` (strict Linux Namespace isolation with fallback prevention); status is visible in the bottom status bars
+- **MCP External Tool Extension**: Connect standard Stdio Model Context Protocol servers to dynamically load Python (`fastmcp`), C/Go/Rust tools; external tools are protected by HITL approvals by default
+- **Automated Benchmark Harness**: Built-in `npm run bench` evaluation scaffold measuring Pass@1, tokens, tool rounds, elapsed time, and sandbox compliance
 - **Action audit trail**: Stage / LLM / tool calls persisted per conversation; Settings → Audit for traceability
 - **Host probe + attack-chain preview**: Workspace nodes show IP, username, open ports, and a simulated entry-surface path (preview only)
 - **HITL**: Hackbot requires approval for sensitive tools; mid-task `ask_user` pauses over SSE
@@ -239,6 +240,8 @@ cd desktop && npm run dev   # Desktop hot-dev
 | `OLLAMA_MODEL` | Ollama model | `llama3.2` |
 | `PORT` | Backend listen port | `8000` |
 | `SECBOT_TUI_BACKEND` | TUI backend mode: `spawn` / `service` / `remote` / `auto` | prefer `spawn`; use `service`/`remote` explicitly for existing backends |
+| `SECBOT_EXECGO_ENABLED` | Enable ExecGo execution runtime (`1` / `true`) | off |
+| `SECBOT_EXECGO_SANDBOX` | ExecGo sandbox profile: `process` (process isolation) or `isolated` (strict Namespace isolation) | `process` |
 | `SECBOT_JEV_ENABLED` | Jev decision-layer master switch (off by default) | off |
 | `TYPESAFE_API_KEY` | TypeSafe Jev API key | none |
 
@@ -247,11 +250,60 @@ cd desktop && npm run dev   # Desktop hot-dev
 | Command | Description |
 |---------|-------------|
 | `/model` | Select inference backend, model, API key |
+| `/execgo` | Check ExecGo sandbox mode, effective isolation level, and runtime capabilities |
+| `/mcp` | List attached external MCP servers and loaded tools |
 | `/jev` | Configure the optional Jev decision layer |
 | `/agent` | Switch between `secbot-cli` / `superhackbot` |
 | `/list-agents` | List available agents |
 | `/system-info` | View system information |
 | `/db-stats` | View database statistics |
+
+---
+
+## Extension and Security Mechanisms
+
+### 1. MCP External Tool Extension (Python / C / Go / Rust)
+
+Secbot supports dynamic tool integration via the standard **Model Context Protocol (MCP)** without modifying core TypeScript sources or creating proprietary protocols:
+
+- **Seamless Python Security Library Integration**: Use the official `fastmcp` Python library to wrap `impacket`, `scapy`, or `pwntools` into standard MCP tools in just a few lines of code;
+- **Configuration & Mounting**: Add Stdio MCP servers (specifying `command`, `args`, and `cwd`) via Desktop Settings → MCP or API;
+- **Dynamic Discovery & Safety Guardrails**:
+  - Remote tools are discovered and mounted into the agent tool pool upon startup;
+  - All external MCP tools are marked **`sensitive: true`** by default, requiring **HITL human approval** and full action audit logging before execution;
+  - Enforces `MCP_TOOL_CAP` to prevent overly long tool catalogues from overflowing prompt token budgets.
+
+### 2. ExecGo Execution Sandbox & Isolation
+
+For sensitive penetration testing commands and payload execution, Secbot integrates with the standalone ExecGo runtime:
+
+- **Sandbox Profiles**:
+  - `process`: Process-level management and execution;
+  - `isolated`: **Strict Linux Namespace isolation** (Mount, PID, UTS, IPC namespaces and cgroup v2 resource limits). In this mode, **fallback to local un-isolated execution is strictly prohibited** (`fallbackLocal = false`), preventing silent sandbox escapes.
+- **Full Capability Introspection & UI Transparency**:
+  - Introspects runtime capabilities to distinguish `requested` profile from actual `reported` isolation;
+  - Live status indicator (`ExecGo isolated` / `ExecGo process` / `ExecGo off`) rendered in both Desktop and TUI bottom status bars;
+  - Run `/execgo` in the TUI to view detailed capability snapshots.
+
+### 3. Automated Benchmark Harness
+
+Secbot includes an automated test harness in `scripts/bench/` for reproducible evaluation and performance verification:
+
+```bash
+# Run benchmark evaluation (defaults to tasks.example.json)
+npm run bench
+
+# Run with a custom target manifest and output path
+node scripts/bench/run.mjs --tasks my_tasks.json --out bench_report.json --timeout-ms 180000
+```
+
+- **Core Metrics Captured**:
+  - **`Pass@1`**: Single-attempt target attainment rate;
+  - **`Tokens`**: Total tokens consumed (from `context_usage`), measuring planning efficiency;
+  - **`Tool Rounds`**: ReAct iterations required to reach conclusions;
+  - **`Elapsed Time`**: Wall-clock execution time;
+  - **`HITL Counts`**: Number of human intervention prompts triggered;
+  - **`Fallback Local`**: Tracks un-isolated fallback events to verify safety compliance.
 
 ---
 
@@ -302,8 +354,9 @@ npm run lint:fix
 # Formatting
 npm run format
 
-# Testing
+# Testing & Benchmarking
 npm test
+npm run bench
 
 # Build
 npm run build
