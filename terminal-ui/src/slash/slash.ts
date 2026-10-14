@@ -142,6 +142,41 @@ export function parseSlash(
       },
     };
   }
+  if (cmd === '/execgo') {
+    return {
+      handled: true,
+      fetchThen: async () => {
+        const r = await api.get<{
+          config: { enabled: boolean; sandboxProfile?: string };
+          sandbox?: { label?: string; detail?: string };
+          error?: string;
+        }>('/api/settings/execgo');
+        return [
+          r.sandbox?.label || 'ExecGo process',
+          r.sandbox?.detail || '',
+          `enabled=${r.config.enabled} profile=${r.config.sandboxProfile || 'process'}`,
+          r.error || '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+      },
+    };
+  }
+  if (cmd === '/mcp') {
+    return {
+      handled: true,
+      fetchThen: async () => {
+        const r = await api.get<{
+          loaded_tools?: string[];
+          errors?: string[];
+          servers?: Array<{ name: string }>;
+        }>('/api/settings/mcp');
+        const names = (r.loaded_tools ?? []).join(', ') || '(无)';
+        const errors = (r.errors ?? []).join('\n');
+        return `MCP 服务器 ${(r.servers ?? []).length} 个\n已加载: ${names}${errors ? `\n${errors}` : ''}`;
+      },
+    };
+  }
   if (cmd === '/jev') {
     return {
       handled: true,

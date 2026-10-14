@@ -97,7 +97,14 @@ export const COMMAND_CATALOG: CommandCatalogItem[] = [
     title: 'MCP 服务器',
     category: '设置',
     kind: 'client',
-    clients: ['web', 'desktop'],
+    clients: ['tui', 'web', 'desktop'],
+  },
+  {
+    slash: '/execgo',
+    title: 'ExecGo 运行时',
+    category: '设置',
+    kind: 'client',
+    clients: ['tui', 'web', 'desktop'],
   },
   {
     slash: '/theme',

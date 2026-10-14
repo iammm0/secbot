@@ -29,6 +29,8 @@ import { inkKeyToParsedKey, isInkEscape } from "../contexts/KeybindContext.js";
 import { streamStateToBlocks } from "../chat/contentBlocks.js";
 import { ModelConfigDialog } from "../components/ModelConfigDialog.js";
 import { JevConfigDialog } from "../components/JevConfigDialog.js";
+import { McpConfigDialog } from "../components/McpConfigDialog.js";
+import { ExecGoConfigDialog } from "../components/ExecGoConfigDialog.js";
 import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
@@ -637,6 +639,16 @@ export function SessionView({
             }
             if (cmd === "/jev") {
               dialog.replace(<JevConfigDialog />);
+              setInputValue("");
+              return;
+            }
+            if (cmd === "/mcp") {
+              dialog.replace(<McpConfigDialog />);
+              setInputValue("");
+              return;
+            }
+            if (cmd === "/execgo") {
+              dialog.replace(<ExecGoConfigDialog />);
               setInputValue("");
               return;
             }

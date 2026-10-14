@@ -5,11 +5,15 @@ import {
   SetInstructionsDto,
   SetJevConfigDto,
 } from './dto/preferences.dto';
+import { McpBroker } from '../tools/mcp/mcp-broker';
 import { PreferencesService } from './preferences.service';
 
 @Controller('api/settings')
 export class PreferencesController {
-  constructor(private readonly preferences: PreferencesService) {}
+  constructor(
+    private readonly preferences: PreferencesService,
+    private readonly mcpBroker: McpBroker,
+  ) {}
 
   @Get()
   getAll() {
@@ -40,6 +44,7 @@ export class PreferencesController {
       url: body.url,
       runtimeUrl: body.runtimeUrl,
       cliPath: body.cliPath,
+      sandboxProfile: body.sandboxProfile,
     });
   }
 
@@ -74,17 +79,28 @@ export class PreferencesController {
   }
 
   @Get('mcp')
-  listMcp() {
-    return { servers: this.preferences.listMcpServers() };
+  async listMcp() {
+    const loaded = await this.mcpBroker.refresh();
+    return {
+      servers: this.preferences.listMcpServers(),
+      loaded_tools: loaded.loaded_tools,
+      omitted: loaded.omitted,
+      errors: loaded.errors,
+      connections: loaded.servers,
+    };
   }
 
   @Post('mcp')
-  addMcp(@Body() body: AddMcpServerDto) {
-    return { server: this.preferences.addMcpServer(body) };
+  async addMcp(@Body() body: AddMcpServerDto) {
+    const server = this.preferences.addMcpServer(body);
+    const loaded = await this.mcpBroker.refresh();
+    return { server, ...loaded };
   }
 
   @Delete('mcp/:id')
-  removeMcp(@Param('id') id: string) {
-    return { server: this.preferences.removeMcpServer(id) };
+  async removeMcp(@Param('id') id: string) {
+    const server = this.preferences.removeMcpServer(id);
+    const loaded = await this.mcpBroker.refresh();
+    return { server, ...loaded };
   }
 }

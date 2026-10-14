@@ -13,6 +13,8 @@ import { CommandPanel } from './components/CommandPanel.js';
 import { StartupAnimation } from './components/StartupAnimation.js';
 import { ModelConfigDialog } from './components/ModelConfigDialog.js';
 import { JevConfigDialog } from './components/JevConfigDialog.js';
+import { McpConfigDialog } from './components/McpConfigDialog.js';
+import { ExecGoConfigDialog } from './components/ExecGoConfigDialog.js';
 import { LogLevelDialog } from './components/LogLevelDialog.js';
 import { RestResultDialog } from './components/RestResultDialog.js';
 import { AgentSelectDialog } from './components/AgentSelectDialog.js';
@@ -192,6 +194,26 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         onSelect: ({ close }) => {
           close();
           dialog.replace(<JevConfigDialog />);
+        },
+      }),
+      register({
+        title: 'MCP 服务器（/mcp）',
+        value: '/mcp',
+        category: '设置',
+        slash: '/mcp',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(<McpConfigDialog />);
+        },
+      }),
+      register({
+        title: 'ExecGo 运行时（/execgo）',
+        value: '/execgo',
+        category: '设置',
+        slash: '/execgo',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(<ExecGoConfigDialog />);
         },
       }),
       register({

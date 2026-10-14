@@ -1,8 +1,9 @@
-import React from "react";
-import { Box, Text } from "ink";
-import TextInput from "ink-text-input";
-import { useTheme } from "../contexts/ThemeContext.js";
-import type { ContextUsageSnapshot } from "../chat/types.js";
+import React, { useEffect, useState } from 'react';
+import { api } from '../api/api.js';
+import { Box, Text } from 'ink';
+import TextInput from 'ink-text-input';
+import { useTheme } from '../contexts/ThemeContext.js';
+import type { ContextUsageSnapshot } from '../chat/types.js';
 import {
   COMMANDS,
   EXPAND_HINT,
@@ -15,10 +16,29 @@ import {
   TASKS_OFF,
   TASKS_ON,
   localizePhase,
-} from "../render/copy.js";
+} from '../render/copy.js';
+
+function useExecGoLabel(): string {
+  const [label, setLabel] = useState('ExecGo …');
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ sandbox?: { label?: string } }>('/api/settings/execgo')
+      .then((payload) => {
+        if (!cancelled) setLabel(payload.sandbox?.label || 'ExecGo process');
+      })
+      .catch(() => {
+        if (!cancelled) setLabel('ExecGo ?');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return label;
+}
 
 function formatTokenCount(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0";
+  if (!Number.isFinite(n) || n <= 0) return '0';
   if (n < 1_000) return String(Math.floor(n));
   if (n < 10_000) return `${(n / 1_000).toFixed(1)}k`;
   if (n < 1_000_000) return `${Math.floor(n / 1_000)}k`;
@@ -29,12 +49,12 @@ function formatBackend(baseUrl: string): string {
   try {
     return new URL(baseUrl).host;
   } catch {
-    return baseUrl.replace(/^https?:\/\//i, "") || "backend?";
+    return baseUrl.replace(/^https?:\/\//i, '') || 'backend?';
   }
 }
 
 function formatContextUsage(usage: ContextUsageSnapshot | null): string {
-  if (!usage) return "ctx --";
+  if (!usage) return 'ctx --';
   const pct = Math.round(Math.min(1, Math.max(0, usage.ratio)) * 100);
   const used = formatTokenCount(usage.usedTokens);
   const total =
@@ -76,9 +96,8 @@ export function TopStatusBar({
 }: TopStatusBarProps) {
   const theme = useTheme();
   const ratio = usage ? Math.min(1, Math.max(0, usage.ratio)) : 0;
-  const ctxColor =
-    ratio >= 0.9 ? theme.error : ratio >= 0.7 ? theme.warning : theme.secondary;
-  const model = usage?.model || "model?";
+  const ctxColor = ratio >= 0.9 ? theme.error : ratio >= 0.7 ? theme.warning : theme.secondary;
+  const model = usage?.model || 'model?';
   const backend = formatBackend(backendUrl);
 
   return (
@@ -94,9 +113,12 @@ export function TopStatusBar({
           <Text color={theme.success} bold>
             SECBOT
           </Text>
-          <Text color={theme.textMuted}>  </Text>
+          <Text color={theme.textMuted}> </Text>
           <Text color={theme.secondary}>{sessionLabel}</Text>
-          <Text color={theme.textMuted}> · {mode} · {agent}</Text>
+          <Text color={theme.textMuted}>
+            {' '}
+            · {mode} · {agent}
+          </Text>
         </Text>
       </Box>
       <Box flexShrink={0} marginLeft={2}>
@@ -104,7 +126,10 @@ export function TopStatusBar({
           <Text color={streaming || paused ? theme.warning : theme.textMuted}>
             {phaseLabel(streaming, paused, phase, detail)}
           </Text>
-          <Text color={theme.textMuted}> · {backend} · {model} · </Text>
+          <Text color={theme.textMuted}>
+            {' '}
+            · {backend} · {model} ·{' '}
+          </Text>
           <Text color={ctxColor}>{formatContextUsage(usage)}</Text>
         </Text>
       </Box>
@@ -119,29 +144,14 @@ interface ComposerRowProps {
   placeholder: string;
 }
 
-export function ComposerRow({
-  value,
-  onChange,
-  onSubmit,
-  placeholder,
-}: ComposerRowProps) {
+export function ComposerRow({ value, onChange, onSubmit, placeholder }: ComposerRowProps) {
   const theme = useTheme();
   return (
-    <Box
-      flexShrink={0}
-      flexDirection="row"
-      paddingLeft={2}
-      paddingRight={2}
-    >
+    <Box flexShrink={0} flexDirection="row" paddingLeft={2} paddingRight={2}>
       <Text color={theme.secondary} bold>
-        {"› "}
+        {'› '}
       </Text>
-      <TextInput
-        value={value}
-        onChange={onChange}
-        onSubmit={onSubmit}
-        placeholder={placeholder}
-      />
+      <TextInput value={value} onChange={onChange} onSubmit={onSubmit} placeholder={placeholder} />
     </Box>
   );
 }
@@ -176,14 +186,15 @@ export function BottomStatusLine({
   version,
 }: BottomStatusLineProps) {
   const theme = useTheme();
+  const execGoLabel = useExecGoLabel();
   const range =
     totalLines > 0
       ? `${Math.min(scrollOffset + 1, totalLines)}-${Math.min(
           scrollOffset + scrollableHeight,
           totalLines,
         )}/${totalLines}`
-      : "--";
-  const arrows = `${showUpIndicator ? "↑" : " "} ${showDownIndicator ? "↓" : " "}`;
+      : '--';
+  const arrows = `${showUpIndicator ? '↑' : ' '} ${showDownIndicator ? '↓' : ' '}`;
 
   return (
     <Box
@@ -196,14 +207,9 @@ export function BottomStatusLine({
     >
       <Box flexShrink={1} minWidth={0}>
         <Text color={theme.textMuted} wrap="truncate">
-          {range} · {arrows} · {pageUpLabel}/{pageDownLabel} {SCROLL} · {TASKS}
-          {" "}
-          {taskPanelAvailable
-            ? taskPanelVisible
-              ? TASKS_ON
-              : TASKS_OFF
-            : TASKS_NARROW}{" "}
-          {taskPanelLabel} · {expandLabel} {EXPAND_HINT} · / {COMMANDS}
+          {range} · {arrows} · {pageUpLabel}/{pageDownLabel} {SCROLL} · {TASKS}{' '}
+          {taskPanelAvailable ? (taskPanelVisible ? TASKS_ON : TASKS_OFF) : TASKS_NARROW}{' '}
+          {taskPanelLabel} · {expandLabel} {EXPAND_HINT} · {execGoLabel} · / {COMMANDS}
         </Text>
       </Box>
       {version ? (

@@ -1,87 +1,92 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react';
 import {
   fetchExecGoSettings,
   probeExecGo,
   saveExecGoSettings,
   type ExecGoManagedProcess,
+  type ExecGoSandboxStatus,
   type ExecGoSettings,
-} from '@/lib/settingsApi'
+} from '@/lib/settingsApi';
 
 export function ExecGoConfig() {
-  const [settings, setSettings] = useState<ExecGoSettings | null>(null)
-  const [siblingRoot, setSiblingRoot] = useState<string | null>(null)
-  const [runtimeSiblingRoot, setRuntimeSiblingRoot] = useState<string | null>(null)
-  const [cliPath, setCliPath] = useState('')
-  const [serverBinary, setServerBinary] = useState<string | null>(null)
-  const [runtimeBinary, setRuntimeBinary] = useState<string | null>(null)
-  const [processes, setProcesses] = useState<ExecGoManagedProcess[]>([])
-  const [healthy, setHealthy] = useState<boolean | null>(null)
-  const [error, setError] = useState('')
-  const [processErrors, setProcessErrors] = useState<string[]>([])
-  const [message, setMessage] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [probing, setProbing] = useState(false)
+  const [settings, setSettings] = useState<ExecGoSettings | null>(null);
+  const [siblingRoot, setSiblingRoot] = useState<string | null>(null);
+  const [runtimeSiblingRoot, setRuntimeSiblingRoot] = useState<string | null>(null);
+  const [cliPath, setCliPath] = useState('');
+  const [serverBinary, setServerBinary] = useState<string | null>(null);
+  const [runtimeBinary, setRuntimeBinary] = useState<string | null>(null);
+  const [processes, setProcesses] = useState<ExecGoManagedProcess[]>([]);
+  const [healthy, setHealthy] = useState<boolean | null>(null);
+  const [probeSandbox, setProbeSandbox] = useState<ExecGoSandboxStatus | null>(null);
+  const [error, setError] = useState('');
+  const [processErrors, setProcessErrors] = useState<string[]>([]);
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [probing, setProbing] = useState(false);
 
   const applyProbe = (payload: Awaited<ReturnType<typeof fetchExecGoSettings>>) => {
-    setSettings(payload.config)
-    setSiblingRoot(payload.sibling_root)
-    setRuntimeSiblingRoot(payload.runtime_sibling_root ?? null)
-    setCliPath(payload.cli_path)
-    setServerBinary(payload.server_binary ?? null)
-    setRuntimeBinary(payload.runtime_binary ?? null)
-    setProcesses(payload.processes ?? [])
-    setHealthy(payload.healthy)
-    if (payload.error) setError(payload.error)
-  }
+    setSettings(payload.config);
+    setSiblingRoot(payload.sibling_root);
+    setRuntimeSiblingRoot(payload.runtime_sibling_root ?? null);
+    setCliPath(payload.cli_path);
+    setServerBinary(payload.server_binary ?? null);
+    setRuntimeBinary(payload.runtime_binary ?? null);
+    setProcesses(payload.processes ?? []);
+    setHealthy(payload.healthy);
+    setProbeSandbox(payload.sandbox ?? null);
+    if (payload.error) setError(payload.error);
+  };
 
   const load = async () => {
-    setProbing(true)
-    setError('')
+    setProbing(true);
+    setError('');
     try {
-      applyProbe(await fetchExecGoSettings())
+      applyProbe(await fetchExecGoSettings());
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败')
+      setError(err instanceof Error ? err.message : '加载失败');
     } finally {
-      setProbing(false)
+      setProbing(false);
     }
-  }
+  };
 
   useEffect(() => {
-    void load()
-  }, [])
+    void load();
+  }, []);
 
   const update = <K extends keyof ExecGoSettings>(key: K, value: ExecGoSettings[K]) => {
-    setSettings((prev) => (prev ? { ...prev, [key]: value } : prev))
-  }
+    setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
+  };
 
   const save = async () => {
-    if (!settings) return
-    setSaving(true)
-    setMessage('')
-    setError('')
-    setProcessErrors([])
+    if (!settings) return;
+    setSaving(true);
+    setMessage('');
+    setError('');
+    setProcessErrors([]);
     try {
-      const saved = await saveExecGoSettings(settings)
-      setSettings(saved.config)
-      setProcesses(saved.processes)
-      setProcessErrors(saved.process_errors)
+      const saved = await saveExecGoSettings(settings);
+      setSettings(saved.config);
+      setProcesses(saved.processes);
+      setProcessErrors(saved.process_errors);
       setMessage(
         saved.config.enabled
           ? '已启用 ExecGo，并尝试拉起本机后台进程'
           : '已关闭 ExecGo，并停止 Secbot 管理的后台进程',
-      )
-      const probe = await probeExecGo()
-      applyProbe(probe)
-      if (probe.error) setError(probe.error)
+      );
+      const probe = await probeExecGo();
+      applyProbe(probe);
+      if (probe.error) setError(probe.error);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败')
+      setError(err instanceof Error ? err.message : '保存失败');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   if (!settings) {
-    return <div className="font-mono text-xs text-text-dim">{probing ? '探测 ExecGo…' : '加载中…'}</div>
+    return (
+      <div className="font-mono text-xs text-text-dim">{probing ? '探测 ExecGo…' : '加载中…'}</div>
+    );
   }
 
   return (
@@ -109,7 +114,9 @@ export function ExecGoConfig() {
       </div>
 
       <div className="rounded-xl border border-border p-4 space-y-2">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-text-dim">本机后台进程</div>
+        <div className="font-mono text-[11px] uppercase tracking-wider text-text-dim">
+          本机后台进程
+        </div>
         {processes.length === 0 ? (
           <div className="font-mono text-xs text-text-dim">尚无进程状态</div>
         ) : (
@@ -148,7 +155,9 @@ export function ExecGoConfig() {
           className="mt-1"
         />
         <span>
-          <span className="block font-mono text-sm text-text">启用 ExecGo 模式（默认执行运行时）</span>
+          <span className="block font-mono text-sm text-text">
+            启用 ExecGo 模式（默认执行运行时）
+          </span>
           <span className="mt-1 block text-xs text-text-dim">
             保存开启后会启动后台进程；保存关闭后会停止 Secbot 拉起的进程。
           </span>
@@ -170,22 +179,63 @@ export function ExecGoConfig() {
         </span>
       </label>
 
+      <div className="rounded-xl border border-border p-4 space-y-2">
+        <div className="font-mono text-[11px] uppercase tracking-wider text-text-dim">隔离档位</div>
+        <div className="font-mono text-sm text-text">
+          {settings.sandboxProfile === 'isolated' ? 'isolated' : 'process'}
+        </div>
+        <p className="text-xs text-text-dim">
+          {probeSandbox?.detail || '进程隔离'}
+          {probeSandbox?.os ? ` · ${probeSandbox.os}` : ''}
+          {probeSandbox?.linux_sandbox != null
+            ? ` · linux_sandbox=${String(probeSandbox.linux_sandbox)}`
+            : ''}
+          {probeSandbox?.cgroup_v2 != null ? ` · cgroup_v2=${String(probeSandbox.cgroup_v2)}` : ''}
+        </p>
+        <div className="flex gap-2">
+          {(['process', 'isolated'] as const).map((profile) => (
+            <button
+              key={profile}
+              type="button"
+              onClick={() => {
+                update('sandboxProfile', profile);
+                if (profile === 'isolated') update('fallbackLocal', false);
+              }}
+              className={`rounded-lg border px-3 py-1.5 font-mono text-xs ${
+                (settings.sandboxProfile || 'process') === profile
+                  ? 'border-primary/50 bg-primary/15 text-primary'
+                  : 'border-border text-text-dim hover:text-text'
+              }`}
+            >
+              {profile === 'isolated' ? 'isolated' : 'process'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <label className="flex items-start gap-3 rounded-xl border border-border p-4">
         <input
           type="checkbox"
-          checked={settings.fallbackLocal}
+          checked={settings.sandboxProfile === 'isolated' ? false : settings.fallbackLocal}
+          disabled={settings.sandboxProfile === 'isolated'}
           onChange={(e) => update('fallbackLocal', e.target.checked)}
           className="mt-1"
         />
         <span>
           <span className="block font-mono text-sm text-text">ExecGo 不可用时回退本地执行</span>
-          <span className="mt-1 block text-xs text-text-dim">推荐开启，避免 CLI / 服务未启动时任务直接失败。</span>
+          <span className="mt-1 block text-xs text-text-dim">
+            {settings.sandboxProfile === 'isolated'
+              ? 'isolated 禁止回退本机 shell。runtime 起不来时命令直接失败。'
+              : 'process 档位可以回退。isolated 会关掉这一项。'}
+          </span>
         </span>
       </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block space-y-1">
-          <span className="font-mono text-[11px] uppercase tracking-wider text-text-dim">ExecGo URL</span>
+          <span className="font-mono text-[11px] uppercase tracking-wider text-text-dim">
+            ExecGo URL
+          </span>
           <input
             value={settings.url}
             onChange={(e) => update('url', e.target.value)}
@@ -193,7 +243,9 @@ export function ExecGoConfig() {
           />
         </label>
         <label className="block space-y-1">
-          <span className="font-mono text-[11px] uppercase tracking-wider text-text-dim">Runtime URL</span>
+          <span className="font-mono text-[11px] uppercase tracking-wider text-text-dim">
+            Runtime URL
+          </span>
           <input
             value={settings.runtimeUrl}
             onChange={(e) => update('runtimeUrl', e.target.value)}
@@ -203,7 +255,9 @@ export function ExecGoConfig() {
       </div>
 
       <label className="block space-y-1">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-text-dim">execgocli 路径</span>
+        <span className="font-mono text-[11px] uppercase tracking-wider text-text-dim">
+          execgocli 路径
+        </span>
         <input
           value={settings.cliPath}
           onChange={(e) => update('cliPath', e.target.value)}
@@ -236,7 +290,7 @@ export function ExecGoConfig() {
       <div className="rounded-xl border border-border/80 p-4 text-xs text-text-dim space-y-2">
         <div className="font-mono text-[11px] uppercase tracking-wider">构建同级二进制</div>
         <pre className="overflow-x-auto rounded-lg bg-bg/60 p-3 font-mono text-[11px] text-text">
-{`cd ../execgo
+          {`cd ../execgo
 go build -o execgo ./cmd/execgo
 go build -o execgocli ./cmd/execgocli
 
@@ -247,5 +301,5 @@ cargo build --release
         <p>PID / 日志：`~/.secbot/run/`；数据目录：`~/.secbot/data/`。</p>
       </div>
     </div>
-  )
+  );
 }

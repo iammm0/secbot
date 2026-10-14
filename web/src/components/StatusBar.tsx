@@ -1,20 +1,42 @@
-import { ContextUsageMeter } from '@/components/ContextUsageMeter'
-import { formatElapsed } from '@/lib/formatElapsed'
-import type { ContextUsageSnapshot } from '@/lib/types'
+import { useEffect, useState } from 'react';
+import { ContextUsageMeter } from '@/components/ContextUsageMeter';
+import { formatElapsed } from '@/lib/formatElapsed';
+import { fetchExecGoSettings } from '@/lib/settingsApi';
+import type { ContextUsageSnapshot } from '@/lib/types';
+
+function useExecGoLabel() {
+  const [label, setLabel] = useState('ExecGo …');
+  useEffect(() => {
+    let cancelled = false;
+    fetchExecGoSettings()
+      .then((payload) => {
+        if (!cancelled) setLabel(payload.sandbox?.label || 'ExecGo process');
+      })
+      .catch(() => {
+        if (!cancelled) setLabel('ExecGo ?');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return label;
+}
 
 interface Props {
-  phase?: string
-  elapsedMs?: number
-  busy?: boolean
-  contextUsage?: ContextUsageSnapshot | null
+  phase?: string;
+  elapsedMs?: number;
+  busy?: boolean;
+  contextUsage?: ContextUsageSnapshot | null;
 }
 
 /** Keep in sync with Sidebar settings footer (`h-10`) so the dividers align. */
 export function StatusBar({ phase, elapsedMs = 0, busy = false, contextUsage = null }: Props) {
+  const execGoLabel = useExecGoLabel();
   return (
     <div className="flex h-10 shrink-0 items-center justify-between border-t border-border px-4 text-xs text-text-dim font-mono">
       <div className="flex items-center gap-3">
         {phase ? <span className="text-secondary">{phase}</span> : <span>ready</span>}
+        <span>{execGoLabel}</span>
         {(busy || elapsedMs > 0) && elapsedMs > 0 ? (
           <span className={`tabular-nums ${busy ? 'text-warning' : 'text-text-dim'}`}>
             {formatElapsed(elapsedMs)}
@@ -23,5 +45,5 @@ export function StatusBar({ phase, elapsedMs = 0, busy = false, contextUsage = n
       </div>
       <ContextUsageMeter usage={contextUsage} compact />
     </div>
-  )
+  );
 }
