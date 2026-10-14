@@ -16,6 +16,7 @@ import { ListToolsResponseDto } from './dto/tools.dto';
 import { SkillsService } from '../skills/skills.service';
 import { createSkillsTools } from './skills';
 import { createMcpTools } from './mcp';
+import { McpBroker } from './mcp/mcp-broker';
 import { PreferencesService } from '../preferences/preferences.service';
 import { wrapToolsForExecGoAudit } from './control/audited-tool';
 import { traceToolRun } from '../chat/workflow-trace';
@@ -32,6 +33,7 @@ export class ToolsService {
     private readonly vulnDbService: VulnDbService,
     private readonly skillsService: SkillsService,
     private readonly preferences: PreferencesService,
+    private readonly mcpBroker: McpBroker,
   ) {
     this.vulnDbQueryTool = new VulnDbQueryTool(this.vulnDbService);
 
@@ -68,7 +70,8 @@ export class ToolsService {
   }
 
   listTools(): ListToolsResponseDto {
-    const categories = this.categories.map((category) => ({
+    const categories = this.catalogCategories();
+    const listed = categories.map((category) => ({
       id: category.id,
       name: category.name,
       count: category.tools.length,
@@ -78,36 +81,39 @@ export class ToolsService {
         category: category.id,
       })),
     }));
+    const tools = this.liveAllTools();
 
     return {
-      total: this.allTools.length,
-      basic_count: this.allTools.length,
+      total: tools.length,
+      basic_count: tools.length,
       advanced_count: 0,
-      categories,
-      tools: categories.flatMap((c) => c.tools),
+      categories: listed,
+      tools: listed.flatMap((c) => c.tools),
     };
   }
 
   /** 给 IntentRouter 用的短目录：类别 + 工具名，避免把描述全文塞进分类 prompt */
   describeCatalogCompact(maxChars = 1800): string {
-    const lines = this.categories.map(
-      (category) =>
-        `${category.name}(${category.tools.length}): ${category.tools.map((tool) => tool.name).join(', ')}`,
-    );
-    const text = `共 ${this.allTools.length} 个工具\n${lines.join('\n')}`;
+    const categories = this.catalogCategories();
+    const tools = this.liveAllTools();
+    const lines = categories.map((category) => {
+      const names = category.tools.map((tool) => tool.name).join(', ');
+      return `${category.name}(${category.tools.length}): ${names}`;
+    });
+    const text = `共 ${tools.length} 个工具\n${lines.join('\n')}`;
     if (text.length <= maxChars) return text;
     return `${text.slice(0, Math.max(0, maxChars - 1))}…`;
   }
 
   listCatalogEntries(): Array<{ id: string; tools: Array<{ name: string; description: string }> }> {
-    return this.categories.map((category) => ({
+    return this.catalogCategories().map((category) => ({
       id: category.id,
       tools: category.tools.map((tool) => ({ name: tool.name, description: tool.description })),
     }));
   }
 
   getBasicTools(): BaseTool[] {
-    return this.allTools;
+    return this.liveAllTools();
   }
 
   getAdvancedTools(): BaseTool[] {
@@ -115,11 +121,11 @@ export class ToolsService {
   }
 
   getAllTools(): BaseTool[] {
-    return this.allTools;
+    return this.liveAllTools();
   }
 
   async executeTool(name: string, params: Record<string, unknown> = {}): Promise<ToolResult> {
-    const tool = this.toolsMap.get(name);
+    const tool = this.liveAllTools().find((item) => item.name === name) ?? this.toolsMap.get(name);
     if (!tool) {
       return {
         success: false,
@@ -128,6 +134,18 @@ export class ToolsService {
       };
     }
     return await traceToolRun(name, () => tool.run(params), params);
+  }
+
+  private catalogCategories(): Array<{ id: string; name: string; tools: BaseTool[] }> {
+    const remote = this.mcpBroker.listTools();
+    return this.categories.map((category) => {
+      if (category.id !== 'mcp') return category;
+      return { ...category, tools: [...category.tools, ...remote] };
+    });
+  }
+
+  private liveAllTools(): BaseTool[] {
+    return this.uniqueTools([...this.allTools, ...this.mcpBroker.listTools()]);
   }
 
   private uniqueTools(tools: BaseTool[]): BaseTool[] {
