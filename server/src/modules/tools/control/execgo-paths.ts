@@ -19,19 +19,34 @@ function withExeCandidates(pathWithoutExt: string): string[] {
 }
 
 export function resolveExecGoCliPath(explicit?: string): string {
-  const fromEnv = (explicit || process.env.EXECGO_EXECGOCLI || '').trim();
-  if (fromEnv && (fromEnv.includes('/') || fromEnv.includes('\\'))) {
-    if (existsSync(fromEnv)) return fromEnv;
+  const envTrimmed = (process.env.EXECGO_EXECGOCLI || '').trim();
+  if (envTrimmed && envTrimmed !== 'execgocli') {
+    if ((envTrimmed.includes('/') || envTrimmed.includes('\\')) && existsSync(envTrimmed)) {
+      return envTrimmed;
+    }
+    if (!envTrimmed.includes('/') && !envTrimmed.includes('\\')) {
+      return envTrimmed;
+    }
+  }
+
+  const explicitTrimmed = (explicit || '').trim();
+  if (explicitTrimmed && explicitTrimmed !== 'execgocli') {
+    if (
+      (explicitTrimmed.includes('/') || explicitTrimmed.includes('\\')) &&
+      existsSync(explicitTrimmed)
+    ) {
+      return explicitTrimmed;
+    }
+    if (!explicitTrimmed.includes('/') && !explicitTrimmed.includes('\\')) {
+      return explicitTrimmed;
+    }
   }
 
   for (const candidate of execGoCandidates('execgocli')) {
     if (existsSync(candidate)) return candidate;
   }
 
-  if (fromEnv) {
-    return fromEnv;
-  }
-  return 'execgocli';
+  return explicitTrimmed || envTrimmed || 'execgocli';
 }
 
 export function resolveExecGoServerPath(): string | null {
@@ -46,7 +61,11 @@ export function resolveExecGoServerPath(): string | null {
 
 export function resolveSiblingExecGoRoot(): string | null {
   for (const root of execGoRoots()) {
-    if (existsSync(join(root, 'go.mod')) || existsSync(join(root, 'execgocli')) || existsSync(join(root, 'execgocli.exe'))) {
+    if (
+      existsSync(join(root, 'go.mod')) ||
+      existsSync(join(root, 'execgocli')) ||
+      existsSync(join(root, 'execgocli.exe'))
+    ) {
       return root;
     }
   }
