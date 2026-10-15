@@ -75,8 +75,12 @@ test-reports/
 # 可执行文件（原生构建产物）；npm CLI 入口在仓库根目录 bin/，勿忽略
 *.exe
 
-# 发布产物
-*.tgz
+# Runtime 构建产物与二进制
+runtime/bin/
+runtime/execgo/bin/
+runtime/execgo/execgo
+runtime/execgo/execgocli
+runtime/execgo-runtime/target/
 
 # 其他
 .DS_Store

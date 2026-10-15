@@ -1,0 +1,9 @@
+go 1.24.5
+
+use (
+	.
+	./contrib/grpcapi
+	./contrib/rediscache
+	./contrib/sqlite
+	./examples/fullserver
+)

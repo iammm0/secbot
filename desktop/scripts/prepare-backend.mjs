@@ -61,6 +61,10 @@ function assembleBackend() {
   cpSync(join(repoRoot, 'server', 'dist'), join(backendDir, 'server', 'dist'), { recursive: true });
   cpSync(join(repoRoot, 'server', 'skills'), join(backendDir, 'server', 'skills'), { recursive: true });
   cpSync(join(repoRoot, 'web', 'dist'), join(backendDir, 'web', 'dist'), { recursive: true });
+  if (existsSync(join(repoRoot, 'runtime', 'bin'))) {
+    log('复制 runtime/bin 运行时二进制');
+    cpSync(join(repoRoot, 'runtime', 'bin'), join(backendDir, 'runtime', 'bin'), { recursive: true });
+  }
 
   log('复制 package.json / package-lock.json');
   copyFileSync(join(repoRoot, 'package.json'), join(backendDir, 'package.json'));

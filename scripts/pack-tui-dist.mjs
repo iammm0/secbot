@@ -107,6 +107,7 @@ function assemble(stageDir) {
     'terminal-ui/dist',
     'terminal-ui/package.json',
     'web/dist',
+    'runtime/bin',
     'README.md',
     'LICENSE',
     'SECURITY_WARNING.md',

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: execgo
+spec:
+  selector:
+    app: execgo
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+  type: ClusterIP
+

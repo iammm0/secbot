@@ -1,0 +1,17 @@
+services:
+  execgo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - ./data:/data
+    environment:
+      EXECGO_ADDR: ":8080"
+      EXECGO_GRPC_ADDR: ":50051"
+      EXECGO_DATA_DIR: "/data"
+      EXECGO_MAX_CONCURRENCY: "10"
+      EXECGO_SHUTDOWN_TIMEOUT: "15"
+

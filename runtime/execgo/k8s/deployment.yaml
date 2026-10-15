@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execgo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: execgo
+  template:
+    metadata:
+      labels:
+        app: execgo
+    spec:
+      containers:
+        - name: execgo
+          image: iammm0/execgo:latest
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 50051
+          env:
+            - name: EXECGO_ADDR
+              value: ":8080"
+            - name: EXECGO_GRPC_ADDR
+              value: ":50051"
+            - name: EXECGO_DATA_DIR
+              value: "/data"
+            - name: EXECGO_MAX_CONCURRENCY
+              value: "10"
+            - name: EXECGO_SHUTDOWN_TIMEOUT
+              value: "15"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: execgo-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: execgo-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+

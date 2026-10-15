@@ -1,0 +1,18 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# 本地运行数据（开发/演示）
+/data/
+/.quickstart-data/
+
+# SQLite / WAL
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store

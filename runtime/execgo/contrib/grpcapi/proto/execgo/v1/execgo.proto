@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package execgo.v1;
+
+option go_package = "github.com/iammm0/execgo/contrib/grpcapi/pkg/pb/execgo/v1;execgov1";
+
+service ExecGo {
+  rpc SubmitTasks (TaskGraph) returns (SubmitTasksResponse);
+  rpc GetTask (GetTaskRequest) returns (GetTaskResponse);
+  rpc ListTasks (ListTasksRequest) returns (ListTasksResponse);
+  rpc DeleteTask (DeleteTaskRequest) returns (DeleteTaskResponse);
+
+  rpc Health (HealthRequest) returns (HealthResponse);
+  rpc Metrics (MetricsRequest) returns (MetricsResponse);
+}
+
+message TaskGraph {
+  repeated Task tasks = 1;
+}
+
+message Task {
+  string id = 1;
+  string type = 2;
+  string params_json = 3;
+  repeated string depends_on = 4;
+  int32 retry = 5;
+  int64 timeout_ms = 6;
+
+  string status = 7;
+  string result_json = 8;
+  string error = 9;
+
+  int64 created_at_unix_ms = 10;
+  int64 updated_at_unix_ms = 11;
+}
+
+message SubmitTasksResponse {
+  int32 accepted = 1;
+  repeated string task_ids = 2;
+}
+
+message GetTaskRequest {
+  string id = 1;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+message ListTasksRequest {}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+}
+
+message DeleteTaskRequest {
+  string id = 1;
+}
+
+message DeleteTaskResponse {
+  bool deleted = 1;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string version = 2;
+  string uptime = 3;
+}
+
+message MetricsRequest {}
+
+message MetricsResponse {
+  int64 tasks_total = 1;
+  int64 tasks_running = 2;
+  int64 tasks_succeeded = 3;
+  int64 tasks_failed = 4;
+  map<string, int64> by_type = 5;
+}
+
