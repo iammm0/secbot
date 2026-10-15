@@ -23,12 +23,13 @@ export function resolveExecGoCliPath(explicit?: string): string {
   if (fromEnv && (fromEnv.includes('/') || fromEnv.includes('\\'))) {
     if (existsSync(fromEnv)) return fromEnv;
   }
-  if (fromEnv && !fromEnv.includes('/') && !fromEnv.includes('\\')) {
-    return fromEnv;
-  }
 
   for (const candidate of execGoCandidates('execgocli')) {
     if (existsSync(candidate)) return candidate;
+  }
+
+  if (fromEnv) {
+    return fromEnv;
   }
   return 'execgocli';
 }
