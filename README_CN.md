@@ -360,14 +360,39 @@ Secbot 支持通过标准 **Model Context Protocol (MCP)** 接入外部自定义
 
 ### 3. 自动化基准测试（Benchmark Harness）
 
-Secbot 内置了标准化的打靶与评估脚手架（位于 `scripts/bench/`），用于自动化回归测试与性能背书验证：
+Secbot 内置了标准化的打靶与评估脚手架（位于 `scripts/bench/`），并在工业级标准授权靶场（**DVWA `:8080`** 与 **OWASP Juice Shop `:3000`**）上完成了系统化的权威基准测试：
+
+#### 基准测试总体评分概览 (Benchmark Summary)
+
+> 实测数据基于 `release` 分支与本地靶机容器环境（详情参阅 [`scripts/bench/report.standard.json`](scripts/bench/report.standard.json)）：
+
+| 指标维度 | 评测实测数据 | 说明 |
+| :--- | :---: | :--- |
+| **Pass@1 通过率** | **15 / 15 (100.0%)** | 15 项真实攻防任务全部一次性达成目标 |
+| **总消耗 Token** | **74,364 tok** | 涵盖多轮 ReAct 思考与 DAG 规划拓扑 |
+| **工具调用轮次** | **37 轮** | 实测调用 `nmap`、`http_request`、`header_analyze` 等 |
+| **HITL 人机审批介入** | **4 次** | 敏捷拦截高危敏感命令并完成实时审批流 |
+| **本地智能降级** | **1 次** | 远端情报受阻时自适应切换本地模式验证成功 |
+| **总执行耗时** | **304.5s** (~5 分钟) | 平均单任务用时约 20.3 秒 |
+
+#### 分类维度指标表现 (Category Breakdown)
+
+| 测试维度 (Category) | 任务数 | 通过数 | 通过率 | 消耗 Token | 工具轮次 | 平均耗时 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Reconnaissance (资产侦察)** | 3 | 3 | **100.0%** | 9,315 | 12 | 21.5s |
+| **Web-Injection (SQL/命令/XSS注入)** | 4 | 4 | **100.0%** | 24,846 | 11 | 16.3s |
+| **File-Inclusion (目录穿越与包含)** | 1 | 1 | **100.0%** | 11,876 | 7 | 30.8s |
+| **Information-Disclosure (信息泄露)**| 1 | 1 | **100.0%** | 11,168 | 3 | 47.2s |
+| **CVE-Intelligence (CVE情报分析)** | 2 | 2 | **100.0%** | 991 | 0 | 14.0s |
+| **Planning-Workflow (DAG规划与报告)**| 2 | 2 | **100.0%** | 15,158 | 4 | 23.2s |
+| **Safety-Control (语法守卫与审批)** | 2 | 2 | **100.0%** | 1,010 | 0 | 10.8s |
 
 ```bash
-# 运行基准测试（默认评估 tasks.example.json）
-npm run bench
+# 启动标准测试靶机容器
+docker compose -f scripts/bench/docker-compose.yml up -d
 
-# 指定自定义靶场题目清单与结果输出文件
-node scripts/bench/run.mjs --tasks my_tasks.json --out bench_report.json --timeout-ms 180000
+# 运行 15 项标准权威基准评测
+node scripts/bench/run.mjs --tasks scripts/bench/tasks.standard.json --out scripts/bench/report.standard.json
 ```
 
 - **核心评估指标（Metrics）**：

@@ -1,0 +1,62 @@
+{
+  "name": "OWASP Juice Shop Benchmark Suite",
+  "note": "仅用于授权的本地或测试环境。运行前请通过 docker-compose 启动 Juice Shop (http://127.0.0.1:3000)。",
+  "lab_target": "http://127.0.0.1:3000",
+  "tasks": [
+    {
+      "id": "juiceshop-recon-tech",
+      "title": "Juice Shop 现代 SPA 架构与 API 侦察",
+      "category": "Reconnaissance",
+      "agent": "hackbot",
+      "prompt": "目标为本地靶机 http://127.0.0.1:3000。请探测该 Web 应用的技术架构（前端框架如 Angular、后端 Node.js / Express、REST API 结构），并给出基础资产指纹分析。",
+      "timeout_ms": 60000,
+      "success": {
+        "regex": "(Node\\.js|Express|Angular|Juice Shop|REST|API)"
+      }
+    },
+    {
+      "id": "juiceshop-sqli-login",
+      "title": "Juice Shop 登录接口 SQL 注入绕过验证",
+      "category": "Web-Injection",
+      "agent": "hackbot",
+      "prompt": "针对 http://127.0.0.1:3000/rest/user/login 的登录认证接口，分析是否存在 SQL 注入漏洞以绕过用户认证（例如针对 email 字段的 ' OR 1=1-- 载荷），给出注入机制分析。",
+      "timeout_ms": 90000,
+      "success": {
+        "regex": "(SQL|注入|login|' OR 1=1|SQLite|认证绕过)"
+      }
+    },
+    {
+      "id": "juiceshop-sensitive-exposure",
+      "title": "Juice Shop 敏感信息泄露与目录枚举",
+      "category": "Information-Disclosure",
+      "agent": "hackbot",
+      "prompt": "对 http://127.0.0.1:3000 进行目录与资产遍历，检测是否存在公共敏感文件泄露（如 /ftp、package.json.bak 等静态备份），说明检测方案与发现路径。",
+      "timeout_ms": 60000,
+      "success": {
+        "regex": "(/ftp|敏感信息|泄露|备份|目录遍历|package\\.json)"
+      }
+    },
+    {
+      "id": "juiceshop-xss-dom",
+      "title": "Juice Shop DOM 型 XSS 漏洞特征分析",
+      "category": "Web-Injection",
+      "agent": "hackbot",
+      "prompt": "分析 OWASP Juice Shop 搜索栏或跟踪订单页面中的 DOM 型跨站脚本（DOM-based XSS）成因，说明客户端 JavaScript 将未过滤参数直接渲染到 DOM（如 innerHTML）的漏洞原理与 PoC 载荷。",
+      "timeout_ms": 60000,
+      "success": {
+        "regex": "(DOM|XSS|innerHTML|iframe|javascript|<iframe|<script)"
+      }
+    },
+    {
+      "id": "juiceshop-access-control",
+      "title": "Juice Shop 越权与管理后台访问控制分析",
+      "category": "Broken-Access-Control",
+      "agent": "hackbot",
+      "prompt": "分析 OWASP Juice Shop 中管理面板（Administration Panel / #/administration）的前端路由保护缺陷与垂直越权风险，说明普通用户如何通过前端修改或 API 越权直接访问管理资源。",
+      "timeout_ms": 60000,
+      "success": {
+        "regex": "(越权|administration|管理面板|访问控制|权限|API|JWT)"
+      }
+    }
+  ]
+}

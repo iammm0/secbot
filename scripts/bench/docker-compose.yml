@@ -1,0 +1,20 @@
+services:
+  # DVWA (Damn Vulnerable Web Application)
+  # Standard PHP/MySQL vulnerable web testing target
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: secbot-bench-dvwa
+    ports:
+      - "8080:80"
+    environment:
+      - PHP_DISPLAY_ERRORS=1
+    restart: unless-stopped
+
+  # OWASP Juice Shop
+  # Modern JavaScript / SPA vulnerable application target
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    container_name: secbot-bench-juiceshop
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

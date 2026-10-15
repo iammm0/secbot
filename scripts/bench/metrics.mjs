@@ -37,6 +37,8 @@ export function scoreRun(task, events, elapsedMs) {
   });
   return {
     id: String(task?.id ?? ''),
+    title: String(task?.title ?? task?.id ?? ''),
+    category: String(task?.category ?? 'general'),
     passed: pattern ? pattern.test(text) : false,
     tokens: usage ? Number(usage.data?.used_tokens ?? 0) : 0,
     tool_rounds: events.filter((item) => item.event === 'action_start').length,
@@ -50,6 +52,29 @@ export function summarize(results) {
   const total = results.length;
   const passed = results.filter((item) => item.passed).length;
   const sum = (key) => results.reduce((acc, item) => acc + Number(item[key] ?? 0), 0);
+
+  const byCategory = {};
+  for (const item of results) {
+    const cat = item.category || 'general';
+    if (!byCategory[cat]) {
+      byCategory[cat] = {
+        total: 0,
+        passed: 0,
+        pass_rate: 0,
+        tokens: 0,
+        tool_rounds: 0,
+        elapsed_ms: 0,
+      };
+    }
+    byCategory[cat].total += 1;
+    if (item.passed) byCategory[cat].passed += 1;
+    byCategory[cat].tokens += Number(item.tokens ?? 0);
+    byCategory[cat].tool_rounds += Number(item.tool_rounds ?? 0);
+    byCategory[cat].elapsed_ms += Number(item.elapsed_ms ?? 0);
+    byCategory[cat].pass_rate =
+      byCategory[cat].total > 0 ? byCategory[cat].passed / byCategory[cat].total : 0;
+  }
+
   return {
     total,
     passed,
@@ -59,5 +84,6 @@ export function summarize(results) {
     hitl: sum('hitl'),
     fallback_local: results.filter((item) => item.fallback_local).length,
     elapsed_ms: sum('elapsed_ms'),
+    by_category: byCategory,
   };
 }

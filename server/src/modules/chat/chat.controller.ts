@@ -75,6 +75,7 @@ export class ChatController {
     };
     req.on('close', onDisconnect);
     req.on('aborted', onDisconnect);
+    res.on('close', onDisconnect);
 
     const send = (event: string, data: Record<string, unknown>) => {
       if (res.writableEnded) return;
@@ -109,6 +110,7 @@ export class ChatController {
     } finally {
       req.off('close', onDisconnect);
       req.off('aborted', onDisconnect);
+      res.off('close', onDisconnect);
     }
     if (!res.writableEnded) res.end();
   }

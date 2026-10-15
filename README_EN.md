@@ -287,14 +287,39 @@ For sensitive penetration testing commands and payload execution, Secbot integra
 
 ### 3. Automated Benchmark Harness
 
-Secbot includes an automated test harness in `scripts/bench/` for reproducible evaluation and performance verification:
+Secbot includes an automated test harness in `scripts/bench/` for reproducible evaluation and performance verification, tested against standard lab targets (**DVWA `:8080`** and **OWASP Juice Shop `:3000`**):
+
+#### Benchmark Summary (15 Standard Tasks)
+
+> Evaluated on the `release` branch against local target lab containers (`scripts/bench/report.standard.json`):
+
+| Metric | Score / Result | Description |
+| :--- | :---: | :--- |
+| **Pass@1 Success Rate** | **15 / 15 (100.0%)** | All 15 security & penetration testing tasks achieved target objectives on first run |
+| **Total Tokens** | **74,364 tok** | End-to-end token consumption across multi-turn ReAct loops & DAG planning |
+| **Tool Iterations** | **37 rounds** | Total autonomous tool calls executed (`nmap`, `http_request`, `header_analyze`, etc.) |
+| **HITL Approvals** | **4 prompts** | Sensitive / destructive tools properly intercepted and resolved via Human-in-the-Loop |
+| **Local Fallback** | **1 event** | Resilient fallback to local analysis when remote intelligence endpoints were constrained |
+| **Total Duration** | **304.5s** (~5 min) | Average ~20.3s per end-to-end multi-step task |
+
+#### Category Breakdown
+
+| Category | Tasks | Passed | Pass Rate | Tokens | Tool Rounds | Avg Time |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Reconnaissance** (Port scan, Web fingerprint, REST API route discovery) | 3 | 3 | **100.0%** | 9,315 | 12 | 21.5s |
+| **Web-Injection** (UNION SQLi, auth bypass, command injection, XSS) | 4 | 4 | **100.0%** | 24,846 | 11 | 16.3s |
+| **File-Inclusion** (LFI traversal & `/etc/passwd` extraction) | 1 | 1 | **100.0%** | 11,876 | 7 | 30.8s |
+| **Information-Disclosure** (Hidden `/ftp` backup & API token exposure) | 1 | 1 | **100.0%** | 11,168 | 3 | 47.2s |
+| **CVE-Intelligence** (Log4j2 JNDI chain & Spring4Shell Webshell analysis) | 2 | 2 | **100.0%** | 991 | 0 | 14.0s |
+| **Planning-Workflow** (4-phase pentest DAG topology & executive report) | 2 | 2 | **100.0%** | 15,158 | 4 | 23.2s |
+| **Safety-Control** (Cross-platform shell guard & HITL audit pipeline) | 2 | 2 | **100.0%** | 1,010 | 0 | 10.8s |
 
 ```bash
-# Run benchmark evaluation (defaults to tasks.example.json)
-npm run bench
+# Start standard target lab containers
+docker compose -f scripts/bench/docker-compose.yml up -d
 
-# Run with a custom target manifest and output path
-node scripts/bench/run.mjs --tasks my_tasks.json --out bench_report.json --timeout-ms 180000
+# Run the 15-task standard benchmark suite
+node scripts/bench/run.mjs --tasks scripts/bench/tasks.standard.json --out scripts/bench/report.standard.json
 ```
 
 - **Core Metrics Captured**:

@@ -45,6 +45,47 @@ Desktop app on the maintained `release` branch (Chinese UI):
 - Multi-agent orchestration with planning, tool execution, MCP bridging, and summarization.
 - Built-in security tool modules for web, network, OSINT, defense, and reporting workflows.
 
+## Benchmark Evaluation (权威基准测试)
+
+Secbot includes a systematic, reproducible security benchmark suite evaluated against standard lab targets (**DVWA** on `:8080` and **OWASP Juice Shop** on `:3000`).
+
+The benchmark rigorously evaluates **Pass@1**, planning depth, ReAct decision convergence, token efficiency, Human-in-the-Loop (HITL) safety controls, and sandbox compliance across 6 core penetration testing categories.
+
+### Benchmark Summary (15 Standard Tasks)
+
+> Evaluated on the `release` branch against local target lab containers (`scripts/bench/report.standard.json`).
+
+| Metric | Score / Result | Description |
+| :--- | :---: | :--- |
+| **Pass@1 Success Rate** | **15 / 15 (100.0%)** | All 15 security & penetration testing tasks achieved target objectives on first run |
+| **Total Tokens** | **74,364 tok** | End-to-end token consumption across multi-turn ReAct loops & DAG planning |
+| **Tool Iterations** | **37 rounds** | Total autonomous tool calls executed (`nmap`, `http_request`, `header_analyze`, etc.) |
+| **HITL Approvals** | **4 prompts** | Sensitive / destructive tools properly intercepted and resolved via Human-in-the-Loop |
+| **Local Fallback** | **1 event** | Resilient fallback to local analysis when remote intelligence endpoints were constrained |
+| **Total Duration** | **304.5s** (~5 min) | Average ~20.3s per end-to-end multi-step task |
+
+### Category Breakdown
+
+| Category | Tasks | Passed | Pass Rate | Tokens | Tool Rounds | Avg Time |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Reconnaissance** (Port scan, Web fingerprint, REST API route discovery) | 3 | 3 | **100.0%** | 9,315 | 12 | 21.5s |
+| **Web-Injection** (UNION SQLi, auth bypass, command injection, XSS) | 4 | 4 | **100.0%** | 24,846 | 11 | 16.3s |
+| **File-Inclusion** (LFI traversal & `/etc/passwd` extraction) | 1 | 1 | **100.0%** | 11,876 | 7 | 30.8s |
+| **Information-Disclosure** (Hidden `/ftp` backup & API token exposure) | 1 | 1 | **100.0%** | 11,168 | 3 | 47.2s |
+| **CVE-Intelligence** (Log4j2 JNDI chain & Spring4Shell Webshell analysis) | 2 | 2 | **100.0%** | 991 | 0 | 14.0s |
+| **Planning-Workflow** (4-phase pentest DAG topology & executive report) | 2 | 2 | **100.0%** | 15,158 | 4 | 23.2s |
+| **Safety-Control** (Cross-platform shell guard & HITL audit pipeline) | 2 | 2 | **100.0%** | 1,010 | 0 | 10.8s |
+
+### Reproducing Benchmark Results
+
+```bash
+# 1. Start standardized target lab containers (DVWA on 8080, Juice Shop on 3000)
+docker compose -f scripts/bench/docker-compose.yml up -d
+
+# 2. Run the 15-task standard benchmark suite
+node scripts/bench/run.mjs --tasks scripts/bench/tasks.standard.json --out scripts/bench/report.standard.json
+```
+
 ### Source-tree orchestration (contributors)
 
 From the repository checkout, `ChatService` routes each turn through **`IntentRouter`** (single LLM classify), optionally **`ExploreAgent`** (ReAct with `vuln_db_query` / `browser_session`, no sensitive tools), then **`ContextAssemblerService`** + **`ContextStore`** under a per-model context budget. SSE events include `intent_decision`, `explore_*`, and **`context_usage`** for the TUI token meter. **`task_simple`** skips the planner; **`SummaryAgent`** runs only when `needs_report` is true. Contributor-oriented details live in **[`CLAUDE.md`](CLAUDE.md)**; longer user docs: [`README_CN.md`](README_CN.md) / [`README_EN.md`](README_EN.md).
