@@ -30,15 +30,14 @@ function log(msg) {
   console.log(`[fetch-bundled-tools] ${msg}`);
 }
 
-function inferLabel() {
+export function inferLabel() {
   if (process.platform === 'win32') return 'windows-x64';
   if (process.platform === 'darwin' && process.arch === 'arm64') return 'macos-arm64';
   if (process.platform === 'linux') return 'linux-x64';
   throw new Error(`无法推断平台，请显式传入 windows-x64 / linux-x64 / macos-arm64`);
 }
 
-const label = (process.argv[2] || inferLabel()).trim();
-const SPEC = {
+export const SPEC = {
   'windows-x64': {
     dir: 'win-x64',
     nuclei: {
@@ -70,12 +69,6 @@ const SPEC = {
     ffuf: { owner: 'ffuf', repo: 'ffuf', match: /macOS_arm64\.tar\.gz$/i, bin: 'ffuf' },
   },
 };
-
-const platformSpec = SPEC[label];
-if (!platformSpec) {
-  console.error(`未知平台: ${label}`);
-  process.exit(1);
-}
 
 async function latestAsset(owner, repo, match) {
   const url = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
@@ -111,9 +104,54 @@ async function download(url, dest) {
   writeFileSync(dest, buf);
 }
 
-function extractArchive(archivePath, outDir) {
+export function extractArchive(archivePath, outDir) {
   mkdirSync(outDir, { recursive: true });
-  // bsdtar / GNU tar 都能处理 zip 与 tar.gz
+  const isZip = archivePath.toLowerCase().endsWith('.zip');
+  if (isZip) {
+    if (process.platform === 'win32') {
+      // Windows 10/11 内置 bsdtar 支持 zip；若失败可回退 powershell Expand-Archive
+      try {
+        execFileSync('tar', ['-xf', archivePath, '-C', outDir], { stdio: 'inherit' });
+        return;
+      } catch {
+        execFileSync(
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-Command',
+            `Expand-Archive -LiteralPath '${archivePath}' -DestinationPath '${outDir}' -Force`,
+          ],
+          { stdio: 'inherit' },
+        );
+        return;
+      }
+    }
+
+    // Linux / macOS: GNU tar 不支持 zip（Ubuntu 下 tar -xf *.zip 会报错）；
+    // 优先 unzip，其次 python3 -m zipfile，最后回退 tar（如 macOS bsdtar 支持 zip）。
+    const errors = [];
+    try {
+      execFileSync('unzip', ['-q', '-o', archivePath, '-d', outDir], { stdio: 'inherit' });
+      return;
+    } catch (e) {
+      errors.push(`unzip: ${e instanceof Error ? e.message : e}`);
+    }
+    try {
+      execFileSync('python3', ['-m', 'zipfile', '-e', archivePath, outDir], { stdio: 'inherit' });
+      return;
+    } catch (e) {
+      errors.push(`python3 zipfile: ${e instanceof Error ? e.message : e}`);
+    }
+    try {
+      execFileSync('tar', ['-xf', archivePath, '-C', outDir], { stdio: 'inherit' });
+      return;
+    } catch (e) {
+      errors.push(`tar: ${e instanceof Error ? e.message : e}`);
+    }
+    throw new Error(`解压 zip 失败 (${archivePath}):\n  ${errors.join('\n  ')}`);
+  }
+
+  // tar.gz / tar: GNU tar / bsdtar 均原生支持
   execFileSync('tar', ['-xf', archivePath, '-C', outDir], { stdio: 'inherit' });
 }
 
@@ -130,7 +168,7 @@ function findFile(root, name) {
   return null;
 }
 
-async function fetchOne(key, spec) {
+export async function fetchOne(key, spec, platformDir) {
   const asset = await latestAsset(spec.owner, spec.repo, spec.match);
   log(`${key}: ${asset.tag} → ${asset.name}`);
   const tmp = mkdtempSync(join(tmpdir(), `secbot-${key}-`));
@@ -141,7 +179,7 @@ async function fetchOne(key, spec) {
     extractArchive(archivePath, extractDir);
     const found = findFile(extractDir, spec.bin);
     if (!found) throw new Error(`解压后未找到 ${spec.bin}`);
-    const destDir = join(repoRoot, 'tools', platformSpec.dir);
+    const destDir = join(repoRoot, 'tools', platformDir);
     mkdirSync(destDir, { recursive: true });
     const dest = join(destDir, spec.bin);
     copyFileSync(found, dest);
@@ -153,12 +191,17 @@ async function fetchOne(key, spec) {
   }
 }
 
-async function main() {
+export async function main(targetLabel) {
+  const label = (targetLabel || process.argv[2] || inferLabel()).trim();
+  const platformSpec = SPEC[label];
+  if (!platformSpec) {
+    throw new Error(`未知平台: ${label}`);
+  }
   const destDir = join(repoRoot, 'tools', platformSpec.dir);
   mkdirSync(destDir, { recursive: true });
   const results = [];
   for (const key of ['nuclei', 'ffuf']) {
-    results.push(await fetchOne(key, platformSpec[key]));
+    results.push(await fetchOne(key, platformSpec[key], platformSpec.dir));
   }
   writeFileSync(
     join(destDir, 'manifest.json'),
@@ -173,7 +216,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+const isEntrypoint =
+  process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isEntrypoint) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}
