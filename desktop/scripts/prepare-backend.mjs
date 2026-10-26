@@ -66,6 +66,24 @@ function assembleBackend() {
     cpSync(join(repoRoot, 'runtime', 'bin'), join(backendDir, 'runtime', 'bin'), { recursive: true });
   }
 
+  const toolsLabel =
+    process.platform === 'win32'
+      ? 'win-x64'
+      : process.platform === 'darwin' && process.arch === 'arm64'
+        ? 'macos-arm64'
+        : process.platform === 'linux'
+          ? 'linux-x64'
+          : null;
+  if (toolsLabel) {
+    const toolsSrc = join(repoRoot, 'tools', toolsLabel);
+    if (existsSync(toolsSrc)) {
+      log(`复制随包工具 tools/${toolsLabel}`);
+      cpSync(toolsSrc, join(backendDir, 'tools', toolsLabel), { recursive: true });
+    } else {
+      log(`skip missing tools/${toolsLabel}（可先运行 node scripts/fetch-bundled-tools.mjs）`);
+    }
+  }
+
   log('复制 package.json / package-lock.json');
   copyFileSync(join(repoRoot, 'package.json'), join(backendDir, 'package.json'));
   copyFileSync(join(repoRoot, 'package-lock.json'), join(backendDir, 'package-lock.json'));

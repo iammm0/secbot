@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { AppModule } from './app.module';
 import { ToolsService } from './modules/tools/tools.service';
+import { applyBundledToolsPath } from './modules/tools/control/bundled-tools-path';
 
 const toolInputSchema = {
   params: z.any().optional(),
@@ -42,6 +43,7 @@ function normalizeParams(value: unknown): Record<string, unknown> {
 }
 
 async function bootstrap() {
+  applyBundledToolsPath();
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ['log', 'error', 'warn'],
   });

@@ -75,6 +75,12 @@ test-reports/
 # 可执行文件（原生构建产物）；npm CLI 入口在仓库根目录 bin/，勿忽略
 *.exe
 
+# 随包 portable 安全工具（由 scripts/fetch-bundled-tools.mjs 下载）
+tools/win-x64/
+tools/linux-x64/
+tools/macos-arm64/
+tools/macos-x64/
+
 # Runtime 构建产物与二进制
 runtime/bin/
 runtime/execgo/bin/

@@ -4,8 +4,14 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { applyBundledToolsPath } from './modules/tools/control/bundled-tools-path';
 
 async function bootstrap() {
+  const toolsDirs = applyBundledToolsPath();
+  if (toolsDirs.length > 0) {
+    console.log(`[secbot] bundled tools PATH: ${toolsDirs.join(', ')}`);
+  }
+
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });

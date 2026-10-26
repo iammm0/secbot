@@ -1,25 +1,53 @@
 import { spawn } from 'node:child_process';
 import { platform } from 'node:os';
+import { commandExists } from '../../../common/process/command-exists';
 import { BaseTool, ToolResult } from '../core/base-tool';
 
+type InstallEntry = {
+  brew?: string;
+  apt?: string;
+  go?: string;
+  pip?: string;
+  winget?: string;
+  scoop?: string;
+  description: string;
+  /** Windows 上手动安装提示（包管理器不可用时） */
+  windowsHint?: string;
+};
+
 /** 允许自动安装的安全工具白名单及其安装方式 */
-const INSTALL_REGISTRY: Record<
-  string,
-  { brew?: string; apt?: string; go?: string; pip?: string; description: string }
-> = {
+export const INSTALL_REGISTRY: Record<string, InstallEntry> = {
   nuclei: {
     brew: 'nuclei',
     apt: 'nuclei',
     go: 'github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest',
+    scoop: 'nuclei',
     description: '模板漏洞扫描器',
+    windowsHint:
+      'Windows 推荐使用随包 tools\\win-x64\\nuclei.exe；或 scoop install nuclei / go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest',
   },
-  nikto: { brew: 'nikto', apt: 'nikto', description: 'Web 综合漏扫' },
-  nmap: { brew: 'nmap', apt: 'nmap', description: '端口扫描与服务识别' },
+  nikto: {
+    brew: 'nikto',
+    apt: 'nikto',
+    description: 'Web 综合漏扫',
+    windowsHint: 'nikto 依赖 Perl，Windows 上请改用 WSL，或跳过此项',
+  },
+  nmap: {
+    brew: 'nmap',
+    apt: 'nmap',
+    winget: 'Insecure.Nmap',
+    description: '端口扫描与服务识别',
+    windowsHint:
+      'winget install --id Insecure.Nmap -e --accept-package-agreements --accept-source-agreements',
+  },
   ffuf: {
     brew: 'ffuf',
     apt: 'ffuf',
     go: 'github.com/ffuf/ffuf/v2@latest',
+    scoop: 'ffuf',
     description: '目录/参数爆破',
+    windowsHint:
+      'Windows 推荐使用随包 tools\\win-x64\\ffuf.exe；或 scoop install ffuf / go install github.com/ffuf/ffuf/v2@latest',
   },
   tshark: { brew: 'wireshark', apt: 'tshark', description: '网络抓包分析' },
   traceroute: { brew: 'traceroute', apt: 'traceroute', description: '路由追踪' },
@@ -28,11 +56,13 @@ const INSTALL_REGISTRY: Record<
   subfinder: {
     brew: 'subfinder',
     go: 'github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest',
+    scoop: 'subfinder',
     description: '子域名发现',
   },
   httpx: {
     brew: 'httpx',
     go: 'github.com/projectdiscovery/httpx/cmd/httpx@latest',
+    scoop: 'httpx',
     description: 'HTTP 探测',
   },
   gobuster: {
@@ -51,6 +81,10 @@ const INSTALL_REGISTRY: Record<
   testssl: { brew: 'testssl', description: 'SSL/TLS 深度检测' },
   feroxbuster: { brew: 'feroxbuster', description: '递归目录爆破' },
 };
+
+export function manualInstallHint(toolName: string): string | undefined {
+  return INSTALL_REGISTRY[toolName]?.windowsHint ?? INSTALL_REGISTRY[toolName]?.description;
+}
 
 export class InstallToolTool extends BaseTool {
   constructor() {
@@ -72,8 +106,7 @@ export class InstallToolTool extends BaseTool {
       };
     }
 
-    // Check if already installed
-    const alreadyInstalled = await this.isInstalled(toolName);
+    const alreadyInstalled = await commandExists(toolName);
     if (alreadyInstalled) {
       return {
         success: true,
@@ -81,30 +114,33 @@ export class InstallToolTool extends BaseTool {
       };
     }
 
-    // Determine install method
     const os = platform();
     const method = await this.pickMethod(os, entry);
     if (!method) {
+      const hint = entry.windowsHint || '请手动安装后重试。';
       return {
         success: false,
-        result: null,
-        error: `无法确定 ${toolName} 的安装方式。请手动安装。`,
+        result: { tool: toolName, manual_hint: hint },
+        error: `无法确定 ${toolName} 的安装方式。${hint}`,
       };
     }
 
-    // Execute install
     const result = await this.exec(method.cmd, method.args, 900);
 
     if (result.code !== 0) {
+      const hint = entry.windowsHint ? ` 手动：${entry.windowsHint}` : '';
       return {
         success: false,
-        result: { stdout: result.stdout.slice(-500), stderr: result.stderr.slice(-500) },
-        error: `安装 ${toolName} 失败 (exit ${result.code}): ${result.stderr.slice(-200)}`,
+        result: {
+          stdout: result.stdout.slice(-500),
+          stderr: result.stderr.slice(-500),
+          manual_hint: entry.windowsHint,
+        },
+        error: `安装 ${toolName} 失败 (exit ${result.code}): ${result.stderr.slice(-200)}${hint}`,
       };
     }
 
-    // Verify
-    const verified = await this.isInstalled(toolName);
+    const verified = await commandExists(toolName);
 
     return {
       success: true,
@@ -112,56 +148,77 @@ export class InstallToolTool extends BaseTool {
         tool: toolName,
         method: `${method.cmd} ${method.args.join(' ')}`,
         status: verified ? 'installed' : 'install_completed_but_not_in_path',
+        manual_hint: verified ? undefined : entry.windowsHint,
         message: verified
           ? `${toolName} 安装成功`
-          : `安装命令执行完毕，但 ${toolName} 未在 PATH 中找到`,
+          : `安装命令执行完毕，但 ${toolName} 未在 PATH 中找到。新开一个终端或重启 Secbot 后再试。${
+              entry.windowsHint ? ` ${entry.windowsHint}` : ''
+            }`,
       },
     };
   }
 
   private async pickMethod(
     os: string,
-    entry: { brew?: string; apt?: string; go?: string; pip?: string },
+    entry: InstallEntry,
   ): Promise<{ cmd: string; args: string[] } | null> {
+    if (os === 'win32') {
+      if (entry.winget && (await commandExists('winget'))) {
+        return {
+          cmd: 'winget',
+          args: [
+            'install',
+            '--id',
+            entry.winget,
+            '-e',
+            '--accept-package-agreements',
+            '--accept-source-agreements',
+          ],
+        };
+      }
+      if (entry.scoop && (await commandExists('scoop'))) {
+        return { cmd: 'scoop', args: ['install', entry.scoop] };
+      }
+      if (entry.go && (await commandExists('go'))) {
+        return { cmd: 'go', args: ['install', entry.go] };
+      }
+      if (entry.pip && (await commandExists('pip'))) {
+        return { cmd: 'pip', args: ['install', entry.pip] };
+      }
+      if (entry.pip && (await commandExists('pip3'))) {
+        return { cmd: 'pip3', args: ['install', entry.pip] };
+      }
+      return null;
+    }
+
     if (os === 'darwin' && entry.brew) {
-      if (await this.isInstalled('brew')) {
+      if (await commandExists('brew')) {
         return { cmd: 'brew', args: ['install', entry.brew] };
       }
     }
 
     if (os === 'linux') {
-      if (entry.apt && (await this.isInstalled('apt-get'))) {
+      if (entry.apt && (await commandExists('apt-get'))) {
         return { cmd: 'sudo', args: ['apt-get', 'install', '-y', entry.apt] };
       }
-      if (entry.brew && (await this.isInstalled('brew'))) {
+      if (entry.brew && (await commandExists('brew'))) {
         return { cmd: 'brew', args: ['install', entry.brew] };
       }
     }
 
-    if (entry.go && (await this.isInstalled('go'))) {
+    if (entry.go && (await commandExists('go'))) {
       return { cmd: 'go', args: ['install', entry.go] };
     }
 
-    if (entry.pip && (await this.isInstalled('pip3'))) {
+    if (entry.pip && (await commandExists('pip3'))) {
       return { cmd: 'pip3', args: ['install', entry.pip] };
     }
 
-    // Fallback: try brew on any platform
-    if (entry.brew && (await this.isInstalled('brew'))) {
+    if (entry.brew && (await commandExists('brew'))) {
       return { cmd: 'brew', args: ['install', entry.brew] };
     }
 
     return null;
-  }
-
-  private isInstalled(cmd: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      const child = spawn('which', [cmd], { shell: false });
-      child.on('close', (code) => resolve(code === 0));
-      child.on('error', () => resolve(false));
-      child.stdout.resume();
-      child.stderr.resume();
-    });
   }
 
   private exec(
@@ -171,7 +228,7 @@ export class InstallToolTool extends BaseTool {
   ): Promise<{ code: number; stdout: string; stderr: string }> {
     return new Promise((resolve) => {
       const child = spawn(cmd, args, {
-        shell: false,
+        shell: platform() === 'win32',
         windowsHide: true,
         env: { ...process.env, HOMEBREW_NO_AUTO_UPDATE: '1' },
       });
@@ -179,12 +236,12 @@ export class InstallToolTool extends BaseTool {
       let stderr = '';
       let done = false;
 
-      child.stdout.setEncoding('utf8');
-      child.stderr.setEncoding('utf8');
-      child.stdout.on('data', (c) => {
+      child.stdout?.setEncoding('utf8');
+      child.stderr?.setEncoding('utf8');
+      child.stdout?.on('data', (c) => {
         stdout += c;
       });
-      child.stderr.on('data', (c) => {
+      child.stderr?.on('data', (c) => {
         stderr += c;
       });
 
@@ -192,7 +249,7 @@ export class InstallToolTool extends BaseTool {
         if (done) return;
         done = true;
         child.kill('SIGTERM');
-        resolve({ code: -1, stdout, stderr });
+        resolve({ code: -1, stdout, stderr: stderr || 'install timed out' });
       }, timeoutSec * 1000);
       child.on('error', (err) => {
         if (done) return;

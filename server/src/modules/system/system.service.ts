@@ -23,8 +23,8 @@ import { loadYamlConfig, saveYamlConfig } from '../../config/yaml-config-loader.
 import { deleteYamlConfigKey } from '../../common/config/persisted-config';
 import {
   installRuntimeTool as runRuntimeInstall,
-  isRequiredRuntimeTool,
   probeRuntimeTools,
+  requiredRuntimeTools,
   type RuntimeEnvironmentReport,
 } from './runtime-tools';
 
@@ -481,7 +481,8 @@ export class SystemService {
 
   installRuntimeTool(tool: string) {
     const name = tool.trim().toLowerCase();
-    if (!isRequiredRuntimeTool(name)) {
+    const allowed = requiredRuntimeTools().some((item) => item.id === name);
+    if (!allowed) {
       return {
         success: false,
         result: null,

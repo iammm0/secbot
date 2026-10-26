@@ -193,13 +193,49 @@ pub fn spawn_backend(app: &AppHandle) -> Result<BackendProcess, String> {
             entry.display(),
             port
         );
-        let (mut rx, child) = app
+        let tools_dir = {
+            #[cfg(target_os = "windows")]
+            {
+                backend_dir.join("tools").join("win-x64")
+            }
+            #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+            {
+                backend_dir.join("tools").join("macos-arm64")
+            }
+            #[cfg(target_os = "linux")]
+            {
+                backend_dir.join("tools").join("linux-x64")
+            }
+            #[cfg(not(any(
+                target_os = "windows",
+                all(target_os = "macos", target_arch = "aarch64"),
+                target_os = "linux"
+            )))]
+            {
+                backend_dir.join("tools")
+            }
+        };
+        let mut sidecar = app
             .shell()
             .sidecar("secbot-node")
             .map_err(|e| format!("解析 sidecar secbot-node 失败: {e}"))?
             .arg(entry.to_string_lossy().to_string())
             .env("PORT", port.to_string())
-            .current_dir(&backend_dir)
+            .current_dir(&backend_dir);
+        if tools_dir.is_dir() {
+            let tools = tools_dir.to_string_lossy().to_string();
+            eprintln!("[secbot-desktop][prod] SECBOT_TOOLS_DIR={tools}");
+            let path_key = if cfg!(windows) { "Path" } else { "PATH" };
+            let existing = std::env::var_os(path_key).unwrap_or_default();
+            let mut joined = std::ffi::OsString::from(&tools);
+            #[cfg(windows)]
+            joined.push(";");
+            #[cfg(not(windows))]
+            joined.push(":");
+            joined.push(&existing);
+            sidecar = sidecar.env("SECBOT_TOOLS_DIR", &tools).env(path_key, joined);
+        }
+        let (mut rx, child) = sidecar
             .spawn()
             .map_err(|e| format!("启动 sidecar node 失败: {e}"))?;
         // 必须持续消费 sidecar 的 stdout/stderr。丢掉 Receiver 会关掉管道，

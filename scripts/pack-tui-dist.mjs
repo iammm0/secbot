@@ -108,6 +108,7 @@ function assemble(stageDir) {
     'terminal-ui/package.json',
     'web/dist',
     'runtime/bin',
+    'tools',
     'README.md',
     'LICENSE',
     'SECURITY_WARNING.md',
@@ -163,11 +164,17 @@ function assemble(stageDir) {
         '@echo off',
         'setlocal',
         'set "SECBOT_PACKAGE_ROOT=%~dp0"',
+        'if exist "%~dp0tools\\win-x64\\" (',
+        '  set "SECBOT_TOOLS_DIR=%~dp0tools\\win-x64"',
+        '  set "PATH=%~dp0tools\\win-x64;%PATH%"',
+        ')',
         '"%~dp0node.exe" "%~dp0bin\\secbot.js" %*',
         '',
       ].join('\r\n'),
     );
   } else {
+    const toolsSub =
+      label === 'macos-arm64' ? 'macos-arm64' : label === 'linux-x64' ? 'linux-x64' : '';
     const launcher = join(stageDir, 'secbot');
     writeFileSync(
       launcher,
@@ -175,9 +182,14 @@ function assemble(stageDir) {
         '#!/bin/sh',
         'ROOT="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"',
         'export SECBOT_PACKAGE_ROOT="$ROOT"',
+        toolsSub
+          ? `if [ -d "$ROOT/tools/${toolsSub}" ]; then export SECBOT_TOOLS_DIR="$ROOT/tools/${toolsSub}"; export PATH="$ROOT/tools/${toolsSub}:$PATH"; fi`
+          : '',
         'exec "$ROOT/node" "$ROOT/bin/secbot.js" "$@"',
         '',
-      ].join('\n'),
+      ]
+        .filter((line) => line !== '')
+        .join('\n'),
     );
     chmodSync(launcher, 0o755);
   }

@@ -140,6 +140,11 @@ jobs:
       - name: 注入桌面版本号
         run: node scripts/set-desktop-version.mjs "${{ needs.prepare.outputs.version }}"
 
+      - name: 下载随包 portable 工具
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/fetch-bundled-tools.mjs ${{ matrix.label }}
+
       - name: 构建桌面安装包
         env:
           SECBOT_TARGET_TRIPLE: ${{ matrix.target }}
@@ -226,6 +231,11 @@ jobs:
 
       - name: 构建 server / TUI / web
         run: npm run build && npm run build:terminal-ui && npm run build:web
+
+      - name: 下载随包 portable 工具
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/fetch-bundled-tools.mjs ${{ matrix.label }}
 
       - name: 打包自包含 TUI 发行包
         id: pack

@@ -70,7 +70,7 @@ export function HomeView() {
     const report = await api.get<{ missing: string[]; ready: boolean }>('/api/system/runtime');
     setRuntimeHint(
       report.ready
-        ? '本机环境已就绪 · nmap / nuclei / nikto / ffuf'
+        ? '本机环境已就绪'
         : `缺少 ${report.missing.join('、')} · 输入「安装工具」并回车`,
     );
   }, []);
@@ -82,7 +82,7 @@ export function HomeView() {
         const report = await api.get<{ missing: string[]; ready: boolean }>('/api/system/runtime');
         if (cancelled) return;
         if (report.ready) {
-          setRuntimeHint('本机环境已就绪 · nmap / nuclei / nikto / ffuf');
+          setRuntimeHint('本机环境已就绪');
           return;
         }
         for (const tool of report.missing) {

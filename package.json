@@ -53,7 +53,8 @@
     "release:pack": "npm run release:build && npm pack",
     "release:verify": "node scripts/verify_release_package.js",
     "build:runtime": "node scripts/build-runtime.mjs",
-    "pack:tui": "node scripts/pack-tui-dist.mjs"
+    "pack:tui": "node scripts/pack-tui-dist.mjs",
+    "fetch:tools": "node scripts/fetch-bundled-tools.mjs"
   },
   "engines": {
     "node": ">=24"
