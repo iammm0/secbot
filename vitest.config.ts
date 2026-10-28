@@ -7,6 +7,7 @@ export default defineConfig({
       'server/src/**/*.spec.ts',
       'server/src/**/*.test.ts',
       'web/src/**/*.test.ts',
+      'terminal-ui/src/**/*.test.ts',
       'scripts/**/*.test.mjs',
     ],
     globals: true,

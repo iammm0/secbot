@@ -22,7 +22,10 @@ export type KeybindId =
   | 'messages_next'
   | 'scrollbar_toggle'
   | 'task_panel_toggle'
-  | 'output_expand';
+  | 'output_expand'
+  | 'search_open'
+  | 'search_next'
+  | 'search_prev';
 
 /** 内置默认 keybinds；可从后端 config.keybinds 或本地配置覆盖 */
 export const DEFAULT_KEYBINDS: Record<KeybindId, { keys: ParsedKey[]; label: string }> = {
@@ -41,6 +44,9 @@ export const DEFAULT_KEYBINDS: Record<KeybindId, { keys: ParsedKey[]; label: str
   scrollbar_toggle: { keys: [], label: '切换滚动条' },
   task_panel_toggle: { keys: [{ name: 't', ctrl: true }], label: 'Ctrl+T' },
   output_expand: { keys: [{ name: 'o' }], label: 'o' },
+  search_open: { keys: [{ name: 'f', ctrl: true }], label: 'Ctrl+F' },
+  search_next: { keys: [{ name: 'return' }, { name: 'n', ctrl: true }], label: 'Enter / Ctrl+N' },
+  search_prev: { keys: [{ name: 'return', shift: true }, { name: 'p', ctrl: true }], label: 'Shift+Enter / Ctrl+P' },
 };
 
 /** 从配置合并 keybinds；若传入 partial 则覆盖默认值，否则用默认 */
@@ -70,6 +76,7 @@ export interface InkKey {
   shift?: boolean;
   escape?: boolean;
   tab?: boolean;
+  return?: boolean;
   pageUp?: boolean;
   pageDown?: boolean;
   upArrow?: boolean;
@@ -86,6 +93,8 @@ export function isInkEscape(input: string, key: InkKey): boolean {
 export function inkKeyToParsedKey(input: string, key: InkKey): ParsedKey {
   if (isInkEscape(input, key)) return { name: 'escape' };
   if (key.tab || input === '\t') return { name: 'tab' };
+  if (key.return || input === '\r' || input === '\n')
+    return { name: 'return', shift: key.shift };
   if (key.home) return { name: 'home' };
   if (key.end) return { name: 'end' };
   if (key.ctrl && key.pageUp) return { name: 'pageup', ctrl: true };

@@ -20,6 +20,12 @@ import { DiscriminatorPool } from "../blockDiscriminators/index.js";
 import { ContentBlock } from "./ContentBlock.js";
 import { TRANSIENT_TOOLS } from "../chat/streamConstants.js";
 import { displayBodyForFold } from "../chat/foldOutput.js";
+import {
+  findMatches,
+  injectBodyHighlight,
+  injectHighlight,
+  matchAbsLine,
+} from "../chat/searchBlocks.js";
 import { EMPTY_OUTPUT } from "../render/copy.js";
 
 // ─── 常量 ──────────────────────────────────────────────────────────────────────
@@ -203,6 +209,16 @@ interface MainContentProps {
   expandedOverride?: Record<string, boolean>;
   /** 布局完成后回传可折叠块，供快捷键切换 */
   onFoldableBlocks?: (blocks: FoldableBlockInfo[]) => void;
+
+  // ── 对话内搜索 ────────────────────────────────────────────────────────────────
+  /** 搜索关键词；非空时计算命中并高亮当前命中 */
+  searchQuery?: string;
+  /** 当前命中的序号（0-based，由会话层维护并支持循环） */
+  searchMatchIndex?: number;
+  /** 每次发起导航递增的令牌，用于强制重新定位（含循环回绕） */
+  searchNavToken?: number;
+  /** 命中总数回传，供搜索条显示 n/m */
+  onSearchMatchCount?: (count: number) => void;
 }
 
 // ─── 组件 ──────────────────────────────────────────────────────────────────────
@@ -224,6 +240,10 @@ export function MainContent({
   currentRoundChatMode = "agent",
   expandedOverride = {},
   onFoldableBlocks,
+  searchQuery = "",
+  searchMatchIndex = 0,
+  searchNavToken = 0,
+  onSearchMatchCount,
 }: MainContentProps) {
   const [dismissedTransientTools, setDismissedTransientTools] = useState<
     Set<string>
@@ -346,6 +366,33 @@ export function MainContent({
     [rawBlocks, expandedOverride],
   );
 
+  // ── 对话内搜索：收集命中 → 高亮当前命中 → 滚动定位 ─────────────────────────────
+  const activeQuery = searchQuery.trim();
+  const matches = useMemo(
+    () => findMatches(foldedBlocks, activeQuery),
+    [foldedBlocks, activeQuery],
+  );
+  const clampedIndex = useMemo(() => {
+    if (matches.length === 0) return -1;
+    return Math.min(Math.max(0, searchMatchIndex), matches.length - 1);
+  }, [matches, searchMatchIndex]);
+
+  useEffect(() => {
+    onSearchMatchCount?.(matches.length);
+  }, [matches.length, onSearchMatchCount]);
+
+  const highlightedBlocks = useMemo(() => {
+    if (clampedIndex < 0) return foldedBlocks;
+    const match = matches[clampedIndex];
+    return foldedBlocks.map((block) => {
+      if (block.id !== match.blockId) return block;
+      if (match.inTitle && block.title) {
+        return { ...block, title: injectHighlight(block.title, match) };
+      }
+      return { ...block, body: injectBodyHighlight(block.body || " ", match) };
+    });
+  }, [foldedBlocks, matches, clampedIndex]);
+
   const reserveScrollbarGutter = showScrollbar;
   const contentColumnWidth = Math.max(
     16,
@@ -353,8 +400,8 @@ export function MainContent({
   );
 
   const blocks = useMemo(
-    () => relayoutBlocksForWidth(foldedBlocks, contentColumnWidth),
-    [foldedBlocks, contentColumnWidth],
+    () => relayoutBlocksForWidth(highlightedBlocks, contentColumnWidth),
+    [highlightedBlocks, contentColumnWidth],
   );
 
   useEffect(() => {
@@ -379,6 +426,35 @@ export function MainContent({
   );
   const scrollableHeight = Math.max(1, contentHeight);
   const prevTotalRef = useRef<number>(0);
+
+  // 供搜索滚动定位使用（避免把频繁变化的 totalLines/scrollableHeight 引入 effect 依赖）
+  const totalLinesRef = useRef(0);
+  const scrollableHeightRef = useRef(1);
+  useEffect(() => {
+    totalLinesRef.current = totalLines;
+  }, [totalLines]);
+  useEffect(() => {
+    scrollableHeightRef.current = scrollableHeight;
+  }, [scrollableHeight]);
+
+  // 仅在查询/序号/导航令牌变化时滚动到当前命中；流式追加内容时不重复滚动
+  const lastSearchScrollKeyRef = useRef("");
+  useEffect(() => {
+    if (clampedIndex < 0) return;
+    const scrollKey = `${activeQuery}|${clampedIndex}|${searchNavToken}`;
+    if (lastSearchScrollKeyRef.current === scrollKey) return;
+    lastSearchScrollKeyRef.current = scrollKey;
+    const match = matches[clampedIndex];
+    const block = blocks.find((b) => b.id === match.blockId);
+    if (!block) return;
+    const abs = matchAbsLine(block, match);
+    const max = Math.max(0, totalLinesRef.current - scrollableHeightRef.current);
+    const target = Math.max(
+      0,
+      Math.min(max, abs - Math.floor(scrollableHeightRef.current / 2)),
+    );
+    setScrollOffset(() => target);
+  }, [activeQuery, clampedIndex, searchNavToken, matches, blocks, setScrollOffset]);
 
   useEffect(() => {
     onLinesChange(totalLines);

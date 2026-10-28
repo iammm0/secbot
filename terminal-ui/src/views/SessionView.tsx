@@ -35,6 +35,7 @@ import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
 import { SessionSelectDialog } from "../components/SessionSelectDialog.js";
+import { SearchBar } from "../components/SearchBar.js";
 import { useRoute } from "../contexts/RouteContext.js";
 import {
   BottomStatusLine,
@@ -79,6 +80,13 @@ export function SessionView({
   const [expandedOverride, setExpandedOverride] = useState<
     Record<string, boolean>
   >({});
+  // ── 对话内搜索状态（Ctrl+F 唤起） ─────────────────────────────────────────────
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+  const [searchMatchCount, setSearchMatchCount] = useState(0);
+  // 每次发起导航（切换/打开/改词）递增，供 MainContent 强制重新定位（含循环回绕）
+  const [searchNav, setSearchNav] = useState(0);
   const foldableBlocksRef = useRef<FoldableBlockInfo[]>([]);
   const { commands, register, trigger } = useCommand();
   const totalLinesRef = useRef(0);
@@ -290,6 +298,43 @@ export function SessionView({
     setTaskPanelOverride((current) => !(current ?? true));
   }, [taskPanelAvailable, toast]);
 
+  // ── 对话内搜索 ──────────────────────────────────────────────────────────────
+  const openSearch = useCallback(() => {
+    setSearchActive(true);
+    setSearchMatchIndex(0);
+    setSearchNav((n) => n + 1);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchActive(false);
+    setSearchQuery("");
+    setSearchMatchIndex(0);
+    setSearchMatchCount(0);
+    setSearchNav((n) => n + 1);
+  }, []);
+
+  const handleSearchChange = useCallback((next: string) => {
+    setSearchQuery(next);
+    setSearchMatchIndex(0);
+    setSearchNav((n) => n + 1);
+  }, []);
+
+  const goNext = useCallback(() => {
+    setSearchNav((n) => n + 1);
+    setSearchMatchIndex((i) =>
+      searchMatchCount === 0 ? 0 : (i + 1) % searchMatchCount,
+    );
+  }, [searchMatchCount]);
+
+  const goPrev = useCallback(() => {
+    setSearchNav((n) => n + 1);
+    setSearchMatchIndex((i) =>
+      searchMatchCount === 0
+        ? 0
+        : (i - 1 + searchMatchCount) % searchMatchCount,
+    );
+  }, [searchMatchCount]);
+
   const handleFoldableBlocks = useCallback((list: FoldableBlockInfo[]) => {
     foldableBlocksRef.current = list;
   }, []);
@@ -442,6 +487,17 @@ export function SessionView({
           close();
         },
       }),
+      register({
+        title: "搜索对话",
+        value: "session.search",
+        category: "会话",
+        slash: "/search",
+        keybind: "search_open",
+        onSelect: ({ close }) => {
+          openSearch();
+          close();
+        },
+      }),
     ];
     return () => unregs.forEach((u) => u());
   }, [
@@ -456,10 +512,35 @@ export function SessionView({
     sessionList,
     dialog,
     toast,
+    openSearch,
   ]);
 
   useInput((input, key) => {
     const evt = inkKeyToParsedKey(input, key);
+    // ── 搜索模式：按键全部交给搜索条，避免触发会话级快捷键 ──
+    if (searchActive) {
+      if (isInkEscape(input, key)) {
+        closeSearch();
+        return;
+      }
+      if (keybind.match("search_open", evt)) {
+        closeSearch();
+        return;
+      }
+      if (keybind.match("search_prev", evt)) {
+        goPrev();
+        return;
+      }
+      if (keybind.match("search_next", evt)) {
+        goNext();
+        return;
+      }
+      return;
+    }
+    if (keybind.match("search_open", evt)) {
+      openSearch();
+      return;
+    }
     if (streaming && isInkEscape(input, key)) {
       stopStream();
       return;
@@ -774,6 +855,10 @@ export function SessionView({
             currentRoundChatMode={currentRoundChatMode}
             expandedOverride={expandedOverride}
             onFoldableBlocks={handleFoldableBlocks}
+            searchQuery={searchActive ? searchQuery : ""}
+            searchMatchIndex={searchMatchIndex}
+            searchNavToken={searchNav}
+            onSearchMatchCount={setSearchMatchCount}
           />
         </Box>
         {taskPanelVisible ? (
@@ -807,18 +892,33 @@ export function SessionView({
         </Text>
       </Box>
 
-      <ComposerRow
-        value={inputValue}
-        onChange={(next) => setInputValue(sanitizeInputValue(next))}
-        onSubmit={handleComposerSubmit}
-        placeholder={
-          streaming
-            ? PAUSE_HINT
-            : paused
-              ? PAUSED_PLACEHOLDER
-              : MESSAGE_PLACEHOLDER
-        }
-      />
+      {searchActive ? (
+        <SearchBar
+          value={searchQuery}
+          onChange={handleSearchChange}
+          matchIndex={
+            searchMatchCount > 0
+              ? Math.min(searchMatchIndex, searchMatchCount - 1)
+              : 0
+          }
+          matchCount={searchMatchCount}
+          nextLabel={keybind.print("search_next")}
+          prevLabel={keybind.print("search_prev")}
+        />
+      ) : (
+        <ComposerRow
+          value={inputValue}
+          onChange={(next) => setInputValue(sanitizeInputValue(next))}
+          onSubmit={handleComposerSubmit}
+          placeholder={
+            streaming
+              ? PAUSE_HINT
+              : paused
+                ? PAUSED_PLACEHOLDER
+                : MESSAGE_PLACEHOLDER
+          }
+        />
+      )}
 
       <BottomStatusLine
         totalLines={totalLines}
@@ -835,6 +935,7 @@ export function SessionView({
           scrollOffset < totalLines - scrollableHeight
         }
         expandLabel={keybind.print("output_expand")}
+        searchLabel={keybind.print("search_open")}
         version={APP_VERSION}
       />
     </Box>

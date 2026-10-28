@@ -17,6 +17,7 @@ export const TASKS_OFF = "关";
 export const TASKS_NARROW = "窄屏";
 export const COMMANDS = "命令";
 export const EXPAND_HINT = "展开";
+export const SEARCH = "搜索";
 export const PLAN = "规划";
 export const TOOLS = "工具";
 export const CONTEXT = "上下文";

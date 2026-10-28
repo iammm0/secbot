@@ -11,6 +11,7 @@ import {
   PHASE_PAUSED,
   PHASE_RUNNING,
   SCROLL,
+  SEARCH,
   TASKS,
   TASKS_NARROW,
   TASKS_OFF,
@@ -168,6 +169,7 @@ interface BottomStatusLineProps {
   showUpIndicator: boolean;
   showDownIndicator: boolean;
   expandLabel: string;
+  searchLabel: string;
   version?: string;
 }
 
@@ -183,6 +185,7 @@ export function BottomStatusLine({
   showUpIndicator,
   showDownIndicator,
   expandLabel,
+  searchLabel,
   version,
 }: BottomStatusLineProps) {
   const theme = useTheme();
@@ -209,7 +212,7 @@ export function BottomStatusLine({
         <Text color={theme.textMuted} wrap="truncate">
           {range} · {arrows} · {pageUpLabel}/{pageDownLabel} {SCROLL} · {TASKS}{' '}
           {taskPanelAvailable ? (taskPanelVisible ? TASKS_ON : TASKS_OFF) : TASKS_NARROW}{' '}
-          {taskPanelLabel} · {expandLabel} {EXPAND_HINT} · {execGoLabel} · / {COMMANDS}
+          {taskPanelLabel} · {expandLabel} {EXPAND_HINT} · {searchLabel} {SEARCH} · {execGoLabel} · / {COMMANDS}
         </Text>
       </Box>
       {version ? (
