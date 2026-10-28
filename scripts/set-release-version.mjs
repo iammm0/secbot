@@ -7,6 +7,9 @@
  *   - desktop/package.json
  *   - desktop/src-tauri/tauri.conf.json（Tauri 读取此 version 决定安装包版本）
  *   - desktop/src-tauri/Cargo.toml（[package] version）
+ *   - web/src/generated/desktopVersion.ts（给设置页 / 更新检查用）
+ *   - web/public/desktop-version.json
+ *   - README* 中的 desktop-app-v* 示例
  *
  * 用法：node scripts/set-release-version.mjs <version>
  * 例：  node scripts/set-release-version.mjs 2.0.0
@@ -14,12 +17,17 @@
  *
  * 仅供 CI / 本地发布使用；不会创建 git tag。
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import {
+  setJsonVersion,
+  setCargoVersion,
+  writeWebArtifacts,
+  updateReadmeExamples,
+  TAG_PREFIX,
+} from './lib/set-version-common.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '..');
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const version = (process.argv[2] || '').trim();
 if (!version) {
@@ -32,54 +40,14 @@ if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
   process.exit(1);
 }
 
-function setJsonVersion(relPath) {
-  const p = join(root, relPath);
-  if (!existsSync(p)) {
-    console.warn(`[skip] 不存在: ${relPath}`);
-    return;
-  }
-  const json = JSON.parse(readFileSync(p, 'utf8'));
-  json.version = version;
-  writeFileSync(p, `${JSON.stringify(json, null, 2)}\n`);
-  console.log(`[ok] ${relPath} -> ${version}`);
-}
-
-function setCargoVersion(relPath) {
-  const p = join(root, relPath);
-  if (!existsSync(p)) {
-    console.warn(`[skip] 不存在: ${relPath}`);
-    return;
-  }
-  const src = readFileSync(p, 'utf8');
-  // 仅替换 [package] 段内的首个 version = "..."
-  let inPackage = false;
-  let replaced = false;
-  const out = src
-    .split('\n')
-    .map((line) => {
-      if (/^\s*\[[^\]]+\]\s*$/.test(line)) {
-        inPackage = /^\s*\[package\]\s*$/.test(line);
-        return line;
-      }
-      if (inPackage && !replaced && /^\s*version\s*=/.test(line)) {
-        replaced = true;
-        return `version = "${version}"`;
-      }
-      return line;
-    })
-    .join('\n');
-  if (!replaced) {
-    console.warn(`[warn] 未在 [package] 段找到 version: ${relPath}`);
-  }
-  writeFileSync(p, out);
-  console.log(`[ok] ${relPath} -> ${version}`);
-}
-
-setJsonVersion('package.json');
-setJsonVersion('terminal-ui/package.json');
-setJsonVersion('web/package.json');
-setJsonVersion('desktop/package.json');
-setJsonVersion('desktop/src-tauri/tauri.conf.json');
-setCargoVersion('desktop/src-tauri/Cargo.toml');
+setJsonVersion(root, 'package.json', version);
+setJsonVersion(root, 'terminal-ui/package.json', version);
+setJsonVersion(root, 'web/package.json', version);
+setJsonVersion(root, 'desktop/package.json', version);
+setJsonVersion(root, 'desktop/src-tauri/tauri.conf.json', version);
+setCargoVersion(root, 'desktop/src-tauri/Cargo.toml', version);
+writeWebArtifacts(root, version);
+updateReadmeExamples(root, version);
 
 console.log(`\n全部版本已设置为 ${version}`);
+console.log(`桌面端对应 Git 标签: ${TAG_PREFIX}${version}`);
