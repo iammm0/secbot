@@ -27,6 +27,8 @@ import type {
   SSEEvent,
   StreamTimelineItem,
   ToolProgressSnapshot,
+  PendingHitlRequest,
+  HitlOption,
 } from "./types.js";
 
 // ─── 初始状态 ──────────────────────────────────────────────────────────────────
@@ -389,6 +391,8 @@ export function useChat() {
   const [apiOutput, setApiOutput] = useState<string | null>(null);
   const [pendingRootRequest, setPendingRootRequest] =
     useState<PendingRootRequest | null>(null);
+  const [pendingHitlRequest, setPendingHitlRequest] =
+    useState<PendingHitlRequest | null>(null);
 
   // 当前轮次的用户消息与发送时刻（供外层渲染"当前正在进行的轮次"）
   const [currentUserMessage, setCurrentUserMessage] = useState<string>("");
@@ -1386,6 +1390,90 @@ export function useChat() {
                 });
                 break;
 
+              case "confirm_required": {
+                const confirmRequestId = String(
+                  (data.request_id as string) ?? "",
+                );
+                if (!confirmRequestId) break;
+                setPendingHitlRequest({
+                  kind: "confirm",
+                  request_id: confirmRequestId,
+                  session_id:
+                    typeof data.session_id === "string" && data.session_id
+                      ? data.session_id
+                      : activeSessionIdRef.current,
+                  tool: String((data.tool as string) ?? ""),
+                  params:
+                    data.params && typeof data.params === "object"
+                      ? (data.params as Record<string, unknown>)
+                      : undefined,
+                  risk_summary: String(
+                    (data.risk_summary as string) ?? "",
+                  ),
+                });
+                setStreamState((s) => ({
+                  ...s,
+                  phase: "awaiting_user",
+                  detail: `等待批准 ${String((data.tool as string) ?? "敏感操作")}`,
+                }));
+                break;
+              }
+
+              case "user_input_required": {
+                const inputRequestId = String(
+                  (data.request_id as string) ?? "",
+                );
+                if (!inputRequestId) break;
+                const optionsRaw = Array.isArray(data.options)
+                  ? data.options
+                  : [];
+                const hitlOptions: HitlOption[] = optionsRaw
+                  .map((item, index) => {
+                    if (typeof item === "string")
+                      return { id: `opt-${index}`, label: item };
+                    if (item && typeof item === "object") {
+                      const rec = item as Record<string, unknown>;
+                      const id = String(rec.id ?? `opt-${index}`);
+                      return {
+                        id,
+                        label: String(rec.label ?? rec.text ?? id),
+                      };
+                    }
+                    return null;
+                  })
+                  .filter((o): o is HitlOption => Boolean(o));
+                const inputTypeRaw = String(
+                  (data.input_type as string) ?? "single_select",
+                );
+                const input_type =
+                  inputTypeRaw === "multi_select" ||
+                  inputTypeRaw === "text"
+                    ? inputTypeRaw
+                    : "single_select";
+                setPendingHitlRequest({
+                  kind: "user_input",
+                  request_id: inputRequestId,
+                  session_id:
+                    typeof data.session_id === "string" && data.session_id
+                      ? data.session_id
+                      : activeSessionIdRef.current,
+                  prompt: String(
+                    (data.prompt as string) ?? "请确认下一步方向",
+                  ),
+                  input_type,
+                  options: hitlOptions,
+                  allow_free_text:
+                    Boolean(data.allow_free_text) ||
+                    input_type === "text",
+                });
+                setStreamState((s) => ({
+                  ...s,
+                  phase: "awaiting_user",
+                  detail: "等待用户决策…",
+                }));
+                break;
+              }
+
               case "plan_progress":
               case "plan_complete": {
                 const todos = normalizePlanTodos(data.todos);
@@ -1587,6 +1675,8 @@ export function useChat() {
     apiOutput,
     pendingRootRequest,
     setPendingRootRequest,
+    pendingHitlRequest,
+    setPendingHitlRequest,
     sendMessage,
     stopStream,
     setRESTOutput,

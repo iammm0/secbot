@@ -10,7 +10,7 @@
 import React from "react";
 import { createSimpleContext } from "./helper.js";
 import { useChat } from "../chat/useChat.js";
-import type { StreamState, ChatMode } from "../chat/types.js";
+import type { StreamState, ChatMode, PendingHitlRequest } from "../chat/types.js";
 import type {
   PendingRootRequest,
   HistoryItem,
@@ -34,6 +34,10 @@ export interface SyncContextValue {
   pendingRootRequest: PendingRootRequest | null;
   setPendingRootRequest: React.Dispatch<
     React.SetStateAction<PendingRootRequest | null>
+  >;
+  pendingHitlRequest: PendingHitlRequest | null;
+  setPendingHitlRequest: React.Dispatch<
+    React.SetStateAction<PendingHitlRequest | null>
   >;
   sendMessage: (message: string, mode: ChatMode, agent: string) => void;
   stopStream: () => void;
@@ -62,6 +66,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         apiOutput: value.apiOutput,
         pendingRootRequest: value.pendingRootRequest,
         setPendingRootRequest: value.setPendingRootRequest,
+        pendingHitlRequest: value.pendingHitlRequest,
+        setPendingHitlRequest: value.setPendingHitlRequest,
         sendMessage: value.sendMessage,
         stopStream: value.stopStream,
         setRESTOutput: value.setRESTOutput,

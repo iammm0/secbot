@@ -33,6 +33,7 @@ import { McpConfigDialog } from "../components/McpConfigDialog.js";
 import { ExecGoConfigDialog } from "../components/ExecGoConfigDialog.js";
 import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
+import { HitlDialog } from "../components/HitlDialog.js";
 import { LoadingBar } from "../components/LoadingBar.js";
 import { SessionSelectDialog } from "../components/SessionSelectDialog.js";
 import { SearchBar } from "../components/SearchBar.js";
@@ -121,6 +122,8 @@ export function SessionView({
     apiOutput,
     pendingRootRequest,
     setPendingRootRequest,
+    pendingHitlRequest,
+    setPendingHitlRequest,
     sendMessage,
     stopStream,
     sessionList,
@@ -248,6 +251,20 @@ export function SessionView({
       () => setPendingRootRequest(null),
     );
   }, [pendingRootRequest]);
+
+  useEffect(() => {
+    if (!pendingHitlRequest) return;
+    dialog.replace(
+      <HitlDialog
+        request={pendingHitlRequest}
+        onResolve={() => {
+          setPendingHitlRequest(null);
+          dialog.pop();
+        }}
+      />,
+      () => setPendingHitlRequest(null),
+    );
+  }, [pendingHitlRequest]);
 
   const findNextBlockOffset = useCallback(
     (direction: "next" | "prev"): number | null => {

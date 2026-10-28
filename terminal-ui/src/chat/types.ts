@@ -166,6 +166,36 @@ export interface StreamState {
   contextUsage: ContextUsageSnapshot | null;
 }
 
+// ── HITL / 人工审批（confirm_required 与 user_input_required） ─────────────────
+
+export interface HitlOption {
+  id: string;
+  label: string;
+}
+
+/** 敏感工具批准请求（confirm_required） */
+export interface PendingConfirmRequest {
+  kind: "confirm";
+  request_id: string;
+  session_id: string;
+  tool: string;
+  params?: Record<string, unknown>;
+  risk_summary: string;
+}
+
+/** ask_user 决策请求（user_input_required） */
+export interface PendingUserInputRequest {
+  kind: "user_input";
+  request_id: string;
+  session_id: string;
+  prompt: string;
+  input_type: "single_select" | "multi_select" | "text";
+  options: HitlOption[];
+  allow_free_text: boolean;
+}
+
+export type PendingHitlRequest = PendingConfirmRequest | PendingUserInputRequest;
+
 /** 规划待办项（供 TodoList 渲染） */
 export interface TodoItemData {
   content: string;
