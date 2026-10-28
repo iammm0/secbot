@@ -16,6 +16,7 @@
     "core:window:allow-set-position",
     "core:window:allow-set-size",
     "core:window:allow-start-dragging",
+    "updater:default",
     {
       "identifier": "shell:allow-execute",
       "allow": [

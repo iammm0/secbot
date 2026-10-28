@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Build white-bg production + DEV-badge masters from assets/secbot-main.png."""
+"""Build transparent master icons (production + DEV-badge) from assets/secbot-main.png.
+
+Logo 先裁剪到不透明内容边界（去掉源图自带的上/下内边距），再居中放到
+透明正方形画布上，边距 ~5% —— 让桌面图标"直接展示 logo"，不再是大白底里的小图。
+"""
 
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ SRC = ROOT / "assets" / "secbot-main.png"
 OUT_PROD = ROOT / "assets" / "secbot-desktop-icon.png"
 OUT_DEV = ROOT / "assets" / "secbot-desktop-icon-dev.png"
 SIZE = 1024
+MARGIN = int(SIZE * 0.05)
 
 
 def load_font(size: int) -> ImageFont.ImageFont:
@@ -31,12 +36,28 @@ def load_font(size: int) -> ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
-def make_white_master(src: Image.Image) -> Image.Image:
-    pad = int(SIZE * 0.08)
-    inner = SIZE - pad * 2
-    fitted = src.copy()
+def opaque_bbox(image: Image.Image) -> tuple[int, int, int, int]:
+    """不透明像素的外接矩形（排除透明边缘，供裁剪 logo）。"""
+    w, h = image.size
+    px = image.load()
+    minx, miny, maxx, maxy = w, h, -1, -1
+    for y in range(h):
+        for x in range(w):
+            if px[x, y][3] > 40:
+                minx = min(minx, x)
+                maxx = max(maxx, x)
+                miny = min(miny, y)
+                maxy = max(maxy, y)
+    return minx, miny, maxx + 1, maxy + 1
+
+
+def make_transparent_master(src: Image.Image) -> Image.Image:
+    bbox = opaque_bbox(src)
+    cropped = src.crop(bbox)
+    inner = SIZE - MARGIN * 2
+    fitted = cropped.copy()
     fitted.thumbnail((inner, inner), Image.Resampling.LANCZOS)
-    canvas = Image.new("RGBA", (SIZE, SIZE), (255, 255, 255, 255))
+    canvas = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     ox = (SIZE - fitted.width) // 2
     oy = (SIZE - fitted.height) // 2
     canvas.paste(fitted, (ox, oy), fitted)
@@ -80,15 +101,16 @@ def main() -> int:
         return 1
 
     src = Image.open(SRC).convert("RGBA")
-    prod = make_white_master(src)
-    prod.convert("RGB").save(OUT_PROD, "PNG")
+    prod = make_transparent_master(src)
+    prod.save(OUT_PROD, "PNG")
     print(f"wrote {OUT_PROD}")
 
     dev = add_dev_badge(prod)
-    dev.convert("RGB").save(OUT_DEV, "PNG")
+    dev.save(OUT_DEV, "PNG")
     print(f"wrote {OUT_DEV}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

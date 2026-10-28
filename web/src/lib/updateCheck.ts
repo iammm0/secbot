@@ -4,6 +4,7 @@ import {
   GITHUB_REPO,
 } from '@/generated/desktopVersion'
 import { compareSemVer, versionFromDesktopTag } from '@/lib/semver'
+import { isTauriRuntime } from '@/lib/petWindow'
 
 export type UpdateCheckResult = {
   currentVersion: string
@@ -143,4 +144,52 @@ export async function checkDesktopUpdates(options?: {
       error: err instanceof Error ? err.message : String(err),
     }
   }
+}
+
+// ── 桌面端应用内下载并安装（tauri-plugin-updater） ─────────────────────────────
+
+export type UpdateProgressEvent = {
+  kind: 'started' | 'progress' | 'finished' | 'error'
+  message?: string
+  current?: number
+  total?: number
+}
+
+export function isMacDesktop(): boolean {
+  return /Mac/i.test(navigator.userAgent)
+}
+
+/**
+ * 通过 tauri-plugin-updater 下载并安装新版桌面应用（仅 Windows 自动安装；
+ * macOS 未签名构建会受限，UI 侧改为跳转发布页手动下载）。
+ */
+export async function downloadAndInstallDesktopUpdate(
+  onEvent?: (ev: UpdateProgressEvent) => void,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    throw new Error('当前运行在浏览器中，无法应用内安装更新')
+  }
+  onEvent?.({ kind: 'started', message: '开始检查更新…' })
+  const { check } = await import('@tauri-apps/plugin-updater')
+  const update = await check()
+  if (!update) {
+    onEvent?.({ kind: 'finished', message: '已是最新版本' })
+    return
+  }
+  onEvent?.({ kind: 'started', message: `发现新版本 ${update.version}，开始下载…` })
+
+  let downloaded = 0
+  let total: number | undefined
+  await update.download((event) => {
+    if (event.event === 'Started') {
+      total = event.data.contentLength
+    } else if (event.event === 'Progress') {
+      downloaded += event.data.chunkLength
+      onEvent?.({ kind: 'progress', current: downloaded, total })
+    }
+  })
+  onEvent?.({ kind: 'progress', current: downloaded, total })
+  onEvent?.({ kind: 'started', message: '下载完成，开始安装…' })
+  await update.install()
+  onEvent?.({ kind: 'finished', message: '安装完成，应用将重启' })
 }

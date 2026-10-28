@@ -2,16 +2,22 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   checkDesktopUpdates,
   dismissUpdate,
+  downloadAndInstallDesktopUpdate,
   getCurrentDesktopVersion,
   getDismissedUpdateTag,
+  isMacDesktop,
   type UpdateCheckResult,
 } from '@/lib/updateCheck'
+import { isTauriRuntime } from '@/lib/petWindow'
 import { DESKTOP_RELEASE_TAG, DESKTOP_TAG_PREFIX, GITHUB_REPO } from '@/generated/desktopVersion'
 
 export function AboutConfig() {
   const current = getCurrentDesktopVersion()
   const [result, setResult] = useState<UpdateCheckResult | null>(null)
   const [checking, setChecking] = useState(false)
+  const [updating, setUpdating] = useState(false)
+  const [updateMsg, setUpdateMsg] = useState<string | null>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
 
   const runCheck = useCallback(async (force = true) => {
     setChecking(true)
@@ -20,6 +26,32 @@ export function AboutConfig() {
       setResult(next)
     } finally {
       setChecking(false)
+    }
+  }, [])
+
+  const startInstall = useCallback(async () => {
+    setUpdating(true)
+    setUpdateError(null)
+    setUpdateMsg(null)
+    try {
+      await downloadAndInstallDesktopUpdate((ev) => {
+        if (ev.kind === 'error') {
+          setUpdateError(ev.message ?? '更新失败')
+        } else if (ev.kind === 'progress') {
+          const pct =
+            ev.total && ev.total > 0
+              ? `${Math.round(((ev.current ?? 0) / ev.total) * 100)}%`
+              : '…'
+          setUpdateMsg(`正在下载 ${pct}`)
+        } else {
+          setUpdateMsg(ev.message ?? null)
+        }
+      })
+      setUpdateMsg('安装完成，应用将重启')
+    } catch (err) {
+      setUpdateError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setUpdating(false)
     }
   }, [])
 
@@ -94,7 +126,27 @@ export function AboutConfig() {
                   : null}
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
-                {result!.htmlUrl ? (
+                {isTauriRuntime() ? (
+                  isMacDesktop() ? (
+                    <a
+                      href={result!.htmlUrl ?? undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded border border-primary/40 bg-primary/15 px-3 py-1.5 font-mono text-xs text-primary"
+                    >
+                      下载更新包（macOS）
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={updating}
+                      onClick={() => void startInstall()}
+                      className="rounded border border-primary/40 bg-primary/15 px-3 py-1.5 font-mono text-xs text-primary hover:bg-primary/25 disabled:opacity-50"
+                    >
+                      {updating ? '更新中…' : '下载并安装更新'}
+                    </button>
+                  )
+                ) : result!.htmlUrl ? (
                   <a
                     href={result!.htmlUrl}
                     target="_blank"
@@ -115,6 +167,12 @@ export function AboutConfig() {
                   稍后提醒
                 </button>
               </div>
+              {updateMsg ? (
+                <div className="font-mono text-xs text-primary">{updateMsg}</div>
+              ) : null}
+              {updateError ? (
+                <div className="font-mono text-xs text-warning">{updateError}</div>
+              ) : null}
             </div>
           ) : null}
 

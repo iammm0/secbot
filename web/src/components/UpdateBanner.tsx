@@ -2,13 +2,30 @@ import { useEffect, useState } from 'react'
 import {
   checkDesktopUpdates,
   dismissUpdate,
+  downloadAndInstallDesktopUpdate,
   getDismissedUpdateTag,
+  isMacDesktop,
   shouldAutoCheckUpdates,
   type UpdateCheckResult,
 } from '@/lib/updateCheck'
+import { isTauriRuntime } from '@/lib/petWindow'
 
 export function UpdateBanner() {
   const [update, setUpdate] = useState<UpdateCheckResult | null>(null)
+  const [updating, setUpdating] = useState(false)
+
+  const startInstall = async () => {
+    if (!update) return
+    setUpdating(true)
+    try {
+      await downloadAndInstallDesktopUpdate()
+    } catch (err) {
+      console.warn('[secbot-update] 应用内更新失败', err)
+      setUpdate(null)
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -30,6 +47,8 @@ export function UpdateBanner() {
 
   if (!update?.updateAvailable || !update.latestVersion) return null
 
+  const inTauri = isTauriRuntime()
+
   return (
     <div className="relative z-[70] flex items-center justify-between gap-3 border-b border-primary/30 bg-primary/10 px-4 py-2 text-xs">
       <div className="min-w-0 font-mono text-primary">
@@ -37,14 +56,23 @@ export function UpdateBanner() {
         <span className="ml-2 text-text-dim">当前 {update.currentVersion}</span>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {update.htmlUrl ? (
+        {inTauri && !isMacDesktop() ? (
+          <button
+            type="button"
+            disabled={updating}
+            onClick={() => void startInstall()}
+            className="rounded border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-primary hover:bg-primary/25 disabled:opacity-50"
+          >
+            {updating ? '更新中…' : '更新'}
+          </button>
+        ) : update.htmlUrl ? (
           <a
             href={update.htmlUrl}
             target="_blank"
             rel="noreferrer"
             className="rounded border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-primary hover:bg-primary/25"
           >
-            查看
+            {inTauri && isMacDesktop() ? '下载' : '查看'}
           </a>
         ) : null}
         <button

@@ -26,7 +26,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis", "deb", "rpm"],
+    "targets": [
+      "app",
+      "dmg",
+      "nsis",
+      "deb",
+      "rpm"
+    ],
     "externalBin": [
       "binaries/secbot-node"
     ],
@@ -39,6 +45,49 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English"
+        ],
+        "displayLanguageSelector": false,
+        "startMenuFolder": "Secbot",
+        "headerImage": "nsis/header-image.bmp",
+        "sidebarImage": "nsis/sidebar-image.bmp",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "compression": "lzma"
+      }
+    },
+    "macOS": {
+      "dmg": {
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 170,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 470,
+          "y": 170
+        },
+        "background": "../../assets/secbot-dmg-background.png"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg2MjU0NDlDMTYxQTZENTUKUldSVmJSb1duRVFsaHNlREJDNkNBY0c1eWN5MGYyV1Ruc3FJUzNoanRDRnEzRVZpNkUyMVNyY1gK",
+      "endpoints": [
+        "https://github.com/iammm0/secbot/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

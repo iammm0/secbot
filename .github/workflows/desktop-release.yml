@@ -149,6 +149,9 @@ jobs:
         env:
           SECBOT_TARGET_TRIPLE: ${{ matrix.target }}
           VITE_SECBOT_DESKTOP_VERSION: ${{ needs.prepare.outputs.version }}
+          # 应用内更新签名：未配置 secrets 时跳过签名，清单分片也会跳过
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm --prefix desktop run build:ci
 
       - name: 上传安装包到 Release
@@ -161,7 +164,7 @@ jobs:
           files=()
           while IFS= read -r f; do files+=("$f"); done < <(find "$BUNDLE" -type f \
             \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.msi" -o -name "*.exe" \
-               -o -name "*.deb" -o -name "*.AppImage" -o -name "*.rpm" \) 2>/dev/null)
+               -o -name "*.deb" -o -name "*.AppImage" -o -name "*.rpm" -o -name "*.sig" \) 2>/dev/null)
           # 部分平台只有 .app 目录：打成 zip 再传
           if [ ${#files[@]} -eq 0 ]; then
             while IFS= read -r app; do
@@ -200,8 +203,105 @@ jobs:
             desktop/src-tauri/target/release/bundle/**/*.deb
             desktop/src-tauri/target/release/bundle/**/*.AppImage
             desktop/src-tauri/target/release/bundle/**/*.rpm
+            desktop/src-tauri/target/release/bundle/**/*.sig
             dist-upload/**
           if-no-files-found: warn
+
+      - name: 生成更新清单分片
+        shell: bash
+        run: |
+          set -euo pipefail
+          LABEL="${{ matrix.label }}"
+          case "$LABEL" in
+            macos-arm64) TARGET="darwin-aarch64";   EXT=".app.tar.gz" ;;
+            windows-x64) TARGET="windows-x86_64";   EXT="-setup.exe" ;;
+            linux-x64)   TARGET="linux-x86_64";     EXT=".deb" ;;
+            *) exit 0 ;;
+          esac
+          BUNDLE="desktop/src-tauri/target/release/bundle"
+          ART=$(find "$BUNDLE" -type f -name "*${EXT}" 2>/dev/null | head -1)
+          SIG="${ART}.sig"
+          if [ -z "${ART:-}" ] || [ ! -f "$SIG" ]; then
+            echo "::warning::未找到更新工件或签名（$LABEL: ${ART:-none} / ${SIG:-none}），跳过清单分片"
+            exit 0
+          fi
+          BASE="$(basename "$ART")"
+          URL="https://github.com/iammm0/secbot/releases/download/${{ needs.prepare.outputs.tag }}/secbot-desktop-${{ needs.prepare.outputs.version }}-${LABEL}-${BASE}"
+          python3 - "$TARGET" "$URL" "$SIG" <<'PY'
+          import json, sys
+          target, url, sig_path = sys.argv[1], sys.argv[2], sys.argv[3]
+          part = {
+            "target": target,
+            "url": url,
+            "signature": open(sig_path).read().strip(),
+          }
+          with open(f"manifest-part-{target}.json", "w") as f:
+              json.dump(part, f)
+          print("manifest part:", target, url)
+          PY
+          mkdir -p dist-upload
+          cp manifest-part-*.json dist-upload/
+
+      - name: 上传更新清单分片
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-manifest-${{ matrix.label }}
+          path: dist-upload/manifest-part-*.json
+          if-no-files-found: warn
+
+  manifest:
+    needs: [prepare, desktop]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: 下载更新清单分片
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-manifest-*
+          merge-multiple: true
+          path: manifest-parts
+
+      - name: 合并 latest.json 并上传
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="${{ needs.prepare.outputs.version }}"
+          TAG="${{ needs.prepare.outputs.tag }}"
+          PARTS=$(find manifest-parts -name 'manifest-part-*.json' 2>/dev/null || true)
+          if [ -z "$PARTS" ]; then
+            echo "::warning::没有可用的更新清单分片（未配置签名 secrets 或未生成签名），跳过 latest.json"
+            exit 0
+          fi
+          python3 - "$V" <<'PY'
+          import datetime, glob, json, sys
+          version = sys.argv[1]
+          platforms = {}
+          for p in glob.glob("manifest-parts/manifest-part-*.json"):
+              part = json.load(open(p))
+              platforms[part["target"]] = {"signature": part["signature"], "url": part["url"]}
+          manifest = {
+              "version": version,
+              "notes": "",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "platforms": platforms,
+          }
+          with open("latest.json", "w") as f:
+              json.dump(manifest, f, indent=2)
+          print("latest.json platforms:", list(platforms.keys()))
+          PY
+          gh release upload "$TAG" latest.json --clobber
+          # 预发布 tag 不参与 releases/latest，需要稳定锚点让 /releases/latest/download/latest.json 可解析
+          if ! gh release view secbot-updates >/dev/null 2>&1; then
+            gh release create secbot-updates \
+              --title "Secbot Updater Manifest" \
+              --notes "稳定 latest.json 锚点，供应用内更新检查（自动覆盖更新）。"
+          fi
+          gh release upload secbot-updates latest.json --clobber
 
   tui:
     needs: prepare
