@@ -103,6 +103,29 @@ export function JevConfig() {
         </p>
       </div>
 
+      {!settings.enabled || !settings.hasApiKey ? (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 space-y-2">
+          <div className="font-mono text-sm text-warning">
+            {settings.enabled ? 'Jev 缺少 TypeSafe API Key' : 'Jev 判断层未启用'}
+          </div>
+          <p className="text-xs text-text-dim">
+            官方：{' '}
+            <a
+              href="https://api.typesafe.ai"
+              target="_blank"
+              rel="noreferrer"
+              className="text-secondary hover:underline"
+            >
+              api.typesafe.ai
+            </a>{' '}
+            — TypeSafe Jev API，获取 TYPESAFE_API_KEY
+          </p>
+          <p className="text-xs text-text-dim">
+            填好 API Key 保存后，再打开「启用 Jev 主开关」。
+          </p>
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-border bg-hover/40 p-4 font-mono text-xs text-text-dim space-y-1">
         <div>
           探测：{' '}

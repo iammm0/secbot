@@ -46,6 +46,7 @@ export function ExecGoConfigDialog() {
   const { pop } = useDialog();
   const [config, setConfig] = useState<ExecGoSettings | null>(null);
   const [sandbox, setSandbox] = useState<ExecGoSandboxStatus | null>(null);
+  const [healthy, setHealthy] = useState<boolean | null>(null);
   const [index, setIndex] = useState(0);
   const [message, setMessage] = useState('');
 
@@ -58,6 +59,7 @@ export function ExecGoConfigDialog() {
           sandboxProfile: payload.config.sandboxProfile || 'process',
         });
         setSandbox(payload.sandbox ?? null);
+        setHealthy(payload.healthy ?? null);
         if (payload.error) setMessage(payload.error);
       })
       .catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
@@ -124,6 +126,25 @@ export function ExecGoConfigDialog() {
       <Text color={theme.textMuted}>
         ↑↓ 选择 · Enter 切换 · Esc 关闭。状态只显示 runtime 回包。
       </Text>
+      {config && (!config.enabled || healthy === false) ? (
+        <Box
+          marginTop={1}
+          borderStyle="round"
+          borderColor={theme.warning}
+          paddingX={1}
+          flexDirection="column"
+        >
+          <Text color={theme.warning}>
+            {config.enabled ? 'ExecGo 运行时未检测到' : 'ExecGo 运行时未启用'}
+          </Text>
+          <Text color={theme.textMuted}>
+            官方下载：github.com/iammm0/execgo · github.com/iammm0/execgo-runtime
+          </Text>
+          <Text color={theme.textMuted} dimColor>
+            构建后回车「重新探测」，再打开「启用」保存。
+          </Text>
+        </Box>
+      ) : null}
       {!config ? (
         <Text color={theme.textMuted}>加载中…</Text>
       ) : (

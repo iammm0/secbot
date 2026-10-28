@@ -142,6 +142,25 @@ export function JevConfigDialog() {
         Jev 判断层（/jev）
       </Text>
       <Text color={theme.textMuted}>↑↓ 选择 · Enter 切换/编辑/执行 · Esc 关闭。不生成文字，也不会绕过敏感工具审批。</Text>
+      {config && (!config.enabled || !config.hasApiKey) ? (
+        <Box
+          marginTop={1}
+          borderStyle="round"
+          borderColor={theme.warning}
+          paddingX={1}
+          flexDirection="column"
+        >
+          <Text color={theme.warning}>
+            {config.enabled ? 'Jev 缺少 TypeSafe API Key' : 'Jev 判断层未启用'}
+          </Text>
+          <Text color={theme.textMuted}>
+            官方：api.typesafe.ai（TypeSafe Jev API，获取 TYPESAFE_API_KEY）
+          </Text>
+          <Text color={theme.textMuted} dimColor>
+            填好 API Key 保存，再打开主开关。
+          </Text>
+        </Box>
+      ) : null}
       {loading || !config ? (
         <Box marginTop={1}>
           <Text color={theme.textMuted}>加载中…</Text>

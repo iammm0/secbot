@@ -98,6 +98,43 @@ export function ExecGoConfig() {
         </p>
       </div>
 
+      {!settings.enabled || healthy === false ? (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 space-y-2">
+          <div className="font-mono text-sm text-warning">
+            {settings.enabled ? 'ExecGo 运行时未检测到' : 'ExecGo 运行时未启用'}
+          </div>
+          <p className="text-xs text-text-dim">
+            官方仓库：{' '}
+            <a
+              href="https://github.com/iammm0/execgo"
+              target="_blank"
+              rel="noreferrer"
+              className="text-secondary hover:underline"
+            >
+              github.com/iammm0/execgo
+            </a>{' '}
+            ·{' '}
+            <a
+              href="https://github.com/iammm0/execgo-runtime"
+              target="_blank"
+              rel="noreferrer"
+              className="text-secondary hover:underline"
+            >
+              github.com/iammm0/execgo-runtime
+            </a>
+          </p>
+          <pre className="overflow-x-auto rounded-lg bg-bg/60 p-3 font-mono text-[11px] text-text">
+{`# execgo 仓库：构建控制面 CLI
+go build -o execgocli ./cmd/execgocli
+# execgo-runtime 仓库：构建沙箱运行时
+cargo build --release`}
+          </pre>
+          <p className="text-xs text-text-dim">
+            构建后点「重新探测」，再勾选「启用 ExecGo 模式」保存。
+          </p>
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-border bg-hover/40 p-4 font-mono text-xs text-text-dim space-y-1">
         <div>
           控制面：{' '}
