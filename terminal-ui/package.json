@@ -1,6 +1,6 @@
 {
   "name": "secbot-terminal-ui",
-  "version": "0.0.7-beta",
+  "version": "0.0.8-beta",
   "description": "TypeScript terminal TUI for Secbot (Ink), connects to NestJS backend via HTTP/SSE",
   "private": true,
   "type": "module",
