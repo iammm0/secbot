@@ -152,6 +152,7 @@ jobs:
           # 应用内更新签名（minisign）：未配置 secrets 时跳过签名，清单分片也会跳过
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
         run: |
           # macOS Developer ID 签名 + notarization（Tauri 自动：导入证书 → hardened runtime
           # 签名 .app → notarytool 公证 → stapler 盖戳）。仅 macOS 且已配置 APPLE_* secrets 时
