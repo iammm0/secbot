@@ -149,10 +149,30 @@ jobs:
         env:
           SECBOT_TARGET_TRIPLE: ${{ matrix.target }}
           VITE_SECBOT_DESKTOP_VERSION: ${{ needs.prepare.outputs.version }}
-          # 应用内更新签名：未配置 secrets 时跳过签名，清单分片也会跳过
+          # 应用内更新签名（minisign）：未配置 secrets 时跳过签名，清单分片也会跳过
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm --prefix desktop run build:ci
+        run: |
+          # macOS Developer ID 签名 + notarization（Tauri 自动：导入证书 → hardened runtime
+          # 签名 .app → notarytool 公证 → stapler 盖戳）。仅 macOS 且已配置 APPLE_* secrets 时
+          # 启用；未配置则保持未签名构建（tauri 因 identity 为空自动跳过签名）。
+          # 注意：不能无条件把这些 secrets 放进 env —— 空字符串会被 tauri 当作证书导入导致失败，
+          # 所以用条件 export。APPLE_CERTIFICATE = base64(.p12)：
+          #   openssl base64 -in Cert.p12 -out Cert-base64.txt
+          if [ "$RUNNER_OS" = "macOS" ] && [ -n "${{ secrets.APPLE_CERTIFICATE }}" ]; then
+            export APPLE_CERTIFICATE='${{ secrets.APPLE_CERTIFICATE }}'
+            export APPLE_CERTIFICATE_PASSWORD='${{ secrets.APPLE_CERTIFICATE_PASSWORD }}'
+            export APPLE_SIGNING_IDENTITY='${{ secrets.APPLE_SIGNING_IDENTITY }}'
+            export APPLE_ID='${{ secrets.APPLE_ID }}'
+            export APPLE_PASSWORD='${{ secrets.APPLE_PASSWORD }}'
+            export APPLE_TEAM_ID='${{ secrets.APPLE_TEAM_ID }}'
+            # 公证必须三件套齐全，否则 tauri 会静默跳过公证，产物仍会被 Gatekeeper 拦截
+            if [ -z "${{ secrets.APPLE_ID }}" ] || [ -z "${{ secrets.APPLE_PASSWORD }}" ] || [ -z "${{ secrets.APPLE_TEAM_ID }}" ]; then
+              echo "::error::已启用 macOS 签名但缺少公证凭据（APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID），请补齐仓库 secrets"
+              exit 1
+            fi
+          fi
+          npm --prefix desktop run build:ci
 
       - name: 上传安装包到 Release
         shell: bash

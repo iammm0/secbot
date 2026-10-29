@@ -150,21 +150,35 @@ sidecar `secbot-node` 通过 shell 插件按 target triple 解析。
 > 矩阵在每个 OS 上**原生**执行 `prepare-backend` / `pack-tui-dist`，因此各平台的原生模块与 Node
 > 运行时都与目标平台匹配。不构建 macOS Intel。
 
-## 未签名安装（macOS Gatekeeper）
+## macOS 代码签名与公证（可选）
 
-本期不购买 Developer ID，也不做公证。本机 `npm run build` 只产出 **未签名** `.app`：
+发布 CI（`.github/workflows/desktop-release.yml`）已内置 macOS Developer ID 签名 + notarization：
+配置了下列仓库 secrets 后，`tauri build` 会自动导入证书 → 以 hardened runtime 签名 `.app` →
+`notarytool` 公证 → `stapler` 盖戳；**未配置 secrets 时保持未签名构建**（原行为不变）。需付费
+Apple Developer 账号（99 美元/年），先在 developer.apple.com → Certificates 签发
+`Developer ID Application` 证书。
 
-1. 把 `Secbot.app` 拷到 `/Applications`（见上方 `ditto`）。
-2. 首次打开若提示「无法验证开发者」：系统设置 → 隐私与安全性 → 仍要打开；或在终端执行：
+| Secret | 含义 |
+|--------|------|
+| `APPLE_CERTIFICATE` | 证书 `.p12` 的 base64（`openssl base64 -in Cert.p12 -out Cert-base64.txt`） |
+| `APPLE_CERTIFICATE_PASSWORD` | 导出 `.p12` 时设置的密码 |
+| `APPLE_SIGNING_IDENTITY` | 签名身份（如 `Developer ID Application: Your Name (TEAMID)`）；留空则从证书推断 |
+| `APPLE_ID` | 用于公证的 Apple ID（需开启双重认证） |
+| `APPLE_PASSWORD` | App 专用密码（appleid.apple.com 生成，不是登录密码） |
+| `APPLE_TEAM_ID` | 开发者团队 ID（developer.apple.com → Membership） |
+
+Windows 侧 SmartScreen 同理需单独购买代码签名证书（`desktop-release.yml` 尚未接入）。
+
+### 未签名安装（macOS Gatekeeper）
+
+未配置 `APPLE_*` secrets 的构建/本机构建只产出 **未签名** `.app`。下载后首次打开提示
+「已损坏，无法打开」/「无法验证开发者」是 Gatekeeper 拦截未签名应用，**不是文件损坏**：
+
+1. 打开 DMG，把 `Secbot.app` 拷到 `/Applications`。
+2. 系统设置 → 隐私与安全性 → 仍要打开；或在终端执行：
    ```bash
    xattr -dr com.apple.quarantine /Applications/Secbot.app
    open /Applications/Secbot.app
    ```
-3. 安装验收：冷启动能拉起后端；设置可点；斜杠 `/` 有命令表；关掉重开后会话仍在（同一后端 SQLite）。
-
-签名与公证列为后续（需 Apple Developer ID 与 CI secrets）。
-
-## 代码签名与公证（后续）
-
-- [ ] macOS：Developer ID 签名 + notarization（配置 `APPLE_*` secrets 后接入 workflow）
-- [ ] Windows：代码签名证书
+3. 若双击 DMG 就提示「磁盘映像已损坏」，则是下载不完整（安装包较大），请重新下载。
+4. 安装验收：冷启动能拉起后端；设置可点；斜杠 `/` 有命令表；关掉重开后会话仍在（同一后端 SQLite）。
