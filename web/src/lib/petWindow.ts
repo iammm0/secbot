@@ -69,7 +69,7 @@ export async function ensurePetWindow(): Promise<boolean> {
     })
     return true
   } catch (err) {
-    console.warn('[secbot-pet] failed to open floating window', err)
+    console.warn('[secbot-pet] failed to open floating window', { label: PET_LABEL, url: petUrl() }, err)
     return false
   }
 }

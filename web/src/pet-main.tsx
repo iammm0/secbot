@@ -69,20 +69,53 @@ function PetApp() {
     }, DOUBLE_CLICK_MS)
   }
 
-  const startDrag = async (element: HTMLElement, pointerId: number) => {
+  const startDrag = async () => {
     if (!isTauriRuntime()) return
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window')
       await getCurrentWindow().startDragging()
     } catch {
       /* 原生拖拽不可用时保持原位，不打断交互 */
-    } finally {
-      try {
-        element.releasePointerCapture(pointerId)
-      } catch {
-        /* ignore */
+    }
+  }
+
+  /**
+   * 记录按下起点，在 window 级跟踪位移，超过阈值才启动系统级窗口拖拽。
+   * 不用 setPointerCapture：macOS WKWebView 上 pointer capture 会吞掉
+   * Tauri startDragging 的原生窗口拖动，导致宠物只能在应用窗口内移动。
+   */
+  const beginDragTrack = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!isTauriRuntime()) return
+    drag.current = { ox: event.clientX, oy: event.clientY, moved: false }
+    justDragged.current = false
+    const detach = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
+    }
+    const onMove = (ev: PointerEvent) => {
+      const state = drag.current
+      if (!state || state.moved) return
+      const dx = ev.clientX - state.ox
+      const dy = ev.clientY - state.oy
+      if (Math.abs(dx) > DRAG_THRESHOLD_PX || Math.abs(dy) > DRAG_THRESHOLD_PX) {
+        state.moved = true
+        justDragged.current = true
+        detach()
+        void startDrag()
       }
     }
+    const onUp = () => {
+      drag.current = null
+      detach()
+    }
+    const onCancel = () => {
+      drag.current = null
+      detach()
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
   }
 
   return (
@@ -101,20 +134,7 @@ function PetApp() {
         aria-label="Secbot 宠物"
         style={{ touchAction: 'none' }}
         onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId)
-          drag.current = { ox: event.clientX, oy: event.clientY, moved: false }
-          justDragged.current = false
-        }}
-        onPointerMove={(event) => {
-          const state = drag.current
-          if (!state || state.moved) return
-          const dx = event.clientX - state.ox
-          const dy = event.clientY - state.oy
-          if (Math.abs(dx) > DRAG_THRESHOLD_PX || Math.abs(dy) > DRAG_THRESHOLD_PX) {
-            state.moved = true
-            justDragged.current = true
-            void startDrag(event.currentTarget, event.pointerId)
-          }
+          beginDragTrack(event)
         }}
         onPointerUp={() => {
           const wasDrag = drag.current?.moved ?? justDragged.current
