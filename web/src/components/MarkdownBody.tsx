@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark.css'
 import { addToChat } from '@/lib/chatQuote'
+import { makeExternalOpen } from '@/lib/openExternal'
 
 interface Props {
   children: string
@@ -141,7 +142,13 @@ export function MarkdownBody({ children, className }: Props) {
           h6: heading('h6'),
           p: ({ children }) => <p className="md-p">{children}</p>,
           a: ({ href, children }) => (
-            <a className="md-a" href={href} target="_blank" rel="noreferrer">
+            <a
+              className="md-a"
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              onClick={href && /^https?:\/\//i.test(href) ? makeExternalOpen(href) : undefined}
+            >
               {children}
             </a>
           ),

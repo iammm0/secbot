@@ -9,6 +9,7 @@ import {
   type UpdateCheckResult,
 } from '@/lib/updateCheck'
 import { isTauriRuntime } from '@/lib/petWindow'
+import { makeExternalOpen } from '@/lib/openExternal'
 
 export function UpdateBanner() {
   const [update, setUpdate] = useState<UpdateCheckResult | null>(null)
@@ -70,6 +71,7 @@ export function UpdateBanner() {
             href={update.htmlUrl}
             target="_blank"
             rel="noreferrer"
+            onClick={makeExternalOpen(update.htmlUrl ?? undefined)}
             className="rounded border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-primary hover:bg-primary/25"
           >
             {inTauri && isMacDesktop() ? '下载' : '查看'}

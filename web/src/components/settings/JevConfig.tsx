@@ -5,6 +5,7 @@ import {
   saveJevSettings,
   type JevPublicConfig,
 } from '@/lib/settingsApi'
+import { makeExternalOpen } from '@/lib/openExternal'
 
 const STAGES: Array<{ key: keyof Pick<JevPublicConfig, 'intent' | 'qaLive' | 'adaptive' | 'reactStop' | 'context'>; label: string; hint: string }> = [
   { key: 'intent', label: '意图分类', hint: 'IntentRouter：6 类意图 + 是否探索/出报告' },
@@ -114,6 +115,7 @@ export function JevConfig() {
               href="https://api.typesafe.ai"
               target="_blank"
               rel="noreferrer"
+              onClick={makeExternalOpen('https://api.typesafe.ai')}
               className="text-secondary hover:underline"
             >
               api.typesafe.ai

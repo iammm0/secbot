@@ -9,6 +9,7 @@ import {
   type UpdateCheckResult,
 } from '@/lib/updateCheck'
 import { isTauriRuntime } from '@/lib/petWindow'
+import { makeExternalOpen } from '@/lib/openExternal'
 import { DESKTOP_RELEASE_TAG, DESKTOP_TAG_PREFIX, GITHUB_REPO } from '@/generated/desktopVersion'
 
 export function AboutConfig() {
@@ -86,6 +87,7 @@ export function AboutConfig() {
               href={`https://github.com/${GITHUB_REPO}`}
               target="_blank"
               rel="noreferrer"
+              onClick={makeExternalOpen(`https://github.com/${GITHUB_REPO}`)}
             >
               {GITHUB_REPO}
             </a>
@@ -132,6 +134,7 @@ export function AboutConfig() {
                       href={result!.htmlUrl ?? undefined}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={makeExternalOpen(result!.htmlUrl ?? undefined)}
                       className="rounded border border-primary/40 bg-primary/15 px-3 py-1.5 font-mono text-xs text-primary"
                     >
                       下载更新包（macOS）

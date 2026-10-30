@@ -26,6 +26,13 @@
           "args": true
         }
       ]
+    },
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "url": "https://*" },
+        { "url": "http://*" }
+      ]
     }
   ]
 }

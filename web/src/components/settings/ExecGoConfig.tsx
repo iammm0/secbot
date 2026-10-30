@@ -7,6 +7,7 @@ import {
   type ExecGoSandboxStatus,
   type ExecGoSettings,
 } from '@/lib/settingsApi';
+import { makeExternalOpen } from '@/lib/openExternal';
 
 export function ExecGoConfig() {
   const [settings, setSettings] = useState<ExecGoSettings | null>(null);
@@ -109,6 +110,7 @@ export function ExecGoConfig() {
               href="https://github.com/iammm0/execgo"
               target="_blank"
               rel="noreferrer"
+              onClick={makeExternalOpen('https://github.com/iammm0/execgo')}
               className="text-secondary hover:underline"
             >
               github.com/iammm0/execgo
@@ -118,6 +120,7 @@ export function ExecGoConfig() {
               href="https://github.com/iammm0/execgo-runtime"
               target="_blank"
               rel="noreferrer"
+              onClick={makeExternalOpen('https://github.com/iammm0/execgo-runtime')}
               className="text-secondary hover:underline"
             >
               github.com/iammm0/execgo-runtime
