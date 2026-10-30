@@ -14,6 +14,7 @@ import { StartupAnimation } from './components/StartupAnimation.js';
 import { ModelConfigDialog } from './components/ModelConfigDialog.js';
 import { JevConfigDialog } from './components/JevConfigDialog.js';
 import { McpConfigDialog } from './components/McpConfigDialog.js';
+import { ExternalIntegrationDialog } from './components/ExternalIntegrationDialog.js';
 import { ExecGoConfigDialog } from './components/ExecGoConfigDialog.js';
 import { LogLevelDialog } from './components/LogLevelDialog.js';
 import { RestResultDialog } from './components/RestResultDialog.js';
@@ -204,6 +205,16 @@ export function App({ columns: propsColumns, rows: propsRows }: AppProps) {
         onSelect: ({ close }) => {
           close();
           dialog.replace(<McpConfigDialog />);
+        },
+      }),
+      register({
+        title: '外部集成（/integrate）',
+        value: '/integrate',
+        category: '设置',
+        slash: '/integrate',
+        onSelect: ({ close }) => {
+          close();
+          dialog.replace(<ExternalIntegrationDialog />);
         },
       }),
       register({

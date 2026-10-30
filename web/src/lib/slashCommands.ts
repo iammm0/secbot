@@ -1,6 +1,6 @@
 import { readApi } from './api'
 
-export const SETTINGS_TABS = ['model', 'jev', 'appearance', 'instructions', 'mcp', 'skills', 'execgo', 'audit', 'about', 'help'] as const
+export const SETTINGS_TABS = ['model', 'jev', 'appearance', 'instructions', 'mcp', 'skills', 'execgo', 'audit', 'integration', 'about', 'help'] as const
 export type SettingsTabId = (typeof SETTINGS_TABS)[number]
 
 export interface SlashCommand {
@@ -47,6 +47,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { slash: '/skill', title: '查看 Skill 详情', category: 'REST' },
   { slash: '/create-skill', title: '创建 Skill', category: 'REST' },
   { slash: '/mcp', title: 'MCP 服务器', category: '设置' },
+  { slash: '/integrate', title: '外部集成（Claude Code / Codex）', category: '设置' },
   { slash: '/execgo', title: 'ExecGo 运行时', category: '设置' },
   { slash: '/audit', title: '操作审计', category: '设置' },
   { slash: '/theme', title: '外观与主题', category: '设置' },
@@ -68,6 +69,7 @@ const OPEN_SETTINGS: Record<string, SettingsTabId> = {
   '/instructions': 'instructions',
   '/execgo': 'execgo',
   '/audit': 'audit',
+  '/integrate': 'integration',
 }
 
 export function filterSlashCommands(input: string, catalog: SlashCommand[] = SLASH_COMMANDS): SlashCommand[] {

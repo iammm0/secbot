@@ -21,14 +21,29 @@ interface Config {
   current_provider_base_url?: string;
 }
 
-type ProviderId =
-  | 'current'
+interface LocalCandidate {
+  id: string;
+  source: string;
+  sourceLabel: string;
+  app: string;
+  targetProvider: string;
+  baseUrl: string;
+  model?: string | null;
+  maskedApiKey: string;
+  hasApiKey: boolean;
+  wireApi?: string | null;
+  isCurrent: boolean;
+  alreadyImported: boolean;
+}
+
+type ProviderId =  | 'current'
   | 'ollama'
   | 'deepseek'
   | 'switch_online'
   | 'switch_local'
   | 'configured_list'
-  | 'api_key';
+  | 'api_key'
+  | 'import_local';
 
 /** 首屏菜单：在线 / 本地配置流程分开，默认引导在线 */
 const PROVIDERS: { id: ProviderId; label: string; hint: string }[] = [
@@ -37,6 +52,7 @@ const PROVIDERS: { id: ProviderId; label: string; hint: string }[] = [
   { id: 'api_key', label: '配置在线 API Key', hint: '云端必填；部分需 Base URL' },
   { id: 'current', label: '当前推理后端', hint: '摘要与编辑（M 模型 / B 地址）' },
   { id: 'configured_list', label: '已配置的推理后端', hint: '已保存 Key / 本地后端' },
+  { id: 'import_local', label: '导入本机代理', hint: 'cc-switch / Claude Code / Codex 一键导入' },
 ];
 
 /** API JSON 在极端情况下可能为非字符串；Ink <Text> 子节点若为对象会触发 componentDidCatch → exit(1) */
@@ -73,7 +89,7 @@ export function ModelConfigDialog() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [view, setView] = useState<'list' | 'detail' | 'model_select' | 'api_key_list' | 'api_key_input' | 'provider_switch_list' | 'confirm_switch' | 'configured_list'>('list');
+  const [view, setView] = useState<'list' | 'detail' | 'model_select' | 'api_key_list' | 'api_key_input' | 'provider_switch_list' | 'confirm_switch' | 'configured_list' | 'local_import' | 'confirm_local_import'>('list');
   const [detailProvider, setDetailProvider] = useState<ProviderId | string | null>(null);
   const [apiKeyProviders, setApiKeyProviders] = useState<ProviderApiKeyStatus[]>([]);
   const [apiKeyListIndex, setApiKeyListIndex] = useState(0);
@@ -99,6 +115,11 @@ export function ModelConfigDialog() {
   const [discoveredModelsError, setDiscoveredModelsError] = useState<string | null>(null);
   const [modelSelectIndex, setModelSelectIndex] = useState(0);
   const [modelSelectMessage, setModelSelectMessage] = useState<string | null>(null);
+  const [localCandidates, setLocalCandidates] = useState<LocalCandidate[] | null>(null);
+  const [localImportLoading, setLocalImportLoading] = useState(false);
+  const [localImportIndex, setLocalImportIndex] = useState(0);
+  const [localImportMessage, setLocalImportMessage] = useState<string | null>(null);
+  const [confirmLocalImport, setConfirmLocalImport] = useState<LocalCandidate | null>(null);
 
   const configuredProviders = useMemo(
     () => allProvidersForList.filter((p) => p.configured),
@@ -211,6 +232,22 @@ export function ModelConfigDialog() {
   }, [view]);
 
   useEffect(() => {
+    if (view !== 'local_import' && view !== 'confirm_local_import') return;
+    setLocalImportLoading(true);
+    api
+      .get<{ candidates?: LocalCandidate[] }>('/api/system/config/local-providers')
+      .then((r) => {
+        setLocalCandidates(r.candidates ?? []);
+        setLocalImportMessage(null);
+      })
+      .catch((e) => {
+        setLocalCandidates([]);
+        setLocalImportMessage(`本机代理探测失败：${String((e as Error).message)}`);
+      })
+      .finally(() => setLocalImportLoading(false));
+  }, [view]);
+
+  useEffect(() => {
     if (view === 'detail' && typeof detailProvider === 'string' && detailProvider !== 'current' && detailProvider !== 'ollama' && detailProvider !== 'deepseek') {
       api
         .get<{ provider: string; model?: string | null; base_url?: string | null }>(`/api/system/config/provider/${detailProvider}`)
@@ -289,6 +326,12 @@ export function ModelConfigDialog() {
         setView('list');
       } else if (view === 'configured_list') {
         setView('list');
+      } else if (view === 'local_import') {
+        setView('list');
+        setLocalImportMessage(null);
+      } else if (view === 'confirm_local_import') {
+        setConfirmLocalImport(null);
+        setView('local_import');
       } else if (view === 'provider_switch_list') {
         setView('list');
         setSwitchSuccessMessage(null);
@@ -346,6 +389,66 @@ export function ModelConfigDialog() {
       } else if (c === 'n' || c === '否') {
         setConfirmSwitchProvider(null);
         setView('provider_switch_list');
+      }
+      return;
+    }
+    if (view === 'confirm_local_import') {
+      const c = input.toLowerCase();
+      if (key.return || c === 'y' || c === '是') {
+        if (confirmLocalImport) {
+          setLocalImportMessage('导入中…');
+          api
+            .post<{ success: boolean; message: string }>('/api/system/config/import-local-provider', {
+              candidateId: confirmLocalImport.id,
+              activate: true,
+            })
+            .then((r) => {
+              setConfirmLocalImport(null);
+              setLocalImportMessage(r.success ? `已导入：${r.message}` : `导入失败：${r.message}`);
+              if (r.success) {
+                setLocalCandidates((previous) =>
+                  (previous ?? []).map((item) =>
+                    item.id === confirmLocalImport.id ? { ...item, alreadyImported: true } : item,
+                  ),
+                );
+                api.get<Record<string, unknown>>('/api/system/config')
+                  .then((raw) => setConfig(normalizeSystemConfig(raw)))
+                  .catch(() => {});
+              }
+              setView('local_import');
+            })
+            .catch((e) => {
+              setConfirmLocalImport(null);
+              setLocalImportMessage(`导入失败：${String((e as Error).message)}`);
+              setView('local_import');
+            });
+        }
+      } else if (c === 'n' || c === '否') {
+        setConfirmLocalImport(null);
+        setView('local_import');
+      }
+      return;
+    }
+    if (view === 'local_import') {
+      const list = localCandidates ?? [];
+      if (key.upArrow) setLocalImportIndex((i) => Math.max(0, i - 1));
+      else if (key.downArrow) setLocalImportIndex((i) => Math.min(list.length - 1, i + 1));
+      else if ((input.toLowerCase() === 'r' || input.toLowerCase() === '重新') && !key.ctrl && !key.meta) {
+        setLocalImportLoading(true);
+        setLocalImportMessage(null);
+        api
+          .get<{ candidates?: LocalCandidate[] }>('/api/system/config/local-providers')
+          .then((r) => setLocalCandidates(r.candidates ?? []))
+          .catch((e) => setLocalImportMessage(`本机代理探测失败：${String((e as Error).message)}`))
+          .finally(() => setLocalImportLoading(false));
+      } else if (key.return && list[localImportIndex]) {
+        const candidate = list[localImportIndex];
+        if (candidate.alreadyImported) {
+          setLocalImportMessage('该配置已导入 secbot，无需重复导入。');
+        } else {
+          setConfirmLocalImport(candidate);
+          setView('confirm_local_import');
+        }
       }
       return;
     }
@@ -433,7 +536,7 @@ export function ModelConfigDialog() {
       return;
     }
     if (view === 'list') {
-      if (/^[1-5]$/.test(input) && !key.ctrl && !key.meta) {
+      if (/^[1-6]$/.test(input) && !key.ctrl && !key.meta) {
         const n = Number(input) - 1;
         if (n >= 0 && n < PROVIDERS.length) setSelectedIndex(n);
         return;
@@ -450,6 +553,10 @@ export function ModelConfigDialog() {
           setApiKeyListIndex(0);
         } else if (id === 'configured_list') {
           setView('configured_list');
+        } else if (id === 'import_local') {
+          setView('local_import');
+          setLocalImportIndex(0);
+          setLocalImportMessage(null);
         } else if (id === 'switch_online' || id === 'switch_local') {
           setProviderSwitchMode(id === 'switch_local' ? 'local' : 'online');
           setView('provider_switch_list');
@@ -749,6 +856,74 @@ export function ModelConfigDialog() {
             })
           )}
         </Box>
+      </Box>
+    );
+  }
+
+  if (view === 'confirm_local_import' && confirmLocalImport) {
+    return (
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
+        <Text bold color={theme.primary}>
+          是否导入本机代理「{confirmLocalImport.sourceLabel}」并切换为当前推理后端？
+        </Text>
+        <Box marginTop={0}>
+          <Text color={theme.textMuted}>
+            {confirmLocalImport.targetProvider} · {confirmLocalImport.baseUrl}
+            {confirmLocalImport.model ? ` · ${confirmLocalImport.model}` : ''} · Key {confirmLocalImport.maskedApiKey}
+          </Text>
+        </Box>
+        <Box marginTop={0}>
+          <Text color={theme.textMuted}>
+            完整 API Key 仅在本机服务端读取，不会发送到终端之外。
+          </Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text color={theme.textMuted}>Enter / Y 确认导入 · N / Esc 返回</Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  if (view === 'local_import') {
+    const list = localCandidates ?? [];
+    const safeIdx = Math.min(localImportIndex, Math.max(0, list.length - 1));
+    return (
+      <Box flexDirection="column" paddingX={1} paddingY={0}>
+        <Text bold color={theme.primary}>
+          导入本机代理 — cc-switch / Claude Code / Codex
+        </Text>
+        <Text color={theme.textMuted}>↑↓ 选择 · Enter 导入 · R 重新检测 · Esc 返回</Text>
+        <Box flexDirection="column" marginTop={1}>
+          {localImportLoading ? (
+            <Text color={theme.textMuted}>探测本机代理中…</Text>
+          ) : list.length === 0 ? (
+            <Text color={theme.textMuted}>
+              未检测到本机代理配置。已配置时可一键导入（如 cc-switch、~/.claude/settings.json、~/.codex/config.toml）。
+            </Text>
+          ) : (
+            list.map((candidate, index) => (
+              <Box key={candidate.id}>
+                <Text color={index === safeIdx ? theme.primary : theme.text}>
+                  {index === safeIdx ? '> ' : '  '}
+                  {candidate.sourceLabel}
+                  {candidate.isCurrent ? ' · 当前启用' : ''}
+                  {candidate.alreadyImported ? ' · 已导入' : ''}
+                </Text>
+                <Box marginLeft={4}>
+                  <Text color={theme.textMuted}>
+                    → {candidate.targetProvider} · {candidate.baseUrl} · Key {candidate.maskedApiKey}
+                    {candidate.model ? ` · ${candidate.model}` : ''}
+                  </Text>
+                </Box>
+              </Box>
+            ))
+          )}
+        </Box>
+        {localImportMessage && (
+          <Box marginTop={1}>
+            <Text color={theme.textMuted}>{localImportMessage}</Text>
+          </Box>
+        )}
       </Box>
     );
   }
@@ -1088,7 +1263,7 @@ export function ModelConfigDialog() {
       <Text bold color={theme.primary}>
         模型配置向导
       </Text>
-      <Text color={theme.textMuted}>↑↓或 1–4 选中 · Enter 进入 · Esc 关闭</Text>
+      <Text color={theme.textMuted}>↑↓或 1–6 选中 · Enter 进入 · Esc 关闭</Text>
 
       <Box flexDirection="column" marginTop={1}>
         <Text bold color={theme.text}>当前状态</Text>
@@ -1122,7 +1297,11 @@ export function ModelConfigDialog() {
                 ? null
                 : p.id === 'configured_list'
                   ? (configuredCount > 0 ? `${configuredCount} 个已保存` : '暂无')
-                  : null;
+                  : p.id === 'import_local'
+                    ? (localCandidates
+                      ? `${localCandidates.filter((candidate) => !candidate.alreadyImported).length} 个可导入`
+                      : '探测中…')
+                    : null;
           const num = i + 1;
           return (
             <Box key={p.id} flexDirection="column">

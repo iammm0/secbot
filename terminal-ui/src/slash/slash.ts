@@ -177,6 +177,27 @@ export function parseSlash(
       },
     };
   }
+  if (cmd === '/integrate') {
+    return {
+      handled: true,
+      fetchThen: async () => {
+        const r = await api.get<{
+          claude_code: { installed: boolean; mcp_registered: boolean };
+          codex: { installed: boolean; mcp_registered: boolean };
+          acp_command: { command: string; args: string[] };
+        }>('/api/system/external-integration');
+        const claude = r.claude_code;
+        const codex = r.codex;
+        const acp = [r.acp_command.command, ...r.acp_command.args].join(' ');
+        return [
+          `Claude Code: ${claude.installed ? '已安装' : '未检测到'} · MCP ${claude.mcp_registered ? '已注册' : '未注册'}`,
+          `Codex: ${codex.installed ? '已安装' : '未检测到'} · MCP ${codex.mcp_registered ? '已注册' : '未注册'}`,
+          `ACP 命令: ${acp}`,
+          '在「/integrate」对话框中可一键注册。',
+        ].join('\n');
+      },
+    };
+  }
   if (cmd === '/jev') {
     return {
       handled: true,

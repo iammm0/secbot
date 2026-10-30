@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { getShowPet, PREFS_EVENT } from '@/lib/uiPrefs'
 import { getTaskActivity, TASK_ACTIVITY_EVENT, type TaskActivityDetail } from '@/lib/taskActivity'
+import { emitOpenSettings, type SettingsTabId } from '@/lib/slashCommands'
 import {
   broadcastPet,
   closePetWindow,
   ensurePetWindow,
   isTauriRuntime,
+  type PetBroadcast,
 } from '@/lib/petWindow'
 
 const LINES_IDLE = ['需要帮忙吗？', '授权范围内随时待命。', '点我不会咬人。', '黑客绿还是浅色，你说了算。']
 const LINES_BUSY = ['正在干活…', '脑子在冒烟。', '再等一下下。', '工具跑着呢。']
 
 const POS_KEY = 'secbot-pet-pos'
+const DOUBLE_CLICK_MS = 300
 
 type Pos = { x: number; y: number }
 
@@ -54,6 +57,7 @@ export function SecbotPet() {
   const [useOsWindow, setUseOsWindow] = useState(false)
   const posRef = useRef(pos)
   const drag = useRef<{ ox: number; oy: number; moved: boolean } | null>(null)
+  const clickTimer = useRef<number | null>(null)
 
   useEffect(() => {
     posRef.current = pos
@@ -80,6 +84,18 @@ export function SecbotPet() {
     }
     window.addEventListener(TASK_ACTIVITY_EVENT, onActivity)
     return () => window.removeEventListener(TASK_ACTIVITY_EVENT, onActivity)
+  }, [])
+
+  // OS 宠物窗口双击广播 open-settings → 本窗口跳转设置页
+  useEffect(() => {
+    const ch = new BroadcastChannel('secbot-pet')
+    ch.onmessage = (event: MessageEvent<PetBroadcast>) => {
+      const msg = event.data
+      if (!msg || typeof msg !== 'object' || msg.type !== 'open-settings') return
+      const tab = (typeof msg.tab === 'string' ? msg.tab : 'model') as SettingsTabId
+      emitOpenSettings(tab)
+    }
+    return () => ch.close()
   }, [])
 
   useEffect(() => {
@@ -123,6 +139,20 @@ export function SecbotPet() {
     const lines = busy ? LINES_BUSY : LINES_IDLE
     setBubble(lines[Math.floor(Math.random() * lines.length)])
     window.setTimeout(() => setBubble(null), 2600)
+  }
+
+  // 单击互动说话；双击打开设置（默认模型页）
+  const handleTap = () => {
+    if (clickTimer.current != null) {
+      window.clearTimeout(clickTimer.current)
+      clickTimer.current = null
+      emitOpenSettings('model')
+      return
+    }
+    clickTimer.current = window.setTimeout(() => {
+      clickTimer.current = null
+      speak()
+    }, DOUBLE_CLICK_MS)
   }
 
   return (
@@ -173,7 +203,7 @@ export function SecbotPet() {
           } catch {
             /* ignore */
           }
-          if (!wasDrag) speak()
+          if (!wasDrag) handleTap()
         }}
         onPointerCancel={() => {
           drag.current = null

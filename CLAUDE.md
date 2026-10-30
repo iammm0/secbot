@@ -13,7 +13,7 @@ This file helps AI coding agents work effectively in this repository. It summari
   - **Desktop**: Tauri shell (`desktop/`) loads **`web/`** (backend serves `web/dist`).
 - **No LangChain / LangGraph**: agent loops are hand-written TypeScript (`SecurityReActAgent`, `ExploreAgent`, `TaskExecutor`, etc.).
 
-Binaries (npm package): `secbot` (TUI + optional spawned backend), `secbot-server` (API only). GitHub Release tags `desktop-app-v*` ship **Desktop installers and self-contained TUI archives** for macOS Apple Silicon, Windows x64, and Ubuntu x64 (no macOS Intel).
+Binaries (npm package): `secbot` (TUI + optional spawned backend), `secbot-server` (API only), `secbot-mcp` (MCP tool server over stdio), `secbot-acp` (Agent Client Protocol external agent over stdio). GitHub Release tags `desktop-app-v*` ship **Desktop installers and self-contained TUI archives** for macOS Apple Silicon, Windows x64, and Ubuntu x64 (no macOS Intel).
 
 ## Repository layout
 
@@ -27,9 +27,12 @@ Binaries (npm package): `secbot` (TUI + optional spawned backend), `secbot-serve
 | `server/skills/` | Agent skill markdown packs (`base/` + `custom/`) |
 | `terminal-ui/src/` | Ink TUI: `cli.tsx` / `App.tsx`; domains under `api/`, `chat/`, `slash/`, `render/`, `components/`, `views/` |
 | `terminal-ui/README.md` | TUI develop / run notes (peer with Desktop/Web) |
+| `server/src/modules/system/` | `SystemController`/`SystemService` (LLM providers, model config), `local-provider-detector.ts` (cc-switch / Claude Code / Codex proxy detection + import), `external-integration.ts` (register secbot as MCP into Claude Code / Codex), `llm-provider-registry.ts` |
+| `server/src/mcp-server.ts` | MCP stdio server bootstrap (`bin/secbot-mcp.js`) |
+| `server/src/acp-server.ts` | ACP (Agent Client Protocol) stdio server bootstrap (`bin/secbot-acp.js`) |
 | `web/` | Desktop/Web UI (React); **the real UI for the Tauri app** |
 | `desktop/` | Tauri shell: spawn backend, splash, navigate to `http://localhost:8000` |
-| `bin/` | Published CLI entry scripts (`secbot`, `secbot-server`, `secbot-mcp`) |
+| `bin/` | Published CLI entry scripts (`secbot`, `secbot-server`, `secbot-mcp`, `secbot-acp`) |
 
 ## Chat request flow (high level)
 

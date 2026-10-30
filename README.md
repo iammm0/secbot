@@ -34,6 +34,8 @@ Desktop app on the maintained `release` branch (Chinese UI):
 - Tauri desktop app with versioned installers (`desktop-app-v*`) and in-app update checks.
 - Optional **ExecGo** execution sandbox: configurable `process` or `isolated` (Linux Namespace isolation with fallback prevention); status visible on desktop and TUI status bars.
 - **MCP external tool integration**: dynamically connect external Python (`fastmcp`), C/Go/Rust tools via standard Stdio MCP servers with automatic HITL approval and audit trails.
+- **Local model proxy import**: one-click import of your machine's cc-switch / Claude Code / Codex model proxies from Settings → Model (API keys are read only on the local server; the UI shows masked summaries).
+- **External integration (ACP / MCP)**: register Secbot as an MCP tool server for Claude Code / Codex (`mcp__secbot__*`), or run it as an ACP external agent (`secbot-acp`) for ACP-capable clients (Zed, VS Code ACP, JetBrains).
 - **Automated benchmark harness**: evaluate agent performance (`npm run bench`) for Pass@1, tokens, tool rounds, elapsed time, and sandbox compliance.
 - **Action audit trail**: every conversation stage / LLM / tool call is persisted and browsable in Settings → Audit.
 - **Host probe + attack-chain preview**: workspace nodes show IP / username / open ports and a simulated entry-surface path (preview only).
@@ -100,7 +102,7 @@ From the repository checkout, `ChatService` routes each turn through **`IntentRo
 
 ### Desktop app (recommended UI)
 
-Download the latest **Secbot Desktop** installer from [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.8-beta`), install for your OS, then open Secbot. Settings → About shows the current version and can check for updates.
+Download the latest **Secbot Desktop** installer from [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.9-beta`), install for your OS, then open Secbot. Settings → About shows the current version and can check for updates.
 
 Supported desktop/TUI platforms: **macOS Apple Silicon**, **Windows x64**, **Ubuntu x64**. macOS Intel is not supported.
 
@@ -193,6 +195,7 @@ SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 secbot
 | `secbot` | Start terminal UI (default: spawn local backend; optional service mode) |
 | `secbot-server` | Start NestJS backend only |
 | `secbot-mcp` | Expose Secbot tools through stdio MCP |
+| `secbot-acp` | Expose Secbot as an Agent Client Protocol (ACP) external agent over stdio |
 
 ## Skills Management
 
@@ -235,6 +238,20 @@ secbot-mcp
 ```
 
 This exposes the current `ToolsService` catalog over stdio MCP. Sensitive tools stay hidden by default unless `SECBOT_MCP_ALLOW_SENSITIVE=true` is set.
+
+### Register Secbot into Claude Code / Codex (Settings → Integration, or TUI `/integrate`)
+
+- **Claude Code**: writes `secbot` into the `mcpServers` of `~/.claude.json` (`type: "stdio"`, `command: secbot-mcp`), so Secbot tools appear as `mcp__secbot__*`.
+- **Codex**: appends `[mcp_servers.secbot]` to `~/.codex/config.toml`.
+- Claude Code 2.x does not support ACP client mode; use MCP there.
+
+### Run Secbot as an ACP external agent
+
+```bash
+secbot-acp
+```
+
+Implements Agent Client Protocol v1 over stdio (`initialize` / `session/new` / `session/prompt` / `session/cancel` / `session/close`). ACP-capable clients such as Zed, VS Code ACP, and JetBrains can launch it with the command shown in Settings → Integration.
 
 ### Call external MCP servers from Secbot
 

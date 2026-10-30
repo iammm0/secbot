@@ -5,6 +5,7 @@ export type PetBroadcast =
   | { type: 'activity'; busy: boolean; phase?: string }
   | { type: 'theme' }
   | { type: 'speak'; text: string }
+  | { type: 'open-settings'; tab?: string }
 
 export function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -81,5 +82,20 @@ export async function closePetWindow(): Promise<void> {
     if (existing) await existing.close()
   } catch {
     /* ignore */
+  }
+}
+
+/** Bring the main Secbot window to front (used by the pet's double-click → settings). */
+export async function raiseMainWindow(): Promise<boolean> {
+  if (!isTauriRuntime()) return false
+  try {
+    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+    const main = await WebviewWindow.getByLabel('main')
+    if (!main) return false
+    await main.show()
+    await main.setFocus()
+    return true
+  } catch {
+    return false
   }
 }

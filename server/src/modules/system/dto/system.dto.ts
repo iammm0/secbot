@@ -215,6 +215,69 @@ export class InstallRuntimeToolDto {
   tool!: string;
 }
 
+export class LocalProviderCandidateDto {
+  @IsString()
+  id!: string;
+
+  @IsString()
+  source!: string;
+
+  @IsString()
+  sourceLabel!: string;
+
+  @IsString()
+  app!: string;
+
+  @IsString()
+  targetProvider!: string;
+
+  @IsString()
+  baseUrl!: string;
+
+  @IsOptional()
+  @IsString()
+  model?: string | null;
+
+  @IsString()
+  maskedApiKey!: string;
+
+  @IsBoolean()
+  hasApiKey!: boolean;
+
+  @IsOptional()
+  @IsString()
+  wireApi?: string | null;
+
+  @IsBoolean()
+  isCurrent!: boolean;
+
+  @IsBoolean()
+  alreadyImported!: boolean;
+}
+
+export class LocalProviderListResponseDto {
+  candidates: LocalProviderCandidateDto[] = [];
+}
+
+export class ImportLocalProviderRequestDto {
+  /** GET /api/system/config/local-providers 返回的候选 ID */
+  @IsString()
+  candidateId!: string;
+
+  /** 导入后是否切换为当前生效后端（默认 true） */
+  @IsOptional()
+  @IsBoolean()
+  activate?: boolean;
+}
+
+export class ImportLocalProviderResponseDto {
+  @IsBoolean()
+  success!: boolean;
+
+  @IsString()
+  message!: string;
+}
+
 export class SystemStatusResponseDto {
   @IsOptional()
   cpu?: CpuInfoDto | null;

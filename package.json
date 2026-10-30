@@ -1,6 +1,6 @@
 {
   "name": "@opensec/secbot",
-  "version": "0.0.8-beta",
+  "version": "0.0.9-beta",
   "description": "Secbot pure TypeScript security automation backend and CLI.",
   "type": "commonjs",
   "private": false,
@@ -8,7 +8,8 @@
   "bin": {
     "secbot": "bin/secbot.js",
     "secbot-server": "bin/secbot-server.js",
-    "secbot-mcp": "bin/secbot-mcp.js"
+    "secbot-mcp": "bin/secbot-mcp.js",
+    "secbot-acp": "bin/secbot-acp.js"
   },
   "files": [
     "bin",
@@ -75,6 +76,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@agentclientprotocol/sdk": "^2.1.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
@@ -92,6 +94,7 @@
     "react": "^18.2.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "smol-toml": "^1.9.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

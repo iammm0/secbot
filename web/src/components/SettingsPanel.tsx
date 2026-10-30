@@ -6,6 +6,7 @@ import { McpConfig } from './settings/McpConfig'
 import { SkillsConfig } from './settings/SkillsConfig'
 import { ExecGoConfig } from './settings/ExecGoConfig'
 import { AuditConfig } from './settings/AuditConfig'
+import { IntegrationConfig } from './settings/IntegrationConfig'
 import { HelpTools } from './settings/HelpTools'
 import { AboutConfig } from './settings/AboutConfig'
 import { JevConfig } from './settings/JevConfig'
@@ -26,6 +27,7 @@ const TAB_META: Array<{ id: SettingsTabId; label: string; icon: string }> = [
   { id: 'skills', label: '技能', icon: 'code' },
   { id: 'execgo', label: 'ExecGo', icon: 'global' },
   { id: 'audit', label: '审计', icon: 'row-vertical' },
+  { id: 'integration', label: '集成', icon: 'hierarchy' },
   { id: 'about', label: '关于', icon: 'monitor' },
   { id: 'help', label: '帮助', icon: 'info-circle' },
 ]
@@ -67,6 +69,7 @@ export function SettingsPanel({ tab, onTabChange, onClose }: Props) {
             {tab === 'skills' && <SkillsConfig />}
             {tab === 'execgo' && <ExecGoConfig />}
             {tab === 'audit' && <AuditConfig />}
+            {tab === 'integration' && <IntegrationConfig />}
             {tab === 'about' && <AboutConfig />}
             {tab === 'help' && <HelpTools />}
           </div>

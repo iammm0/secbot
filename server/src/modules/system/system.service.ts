@@ -27,6 +27,21 @@ import {
   requiredRuntimeTools,
   type RuntimeEnvironmentReport,
 } from './runtime-tools';
+import {
+  detectLocalProviders,
+  resolveResponsesBase,
+  type LocalProviderTarget,
+} from './local-provider-detector';
+import {
+  detectExternalClients,
+  registerClaudeCodeMcp,
+  registerCodexMcp as doRegisterCodexMcp,
+} from './external-integration';
+import {
+  ImportLocalProviderRequestDto,
+  ImportLocalProviderResponseDto,
+  LocalProviderListResponseDto,
+} from './dto/system.dto';
 
 const ROOT_DIR = process.cwd();
 
@@ -76,6 +91,24 @@ export class SystemService {
       }));
     }
 
+    if (id === 'codex') {
+      // Codex Responses 中转没有 OpenAI 风格的 /models 接口;
+      // 返回已配置的模型名（若有），否则提示直接填写。
+      const baseUrl = this.resolveProviderBaseUrl(id);
+      if (!baseUrl) {
+        return { models: [], base_url: null, error: '请先配置接口地址' };
+      }
+      const model = this.resolveConfigSource(`${id}_model`, 'CODEX_MODEL', null);
+      if (!model) {
+        return {
+          models: [],
+          base_url: baseUrl,
+          error: 'Responses 中转不提供模型列表，请直接在下方填写模型名',
+        };
+      }
+      return { models: [model], base_url: baseUrl };
+    }
+
     const baseUrl = this.resolveProviderBaseUrl(id);
     const apiKey = this.resolveProviderApiKey(id);
     if (!baseUrl) {
@@ -107,10 +140,14 @@ export class SystemService {
       return {
         models: [],
         base_url: baseUrl,
-        error: `模型探测失败：HTTP ${lastStatus || '未知'}`,
+        error: `模型探测失败：HTTP ${lastStatus || '未知'}（该地址可能不提供 OpenAI 兼容的 /models 接口，可直接在下方填写模型名）`,
       };
     } catch {
-      return { models: [], base_url: baseUrl, error: '模型探测失败：无法连接接口地址' };
+      return {
+        models: [],
+        base_url: baseUrl,
+        error: '模型探测失败：无法连接接口地址（可直接在下方填写模型名）',
+      };
     }
   }
 
@@ -490,5 +527,85 @@ export class SystemService {
       };
     }
     return runRuntimeInstall(name);
+  }
+
+  /** 探测本机已配置的模型代理（cc-switch / Claude Code / Codex），仅读不写，Key 一律脱敏 */
+  async listLocalProviders(): Promise<LocalProviderListResponseDto> {
+    const isImported = (target: LocalProviderTarget, baseUrl: string): boolean => {
+      const stored = this.db.getConfig(`${target}_base_url`)?.value.trim() ?? '';
+      return stored !== '' && stored.replace(/\/+$/, '') === baseUrl.replace(/\/+$/, '');
+    };
+    const candidates = (await detectLocalProviders(isImported)).map((candidate) => ({
+      id: candidate.id,
+      source: candidate.source,
+      sourceLabel: candidate.sourceLabel,
+      app: candidate.app,
+      targetProvider: candidate.targetProvider,
+      baseUrl: candidate.baseUrl,
+      model: candidate.model,
+      maskedApiKey: candidate.maskedApiKey,
+      hasApiKey: candidate.hasApiKey,
+      wireApi: candidate.wireApi,
+      isCurrent: candidate.isCurrent,
+      alreadyImported: candidate.alreadyImported,
+    }));
+    return { candidates };
+  }
+
+  /** 按候选 ID 重新探测本机配置并导入 secbot（完整 Key 不出服务端），可选切换为当前后端 */
+  async importLocalProvider(
+    body: ImportLocalProviderRequestDto,
+  ): Promise<ImportLocalProviderResponseDto> {
+    const candidates = await detectLocalProviders(() => false);
+    const candidate = candidates.find((item) => item.id === body.candidateId);
+    if (!candidate) {
+      return { success: false, message: '未找到该本机代理配置，请重新探测后再试' };
+    }
+    const provider = candidate.targetProvider;
+    const meta = getLlmProviderMeta(provider);
+    if (!meta) {
+      return { success: false, message: `未知的推理后端: ${provider}` };
+    }
+
+    // codex（Responses 中转）：校验并把 base 归一化到真实可用的 Responses 端点
+    let baseUrl = candidate.baseUrl;
+    if (provider === 'codex' && candidate.apiKey) {
+      baseUrl = await resolveResponsesBase(candidate.baseUrl, candidate.apiKey);
+    }
+
+    const keyResult = await this.setApiKey({
+      provider,
+      apiKey: candidate.apiKey,
+      baseUrl,
+    });
+    if (!keyResult.success) return keyResult;
+
+    if (candidate.model?.trim()) {
+      await this.setProviderSettings({ provider, model: candidate.model.trim() });
+    }
+
+    const activate = body.activate ?? true;
+    if (activate) {
+      await this.setLlmProvider({ llm_provider: provider });
+    }
+    return {
+      success: true,
+      message: activate
+        ? `已导入本机代理并切换为 ${provider}`
+        : `已导入本机代理配置（${provider}）`,
+    };
+  }
+
+  /** 外部集成状态：Claude Code / Codex 是否已装、secbot MCP 是否已注册、ACP 命令 */
+  externalIntegrationStatus() {
+    return detectExternalClients();
+  }
+
+  registerClaudeMcp() {
+    return registerClaudeCodeMcp();
+  }
+
+  registerCodexMcp() {
+    return doRegisterCodexMcp();
   }
 }

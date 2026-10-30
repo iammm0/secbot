@@ -31,6 +31,7 @@ import { ModelConfigDialog } from "../components/ModelConfigDialog.js";
 import { JevConfigDialog } from "../components/JevConfigDialog.js";
 import { McpConfigDialog } from "../components/McpConfigDialog.js";
 import { ExecGoConfigDialog } from "../components/ExecGoConfigDialog.js";
+import { ExternalIntegrationDialog } from "../components/ExternalIntegrationDialog.js";
 import { RestResultDialog } from "../components/RestResultDialog.js";
 import { RootPermissionDialog } from "../components/RootPermissionDialog.js";
 import { HitlDialog } from "../components/HitlDialog.js";
@@ -747,6 +748,11 @@ export function SessionView({
             }
             if (cmd === "/execgo") {
               dialog.replace(<ExecGoConfigDialog />);
+              setInputValue("");
+              return;
+            }
+            if (cmd === "/integrate") {
+              dialog.replace(<ExternalIntegrationDialog />);
               setInputValue("");
               return;
             }

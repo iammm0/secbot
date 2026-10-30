@@ -100,6 +100,13 @@ export const COMMAND_CATALOG: CommandCatalogItem[] = [
     clients: ['tui', 'web', 'desktop'],
   },
   {
+    slash: '/integrate',
+    title: '外部集成（Claude Code / Codex）',
+    category: '设置',
+    kind: 'client',
+    clients: ['tui', 'web', 'desktop'],
+  },
+  {
     slash: '/execgo',
     title: 'ExecGo 运行时',
     category: '设置',

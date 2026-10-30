@@ -58,6 +58,8 @@
 - **发布平台**: macOS Apple Silicon、Windows x64、Ubuntu x64（不再支持 macOS Intel）
 - **ExecGo 沙箱隔离与运行时**: 支持 `process`（进程隔离）与 `isolated`（严格 Linux Namespace 隔离且禁用降级回退）；桌面端与 TUI 底栏实时展示当前沙箱状态
 - **MCP 外部工具扩展**: 遵循标准 Model Context Protocol (MCP)，在设置中挂载 Stdio MCP 服务即可无缝扩展 Python (`fastmcp`)、C/Go/Rust 工具，外部工具默认受 HITL 人机审核保护
+- **本机模型代理一键导入**: 实时读取本机已配置的 cc-switch / Claude Code / Codex 模型代理，在「设置 → 模型」一键导入使用；API Key 仅本机服务端读取，界面只展示脱敏摘要
+- **外部集成（ACP / MCP）**: 本机安装 Secbot 后，可把 Secbot 注册为 Claude Code / Codex 的 MCP 工具（`mcp__secbot__*`），或作为支持 ACP 的客户端（Zed / VS Code ACP / JetBrains 等）可拉起的独立外部 agent（`secbot-acp`）
 - **自动化基准测试 (Benchmark)**: 内置 `npm run bench` 评估脚手架，测量 Pass@1、Token 消耗、工具轮次与沙箱合规度
 - **操作审计**: 每个对话的阶段 / 模型调用 / 工具执行落库，设置 → 审计可按会话追溯
 - **节点探测与攻击链预览**: 主机节点展示 IP、用户名、开放端口，并给出模拟入口面路径（仅预览，不执行攻击）
@@ -274,7 +276,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-桌面安装包与终端 TUI 自包含发行包都在 [GitHub Releases](https://github.com/iammm0/secbot/releases)（标签形如 `desktop-app-v0.0.8-beta`）。支持 **macOS Apple Silicon / Windows x64 / Ubuntu x64**，不含 macOS Intel。TUI 解压后运行 `./secbot` 或 `secbot.cmd`。详见 [`desktop/README.md`](desktop/README.md)、[`terminal-ui/README.md`](terminal-ui/README.md)。
+桌面安装包与终端 TUI 自包含发行包都在 [GitHub Releases](https://github.com/iammm0/secbot/releases)（标签形如 `desktop-app-v0.0.9-beta`）。支持 **macOS Apple Silicon / Windows x64 / Ubuntu x64**，不含 macOS Intel。TUI 解压后运行 `./secbot` 或 `secbot.cmd`。详见 [`desktop/README.md`](desktop/README.md)、[`terminal-ui/README.md`](terminal-ui/README.md)。
 
 ### 5.（可选）安装 Ollama 本地模型
 
@@ -346,7 +348,24 @@ Secbot 支持通过标准 **Model Context Protocol (MCP)** 接入外部自定义
   - 外部 MCP 工具默认标记为 **`sensitive: true`**，每次调用均触发 **HITL 人机确认**与**操作审计落库**；
   - 设有 `MCP_TOOL_CAP` 上限，防止第三方工具列表过长撑爆 LLM 上下文预算。
 
-### 2. ExecGo 沙箱隔离机制
+### 2. 本机模型代理导入（cc-switch / Claude Code / Codex）
+
+无需重复填 Key，把本机已经配好的模型代理直接拿过来用：
+
+- **实时读取**：打开「设置 → 模型」的「本机代理导入」区块，自动探测 `~/.cc-switch/cc-switch.db`、`~/.claude/settings.json`、`~/.codex/config.toml` 中已配置的代理（含 cc-switch 中当前的 Claude / Codex 供应商）；
+- **一键导入**：对每条候选确认后导入，自动写入 secbot 的 SQLite + `config.yaml` 并切换为当前后端（Claude 类代理 → `custom`，Codex 类代理 → `codex`）；
+- **隐私**：完整 API Key 只在服务端读取后直接写入 secbot 配置，界面与终端只展示脱敏摘要（`sk-•••abcd`）；
+- TUI 里通过 `/model` → 「导入本机代理」完成同样的操作。
+
+### 3. 外部集成：把 Secbot 作为外部 agent / 工具（ACP / MCP）
+
+本机安装了 Secbot 后，可以在其他 AI 编码工具里直接调用它：
+
+- **作为 MCP 工具（Claude Code / Codex）**：在「设置 → 集成」或 TUI `/integrate` 一键注册，把 `secbot-mcp` 写入 `~/.claude.json` 的 `mcpServers` 或 `~/.codex/config.toml` 的 `[mcp_servers.secbot]`；注册后 Secbot 的全部非敏感工具以 `mcp__secbot__*` 形式出现在对端；
+- **作为 ACP 外部 agent（Zed / VS Code ACP / JetBrains 等）**：`bin/secbot-acp`（`npx -y secbot-acp`）实现 Agent Client Protocol v1 stdio，对端 `session/prompt` 即驱动 secbot 的 ReAct agent 循环；`initialize` / `session/new` / `session/prompt` / `session/cancel` / `session/close` 均可用，执行过程通过 `session/update` 通知流式呈现（thought / 内容 / 工具调用 / 计划）；
+- **说明**：Claude Code 2.x 暂不支持 ACP 客户端模式，因此对 Claude Code 请走 MCP 注册；ACP 面向支持该协议的编辑器与客户端。
+
+### 4. ExecGo 沙箱隔离机制
 
 针对高危渗透命令与 Payload 执行，Secbot 深度集成了 ExecGo 独立运行时：
 
@@ -358,7 +377,7 @@ Secbot 支持通过标准 **Model Context Protocol (MCP)** 接入外部自定义
   - **桌面端**底栏与**终端 TUI**底栏常驻显示当前沙箱状态（`ExecGo isolated` / `ExecGo process` / `ExecGo off`）；
   - TUI 支持输入 `/execgo` 即时查看底层能力快照。
 
-### 3. 自动化基准测试（Benchmark Harness）
+### 5. 自动化基准测试（Benchmark Harness）
 
 Secbot 内置了标准化的打靶与评估脚手架（位于 `scripts/bench/`），并在工业级标准授权靶场（**DVWA `:8080`** 与 **OWASP Juice Shop `:3000`**）上完成了系统化的权威基准测试：
 

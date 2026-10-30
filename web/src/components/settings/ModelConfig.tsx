@@ -27,6 +27,21 @@ interface ModelList {
   error?: string
 }
 
+interface LocalCandidate {
+  id: string
+  source: string
+  sourceLabel: string
+  app: string
+  targetProvider: string
+  baseUrl: string
+  model: string | null
+  maskedApiKey: string
+  hasApiKey: boolean
+  wireApi: string | null
+  isCurrent: boolean
+  alreadyImported: boolean
+}
+
 const ONLINE_GROUPS: ProviderGroup[] = ['overseas', 'china', 'relay']
 const ONLINE_GROUP_LABELS: Record<string, string> = {
   overseas: '海外原生',
@@ -83,6 +98,9 @@ export function ModelConfig() {
   const [message, setMessage] = useState('')
   const [pendingProvider, setPendingProvider] = useState<{ id: string; name: string } | null>(null)
   const [agent, setAgent] = useState(getPreferredAgent)
+  const [localCandidates, setLocalCandidates] = useState<LocalCandidate[] | null>(null)
+  const [localLoading, setLocalLoading] = useState(false)
+  const [pendingImport, setPendingImport] = useState<LocalCandidate | null>(null)
 
   const loadProvider = async (id: string) => {
     const detail = await request<{ model?: string | null; base_url?: string | null }>(
@@ -130,6 +148,13 @@ export function ModelConfig() {
         setModelError(String((error as Error).message))
       })
     })
+    void loadLocalCandidates()
+  }, [])
+
+  // 「实时读取」：设置页打开期间每 15s 静默重探本机代理，候选无变化时不刷新
+  useEffect(() => {
+    const timer = window.setInterval(() => void loadLocalCandidates(true), 15000)
+    return () => window.clearInterval(timer)
   }, [])
 
   useEffect(() => {
@@ -237,6 +262,60 @@ export function ModelConfig() {
     }
   }
 
+  const loadLocalCandidates = async (silent = false) => {
+    if (!silent) setLocalLoading(true)
+    try {
+      const data = await request<{ candidates: LocalCandidate[] }>('/api/system/config/local-providers')
+      const next = data.candidates ?? []
+      setLocalCandidates(previous => {
+        // 静默轮询时若候选无变化则不触发重渲染
+        if (silent && previous && JSON.stringify(previous) === JSON.stringify(next)) return previous
+        return next
+      })
+    } catch (error) {
+      if (!silent) setMessage(`本机代理探测失败：${String((error as Error).message)}`)
+    } finally {
+      if (!silent) setLocalLoading(false)
+    }
+  }
+
+  const confirmImport = async () => {
+    if (!pendingImport) return
+    setSaving(true)
+    setMessage('')
+    try {
+      await request<{ success: boolean; message: string }>('/api/system/config/import-local-provider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId: pendingImport.id, activate: true }),
+      })
+      setLocalCandidates(previous =>
+        (previous ?? []).map(item =>
+          item.id === pendingImport.id ? { ...item, alreadyImported: true } : item,
+        ),
+      )
+      setMessage(`已导入本机代理：${pendingImport.sourceLabel}`)
+      setPendingImport(null)
+      // 导入并切换后刷新厂商列表与当前模型
+      void request<{ providers: Provider[] }>('/api/system/config/providers')
+        .then(data => setProviders(data.providers ?? []))
+        .catch(() => undefined)
+      void request<Config>('/api/system/config')
+        .then(async c => {
+          setConfig(c)
+          setModel(c.current_provider_model ?? '')
+          setMode(modeForProvider(c.llm_provider, []))
+          await loadProvider(c.llm_provider).catch(() => undefined)
+        })
+        .catch(() => undefined)
+    } catch (error) {
+      setMessage(`导入失败：${String((error as Error).message)}`)
+      setPendingImport(null)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const activeInCurrentMode = modeProviders.some(provider => provider.id === activeProvider)
 
   const renderProviderChip = (p: Provider) => (
@@ -320,6 +399,66 @@ export function ModelConfig() {
         </p>
       </div>
 
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs uppercase tracking-wider text-text-dim">本机代理导入</h3>
+          <button
+            type="button"
+            onClick={() => void loadLocalCandidates()}
+            disabled={localLoading}
+            className="font-mono text-[11px] text-text-dim transition-colors hover:text-primary disabled:opacity-50"
+          >
+            {localLoading ? '探测中…' : '重新检测'}
+          </button>
+        </div>
+        <p className="text-[11px] leading-relaxed text-text-dim">
+          实时读取本机已配置的模型代理（cc-switch / Claude Code / Codex），可一键导入使用。
+          API Key 仅在本机服务端读取，列表只展示脱敏摘要。
+        </p>
+        {localCandidates === null ? (
+          <p className="text-[11px] text-text-dim">{localLoading ? '正在探测本机代理…' : '本机代理探测中…'}</p>
+        ) : localCandidates.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border px-3 py-3 text-center text-[11px] text-text-dim">
+            未检测到本机代理配置。已配置时可在这里一键导入（cc-switch、~/.claude/settings.json、~/.codex/config.toml）。
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {localCandidates.map(candidate => (
+              <div
+                key={candidate.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-border bg-hover px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-primary">{candidate.sourceLabel}</span>
+                    {candidate.isCurrent ? (
+                      <span className="text-[10px] text-text-dim">· 当前启用</span>
+                    ) : null}
+                    {candidate.alreadyImported ? (
+                      <span className="text-[10px] text-primary">· 已导入</span>
+                    ) : null}
+                  </div>
+                  <div className="truncate font-mono text-[11px] text-text-dim">
+                    {candidate.baseUrl} · {candidate.maskedApiKey}
+                    {candidate.model ? ` · ${candidate.model}` : ''} → {candidate.targetProvider}
+                  </div>
+                </div>
+                {!candidate.alreadyImported ? (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setPendingImport(candidate)}
+                    className="shrink-0 rounded border border-primary/40 bg-primary/15 px-2.5 py-1 font-mono text-[11px] text-primary transition-colors hover:bg-primary/25 disabled:opacity-50"
+                  >
+                    导入并使用
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div>
         <h3 className="text-xs uppercase tracking-wider text-text-dim mb-2">
           ① 选择{mode === 'online' ? '在线' : '本地'}后端
@@ -399,27 +538,37 @@ export function ModelConfig() {
           <label className="text-xs text-text-dim block mb-1">
             可用模型 {models.length > 0 ? `（${models.length} 个）` : ''}
           </label>
-          <select
-            value={model}
-            onChange={e => setModel(e.target.value)}
-            disabled={models.length === 0 || probing || !activeInCurrentMode}
-            className="w-full px-3 py-2 rounded bg-hover border border-border text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
-          >
-            {models.length === 0 && (
-              <option value={model}>{probing ? '探测中...' : model || '请先保存连接并探测'}</option>
-            )}
-            {models.map(item => (
-              <option key={item} value={item}>
-                {item}{item === config?.current_provider_model ? '（当前）' : ''}
-              </option>
-            ))}
-          </select>
+          {models.length === 0 && !probing ? (
+            <input
+              type="text"
+              value={model}
+              onChange={e => setModel(e.target.value)}
+              placeholder="直接填写模型名（探测失败或中转无 /models 接口时）"
+              className="w-full px-3 py-2 rounded bg-hover border border-border text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
+            />
+          ) : (
+            <select
+              value={model}
+              onChange={e => setModel(e.target.value)}
+              disabled={models.length === 0 || probing || !activeInCurrentMode}
+              className="w-full px-3 py-2 rounded bg-hover border border-border text-sm font-mono text-text focus:border-primary/40 focus:outline-none"
+            >
+              {models.length === 0 && (
+                <option value={model}>{probing ? '探测中...' : model || '请先保存连接并探测'}</option>
+              )}
+              {models.map(item => (
+                <option key={item} value={item}>
+                  {item}{item === config?.current_provider_model ? '（当前）' : ''}
+                </option>
+              ))}
+            </select>
+          )}
           {modelError && <p className="mt-1 text-xs text-red-400">{modelError}</p>}
         </div>
         <button
           type="button"
           onClick={saveSelectedModel}
-          disabled={saving || models.length === 0 || !model || !activeInCurrentMode}
+          disabled={saving || !model || !activeInCurrentMode}
           className="px-4 py-2 rounded text-xs font-mono bg-primary/20 text-primary border border-primary/40 hover:bg-primary/30 transition-colors disabled:opacity-50"
         >
           {saving ? '保存中...' : '应用所选模型'}
@@ -437,6 +586,19 @@ export function ModelConfig() {
             if (!saving) setPendingProvider(null)
           }}
           onConfirm={() => void selectProvider(pendingProvider.id)}
+        />
+      ) : null}
+
+      {pendingImport ? (
+        <ConfirmDialog
+          title="导入本机模型代理"
+          message={`是否将“${pendingImport.sourceLabel}”的代理配置（${pendingImport.baseUrl}）导入到 secbot 并切换为当前推理后端？完整 API Key 只在本机读取，不会发送到前端。`}
+          confirmLabel="导入并使用"
+          busy={saving}
+          onCancel={() => {
+            if (!saving) setPendingImport(null)
+          }}
+          onConfirm={() => void confirmImport()}
         />
       ) : null}
     </div>

@@ -56,6 +56,8 @@ Desktop demos on the maintained `release` branch (Chinese UI):
 - **Multiple Agent Patterns**: ReAct, Plan-Execute, Multi-Agent Coordination, Tool-Using, Memory-Augmented
 - **ExecGo Execution Sandbox**: Configurable `process` (process-level) or `isolated` (strict Linux Namespace isolation with fallback prevention); status is visible in the bottom status bars
 - **MCP External Tool Extension**: Connect standard Stdio Model Context Protocol servers to dynamically load Python (`fastmcp`), C/Go/Rust tools; external tools are protected by HITL approvals by default
+- **Local Model Proxy Import**: One-click import of your machine's cc-switch / Claude Code / Codex model proxies from Settings → Model (API keys are only read on the local server; the UI shows masked summaries)
+- **External Integration (ACP / MCP)**: Register Secbot as an MCP tool server for Claude Code / Codex (`mcp__secbot__*`), or run it as an ACP external agent (`secbot-acp`) for ACP-capable clients (Zed, VS Code ACP, JetBrains)
 - **Automated Benchmark Harness**: Built-in `npm run bench` evaluation scaffold measuring Pass@1, tokens, tool rounds, elapsed time, and sandbox compliance
 - **Action audit trail**: Stage / LLM / tool calls persisted per conversation; Settings → Audit for traceability
 - **Host probe + attack-chain preview**: Workspace nodes show IP, username, open ports, and a simulated entry-surface path (preview only)
@@ -217,7 +219,7 @@ SECBOT_TUI_BACKEND=service SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tu
 SECBOT_TUI_BACKEND=remote SECBOT_API_URL=http://127.0.0.1:8000 npm run start:tui
 ```
 
-Desktop installers and self-contained TUI archives are published on the same [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.8-beta`). Platforms: **macOS Apple Silicon / Windows x64 / Ubuntu x64** (no macOS Intel). Extract the TUI archive and run `./secbot` or `secbot.cmd`. See [`desktop/README.md`](desktop/README.md) and [`terminal-ui/README.md`](terminal-ui/README.md).
+Desktop installers and self-contained TUI archives are published on the same [GitHub Releases](https://github.com/iammm0/secbot/releases) (tags like `desktop-app-v0.0.9-beta`). Platforms: **macOS Apple Silicon / Windows x64 / Ubuntu x64** (no macOS Intel). Extract the TUI archive and run `./secbot` or `secbot.cmd`. See [`desktop/README.md`](desktop/README.md) and [`terminal-ui/README.md`](terminal-ui/README.md).
 
 ### Common Development Commands
 
@@ -273,7 +275,24 @@ Secbot supports dynamic tool integration via the standard **Model Context Protoc
   - All external MCP tools are marked **`sensitive: true`** by default, requiring **HITL human approval** and full action audit logging before execution;
   - Enforces `MCP_TOOL_CAP` to prevent overly long tool catalogues from overflowing prompt token budgets.
 
-### 2. ExecGo Execution Sandbox & Isolation
+### 2. Local Model Proxy Import (cc-switch / Claude Code / Codex)
+
+Reuse proxies you already configured on this machine instead of re-entering keys:
+
+- **Real-time detection**: The "Local proxy import" block in Settings → Model probes `~/.cc-switch/cc-switch.db`, `~/.claude/settings.json`, and `~/.codex/config.toml` for configured model proxies (including the current Claude / Codex provider in cc-switch);
+- **One-click import**: Confirm a candidate to import it into Secbot's SQLite + `config.yaml` and switch it to the active backend (Claude-type proxies → `custom` provider, Codex-type → `codex`);
+- **Privacy**: Full API keys are read on the local server and written straight into Secbot config; the UI and TUI only ever show masked summaries (`sk-•••abcd`);
+- The TUI offers the same flow via `/model` → "Import local proxy".
+
+### 3. External Integration: Secbot as an External Agent / Tool (ACP / MCP)
+
+With Secbot installed locally, call it from other AI coding tools:
+
+- **As an MCP tool server (Claude Code / Codex)**: In Settings → Integration (or TUI `/integrate`), one-click register `secbot-mcp` into the `mcpServers` of `~/.claude.json` or the `[mcp_servers.secbot]` table of `~/.codex/config.toml`. All non-sensitive Secbot tools then appear as `mcp__secbot__*`;
+- **As an ACP external agent (Zed / VS Code ACP / JetBrains, etc.)**: `bin/secbot-acp` (`npx -y secbot-acp`) implements Agent Client Protocol v1 over stdio. Clients drive the Secbot ReAct loop with `session/prompt`; `initialize` / `session/new` / `session/prompt` / `session/cancel` / `session/close` are supported, and progress streams back via `session/update` notifications (thoughts, content, tool calls, plans);
+- **Note**: Claude Code 2.x does not support ACP client mode yet, so use the MCP registration there.
+
+### 4. ExecGo Execution Sandbox & Isolation
 
 For sensitive penetration testing commands and payload execution, Secbot integrates with the standalone ExecGo runtime:
 
@@ -285,7 +304,7 @@ For sensitive penetration testing commands and payload execution, Secbot integra
   - Live status indicator (`ExecGo isolated` / `ExecGo process` / `ExecGo off`) rendered in both Desktop and TUI bottom status bars;
   - Run `/execgo` in the TUI to view detailed capability snapshots.
 
-### 3. Automated Benchmark Harness
+### 5. Automated Benchmark Harness
 
 Secbot includes an automated test harness in `scripts/bench/` for reproducible evaluation and performance verification, tested against standard lab targets (**DVWA `:8080`** and **OWASP Juice Shop `:3000`**):
 

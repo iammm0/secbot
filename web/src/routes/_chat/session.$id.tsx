@@ -54,6 +54,9 @@ function LiveTurn({ state }: { state: StreamState }) {
     Boolean(state.report) ||
     Boolean(state.error)
   if (!hasLive) return null
+  // 工作流仍在进行：无报错、尚无终态报告时，用闪烁「推理中…」表示持续运行
+  const inProgress =
+    !state.error && !state.report && (state.timeline.length > 0 || Boolean(state.content) || Boolean(state.response))
   return (
     <MessageEditScope turnKey="live">
     <section className="space-y-3">
@@ -63,6 +66,11 @@ function LiveTurn({ state }: { state: StreamState }) {
           <BlockRouter key={block.id} item={block} />
         ))}
       </div>
+      {inProgress ? (
+        <div className="flex items-center gap-2 font-mono text-xs text-primary/80">
+          <span className="animate-blink">推理中…</span>
+        </div>
+      ) : null}
       {state.report ? (
         <ReportBlock item={{ id: 'report', type: 'final', title: '报告', body: state.report }} />
       ) : null}

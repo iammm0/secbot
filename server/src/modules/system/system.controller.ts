@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { SystemService } from './system.service';
 import {
   InstallRuntimeToolDto,
+  ImportLocalProviderRequestDto,
   ProviderSettingsRequestDto,
   SetApiKeyRequestDto,
   SetLlmProviderRequestDto,
@@ -86,6 +87,16 @@ export class SystemController {
     return this.systemService.setProviderSettings(body);
   }
 
+  @Get('config/local-providers')
+  listLocalProviders() {
+    return this.systemService.listLocalProviders();
+  }
+
+  @Post('config/import-local-provider')
+  importLocalProvider(@Body() body: ImportLocalProviderRequestDto) {
+    return this.systemService.importLocalProvider(body);
+  }
+
   @Post('config/api-key')
   setApiKey(@Body() body: SetApiKeyRequestDto) {
     return this.systemService.setApiKey(body);
@@ -104,5 +115,20 @@ export class SystemController {
   @Post('runtime/install')
   installRuntime(@Body() body: InstallRuntimeToolDto) {
     return this.systemService.installRuntimeTool(body.tool);
+  }
+
+  @Get('external-integration')
+  externalIntegration() {
+    return this.systemService.externalIntegrationStatus();
+  }
+
+  @Post('external-integration/claude-mcp')
+  registerClaudeMcp() {
+    return this.systemService.registerClaudeMcp();
+  }
+
+  @Post('external-integration/codex-mcp')
+  registerCodexMcp() {
+    return this.systemService.registerCodexMcp();
   }
 }
