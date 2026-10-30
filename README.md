@@ -25,8 +25,8 @@ Desktop app on the maintained `release` branch (Chinese UI):
 | Branch | Status |
 | --- | --- |
 | **[`release`](https://github.com/iammm0/secbot/tree/release)** | Current product — the only active line |
-| [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) | **Frozen** Python v1 archive (read-only; no new features) |
-| [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) | **Frozen** Go experiment (read-only; no new features) |
+| [`archive-python-v1`](https://github.com/iammm0/secbot/tree/archive-python-v1) | **Archived** Python v1 snapshot (was `pypi-release`) |
+| [`archive-go-demo`](https://github.com/iammm0/secbot/tree/archive-go-demo) | **Archived** Go experiment snapshot (was `pure-go`) |
 
 ## Why This Package
 
@@ -311,7 +311,7 @@ User-facing guides (quickstart, API, LLM setup, etc.) are maintained on the webs
 
 - Releases: [https://github.com/iammm0/secbot/releases](https://github.com/iammm0/secbot/releases)
 - Website: [https://secbot.site](https://secbot.site)
-- Frozen archives: [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) (Python v1), [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) (Go demo)
+- Archived: [`archive-python-v1`](https://github.com/iammm0/secbot/tree/archive-python-v1) (Python v1), [`archive-go-demo`](https://github.com/iammm0/secbot/tree/archive-go-demo) (Go demo)
 - Repository: [https://github.com/iammm0/secbot](https://github.com/iammm0/secbot)
 - Issues: [https://github.com/iammm0/secbot/issues](https://github.com/iammm0/secbot/issues)
 

@@ -46,8 +46,8 @@
 | 分支 | 状态 |
 | --- | --- |
 | **[`release`](https://github.com/iammm0/secbot/tree/release)** | 当前产品，唯一活跃维护线 |
-| [`pypi-release`](https://github.com/iammm0/secbot/tree/pypi-release) | **已冻结** 的 Python v1 归档（只读，不再加功能） |
-| [`pure-go`](https://github.com/iammm0/secbot/tree/pure-go) | **已冻结** 的 Go 实验分支（只读，不再加功能） |
+| [`archive-python-v1`](https://github.com/iammm0/secbot/tree/archive-python-v1) | **已归档** 的 Python v1 快照（原 `pypi-release`） |
+| [`archive-go-demo`](https://github.com/iammm0/secbot/tree/archive-go-demo) | **已归档** 的 Go 实验快照（原 `pure-go`） |
 
 ## 功能特性
 

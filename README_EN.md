@@ -42,7 +42,7 @@ Desktop demos on the maintained `release` branch (Chinese UI):
 
 ## Branch policy
 
-**Only [`release`](https://github.com/iammm0/secbot/tree/release) is maintained.** Features, docs, CI, and GitHub Releases all land on this branch (NestJS + Ink TUI + Web / Desktop). Python (`pypi-release`) and Go (`pure-go`) are **frozen** read-only archives.
+**Only [`release`](https://github.com/iammm0/secbot/tree/release) is maintained.** Features, docs, CI, and GitHub Releases all land on this branch (NestJS + Ink TUI + Web / Desktop). Python (`archive-python-v1`, formerly `pypi-release`) and Go (`archive-go-demo`, formerly `pure-go`) are **archived** read-only snapshots.
 
 ---
 

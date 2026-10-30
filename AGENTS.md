@@ -6,7 +6,7 @@ This file helps AI coding agents work effectively in this repository. It summari
 
 **Secbot** is an AI-powered security automation workspace (authorized testing only):
 
-- **Maintained branch**: only **`release`**. `pypi-release` (Python) and `pure-go` are frozen archives.
+- **Maintained branch**: only **`release`**. Python v1 (`archive-python-v1`) and the Go demo (`archive-go-demo`) are archived snapshots.
 - **Backend**: NestJS (`server/`), SQLite, optional vector memory, unified vuln DB (NVD / CVE.org / Exploit-DB / MITRE).
 - **Two peer clients** (same NestJS API + SSE; keep product UX aligned):
   - **TUI**: Ink + React (`terminal-ui/`) — `secbot` / `npm run start:stack`.
