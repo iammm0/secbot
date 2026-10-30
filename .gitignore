@@ -18,6 +18,8 @@ desktop/dist/
 .idea/
 .qoder/
 .claude/plan.md
+.claude/commit-msg.txt
+.claude/settings.local.json
 .claude/worktrees/
 *.swp
 *.swo
